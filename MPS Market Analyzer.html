@@ -330,9 +330,46 @@
                 <div id="content-help" class="tab-content space-y-6">
                     <!-- Manual -->
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2"><i class="fa-solid fa-book text-blue-500"></i> Funcionamiento del Programa</h2>
-                        <div class="space-y-3 text-sm text-gray-600 leading-relaxed">
-                            <p><strong class="text-gray-900">¿Qué hace esta app?</strong> Herramienta de análisis financiero 100% del lado del cliente.</p>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es MPS MarketAnalyzer Pro?
+                        </h2>
+
+                        <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
+
+                            <p>
+                                <strong class="text-gray-900">MPS MarketAnalyzer Pro v11.4b</strong> es una herramienta de análisis financiero (todo se ejecuta en tu navegador, sin enviar datos a ningún servidor).
+                            </p>
+
+                            <p class="font-semibold text-gray-800">Funcionalidades principales:</p>
+                            <ul class="list-disc pl-6 space-y-2">
+                                <li><strong>Análisis técnico:</strong> Precio con medias móviles (50 y 200), RSI(14) y desviación % respecto a las medias.</li>
+                                <li><strong>Métricas de rentabilidad y riesgo:</strong> CAGR, volatilidad anualizada, mejor/peor día, rachas, VaR 95%, eventos extremos (>±3σ).</li>
+                                <li><strong>Estudio “Mejores días”:</strong> Cuánto patrimonio pierdes si te pierdes los 10/20/30 mejores días del mercado.</li>
+                                <li><strong>Drawdowns y “Buy the Dip”:</strong> Análisis detallado de caídas >5%, >10% y >20% con rentabilidades posteriores a 1 mes, 6 meses, 1, 3 y 5 años.</li>
+                                <li><strong>Rentabilidades móviles:</strong> Media, mínimo y máximo (total y anualizado) para ventanas de 3 meses hasta 15 años.</li>
+                                <li><strong>Máximos históricos (ATH):</strong> ¿Es rentable comprar en nuevos máximos? Comparativa estadística frente a días aleatorios con test t y valor p.</li>
+                                <li><strong>Estacionalidad:</strong> Rentabilidad por mes, trimestre, semana del año y distribución histórica anual (con año actual resaltado).</li>
+                                <li><strong>VIX (“índice del miedo”):</strong> Rentabilidad tras picos de volatilidad (>20, >30, >40…) y correlación con retornos futuros.</li>
+                                <li><strong>Impacto del petróleo:</strong> Qué ocurre cuando el crudo supera los 100 USD/baril.</li>
+                                <li><strong>Correlaciones:</strong> Matriz y correlación móvil entre cualquier combinación de activos (SPY, QQQ, GLD, Bitcoin, bonos, etc.).</li>
+                                <li><strong>Diccionario de tickers:</strong> Más de 40 activos comunes (índices, ETFs, acciones, criptos, materias primas…) con búsqueda rápida.</li>
+                            </ul>
+
+                            <p class="font-semibold text-gray-800 mt-4">Cómo usarla:</p>
+                            <ol class="list-decimal pl-6 space-y-1">
+                                <li>Escribe o selecciona el ticker de Yahoo Finance (ej: SPY, ^IBEX, BTC-USD, AAPL…).</li>
+                                <li>Ajusta las fechas de inicio y fin (por defecto desde 2000 hasta hoy).</li>
+                                <li>Pulsa “Ejecutar Análisis” y espera unos segundos.</li>
+                                <li>Navega por las pestañas: General, Drawdowns, Rolling, Estacionalidad, VIX, Petróleo, Correlaciones y Ayuda.</li>
+                            </ol>
+
+                            <p class="mt-4 text-xs text-gray-500">
+                                Todos los cálculos y gráficos se generan al instante en tu navegador usando Plotly.js y Math.js. No se guarda ni transmite ningún dato.
+                            </p>
+
+                            <p class="mt-4 font-medium text-blue-600">
+                                Ideal para inversores particulares, analistas y educadores que quieran entender rápidamente el comportamiento histórico y las estadísticas clave de cualquier activo cotizado.
+                            </p>
                         </div>
                     </div>
 
@@ -1529,4 +1566,5 @@
         };
     </script>
 </body>
+
 </html>
