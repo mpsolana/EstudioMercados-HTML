@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPS MarketAnalyzer v11.4b (Precision Update)</title>
+    <title>MPS MarketAnalyzer v12 (Multi-Proxy Update)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -45,7 +45,7 @@
                 <i class="fa-solid fa-chart-simple text-blue-400 text-xl"></i>
                 <h1 class="text-xl font-bold tracking-wide">MPS Market<span class="text-blue-400">Analyzer</span> Pro</h1>
             </div>
-            <div class="text-xs text-gray-400 hidden sm:block">v11.4b (Precision Update)</div>
+            <div class="text-xs text-gray-400 hidden sm:block">v12 (Multi-Proxy Update)</div>
         </div>
     </nav>
 
@@ -337,7 +337,7 @@
                         <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
 
                             <p>
-                                <strong class="text-gray-900">MPS MarketAnalyzer Pro v11.4b</strong> es una herramienta de análisis financiero (todo se ejecuta en tu navegador, sin enviar datos a ningún servidor).
+                                <strong class="text-gray-900">MPS MarketAnalyzer Pro v12</strong> es una herramienta de análisis financiero (todo se ejecuta en tu navegador, sin enviar datos a ningún servidor).
                             </p>
 
                             <p class="font-semibold text-gray-800">Funcionalidades principales:</p>
@@ -531,7 +531,7 @@
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('resultsArea').classList.add('hidden');
             document.getElementById('statusBox').classList.remove('hidden');
-            updateStatus(`Conectando a Yahoo Finance para ${ticker}...`);
+            updateStatus(`Conectando a Yahoo Finance para ${ticker}... (probando múltiples proxies si es necesario)`);
 
             try {
                 // Fetch main Ticker, Oil (CL=F), and VIX (^VIX)
@@ -612,23 +612,83 @@
         async function fetchYahooData(ticker, startStr, endStr) {
             const period1 = Math.floor(new Date(startStr).getTime() / 1000);
             const period2 = Math.floor(new Date(endStr).getTime() / 1000);
-            const corsProxy = "https://corsproxy.io/?"; 
             const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
-            const response = await fetch(corsProxy + encodeURIComponent(yahooUrl));
-            if (!response.ok) throw new Error(`Error API Yahoo para ${ticker}`);
-            const json = await response.json();
-            const result = json.chart.result?.[0];
-            if (!result) throw new Error(`Sin datos para ${ticker}`);
-            const timestamps = result.timestamp || [];
-            const quotes = result.indicators.quote[0];
-            const adjClose = result.indicators.adjclose?.[0]?.adjclose || quotes.close;
-            const data = [];
-            for (let i = 0; i < timestamps.length; i++) {
-                if (timestamps[i] && adjClose[i] != null) {
-                    data.push({ date: new Date(timestamps[i] * 1000), price: adjClose[i] });
+            
+            // Multiple CORS proxy options (fallback system for corporate firewalls)
+            const corsProxies = [
+                { url: "https://corsproxy.io/?", name: "corsproxy.io" },
+                { url: "https://api.allorigins.win/raw?url=", name: "allorigins.win" },
+                { url: "https://yacdn.org/proxy/", name: "yacdn.org" },
+                { url: "https://cors-anywhere.herokuapp.com/", name: "cors-anywhere" },
+                { url: "https://thingproxy.freeboard.io/fetch/", name: "thingproxy" }
+            ];
+            
+            let lastError = null;
+            
+            // Try each proxy sequentially until one works
+            for (const proxy of corsProxies) {
+                try {
+                    const proxyUrl = proxy.url + encodeURIComponent(yahooUrl);
+                    
+                    // Create timeout controller for better browser compatibility
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+                    
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const json = await response.json();
+                    const result = json.chart.result?.[0];
+                    
+                    if (!result) {
+                        throw new Error(`Sin datos para ${ticker}`);
+                    }
+                    
+                    // Success! Parse the data
+                    const timestamps = result.timestamp || [];
+                    const quotes = result.indicators.quote[0];
+                    const adjClose = result.indicators.adjclose?.[0]?.adjclose || quotes.close;
+                    const data = [];
+                    
+                    for (let i = 0; i < timestamps.length; i++) {
+                        if (timestamps[i] && adjClose[i] != null) {
+                            data.push({ date: new Date(timestamps[i] * 1000), price: adjClose[i] });
+                        }
+                    }
+                    
+                    // Log which proxy worked (for debugging)
+                    if (proxy.name !== corsProxies[0].name) {
+                        console.log(`✓ Proxy usado: ${proxy.name} para ${ticker}`);
+                    }
+                    
+                    return data;
+                    
+                } catch (error) {
+                    lastError = error;
+                    // If it's a timeout/abort, log it but continue trying other proxies
+                    if (error.name === 'AbortError') {
+                        console.log(`⏱ Proxy ${proxy.name} timeout (bloqueado o lento)`);
+                    } else {
+                        console.log(`✗ Proxy ${proxy.name} falló: ${error.message}`);
+                    }
+                    // Continue to next proxy if this one failed
+                    continue;
                 }
             }
-            return data;
+            
+            // If all proxies failed, throw a helpful error message
+            throw new Error(`No se pudo conectar a Yahoo Finance para ${ticker}. Todos los proxies fueron bloqueados. Error: ${lastError?.message || 'Desconocido'}`);
         }
 
         // --- HELPER: REGRESSION (Calcula pendiente, intercepto y R2) ---
