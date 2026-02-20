@@ -90,12 +90,107 @@
                     <p id="statusText" class="text-xs text-blue-800 leading-tight">Esperando...</p>
                 </div>
             </div>
+            
+            <!-- Diccionario de Tickers en Sidebar (visible cuando hay resultados) -->
+            <div id="sidebarTickerDictionary" class="hidden bg-white p-5 rounded-xl shadow-md border border-gray-200 sticky top-24">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-700">
+                    <i class="fa-solid fa-magnifying-glass-dollar text-green-600"></i> Diccionario de Tickers
+                </h2>
+                <p class="text-xs text-gray-500 mb-3">Busca y selecciona un ticker para analizar.</p>
+                
+                <div class="relative mb-3">
+                    <input type="text" id="tickerSearchSidebar" onkeyup="filterTickersSidebar()" 
+                        class="w-full p-2 pl-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs"
+                        placeholder="Buscar ticker...">
+                    <i class="fa-solid fa-search absolute left-2.5 top-2.5 text-gray-400 text-xs"></i>
+                </div>
+
+                <div class="overflow-y-auto max-h-[400px] custom-scrollbar border rounded-lg">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                        <thead class="text-[10px] text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-2 py-2">Símbolo</th>
+                                <th class="px-2 py-2">Nombre</th>
+                                <th class="px-2 py-2">Tipo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tickerTableBodySidebar" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Diccionario Inicial en Sidebar (visible antes de ejecutar análisis) -->
+            <div id="initialTickerDictionary" class="bg-white p-5 rounded-xl shadow-md border border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2 text-slate-700">
+                    <i class="fa-solid fa-magnifying-glass-dollar text-green-600"></i> Diccionario de Tickers
+                </h2>
+                <p class="text-xs text-gray-500 mb-3">Busca y selecciona un activo. Haz clic en cualquier ticker.</p>
+                
+                <div class="relative mb-3">
+                    <input type="text" id="tickerSearchInitial" onkeyup="filterTickersInitial()" 
+                        class="w-full p-2 pl-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-xs"
+                        placeholder="Buscar (ej: Inditex, Oro, S&P 500)...">
+                    <i class="fa-solid fa-search absolute left-2.5 top-2.5 text-gray-400 text-xs"></i>
+                </div>
+
+                <div class="overflow-y-auto max-h-[400px] custom-scrollbar border rounded-lg">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                        <thead class="text-[10px] text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-2 py-2">Símbolo</th>
+                                <th class="px-2 py-2">Nombre</th>
+                                <th class="px-2 py-2">Tipo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tickerTableBodyInitial" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
         </aside>
 
         <!-- Main -->
         <main class="w-full lg:w-3/4 flex flex-col min-h-[500px]">
             <div id="loader" class="hidden flex-grow flex flex-col justify-center items-center bg-white/50 rounded-xl backdrop-blur-sm z-10 absolute inset-0 lg:relative">
                 <div class="loading-spinner mb-4"></div>
+            <!-- Diccionario Inicial (visible antes de ejecutar análisis) -->
+            <div id="initialTickerDictionaryMain" class="space-y-4">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass-dollar text-green-600"></i> Diccionario de Tickers Comunes
+                    </h2>
+                    <p class="text-sm text-gray-500 mb-4">Busca y selecciona un activo para analizar. Haz clic en cualquier ticker para seleccionarlo automáticamente.</p>
+                    
+                    <div class="relative mb-4">
+                        <input type="text" id="tickerSearchInitialMain" onkeyup="filterTickersInitialMain()" 
+                            class="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            placeholder="Buscar por nombre o símbolo (ej: Inditex, Oro, S&P 500)...">
+                        <i class="fa-solid fa-search absolute left-3 top-3.5 text-gray-400"></i>
+                    </div>
+
+                    <div class="overflow-y-auto max-h-[500px] custom-scrollbar border rounded-lg">
+                        <table class="min-w-full text-sm text-left text-gray-600">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-4 py-3">Símbolo</th>
+                                    <th class="px-4 py-3">Nombre / Descripción</th>
+                                    <th class="px-4 py-3">Tipo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tickerTableBodyInitialMain" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mensaje de carga (visible durante el análisis) -->
+            <div id="loadingMessage" class="hidden space-y-4">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center min-h-[300px]">
+                    <div class="loading-spinner mb-4"></div>
+                    <p class="text-lg font-semibold text-gray-700">Cargando...</p>
+                    <p class="text-sm text-gray-500 mt-2">Obteniendo datos de Yahoo Finance</p>
+                </div>
+            </div>
+
                 <p class="text-gray-500 font-medium animate-pulse">Procesando datos...</p>
             </div>
 
@@ -451,20 +546,119 @@
         ];
 
         function renderTickerDictionary() {
-            const tbody = document.getElementById('tickerTableBody');
-            tbody.innerHTML = commonTickers.map(item => `
+            const tickerRowHTML = (item) => `
                 <tr class="border-b hover:bg-blue-50 cursor-pointer transition-colors" onclick="selectTicker('${item.s}')">
                     <td class="px-4 py-3 font-mono font-bold text-blue-600">${item.s}</td>
                     <td class="px-4 py-3 text-gray-800">${item.n}</td>
                     <td class="px-4 py-3 text-xs uppercase tracking-wide text-gray-500">${item.t}</td>
                 </tr>
-            `).join('');
+            `;
+            
+            const tickerRowHTMLSmall = (item) => `
+                <tr class="border-b hover:bg-blue-50 cursor-pointer transition-colors" onclick="selectTicker('${item.s}')">
+                    <td class="px-2 py-1.5 font-mono font-bold text-blue-600 text-xs">${item.s}</td>
+                    <td class="px-2 py-1.5 text-gray-800 text-xs">${item.n}</td>
+                    <td class="px-2 py-1.5 text-[10px] uppercase tracking-wide text-gray-500">${item.t}</td>
+                </tr>
+            `;
+            
+            // Render in Initial Dictionary Sidebar (visible before analysis)
+            const tbodyInitial = document.getElementById('tickerTableBodyInitial');
+            if (tbodyInitial) {
+                tbodyInitial.innerHTML = commonTickers.map(tickerRowHTMLSmall).join('');
+            }
+            
+            // Render in Initial Dictionary Main Area (visible before analysis)
+            const tbodyInitialMain = document.getElementById('tickerTableBodyInitialMain');
+            if (tbodyInitialMain) {
+                tbodyInitialMain.innerHTML = commonTickers.map(tickerRowHTML).join('');
+            }
+            
+            // Render in Sidebar Dictionary (visible when results are shown)
+            const tbodySidebar = document.getElementById('tickerTableBodySidebar');
+            if (tbodySidebar) {
+                tbodySidebar.innerHTML = commonTickers.map(tickerRowHTMLSmall).join('');
+            }
+            
+            // Render in Help tab
+            const tbody = document.getElementById('tickerTableBody');
+            if (tbody) {
+                tbody.innerHTML = commonTickers.map(tickerRowHTML).join('');
+            }
         }
 
         function filterTickers() {
             const input = document.getElementById('tickerSearch');
+            if (!input) return;
             const filter = input.value.toUpperCase();
             const tbody = document.getElementById('tickerTableBody');
+            if (!tbody) return;
+            const tr = tbody.getElementsByTagName('tr');
+            for (let i = 0; i < tr.length; i++) {
+                const tdSym = tr[i].getElementsByTagName("td")[0];
+                const tdName = tr[i].getElementsByTagName("td")[1];
+                if (tdSym || tdName) {
+                    const txtSym = tdSym.textContent || tdSym.innerText;
+                    const txtName = tdName.textContent || tdName.innerText;
+                    if (txtSym.toUpperCase().indexOf(filter) > -1 || txtName.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }       
+            }
+        }
+
+        function filterTickersInitial() {
+            const input = document.getElementById('tickerSearchInitial');
+            if (!input) return;
+            const filter = input.value.toUpperCase();
+            const tbody = document.getElementById('tickerTableBodyInitial');
+            if (!tbody) return;
+            const tr = tbody.getElementsByTagName('tr');
+            for (let i = 0; i < tr.length; i++) {
+                const tdSym = tr[i].getElementsByTagName("td")[0];
+                const tdName = tr[i].getElementsByTagName("td")[1];
+                if (tdSym || tdName) {
+                    const txtSym = tdSym.textContent || tdSym.innerText;
+                    const txtName = tdName.textContent || tdName.innerText;
+                    if (txtSym.toUpperCase().indexOf(filter) > -1 || txtName.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }       
+            }
+        }
+
+        function filterTickersInitialMain() {
+            const input = document.getElementById('tickerSearchInitialMain');
+            if (!input) return;
+            const filter = input.value.toUpperCase();
+            const tbody = document.getElementById('tickerTableBodyInitialMain');
+            if (!tbody) return;
+            const tr = tbody.getElementsByTagName('tr');
+            for (let i = 0; i < tr.length; i++) {
+                const tdSym = tr[i].getElementsByTagName("td")[0];
+                const tdName = tr[i].getElementsByTagName("td")[1];
+                if (tdSym || tdName) {
+                    const txtSym = tdSym.textContent || tdSym.innerText;
+                    const txtName = tdName.textContent || tdName.innerText;
+                    if (txtSym.toUpperCase().indexOf(filter) > -1 || txtName.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }       
+            }
+        }
+
+        function filterTickersSidebar() {
+            const input = document.getElementById('tickerSearchSidebar');
+            if (!input) return;
+            const filter = input.value.toUpperCase();
+            const tbody = document.getElementById('tickerTableBodySidebar');
+            if (!tbody) return;
             const tr = tbody.getElementsByTagName('tr');
             for (let i = 0; i < tr.length; i++) {
                 const tdSym = tr[i].getElementsByTagName("td")[0];
@@ -483,7 +677,11 @@
 
         function selectTicker(ticker) {
             document.getElementById('tickerInput').value = ticker;
-            switchTab('general'); // Go back to main tab
+            // Only switch to general tab if we're not already there
+            const generalTab = document.getElementById('content-general');
+            if (generalTab && !generalTab.classList.contains('active')) {
+                switchTab('general');
+            }
             alert(`Ticker ${ticker} seleccionado. ¡Pulsa "Ejecutar Análisis"!`);
         }
 
@@ -528,6 +726,13 @@
             const endDate = document.getElementById('endDate').value;
             if (!ticker) return alert("Por favor ingresa un ticker.");
 
+            // Hide initial dictionary and show loading message when analysis starts
+            const initialDictMain = document.getElementById('initialTickerDictionaryMain');
+            if (initialDictMain) initialDictMain.classList.add('hidden');
+            
+            const loadingMsg = document.getElementById('loadingMessage');
+            if (loadingMsg) loadingMsg.classList.remove('hidden');
+            
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('resultsArea').classList.add('hidden');
             document.getElementById('statusBox').classList.remove('hidden');
@@ -596,12 +801,22 @@
 
                 document.getElementById('loader').classList.add('hidden');
                 document.getElementById('resultsArea').classList.remove('hidden');
+                // Hide loading message and show sidebar dictionary when results are displayed
+                const loadingMsg = document.getElementById('loadingMessage');
+                if (loadingMsg) loadingMsg.classList.add('hidden');
+                const sidebarDict = document.getElementById('sidebarTickerDictionary');
+                if (sidebarDict) sidebarDict.classList.remove('hidden');
                 updateStatus("Análisis completado.");
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
 
             } catch (error) {
                 console.error(error);
                 document.getElementById('loader').classList.add('hidden');
+                // Hide loading message and show initial dictionary again on error
+                const loadingMsg = document.getElementById('loadingMessage');
+                if (loadingMsg) loadingMsg.classList.add('hidden');
+                const initialDictMain = document.getElementById('initialTickerDictionaryMain');
+                if (initialDictMain) initialDictMain.classList.remove('hidden');
                 updateStatus("Error: " + error.message);
                 alert(`Error: ${error.message}`);
             }
@@ -1492,7 +1707,7 @@
 
             Plotly.newPlot('technicalChart', [
                 {x,y,name:`Precio: ${lastP.toFixed(2)}`}, 
-                {x,y:t.ma50,name:ma50Label, line:{color:'gray'}}, 
+                {x,y:t.ma50,name:ma50Label, line:{color:'yellow'}}, 
                 {x,y:t.ma200,name:ma200Label, line:{color:'#00008b'}}, 
                 {x,y:t.rsi,yaxis:'y2',name:rsiLabel, line:{color:'#00008b'}}
             ], {
@@ -1603,6 +1818,10 @@
         }
         
         function renderDrawdownChart(d, dd, t) { 
+            // Get current drawdown (last value)
+            const currentDD = dd.drawdowns[dd.drawdowns.length - 1];
+            const currentDate = dd.dates[dd.dates.length - 1];
+            
             Plotly.newPlot('drawdownChart', [
                 {x:dd.dates, y:dd.drawdowns, fill:'tozeroy', name:'DD'}
             ], {
@@ -1611,7 +1830,8 @@
                     { type: 'line', x0: dd.dates[0], x1: dd.dates[dd.dates.length-1], y0: dd.maxDD, y1: dd.maxDD, line: {color:'red', dash:'dot'} }
                 ],
                 annotations: [
-                    { x: dd.maxDDDate, y: dd.maxDD, text: `Max DD: ${fmtPct(dd.maxDD)}`, showarrow: true, arrowhead: 1, ax: 0, ay: -40, font: {color: 'red'} }
+                    { x: dd.maxDDDate, y: dd.maxDD, text: `Max DD: ${fmtPct(dd.maxDD)}`, showarrow: true, arrowhead: 1, ax: 0, ay: -40, font: {color: 'red'} },
+                    { x: currentDate, y: currentDD, text: `DD Actual: ${fmtPct(currentDD)}`, showarrow: true, arrowhead: 1, ax: 0, ay: 40, font: {color: 'blue', size: 12} }
                 ]
             }, {responsive:true}); 
         }
