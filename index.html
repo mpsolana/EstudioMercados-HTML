@@ -1031,26 +1031,30 @@
             const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
             const yahooUrl2 = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
 
-            // Lista actualizada de proxies CORS (más robusta)
+            // Proxy propio de Vercel (sin CORS, el más fiable cuando está desplegado en Vercel)
+            const vercelProxyUrl = `/api/yahoo?ticker=${encodeURIComponent(ticker)}&period1=${period1}&period2=${period2}&interval=1d`;
+
+            // Lista completa de endpoints a intentar en paralelo
             const proxyConfigs = [
-                // Intento directo a Yahoo (funciona si no hay restricciones CORS)
-                { url: yahooUrl, direct: true },
-                { url: yahooUrl2, direct: true },
-                // Proxies públicos
-                { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`, direct: false },
-                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`, direct: false },
-                { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl2)}`, direct: false },
-                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl2)}`, direct: false },
-                { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}`, direct: false },
-                { url: `https://thingproxy.freeboard.io/fetch/${yahooUrl}`, direct: false },
-                { url: `https://yacdn.org/proxy/${yahooUrl}`, direct: false },
+                // 1. Proxy propio de Vercel (serverless) — sin CORS, máxima fiabilidad
+                { url: vercelProxyUrl },
+                // 2. Petición directa a Yahoo (funciona en local o sin firewall)
+                { url: yahooUrl },
+                { url: yahooUrl2 },
+                // 3. Proxies CORS públicos de respaldo
+                { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}` },
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}` },
+                { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl2)}` },
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl2)}` },
+                { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}` },
+                { url: `https://thingproxy.freeboard.io/fetch/${yahooUrl}` },
             ];
 
             let json = null;
 
             const fetchPromises = proxyConfigs.map(async (cfg) => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
 
                 try {
                     const response = await fetch(cfg.url, { signal: controller.signal });
