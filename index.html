@@ -1029,28 +1029,31 @@
             const period1 = Math.floor(new Date(startStr).getTime() / 1000);
             const period2 = Math.floor(new Date(endStr).getTime() / 1000);
             const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
+            const yahooUrl2 = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
 
-            // Lista de proxies CORS de respaldo para esquivar firewalls corporativos
-            const proxies = [
-                "https://api.allorigins.win/raw?url=",
-                "https://corsproxy.io/?",
-                "https://api.codetabs.com/v1/proxy?quest=",
-                "https://thingproxy.freeboard.io/fetch/"
+            // Lista actualizada de proxies CORS (más robusta)
+            const proxyConfigs = [
+                // Intento directo a Yahoo (funciona si no hay restricciones CORS)
+                { url: yahooUrl, direct: true },
+                { url: yahooUrl2, direct: true },
+                // Proxies públicos
+                { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`, direct: false },
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`, direct: false },
+                { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl2)}`, direct: false },
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl2)}`, direct: false },
+                { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}`, direct: false },
+                { url: `https://thingproxy.freeboard.io/fetch/${yahooUrl}`, direct: false },
+                { url: `https://yacdn.org/proxy/${yahooUrl}`, direct: false },
             ];
 
             let json = null;
 
-            const fetchPromises = proxies.map(async (proxy) => {
-                const urlToFetch = proxy.includes('thingproxy')
-                    ? proxy + yahooUrl
-                    : proxy + encodeURIComponent(yahooUrl);
-
+            const fetchPromises = proxyConfigs.map(async (cfg) => {
                 const controller = new AbortController();
-                // Timeout de 6 segundos para evitar requests colgados
-                const timeoutId = setTimeout(() => controller.abort(), 6000);
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
 
                 try {
-                    const response = await fetch(urlToFetch, { signal: controller.signal });
+                    const response = await fetch(cfg.url, { signal: controller.signal });
                     clearTimeout(timeoutId);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -1066,7 +1069,7 @@
             });
 
             try {
-                // Ejecutamos todos en paralelo. Promise.any devuelve el primero que resuelva con éxito.
+                // Promise.any devuelve el primero que resuelva con éxito.
                 json = await Promise.any(fetchPromises);
             } catch (aggregateError) {
                 throw new Error(`Incapaz de conectar con Yahoo para ${ticker}. Todos los proxies fallaron (o timeouts). Posible bloqueo estricto de firewall corporativo.`);
