@@ -496,6 +496,12 @@
                         <div id="seasonalityYoYChart" class="w-full h-[600px]"></div>
                     </div>
 
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mt-6">
+                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-amber-500 pl-3">Deciles Históricos vs Actual (YTD)</h3>
+                        <p class="text-sm text-gray-500 mb-2">La banda sombreada muestra el rango entre los percentiles 10‑90 y 25‑75. La línea naranja es el año actual.</p>
+                        <div id="seasonalityDecilesChart" class="w-full h-[600px]"></div>
+                    </div>
+
                     <!-- Ranking y Proyección -->
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                         <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-green-600 pl-3">Ranking de
@@ -1006,6 +1012,7 @@
                 renderVixAnalysis(vixAnalysisData, vixData, vixThreshold);
                 renderDrawdownDurationTable(ddDurationData);
                 renderSeasonalityYoY(yoyAnalysisData, ticker);
+                renderSeasonalityDeciles(rawData, ticker);
 
                 // Render New Sigma Table
                 renderSigmaEvents(generalData);
@@ -1255,6 +1262,90 @@
                     <div class="flex justify-between pt-1"><span>Precio Objetivo Est.:</span><span class="font-mono font-bold">${projPrice.toFixed(2)}</span></div>`;
             }
         }
+
+        function calculateSeasonalityDeciles(data) {
+            if (!data || data.length === 0) return null;
+            const lastDate = data[data.length - 1].date;
+            const currentYear = lastDate.getFullYear();
+            const currentDOY = getDayOfYear(lastDate);
+
+            const yearsMap = new Map();
+            data.forEach(d => {
+                const y = d.date.getFullYear();
+                if (!yearsMap.has(y)) yearsMap.set(y, []);
+                yearsMap.get(y).push(d);
+            });
+
+            const doyMap = new Map();
+            const currentYearYtd = new Map();
+
+            yearsMap.forEach((yearData, year) => {
+                if (yearData.length < 2) return;
+                const firstPrice = yearData[0].price;
+                yearData.forEach(d => {
+                    const doy = getDayOfYear(d.date);
+                    const ytd = (d.price / firstPrice) - 1;
+                    if (!doyMap.has(doy)) doyMap.set(doy, []);
+                    doyMap.get(doy).push(ytd);
+                    if (year === currentYear) currentYearYtd.set(doy, ytd);
+                });
+            });
+
+            const x = [];
+            const p10 = [], p25 = [], p50 = [], p75 = [], p90 = [], current = [];
+
+            for (let doy = 1; doy <= currentDOY; doy++) {
+                const values = (doyMap.get(doy) || []).slice().sort((a, b) => a - b);
+                x.push(doy);
+                if (values.length < 3) {
+                    p10.push(null); p25.push(null); p50.push(null); p75.push(null); p90.push(null);
+                } else {
+                    p10.push(quantile(values, 0.1));
+                    p25.push(quantile(values, 0.25));
+                    p50.push(quantile(values, 0.5));
+                    p75.push(quantile(values, 0.75));
+                    p90.push(quantile(values, 0.9));
+                }
+                current.push(currentYearYtd.get(doy) ?? null);
+            }
+
+            return { x, p10, p25, p50, p75, p90, current };
+        }
+
+        function quantile(sortedArr, q) {
+            if (!sortedArr || sortedArr.length === 0) return null;
+            const pos = (sortedArr.length - 1) * q;
+            const base = Math.floor(pos);
+            const rest = pos - base;
+            if (sortedArr[base + 1] !== undefined) {
+                return sortedArr[base] + rest * (sortedArr[base + 1] - sortedArr[base]);
+            }
+            return sortedArr[base];
+        }
+
+        function renderSeasonalityDeciles(data, ticker) {
+            const deciles = calculateSeasonalityDeciles(data);
+            if (!deciles) return;
+            const { x, p10, p25, p50, p75, p90, current } = deciles;
+            const traces = [
+                { x, y: p90, mode: 'lines', line: { color: 'rgba(148,163,184,0.2)' }, name: 'Decil 90', hoverinfo: 'skip' },
+                { x, y: p10, mode: 'lines', line: { color: 'rgba(148,163,184,0.2)' }, fill: 'tonexty', fillcolor: 'rgba(148,163,184,0.2)', name: '10-90%', hoverinfo: 'skip' },
+                { x, y: p75, mode: 'lines', line: { color: 'rgba(100,116,139,0.3)' }, name: 'Decil 75', hoverinfo: 'skip' },
+                { x, y: p25, mode: 'lines', line: { color: 'rgba(100,116,139,0.3)' }, fill: 'tonexty', fillcolor: 'rgba(100,116,139,0.3)', name: '25-75%', hoverinfo: 'skip' },
+                { x, y: p50, mode: 'lines', line: { color: 'black', dash: 'dash', width: 2 }, name: 'Mediana' },
+                { x, y: current, mode: 'lines', line: { color: 'orange', width: 3 }, name: `${new Date().getFullYear()} (Actual)` }
+            ];
+            const layout = {
+                title: `YTD: Deciles Históricos vs Actual (${ticker})`,
+                xaxis: { title: 'Mes del Año', tickvals: [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335], ticktext: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] },
+                yaxis: { title: 'Retorno Acumulado (%)', tickformat: '.0%' },
+                margin: { t: 40, l: 50, r: 20, b: 40 },
+                showlegend: true,
+                legend: { orientation: 'h', y: -0.2, x: 0 }
+            };
+            Plotly.newPlot('seasonalityDecilesChart', traces, layout, { responsive: true });
+        }
+
         function getDayOfYear(date) { const start = new Date(date.getFullYear(), 0, 0); return Math.floor((date - start) / (1000 * 60 * 60 * 24)); }
 
         // --- CORRELATION ---
