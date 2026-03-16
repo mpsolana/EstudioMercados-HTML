@@ -1263,11 +1263,14 @@
             }
         }
 
+        function isLeapYear(year) { return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0); }
+
         function calculateSeasonalityDeciles(data) {
             if (!data || data.length === 0) return null;
             const lastDate = data[data.length - 1].date;
             const currentYear = lastDate.getFullYear();
             const currentDOY = getDayOfYear(lastDate);
+            const totalDays = isLeapYear(currentYear) ? 366 : 365;
 
             const yearsMap = new Map();
             data.forEach(d => {
@@ -1301,7 +1304,7 @@
             const x = [];
             const p10 = [], p25 = [], p50 = [], p75 = [], p90 = [], current = [];
 
-            for (let doy = 1; doy <= currentDOY; doy++) {
+            for (let doy = 1; doy <= totalDays; doy++) {
                 const values = (doyMap.get(doy) || []).slice().sort((a, b) => a - b);
                 x.push(doy);
                 if (values.length < 3) {
@@ -1313,7 +1316,7 @@
                     p75.push(quantile(values, 0.75));
                     p90.push(quantile(values, 0.9));
                 }
-                current.push(currentYearYtd.get(doy) ?? null);
+                current.push(doy <= currentDOY ? (currentYearYtd.get(doy) ?? null) : null);
             }
 
             return { x, p10, p25, p50, p75, p90, current };
