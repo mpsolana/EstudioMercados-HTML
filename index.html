@@ -1285,9 +1285,16 @@
                 yearData.forEach(d => {
                     const doy = getDayOfYear(d.date);
                     const ytd = (d.price / firstPrice) - 1;
-                    if (!doyMap.has(doy)) doyMap.set(doy, []);
-                    doyMap.get(doy).push(ytd);
-                    if (year === currentYear) currentYearYtd.set(doy, ytd);
+
+                    // Solo acumulamos históricos en el mapa de percentiles (excluyendo el año actual)
+                    if (year !== currentYear) {
+                        if (!doyMap.has(doy)) doyMap.set(doy, []);
+                        doyMap.get(doy).push(ytd);
+                    }
+
+                    if (year === currentYear) {
+                        currentYearYtd.set(doy, ytd);
+                    }
                 });
             });
 
