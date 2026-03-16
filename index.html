@@ -1337,24 +1337,91 @@
             const deciles = calculateSeasonalityDeciles(data);
             if (!deciles) return;
             const { x, p10, p25, p50, p75, p90, current } = deciles;
-            const traces = [
-                { x, y: p90, mode: 'lines', line: { color: 'rgba(148,163,184,0.2)' }, name: 'Decil 90', hoverinfo: 'skip' },
-                { x, y: p10, mode: 'lines', line: { color: 'rgba(148,163,184,0.2)' }, fill: 'tonexty', fillcolor: 'rgba(148,163,184,0.2)', name: '10-90%', hoverinfo: 'skip' },
-                { x, y: p75, mode: 'lines', line: { color: 'rgba(100,116,139,0.3)' }, name: 'Decil 75', hoverinfo: 'skip' },
-                { x, y: p25, mode: 'lines', line: { color: 'rgba(100,116,139,0.3)' }, fill: 'tonexty', fillcolor: 'rgba(100,116,139,0.3)', name: '25-75%', hoverinfo: 'skip' },
-                { x, y: p50, mode: 'lines', line: { color: 'black', dash: 'dash', width: 2 }, name: 'Mediana' },
-                { x, y: current, mode: 'lines', line: { color: 'orange', width: 3 }, name: `${new Date().getFullYear()} (Actual)` }
-            ];
+
+            // Banda 10-90 (más clara)
+            const trace1 = {
+                x: x,
+                y: p90,
+                fill: null,
+                line: { color: 'rgba(0,0,0,0)' },
+                name: '10-90%',
+                showlegend: false,
+                hoverinfo: 'skip'
+            };
+
+            const trace2 = {
+                x: x,
+                y: p10,
+                fill: 'tonexty',
+                fillcolor: 'rgba(173,216,230,0.4)',
+                line: { color: 'rgba(0,0,0,0)' },
+                name: '10-90%',
+                showlegend: true,
+                hoverinfo: 'skip'
+            };
+
+            // Banda 25-75 (más oscura)
+            const trace3 = {
+                x: x,
+                y: p75,
+                fill: null,
+                line: { color: 'rgba(0,0,0,0)' },
+                name: '25-75%',
+                showlegend: false,
+                hoverinfo: 'skip'
+            };
+
+            const trace4 = {
+                x: x,
+                y: p25,
+                fill: 'tonexty',
+                fillcolor: 'rgba(70,130,180,0.5)',
+                line: { color: 'rgba(0,0,0,0)' },
+                name: '25-75%',
+                showlegend: true,
+                hoverinfo: 'skip'
+            };
+
+            // Mediana (línea negra punteada)
+            const trace5 = {
+                x: x,
+                y: p50,
+                mode: 'lines',
+                line: { color: 'rgba(0,0,0,0.5)', width: 2, dash: 'dash' },
+                name: 'Mediana',
+                hoverinfo: 'skip'
+            };
+
+            // Año actual (línea naranja gruesa)
+            const trace6 = {
+                x: x,
+                y: current,
+                mode: 'lines',
+                line: { color: '#ff9800', width: 3 },
+                name: `${new Date().getFullYear()} (Actual)`,
+                hovertemplate: '%{y:.2%}'
+            };
+
             const layout = {
                 title: `YTD: Deciles Históricos vs Actual (${ticker})`,
-                xaxis: { title: 'Mes del Año', tickvals: [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335], ticktext: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] },
-                yaxis: { title: 'Retorno Acumulado (%)', tickformat: '.0%' },
-                margin: { t: 40, l: 50, r: 20, b: 40 },
+                xaxis: {
+                    title: 'Mes del Año',
+                    tickvals: [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335],
+                    ticktext: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+                },
+                yaxis: {
+                    title: 'Retorno Acumulado (%)',
+                    tickformat: '.0%'
+                },
+                margin: { t: 40, l: 60, r: 20, b: 50 },
                 showlegend: true,
-                legend: { orientation: 'h', y: -0.2, x: 0 }
+                legend: { orientation: 'h', y: -0.15, x: 0, xanchor: 'left', yanchor: 'top' },
+                hovermode: 'x unified'
             };
-            Plotly.newPlot('seasonalityDecilesChart', traces, layout, { responsive: true });
+
+            Plotly.newPlot('seasonalityDecilesChart', [trace1, trace2, trace3, trace4, trace5, trace6], layout, { responsive: true });
         }
+
 
         function getDayOfYear(date) { const start = new Date(date.getFullYear(), 0, 0); return Math.floor((date - start) / (1000 * 60 * 60 * 24)); }
 
