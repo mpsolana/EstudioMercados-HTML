@@ -1265,6 +1265,55 @@
 
         function isLeapYear(year) { return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0); }
 
+        // Fill nulls by linear interpolation and edge fill
+        function interpFill(arr) {
+            const out = arr.slice();
+            const n = out.length;
+            // find first non-null
+            let first = -1, last = -1;
+            for (let i = 0; i < n; i++) { if (out[i] !== null && out[i] !== undefined) { first = i; break; } }
+            for (let i = n - 1; i >= 0; i--) { if (out[i] !== null && out[i] !== undefined) { last = i; break; } }
+            if (first === -1) return out.map(_ => null);
+            // fill head with first
+            for (let i = 0; i < first; i++) out[i] = out[first];
+            // fill tail with last
+            for (let i = last + 1; i < n; i++) out[i] = out[last];
+            // interp internal nulls
+            let i = first;
+            while (i <= last) {
+                if (out[i] === null || out[i] === undefined) {
+                    let j = i + 1;
+                    while (j <= last && (out[j] === null || out[j] === undefined)) j++;
+                    const v0 = out[i - 1], v1 = out[j];
+                    const gap = j - i + 1;
+                    for (let k = i; k < j; k++) {
+                        const t = (k - (i - 1)) / (gap);
+                        out[k] = v0 + t * (v1 - v0);
+                    }
+                    i = j;
+                } else i++;
+            }
+            return out;
+        }
+
+        // Simple moving average smoothing (window odd)
+        function smoothArray(arr, window = 7) {
+            const n = arr.length;
+            const half = Math.floor(window / 2);
+            const out = new Array(n).fill(null);
+            for (let i = 0; i < n; i++) {
+                const start = Math.max(0, i - half);
+                const end = Math.min(n - 1, i + half);
+                let sum = 0, cnt = 0;
+                for (let j = start; j <= end; j++) {
+                    const v = arr[j];
+                    if (v !== null && v !== undefined) { sum += v; cnt++; }
+                }
+                out[i] = cnt > 0 ? sum / cnt : null;
+            }
+            return out;
+        }
+
         function calculateSeasonalityDeciles(data) {
             if (!data || data.length === 0) return null;
             const lastDate = data[data.length - 1].date;
@@ -1288,21 +1337,16 @@
                 yearData.forEach(d => {
                     const doy = getDayOfYear(d.date);
                     const ytd = (d.price / firstPrice) - 1;
-
-                    // Solo acumulamos históricos en el mapa de percentiles (excluyendo el año actual)
                     if (year !== currentYear) {
                         if (!doyMap.has(doy)) doyMap.set(doy, []);
                         doyMap.get(doy).push(ytd);
                     }
-
-                    if (year === currentYear) {
-                        currentYearYtd.set(doy, ytd);
-                    }
+                    if (year === currentYear) currentYearYtd.set(doy, ytd);
                 });
             });
 
             const x = [];
-            const p10 = [], p25 = [], p50 = [], p75 = [], p90 = [], current = [];
+            let p10 = [], p25 = [], p50 = [], p75 = [], p90 = [], current = [];
 
             for (let doy = 1; doy <= totalDays; doy++) {
                 const values = (doyMap.get(doy) || []).slice().sort((a, b) => a - b);
@@ -1319,7 +1363,26 @@
                 current.push(doy <= currentDOY ? (currentYearYtd.get(doy) ?? null) : null);
             }
 
-            return { x, p10, p25, p50, p75, p90, current };
+            // Interpolate missing percentile values so fill areas are continuous
+            p10 = interpFill(p10);
+            p25 = interpFill(p25);
+            p50 = interpFill(p50);
+            p75 = interpFill(p75);
+            p90 = interpFill(p90);
+
+            // Smooth percentiles to avoid sharp spikes
+            p10 = smoothArray(p10, 9);
+            p25 = smoothArray(p25, 9);
+            p50 = smoothArray(p50, 9);
+            p75 = smoothArray(p75, 9);
+            p90 = smoothArray(p90, 9);
+
+            // interpolate and smooth current line but keep nulls after currentDOY
+            const currentFull = interpFill(current.map(v => v === null ? null : v));
+            const currentSmoothed = smoothArray(currentFull, 5);
+            const currentFinal = currentSmoothed.map((v, i) => (i <= currentDOY - 1 ? v : null));
+
+            return { x, p10, p25, p50, p75, p90, current: currentFinal };
         }
 
         function quantile(sortedArr, q) {
@@ -1353,11 +1416,12 @@
                 x: x,
                 y: p10,
                 fill: 'tonexty',
-                fillcolor: 'rgba(173,216,230,0.4)',
+                fillcolor: 'rgba(173,216,230,0.35)',
                 line: { color: 'rgba(0,0,0,0)' },
                 name: '10-90%',
                 showlegend: true,
-                hoverinfo: 'skip'
+                hoverinfo: 'skip',
+                connectgaps: true
             };
 
             // Banda 25-75 (más oscura)
@@ -1368,18 +1432,20 @@
                 line: { color: 'rgba(0,0,0,0)' },
                 name: '25-75%',
                 showlegend: false,
-                hoverinfo: 'skip'
+                hoverinfo: 'skip',
+                connectgaps: true
             };
 
             const trace4 = {
                 x: x,
                 y: p25,
                 fill: 'tonexty',
-                fillcolor: 'rgba(70,130,180,0.5)',
+                fillcolor: 'rgba(70,130,180,0.45)',
                 line: { color: 'rgba(0,0,0,0)' },
                 name: '25-75%',
                 showlegend: true,
-                hoverinfo: 'skip'
+                hoverinfo: 'skip',
+                connectgaps: true
             };
 
             // Mediana (línea negra punteada)
@@ -1387,9 +1453,10 @@
                 x: x,
                 y: p50,
                 mode: 'lines',
-                line: { color: 'rgba(0,0,0,0.5)', width: 2, dash: 'dash' },
+                line: { color: 'rgba(0,0,0,0.6)', width: 2, dash: 'dash', shape: 'spline' },
                 name: 'Mediana',
-                hoverinfo: 'skip'
+                hoverinfo: 'skip',
+                connectgaps: true
             };
 
             // Año actual (línea naranja gruesa)
@@ -1397,9 +1464,10 @@
                 x: x,
                 y: current,
                 mode: 'lines',
-                line: { color: '#ff9800', width: 3 },
+                line: { color: '#ff9800', width: 3, shape: 'spline' },
                 name: `${new Date().getFullYear()} (Actual)`,
-                hovertemplate: '%{y:.2%}'
+                hovertemplate: '%{y:.2%}',
+                connectgaps: true
             };
 
             const layout = {
