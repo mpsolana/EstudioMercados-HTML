@@ -725,7 +725,27 @@
                                     <option value="12M" selected>1 Año (252d)</option>
                                 </select>
                             </div>
-                        <div id="ratesHeatmapChart" class="w-full h-[450px]"></div>
+                        <div id="ratesHeatmapChart" class="w-full h-[450px] mb-6"></div>
+
+                        <p class="text-xs text-gray-500 mb-4">La siguiente tabla (1D) agrupa la estadística agrupando únicamente por Variación de Tipos (Δ%) sin discriminar por el Nivel absoluto actual.</p>
+                        
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-sm text-center border border-gray-200 rounded-lg">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left">Variación Tipos (Δ%)</th>
+                                        <th class="px-3 py-3">N (Eventos)</th>
+                                        <th class="px-3 py-3">Rentabilidad (Media)</th>
+                                        <th class="px-3 py-3">Rentabilidad (Mediana)</th>
+                                        <th class="px-3 py-3">Volatilidad (σ)</th>
+                                        <th class="px-3 py-3 font-bold">Ratio Positivos</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ratesMatrixTableBody" class="divide-y divide-gray-100 bg-white">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -1982,12 +2002,27 @@
             ];
 
             const xBins = [
-                { label: '< -1.0%', filter: (r) => r.rateChange < -1.0 },
-                { label: '-1.0% a -0.25%', filter: (r) => r.rateChange >= -1.0 && r.rateChange < -0.25 },
-                { label: 'Estable (±0.25%)', filter: (r) => r.rateChange >= -0.25 && r.rateChange <= 0.25 },
-                { label: '+0.25% a +1.0%', filter: (r) => r.rateChange > 0.25 && r.rateChange <= 1.0 },
-                { label: '> +1.0%', filter: (r) => r.rateChange > 1.0 }
+                { id: 'caida-fuerte', label: 'Caída Fuerte (< -1.0%)', filter: (r) => r.rateChange < -1.0 },
+                { id: 'caida-leve', label: 'Caída Leve (-1.0% a -0.25%)', filter: (r) => r.rateChange >= -1.0 && r.rateChange < -0.25 },
+                { id: 'estable', label: 'Estable (±0.25%)', filter: (r) => r.rateChange >= -0.25 && r.rateChange <= 0.25 },
+                { id: 'subida-leve', label: 'Subida Leve (+0.25% a +1.0%)', filter: (r) => r.rateChange > 0.25 && r.rateChange <= 1.0 },
+                { id: 'subida-fuerte', label: 'Subida Fuerte (> +1.0%)', filter: (r) => r.rateChange > 1.0 }
             ];
+
+            // Calculate 1D Table
+            const matrixStats1D = xBins.map(g => {
+                const group = validPairs.filter(p => g.filter(p));
+                const rets = group.map(p => p.forwardRet);
+                if (rets.length === 0) return { label: g.label, n: 0, mean: 0, median: 0, winRate: 0, sd: 0 };
+                return {
+                    label: g.label,
+                    n: rets.length,
+                    mean: getMean(rets),
+                    median: getPercentile(rets, 50),
+                    sd: getStdDev(rets),
+                    winRate: rets.filter(r => r > 0).length / rets.length
+                };
+            });
 
             const zData = [];
             const textData = [];
@@ -2032,6 +2067,19 @@
                 xaxis: { title: 'Variación de Tipos (12 Meses)', side: 'bottom', fixedrange: true },
                 yaxis: { title: 'Nivel del Tipo de Interés (^IRX)', fixedrange: true }
             }, { responsive: true, displayModeBar: false });
+
+            // Render 1D Matrix Table
+            const mbody = document.getElementById('ratesMatrixTableBody');
+            mbody.innerHTML = matrixStats1D.map(r => `
+                <tr class="border-b hover:bg-emerald-50 transition-colors">
+                    <td class="px-3 py-3 text-left font-bold text-gray-800">${r.label}</td>
+                    <td class="px-3 py-3 text-gray-500 font-mono">${r.n}</td>
+                    <td class="px-3 py-3 font-bold ${r.mean >= 0 ? 'text-green-600' : 'text-red-500'}">${r.n > 0 ? fmtPct(r.mean) : '-'}</td>
+                    <td class="px-3 py-3 text-gray-600">${r.n > 0 ? fmtPct(r.median) : '-'}</td>
+                    <td class="px-3 py-3 text-gray-400 text-xs">${r.n > 1 ? fmtPct(r.sd) : '-'}</td>
+                    <td class="px-3 py-3 font-bold text-emerald-700">${r.n > 0 ? fmtPct(r.winRate) : '-'}</td>
+                </tr>
+            `).join('');
 
             // Scatter Chart calculation and render
             if (validPairs.length > 2) {
