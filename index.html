@@ -213,6 +213,13 @@
                         <div id="technicalChart" class="w-full h-[650px]"></div>
                     </div>
 
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
+                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-cyan-600 pl-3">Evolución YTD (Base 10) - Principales Índices</h3>
+                        <p class="text-sm text-gray-500 mb-2">Gráfico normalizado a 10 en el primer día del año.</p>
+                        <div id="ytdBase10Chart" class="w-full h-[400px]"></div>
+                    </div>
+                    </div>
+
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                         <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-teal-500 pl-3">Resumen de Métricas
                             Principales</h3>
@@ -1013,6 +1020,8 @@
                 renderDrawdownDurationTable(ddDurationData);
                 renderSeasonalityYoY(yoyAnalysisData, ticker);
                 renderSeasonalityDeciles(rawData, ticker);
+                // Gráfica adicional: YTD normalizado a base 10 para índices principales
+                renderYTDBase10(['^GSPC','^STOXX50E','^N225','^HSI','^IBEX','^DAX']);
 
                 // Render New Sigma Table
                 renderSigmaEvents(generalData);
@@ -1453,7 +1462,7 @@
                 x: x,
                 y: p50,
                 mode: 'lines',
-                line: { color: 'rgba(0,0,0,0.6)', width: 2, dash: 'dash', shape: 'spline' },
+                line: { color: 'rgba(0,0,0,0.85)', width: 2, shape: 'spline' },
                 name: 'Mediana',
                 hoverinfo: 'skip',
                 connectgaps: true
@@ -1469,6 +1478,27 @@
                 hovertemplate: '%{y:.2%}',
                 connectgaps: true
             };
+
+            // Punto final sobre la línea actual con etiqueta de rentabilidad acumulada
+            let lastIdx = null;
+            for (let i = current.length - 1; i >= 0; i--) {
+                if (current[i] !== null && current[i] !== undefined) { lastIdx = i; break; }
+            }
+            let trace7 = null;
+            if (lastIdx !== null) {
+                const lastX = x[lastIdx];
+                const lastY = current[lastIdx];
+                trace7 = {
+                    x: [lastX],
+                    y: [lastY],
+                    mode: 'markers+text',
+                    marker: { color: '#ff9800', size: 8 },
+                    text: [fmtPct(lastY)],
+                    textposition: 'top right',
+                    showlegend: false,
+                    hoverinfo: 'skip'
+                };
+            }
 
             const layout = {
                 title: `YTD: Deciles Históricos vs Actual (${ticker})`,
@@ -1487,7 +1517,9 @@
                 hovermode: 'x unified'
             };
 
-            Plotly.newPlot('seasonalityDecilesChart', [trace1, trace2, trace3, trace4, trace5, trace6], layout, { responsive: true });
+            const traces = [trace1, trace2, trace3, trace4, trace5, trace6];
+            if (trace7) traces.push(trace7);
+            Plotly.newPlot('seasonalityDecilesChart', traces, layout, { responsive: true });
         }
 
 
@@ -2240,6 +2272,32 @@
         function renderLineChart(s) {
             const colors = { '1 Año': '#93c5fd', '5 Años': '#1e3a8a', '15 Años': '#9ca3af' };
             Plotly.newPlot('lineChart', Object.entries(s).map(([k, v]) => ({ x: v.x, y: v.y, name: k, line: { color: colors[k] || 'black' } })), { yaxis: { tickformat: '.1%' }, margin: { t: 40, l: 40, r: 20, b: 40 }, title: 'Evolución Rentabilidad Anualizada Móvil' }, { responsive: true });
+        }
+
+        // Nueva función: renderiza evolución YTD normalizada a base 10 para una lista de tickers
+        async function renderYTDBase10(tickers) {
+            try {
+                const endDate = document.getElementById('endDate').value;
+                const year = new Date().getFullYear();
+                const startDate = `${year}-01-01`;
+                const promises = tickers.map(t => fetchYahooData(t, startDate, endDate).catch(e => null));
+                const results = await Promise.all(promises);
+                const traces = [];
+                for (let i = 0; i < tickers.length; i++) {
+                    const data = results[i];
+                    if (!data || data.length === 0) continue;
+                    const firstPrice = data[0].price;
+                    const x = data.map(d => d.date);
+                    const y = data.map(d => (d.price / firstPrice) * 10);
+                    traces.push({ x, y, mode: 'lines', name: tickers[i], line: { width: 2 } });
+                    // añadir punto final con etiqueta de rentabilidad YTD
+                    const lastY = y[y.length - 1];
+                    const lastPct = (data[data.length - 1].price / firstPrice) - 1;
+                    traces.push({ x: [x[x.length - 1]], y: [lastY], mode: 'markers+text', marker: { size: 7 }, text: [fmtPct(lastPct)], textposition: 'top right', showlegend: false });
+                }
+                const layout = { title: `YTD (Base 10) - Principales Índices`, yaxis: { title: 'Base 10' }, margin: { t: 40, l: 60, r: 20, b: 40 }, legend: { orientation: 'h', x: 0, y: -0.2 } };
+                Plotly.newPlot('ytdBase10Chart', traces, layout, { responsive: true });
+            } catch (e) { console.error('Error renderYTDBase10', e); }
         }
 
         function renderDrawdownChart(d, dd, t) {
