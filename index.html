@@ -710,12 +710,15 @@
 
                     <!-- NUEVA MATRIZ DE SENSIBILIDAD -->
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-                            <h3 class="text-gray-800 font-bold border-l-4 border-emerald-600 pl-3">Sensibilidad y Retorno Forward según Cambio en Tipos</h3>
-                            <div class="flex items-center gap-2">
-                                <label class="text-sm font-bold text-gray-600 uppercase">Horizonte (Forward):</label>
-                                <select id="ratesHorizonSelect" onchange="updateRatesWidgets()"
-                                    class="bg-emerald-50 border border-emerald-300 text-sm rounded-lg p-2 font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                            <div>
+                                <h3 class="text-gray-800 font-bold border-l-4 border-emerald-600 pl-3">Matriz de Sensibilidad: Rentabilidad según Nivel y Variación de Tipos</h3>
+                                <p class="text-xs text-gray-500 mt-1 pl-4">El color de la celda representa la Rentabilidad Media a futuro para el plazo seleccionado.</p>
+                            </div>
+                            <div class="flex items-center gap-2 bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                                <label class="text-sm font-bold text-gray-700">Plazo (Forward):</label>
+                                <select id="ratesHorizonSelect" onchange="updateRatesMatrix()"
+                                    class="bg-white border border-emerald-300 text-sm rounded cursor-pointer p-1.5 font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500">
                                     <option value="1M">1 Mes (21d)</option>
                                     <option value="3M">3 Meses (63d)</option>
                                     <option value="6M">6 Meses (126d)</option>
@@ -723,25 +726,7 @@
                                 </select>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500 mb-4">Muestra la rentabilidad media (% Media), mediana (% Mediana), ratio de eventos alcistas (Win Rate) y número de muestras (N) en la ventana seleccionada, categorizados por el movimiento absoluto (en % de tasa, ptos porcentuales) de los tipos frente a la misma ventana pasada.</p>
-                        
-                        <div class="overflow-x-auto custom-scrollbar">
-                            <table class="min-w-full text-sm text-center border border-gray-200 rounded-lg">
-                                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
-                                    <tr>
-                                        <th class="px-3 py-3 text-left">Variación Tipos (Δ%)</th>
-                                        <th class="px-3 py-3">N (Eventos)</th>
-                                        <th class="px-3 py-3">Rentabilidad (Media)</th>
-                                        <th class="px-3 py-3">Rentabilidad (Mediana)</th>
-                                        <th class="px-3 py-3">Volatilidad (σ)</th>
-                                        <th class="px-3 py-3 font-bold">Ratio Positivos</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="ratesMatrixTableBody" class="divide-y divide-gray-100 bg-white">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                        </div>
+                        <div id="ratesHeatmapChart" class="w-full h-[450px]"></div>
                     </div>
 
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -1030,9 +1015,7 @@
         }
 
         function updateRatesWidgets() {
-            if (!globalRatesData || !currentData) return;
-            const ratesAnalysisData = calculateRatesAnalysis(currentData, globalRatesData);
-            renderRatesAnalysis(ratesAnalysisData);
+            updateRatesMatrix();
         }
 
         async function runAnalysis() {
@@ -1104,6 +1087,7 @@
                 renderBestDaysCharts(bestDaysData, ticker);
                 renderOilAnalysis(oilAnalysisData, oilData);
                 renderRatesAnalysis(ratesAnalysisData);
+                updateRatesMatrix();
                 renderVixAnalysis(vixAnalysisData, vixData, vixThreshold);
                 renderDrawdownDurationTable(ddDurationData);
                 renderSeasonalityYoY(yoyAnalysisData, ticker);
@@ -1932,60 +1916,13 @@
                     winRate: downTrendRet.length > 0 ? downTrendRet.filter(r => r > 0).length / downTrendRet.length : 0
                 }
             ];
-            
-            // Get Horizon mapping
-            const horizonSelect = document.getElementById('ratesHorizonSelect');
-            const horizonLabel = horizonSelect ? horizonSelect.value : '12M';
-            const horizonDaysObj = { "1M": 21, "3M": 63, "6M": 126, "12M": 252 };
-            const horizon = horizonDaysObj[horizonLabel] || 252;
 
-            const scatterData = [];
-            
-            // Calculate forward matrix and scatter points based on horizon
-            for (let i = 0; i < merged.length - horizon; i++) {
-                const rateChange = merged[i + horizon].ratePrice - merged[i].ratePrice;
-                const assetRet = (merged[i + horizon].assetPrice / merged[i].assetPrice) - 1;
-                scatterData.push({ rateChange, assetRet });
-            }
-            
-            // Group into matrix bins
-            // Groups: Descarga Fuerte (< -1%), Descarga Moderada (-1% a -0.2%), Estable (-0.2% a 0.2%), Subida Moderada (0.2% a 1%), Subida Fuerte (> 1%)
-            const matrixGroups = [
-                { id: 'caida-fuerte', label: 'Caída Fuerte (< -1.0%)', filter: (c) => c < -1.0 },
-                { id: 'caida-leve', label: 'Caída Leve (-1.0% a -0.25%)', filter: (c) => c >= -1.0 && c < -0.25 },
-                { id: 'estable', label: 'Estable (-0.25% a +0.25%)', filter: (c) => c >= -0.25 && c <= 0.25 },
-                { id: 'subida-leve', label: 'Subida Leve (+0.25% a +1.0%)', filter: (c) => c > 0.25 && c <= 1.0 },
-                { id: 'subida-fuerte', label: 'Subida Fuerte (> +1.0%)', filter: (c) => c > 1.0 }
-            ];
-
-            const matrix = matrixGroups.map(g => ({ ...g, returns: [] }));
-            
-            scatterData.forEach(p => {
-                const g = matrix.find(m => m.filter(p.rateChange));
-                if (g) {
-                    g.returns.push(p.assetRet);
-                }
-            });
-            
-            const matrixStats = matrix.map(g => {
-                const rets = g.returns;
-                if (rets.length === 0) return { label: g.label, n: 0, mean: 0, median: 0, winRate: 0, sd: 0 };
-                return {
-                    label: g.label,
-                    n: rets.length,
-                    mean: getMean(rets),
-                    median: getPercentile(rets, 50),
-                    sd: getStdDev(rets),
-                    winRate: rets.filter(r => r > 0).length / rets.length
-                };
-            });
-
-            return { stats, scatterData, merged, matrixStats, horizonLabel };
+            return { stats, merged };
         }
 
         function renderRatesAnalysis(data) {
             if (!data) return;
-            const { stats, scatterData, merged, matrixStats, horizonLabel } = data;
+            const { stats, merged } = data;
             const dates = merged.map(d => d.date);
             const rates = merged.map(d => d.ratePrice);
             const ratesMA = merged.map(d => d.rateMA);
@@ -2005,33 +1942,116 @@
                     <td class="px-4 py-3 text-right font-bold text-blue-600">${fmtPct(r.winRate)}</td>
                 </tr>
             `).join('');
-            
-            // Build Matrix Table
-            const mbody = document.getElementById('ratesMatrixTableBody');
-            mbody.innerHTML = matrixStats.map(r => `
-                <tr class="border-b hover:bg-emerald-50 transition-colors">
-                    <td class="px-3 py-3 text-left font-bold text-gray-800">${r.label}</td>
-                    <td class="px-3 py-3 text-gray-500 font-mono">${r.n}</td>
-                    <td class="px-3 py-3 font-bold ${r.mean >= 0 ? 'text-green-600' : 'text-red-500'}">${r.n > 0 ? fmtPct(r.mean) : '-'}</td>
-                    <td class="px-3 py-3 text-gray-600">${r.n > 0 ? fmtPct(r.median) : '-'}</td>
-                    <td class="px-3 py-3 text-gray-400 text-xs">${r.n > 1 ? fmtPct(r.sd) : '-'}</td>
-                    <td class="px-3 py-3 font-bold text-emerald-700">${r.n > 0 ? fmtPct(r.winRate) : '-'}</td>
-                </tr>
-            `).join('');
 
             const colors = ['#ef4444', '#22c55e'];
             Plotly.newPlot('ratesBarChart', [
                 { x: stats.map(s => s.regime), y: stats.map(s => s.annRet), type: 'bar', marker: { color: colors }, text: stats.map(s => fmtPct(s.annRet)), textposition: 'auto' }
             ], { title: 'Régimen Trend Following Tipos Corto', yaxis: { tickformat: '.1%', title: 'Rentabilidad Anualizada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+        }
 
-            if (scatterData.length > 2) {
-                const xs = scatterData.map(p => p.rateChange), ys = scatterData.map(p => p.assetRet * 100);
+        function updateRatesMatrix() {
+            if (!globalRatesData || !currentData) return;
+            
+            const horizonLabel = document.getElementById('ratesHorizonSelect').value;
+            const horizonMap = { "1M": 21, "3M": 63, "6M": 126, "12M": 252 };
+            const fwDays = horizonMap[horizonLabel] || 252;
+            const bwDays = 252; // Medir el cambio de tipos interanual (12 meses hacia atrás)
+            
+            const ratesMap = new Map();
+            globalRatesData.forEach(d => ratesMap.set(d.date.toISOString().split('T')[0], d.price));
+            
+            const validPairs = [];
+            for (let i = bwDays; i < currentData.length - fwDays; i++) {
+                const dStr = currentData[i].date.toISOString().split('T')[0];
+                const dStrPrev = currentData[i - bwDays].date.toISOString().split('T')[0];
+                
+                if (ratesMap.has(dStr) && ratesMap.has(dStrPrev)) {
+                    const currentRate = ratesMap.get(dStr);
+                    const prevRate = ratesMap.get(dStrPrev);
+                    const rateChange = currentRate - prevRate;
+                    const forwardRet = (currentData[i + fwDays].price / currentData[i].price) - 1;
+                    validPairs.push({ rateLevel: currentRate, rateChange: rateChange, forwardRet: forwardRet });
+                }
+            }
+            
+            const yBins = [
+                { label: '< 1%', filter: (r) => r.rateLevel < 1.0 },
+                { label: '1% a 2.5%', filter: (r) => r.rateLevel >= 1.0 && r.rateLevel < 2.5 },
+                { label: '2.5% a 4%', filter: (r) => r.rateLevel >= 2.5 && r.rateLevel < 4.0 },
+                { label: '4% a 5.5%', filter: (r) => r.rateLevel >= 4.0 && r.rateLevel < 5.5 },
+                { label: '> 5.5%', filter: (r) => r.rateLevel >= 5.5 }
+            ];
+
+            const xBins = [
+                { label: '< -1.0%', filter: (r) => r.rateChange < -1.0 },
+                { label: '-1.0% a -0.25%', filter: (r) => r.rateChange >= -1.0 && r.rateChange < -0.25 },
+                { label: 'Estable (±0.25%)', filter: (r) => r.rateChange >= -0.25 && r.rateChange <= 0.25 },
+                { label: '+0.25% a +1.0%', filter: (r) => r.rateChange > 0.25 && r.rateChange <= 1.0 },
+                { label: '> +1.0%', filter: (r) => r.rateChange > 1.0 }
+            ];
+
+            const zData = [];
+            const textData = [];
+            
+            yBins.forEach(yBin => {
+                const rowVal = [];
+                const rowText = [];
+                xBins.forEach(xBin => {
+                    const group = validPairs.filter(p => yBin.filter(p) && xBin.filter(p));
+                    if (group.length > 5) {
+                        const meanRet = getMean(group.map(g => g.forwardRet));
+                        rowVal.push(meanRet * 100);
+                        rowText.push(`${(meanRet*100).toFixed(2)}%<br>Eventos: ${group.length}`);
+                    } else {
+                        rowVal.push(null);
+                        rowText.push(`-`);
+                    }
+                });
+                zData.push(rowVal);
+                textData.push(rowText);
+            });
+
+            const allVals = zData.flat().filter(v => v !== null);
+            const maxAbs = allVals.length > 0 ? Math.max(...allVals.map(Math.abs)) : 10;
+            
+            Plotly.newPlot('ratesHeatmapChart', [{
+                x: xBins.map(b => b.label),
+                y: yBins.map(b => b.label),
+                z: zData,
+                text: textData,
+                texttemplate: "%{text}",
+                hoverinfo: 'text',
+                type: 'heatmap',
+                colorscale: [[0, '#ef4444'], [0.5, '#fef08a'], [1, '#22c55e']],
+                zmid: 0,
+                zmin: -maxAbs,
+                zmax: maxAbs,
+                showscale: true,
+                colorbar: { title: 'Rentabilidad<br>Media (%)' }
+            }], {
+                margin: { t: 30, l: 120, r: 20, b: 60 },
+                xaxis: { title: 'Variación de Tipos (12 Meses)', side: 'bottom', fixedrange: true },
+                yaxis: { title: 'Nivel del Tipo de Interés (^IRX)', fixedrange: true }
+            }, { responsive: true, displayModeBar: false });
+
+            // Scatter Chart calculation and render
+            if (validPairs.length > 2) {
+                const xs = validPairs.map(p => p.rateChange);
+                const ys = validPairs.map(p => p.forwardRet * 100);
                 const reg = calculateRegressionStats(xs, ys);
                 const minX = Math.min(...xs), maxX = Math.max(...xs);
                 Plotly.newPlot('ratesScatterChart', [
-                    { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: 'emerald', opacity: 0.1 }, name: `Datos ${horizonLabel}` },
+                    { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#059669', opacity: 0.1 }, name: `Datos ${horizonLabel}` },
                     { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: 'Regresión' }
-                ], { title: `y = ${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)} | R² = ${reg.r2.toFixed(3)}`, xaxis: { title: `Cambio Absoluto Tipos ^IRX en Ventana ${horizonLabel} (%)` }, yaxis: { title: `Retorno del Activo Forward ${horizonLabel} (%)` }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: false }, { responsive: true });
+                ], { 
+                    title: `y = ${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)} | R² = ${reg.r2.toFixed(3)}`, 
+                    xaxis: { title: `Cambio Absoluto Tipos 12M (%)` }, 
+                    yaxis: { title: `Retorno del Activo Forward ${horizonLabel} (%)` }, 
+                    margin: { t: 40, l: 50, r: 20, b: 40 }, 
+                    showlegend: false 
+                }, { responsive: true });
+            } else {
+                document.getElementById('ratesScatterChart').innerHTML = '<div class="text-sm text-gray-500 text-center mt-20">Faltan datos</div>';
             }
         }
 
