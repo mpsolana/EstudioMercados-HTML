@@ -193,6 +193,10 @@
                         class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
                         <i class="fa-solid fa-oil-well mr-2"></i>Petróleo
                     </button>
+                    <button onclick="switchTab('rates')" id="tab-rates"
+                        class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
+                        <i class="fa-solid fa-percent mr-2"></i>Tipos de Interés
+                    </button>
                     <button onclick="switchTab('correlation')" id="tab-correlation"
                         class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
                         <i class="fa-solid fa-link mr-2"></i>Correlaciones
@@ -696,6 +700,42 @@
                     </div>
                 </div>
 
+                <!-- TAB: TIPOS DE INTERÉS -->
+                <div id="content-rates" class="tab-content space-y-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Evolución de los Tipos de Interés (10Y Treasury: ^TNX)</h3>
+                        <p class="text-sm text-gray-500 mb-4">La línea roja indica la media móvil de 200 días para identificar la tendencia primaria de los tipos.</p>
+                        <div id="ratesPriceChart" class="w-full h-[400px]"></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Resumen: Retornos de la cartera según la tendencia de los tipos</h3>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-sm text-left text-gray-600">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                                    <tr>
+                                        <th class="px-4 py-3">Régimen</th>
+                                        <th class="px-4 py-3 text-center">Días en régimen</th>
+                                        <th class="px-4 py-3 text-right">Rent. Anualizada</th>
+                                        <th class="px-4 py-3 text-right">Volatilidad Anual.</th>
+                                        <th class="px-4 py-3 text-right font-bold">Ratio Días Positivos</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ratesStatsTableBody" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Rentabilidad Anualizada por Régimen</h3>
+                            <div id="ratesBarChart" class="w-full h-[400px]"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Correlación a 12 Meses: Cambio en Tipos vs Retorno</h3>
+                            <div id="ratesScatterChart" class="w-full h-[400px]"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TAB: CORRELACIONES -->
                 <div id="content-correlation" class="tab-content space-y-6">
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -837,6 +877,7 @@
         let globalCorrData = null;
         let globalVixData = null; // Store VIX data globally
         let globalOilData = null;
+        let globalRatesData = null;
 
         // --- Ticker Dictionary Data ---
         const commonTickers = [
@@ -963,15 +1004,17 @@
 
             try {
                 // Fetch main Ticker, Oil (CL=F), and VIX (^VIX)
-                const [rawData, oilData, vixData] = await Promise.all([
+                const [rawData, oilData, vixData, ratesData] = await Promise.all([
                     fetchYahooData(ticker, startDate, endDate),
                     fetchYahooData('CL=F', startDate, endDate).catch(e => { console.warn("No se pudo bajar Oil", e); return []; }),
-                    fetchYahooData('^VIX', startDate, endDate).catch(e => { console.warn("No se pudo bajar VIX", e); return []; })
+                    fetchYahooData('^VIX', startDate, endDate).catch(e => { console.warn("No se pudo bajar VIX", e); return []; }),
+                    fetchYahooData('^TNX', startDate, endDate).catch(e => { console.warn("No se pudo bajar Tipos", e); return []; })
                 ]);
 
                 currentData = rawData;
                 globalVixData = vixData; // Store globally
                 globalOilData = oilData;
+                globalRatesData = ratesData;
 
                 updateStatus(`Calculando indicadores para ${rawData.length} registros...`);
 
@@ -988,6 +1031,7 @@
                 const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
                 const bestDaysData = calculateBestDaysAnalysis(rawData);
                 const oilAnalysisData = calculateOilAnalysis(rawData, oilData);
+                const ratesAnalysisData = calculateRatesAnalysis(rawData, ratesData);
 
                 // VIX Initial Calculation (default 20)
                 const vixThreshold = parseFloat(document.getElementById('vixThresholdSelect').value);
@@ -1015,6 +1059,7 @@
                 updateDipWidgets();
                 renderBestDaysCharts(bestDaysData, ticker);
                 renderOilAnalysis(oilAnalysisData, oilData);
+                renderRatesAnalysis(ratesAnalysisData);
                 renderVixAnalysis(vixAnalysisData, vixData, vixThreshold);
                 renderDrawdownDurationTable(ddDurationData);
                 renderSeasonalityYoY(yoyAnalysisData, ticker);
@@ -1788,6 +1833,109 @@
                 margin: { t: 40, l: 50, r: 50, b: 40 },
                 showlegend: false
             }, { responsive: true });
+        }
+
+        function calculateRatesAnalysis(assetData, ratesData) {
+            if (!ratesData || ratesData.length === 0) return null;
+            const ratesMap = new Map();
+            let smoothedRatesPrices = [];
+            for (let i = 0; i < ratesData.length; i++) {
+                let sum = 0, count = 0;
+                for (let j = Math.max(0, i - 199); j <= i; j++) { sum += ratesData[j].price; count++; }
+                const ma = sum / count;
+                smoothedRatesPrices.push(ma);
+                ratesMap.set(ratesData[i].date.toISOString().split('T')[0], { price: ratesData[i].price, ma: ma });
+            }
+
+            const merged = [];
+            assetData.forEach(d => {
+                const dStr = d.date.toISOString().split('T')[0];
+                if (ratesMap.has(dStr)) {
+                    const rateInfo = ratesMap.get(dStr);
+                    merged.push({ date: d.date, assetPrice: d.price, ratePrice: rateInfo.price, rateMA: rateInfo.ma });
+                }
+            });
+
+            if (merged.length < 2) return null;
+
+            const upTrendRet = [], downTrendRet = [];
+            for (let i = 1; i < merged.length; i++) {
+                const ret = (merged[i].assetPrice / merged[i - 1].assetPrice) - 1;
+                if (merged[i - 1].ratePrice > merged[i - 1].rateMA) { upTrendRet.push(ret); } else { downTrendRet.push(ret); }
+            }
+
+            const getAnnRet = (rets) => {
+                if (rets.length === 0) return 0;
+                let growth = 1;
+                rets.forEach(r => growth *= (1 + r));
+                if (growth <= 0) return 0;
+                return Math.pow(growth, 252 / rets.length) - 1;
+            };
+
+            const stats = [
+                {
+                    regime: "Tipos Subiendo (> Media 200)",
+                    days: upTrendRet.length,
+                    annRet: getAnnRet(upTrendRet),
+                    volAnn: (upTrendRet.length > 1 ? getStdDev(upTrendRet) : 0) * Math.sqrt(252),
+                    winRate: upTrendRet.length > 0 ? upTrendRet.filter(r => r > 0).length / upTrendRet.length : 0
+                },
+                {
+                    regime: "Tipos Bajando (< Media 200)",
+                    days: downTrendRet.length,
+                    annRet: getAnnRet(downTrendRet),
+                    volAnn: (downTrendRet.length > 1 ? getStdDev(downTrendRet) : 0) * Math.sqrt(252),
+                    winRate: downTrendRet.length > 0 ? downTrendRet.filter(r => r > 0).length / downTrendRet.length : 0
+                }
+            ];
+
+            const scatterData = []; const horizon = 252;
+            for (let i = 0; i < merged.length - horizon; i++) {
+                const rateChange = merged[i + horizon].ratePrice - merged[i].ratePrice;
+                const assetRet = (merged[i + horizon].assetPrice / merged[i].assetPrice) - 1;
+                scatterData.push({ rateChange, assetRet });
+            }
+
+            return { stats, scatterData, merged };
+        }
+
+        function renderRatesAnalysis(data) {
+            if (!data) return;
+            const { stats, scatterData, merged } = data;
+            const dates = merged.map(d => d.date);
+            const rates = merged.map(d => d.ratePrice);
+            const ratesMA = merged.map(d => d.rateMA);
+
+            Plotly.newPlot('ratesPriceChart', [
+                { x: dates, y: rates, type: 'scatter', mode: 'lines', line: { color: 'black', width: 1.5 }, name: 'Tipos (10Y TNX)' },
+                { x: dates, y: ratesMA, type: 'scatter', mode: 'lines', line: { color: 'red', width: 1.5, dash: 'dot' }, name: 'Media Móvil 200' }
+            ], { yaxis: { title: 'Rendimiento (%)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
+
+            const tbody = document.getElementById('ratesStatsTableBody');
+            tbody.innerHTML = stats.map(r => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">${r.regime}</td>
+                    <td class="px-4 py-3 text-center">${r.days}</td>
+                    <td class="px-4 py-3 text-right font-bold ${r.annRet >= 0 ? 'text-green-600' : 'text-red-500'}">${fmtPct(r.annRet)}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${fmtPct(r.volAnn)}</td>
+                    <td class="px-4 py-3 text-right font-bold text-blue-600">${fmtPct(r.winRate)}</td>
+                </tr>
+            `).join('');
+
+            const colors = ['#ef4444', '#22c55e'];
+            Plotly.newPlot('ratesBarChart', [
+                { x: stats.map(s => s.regime), y: stats.map(s => s.annRet), type: 'bar', marker: { color: colors }, text: stats.map(s => fmtPct(s.annRet)), textposition: 'auto' }
+            ], { yaxis: { tickformat: '.1%', title: 'Rentabilidad Anualizada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+
+            if (scatterData.length > 2) {
+                const xs = scatterData.map(p => p.rateChange), ys = scatterData.map(p => p.assetRet * 100);
+                const reg = calculateRegressionStats(xs, ys);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                Plotly.newPlot('ratesScatterChart', [
+                    { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: 'emerald', opacity: 0.1 }, name: 'Datos 12M' },
+                    { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: 'Regresión' }
+                ], { title: `y = ${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)} | R² = ${reg.r2.toFixed(3)}`, xaxis: { title: 'Cambio Absoluto Tipos 10Y (12 Meses)' }, yaxis: { title: 'Retorno del Activo a 12 Meses (%)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: false }, { responsive: true });
+            }
         }
 
         function calculateBestDaysAnalysis(data) {
