@@ -512,6 +512,13 @@
                         <div id="seasonalityDecilesChart" class="w-full h-[600px]"></div>
                     </div>
 
+                    <!-- Mapa de calor de rentabilidades mensuales -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mt-6">
+                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-red-500 pl-3">Rentabilidad Mensual — Mapa de Calor</h3>
+                        <p class="text-sm text-gray-500 mb-2">Cada celda muestra la rentabilidad (%) de cada mes de cada año. Verde = positivo, Rojo = negativo.</p>
+                        <div id="monthlyHeatmapChart" class="w-full" style="min-height:400px"></div>
+                    </div>
+
                     <!-- Ranking y Proyección -->
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                         <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-green-600 pl-3">Ranking de
@@ -828,14 +835,8 @@
                                         class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-xs">Actualizar
                                         Gráfico Rolling</button></div>
                             </div>
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <div class="lg:col-span-2">
-                                    <div id="rollingCorrChart" class="w-full h-[400px]"></div>
-                                </div>
-                                <div class="lg:col-span-1">
-                                    <div id="rollingHistChart" class="w-full h-[400px]"></div>
-                                </div>
-                            </div>
+                            <div id="rollingCorrChart" class="w-full h-[400px] mb-6"></div>
+                            <div id="rollingHistChart" class="w-full h-[300px]"></div>
                         </div>
                     </div>
                 </div>
@@ -1112,6 +1113,7 @@
                 renderDrawdownDurationTable(ddDurationData);
                 renderSeasonalityYoY(yoyAnalysisData, ticker);
                 renderSeasonalityDeciles(rawData, ticker);
+                renderMonthlyHeatmap(rawData);
                 // Gráfica adicional: YTD normalizado a base 10 para índices principales
                 renderYTDBase10(['^GSPC','^STOXX50E','^N225','^HSI','^IBEX','^DAX']);
 
@@ -1640,6 +1642,87 @@
             Plotly.newPlot('seasonalityDecilesChart', traces, layout, { responsive: true });
         }
 
+        function renderMonthlyHeatmap(data) {
+            if (!data || data.length === 0) return;
+
+            // Group data by year and month, take first and last price per month
+            const monthlyMap = new Map(); // key: "YYYY-MM" -> {first, last}
+            data.forEach(d => {
+                const y = d.date.getFullYear();
+                const m = d.date.getMonth(); // 0-11
+                const key = `${y}-${m}`;
+                if (!monthlyMap.has(key)) {
+                    monthlyMap.set(key, { year: y, month: m, first: d.price, last: d.price });
+                } else {
+                    monthlyMap.get(key).last = d.price;
+                }
+            });
+
+            // Build year/month grid
+            const yearsSet = new Set();
+            monthlyMap.forEach(v => yearsSet.add(v.year));
+            const years = Array.from(yearsSet).sort((a, b) => b - a); // most recent first (top)
+
+            const monthLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+            const zData = [];
+            const textData = [];
+
+            years.forEach(year => {
+                const rowZ = [];
+                const rowText = [];
+                for (let m = 0; m < 12; m++) {
+                    const key = `${year}-${m}`;
+                    const entry = monthlyMap.get(key);
+                    if (entry && entry.first !== 0) {
+                        const ret = ((entry.last / entry.first) - 1) * 100;
+                        rowZ.push(ret);
+                        rowText.push(ret >= 0 ? `+${ret.toFixed(1)}` : ret.toFixed(1));
+                    } else {
+                        rowZ.push(null);
+                        rowText.push('');
+                    }
+                }
+                zData.push(rowZ);
+                textData.push(rowText);
+            });
+
+            const allVals = zData.flat().filter(v => v !== null);
+            const maxAbs = allVals.length > 0 ? Math.max(...allVals.map(Math.abs), 1) : 25;
+
+            const trace = {
+                x: monthLabels,
+                y: years.map(String),
+                z: zData,
+                text: textData,
+                texttemplate: '%{text}',
+                hovertemplate: 'Año: %{y}<br>Mes: %{x}<br>Rentabilidad: %{z:.1f}%<extra></extra>',
+                type: 'heatmap',
+                colorscale: [
+                    [0, '#b91c1c'],
+                    [0.35, '#fca5a5'],
+                    [0.5, '#ffffff'],
+                    [0.65, '#bbf7d0'],
+                    [1, '#15803d']
+                ],
+                zmid: 0,
+                zmin: -maxAbs,
+                zmax: maxAbs,
+                showscale: true,
+                colorbar: { title: 'Rent. (%)' },
+                xgap: 2,
+                ygap: 2
+            };
+
+            const height = Math.max(400, years.length * 32 + 100);
+
+            Plotly.newPlot('monthlyHeatmapChart', [trace], {
+                margin: { t: 20, l: 60, r: 80, b: 40 },
+                xaxis: { side: 'bottom', fixedrange: true },
+                yaxis: { fixedrange: true, autorange: 'reversed', type: 'category' },
+                height: height
+            }, { responsive: true, displayModeBar: false });
+        }
 
         function getDayOfYear(date) { const start = new Date(date.getFullYear(), 0, 0); return Math.floor((date - start) / (1000 * 60 * 60 * 24)); }
 
@@ -2090,8 +2173,8 @@
                 showscale: true,
                 colorbar: { title: 'Rentabilidad<br>Media (%)' }
             }], {
-                margin: { t: 30, l: 120, r: 20, b: 60 },
-                xaxis: { title: 'Variación de Tipos (12 Meses)', side: 'bottom', fixedrange: true },
+                margin: { t: 30, l: 120, r: 20, b: 120 },
+                xaxis: { title: 'Variación de Tipos (12 Meses)', side: 'bottom', fixedrange: true, tickangle: -45 },
                 yaxis: { title: 'Nivel del Tipo de Interés (^IRX)', fixedrange: true }
             }, { responsive: true, displayModeBar: false });
 
