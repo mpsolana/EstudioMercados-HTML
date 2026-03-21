@@ -1419,9 +1419,8 @@
             if (!data || data.length === 0) return null;
             const lastDate = data[data.length - 1].date;
             const currentYear = lastDate.getFullYear();
-            const currentDOY = getDayOfYear(lastDate);
-            const totalDays = isLeapYear(currentYear) ? 366 : 365;
 
+            // Group data by year
             const yearsMap = new Map();
             data.forEach(d => {
                 const y = d.date.getFullYear();
@@ -1429,61 +1428,88 @@
                 yearsMap.get(y).push(d);
             });
 
-            const doyMap = new Map();
-            const currentYearYtd = new Map();
+            // Number of normalized points (typical trading days in a year)
+            const numPoints = 252;
 
-            yearsMap.forEach((yearData, year) => {
-                if (yearData.length < 2) return;
+            // Helper: interpolate a year's YTD series to exactly numPoints equi-spaced values
+            function normalizeYear(yearData) {
+                if (yearData.length < 2) return null;
                 const firstPrice = yearData[0].price;
-                yearData.forEach(d => {
-                    const doy = getDayOfYear(d.date);
-                    const ytd = (d.price / firstPrice) - 1;
-                    if (year !== currentYear) {
-                        if (!doyMap.has(doy)) doyMap.set(doy, []);
-                        doyMap.get(doy).push(ytd);
-                    }
-                    if (year === currentYear) currentYearYtd.set(doy, ytd);
-                });
-            });
+                const ytdSeries = yearData.map(d => (d.price / firstPrice) - 1);
+                const doySeries = yearData.map(d => getDayOfYear(d.date));
 
-            const x = [];
-            let p10 = [], p25 = [], p50 = [], p75 = [], p90 = [], current = [];
-
-            for (let doy = 1; doy <= totalDays; doy++) {
-                const values = (doyMap.get(doy) || []).slice().sort((a, b) => a - b);
-                x.push(doy);
-                if (values.length < 3) {
-                    p10.push(null); p25.push(null); p50.push(null); p75.push(null); p90.push(null);
-                } else {
-                    p10.push(quantile(values, 0.1));
-                    p25.push(quantile(values, 0.25));
-                    p50.push(quantile(values, 0.5));
-                    p75.push(quantile(values, 0.75));
-                    p90.push(quantile(values, 0.9));
+                const result = new Array(numPoints);
+                for (let i = 0; i < numPoints; i++) {
+                    // Map normalized index to fractional position in the original series
+                    const t = i / (numPoints - 1) * (ytdSeries.length - 1);
+                    const lo = Math.floor(t);
+                    const hi = Math.min(lo + 1, ytdSeries.length - 1);
+                    const frac = t - lo;
+                    result[i] = ytdSeries[lo] + frac * (ytdSeries[hi] - ytdSeries[lo]);
                 }
-                current.push(doy <= currentDOY ? (currentYearYtd.get(doy) ?? null) : null);
+                return { ytd: result, doys: doySeries };
             }
 
-            // Interpolate missing percentile values so fill areas are continuous
-            p10 = interpFill(p10);
-            p25 = interpFill(p25);
-            p50 = interpFill(p50);
-            p75 = interpFill(p75);
-            p90 = interpFill(p90);
+            // Build normalized series for all historical years and the current year
+            const historicalSeries = []; // array of arrays, each of length numPoints
+            let currentSeries = null;
+            let currentDoys = null;
 
-            // Smooth percentiles to avoid sharp spikes
-            p10 = smoothArray(p10, 9);
-            p25 = smoothArray(p25, 9);
-            p50 = smoothArray(p50, 9);
-            p75 = smoothArray(p75, 9);
-            p90 = smoothArray(p90, 9);
+            yearsMap.forEach((yearData, year) => {
+                const norm = normalizeYear(yearData);
+                if (!norm) return;
+                if (year === currentYear) {
+                    currentSeries = norm.ytd;
+                    currentDoys = norm.doys;
+                } else {
+                    historicalSeries.push(norm.ytd);
+                }
+            });
 
-            // interpolate and smooth current line but keep nulls after currentDOY
-            const currentFull = interpFill(current.map(v => v === null ? null : v));
-            const currentSmoothed = smoothArray(currentFull, 5);
-            const currentFinal = currentSmoothed.map((v, i) => (i <= currentDOY - 1 ? v : null));
+            if (historicalSeries.length < 3) return null;
 
-            return { x, p10, p25, p50, p75, p90, current: currentFinal };
+            // Compute percentiles at each of the numPoints
+            const p10 = [], p25 = [], p50 = [], p75 = [], p90 = [];
+            for (let i = 0; i < numPoints; i++) {
+                const values = historicalSeries.map(s => s[i]).sort((a, b) => a - b);
+                p10.push(quantile(values, 0.1));
+                p25.push(quantile(values, 0.25));
+                p50.push(quantile(values, 0.5));
+                p75.push(quantile(values, 0.75));
+                p90.push(quantile(values, 0.9));
+            }
+
+            // Build x-axis as calendar day-of-year by mapping each normalized index
+            // to the average DOY across historical years at that fraction of the year
+            const x = [];
+            for (let i = 0; i < numPoints; i++) {
+                // Linear mapping: fraction of trading year → approximate DOY
+                const doy = Math.round(1 + (i / (numPoints - 1)) * 364);
+                x.push(doy);
+            }
+
+            // Current year line: map its actual trading days to the x-axis DOY positions
+            const current = new Array(numPoints).fill(null);
+            if (currentSeries) {
+                const currentYearData = yearsMap.get(currentYear);
+                if (currentYearData && currentYearData.length >= 2) {
+                    const firstPrice = currentYearData[0].price;
+                    // For each trading day in the current year, find the closest x-axis point
+                    for (let td = 0; td < currentYearData.length; td++) {
+                        const doy = getDayOfYear(currentYearData[td].date);
+                        const ytd = (currentYearData[td].price / firstPrice) - 1;
+                        // Find the normalized index whose DOY is closest to this trading day's DOY
+                        let bestIdx = 0, bestDist = 9999;
+                        for (let j = 0; j < numPoints; j++) {
+                            const dist = Math.abs(x[j] - doy);
+                            if (dist < bestDist) { bestDist = dist; bestIdx = j; }
+                        }
+                        current[bestIdx] = ytd;
+                    }
+                }
+            }
+
+            return { x, p10, p25, p50, p75, p90, current };
         }
 
         function quantile(sortedArr, q) {
