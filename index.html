@@ -1658,19 +1658,34 @@
                 }
             });
 
+            // Get annual returns from year-end prices
+            const yearPrices = {};
+            data.forEach(d => {
+                const y = d.date.getFullYear();
+                if (!yearPrices[y]) yearPrices[y] = { first: d.price, last: d.price };
+                yearPrices[y].last = d.price;
+            });
+
             // Build year/month grid
             const yearsSet = new Set();
             monthlyMap.forEach(v => yearsSet.add(v.year));
             const years = Array.from(yearsSet).sort((a, b) => b - a); // most recent first (top)
 
-            const monthLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            // Column labels: 12 months + Año + % Pos
+            const monthLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Año','% Pos'];
 
             const zData = [];
             const textData = [];
 
+            // For historical probabilities bottom row
+            const monthPositives = new Array(12).fill(0);
+            const monthTotals = new Array(12).fill(0);
+
             years.forEach(year => {
                 const rowZ = [];
                 const rowText = [];
+                let posMonths = 0, totalMonths = 0;
+
                 for (let m = 0; m < 12; m++) {
                     const key = `${year}-${m}`;
                     const entry = monthlyMap.get(key);
@@ -1678,25 +1693,82 @@
                         const ret = ((entry.last / entry.first) - 1) * 100;
                         rowZ.push(ret);
                         rowText.push(ret >= 0 ? `+${ret.toFixed(1)}` : ret.toFixed(1));
+                        totalMonths++;
+                        if (ret > 0) posMonths++;
+                        // Historical tracking
+                        monthTotals[m]++;
+                        if (ret > 0) monthPositives[m]++;
                     } else {
                         rowZ.push(null);
                         rowText.push('');
                     }
                 }
+
+                // Annual return column: year-over-year
+                const prevYear = year - 1;
+                if (yearPrices[prevYear] && yearPrices[year]) {
+                    const annRet = (yearPrices[year].last / yearPrices[prevYear].last - 1) * 100;
+                    rowZ.push(annRet);
+                    rowText.push((annRet >= 0 ? '+' : '') + annRet.toFixed(1));
+                } else {
+                    rowZ.push(null);
+                    rowText.push('');
+                }
+
+                // Positive months probability column
+                if (totalMonths > 0) {
+                    const pct = (posMonths / totalMonths) * 100;
+                    rowZ.push(pct);
+                    rowText.push(pct.toFixed(0) + '%');
+                } else {
+                    rowZ.push(null);
+                    rowText.push('');
+                }
+
                 zData.push(rowZ);
                 textData.push(rowText);
             });
 
-            const allVals = zData.flat().filter(v => v !== null);
+            // Bottom row: historical probability of positive month
+            const histRow = [];
+            const histText = [];
+            for (let m = 0; m < 12; m++) {
+                if (monthTotals[m] > 0) {
+                    const pct = (monthPositives[m] / monthTotals[m]) * 100;
+                    histRow.push(pct);
+                    histText.push(pct.toFixed(0) + '%');
+                } else {
+                    histRow.push(null);
+                    histText.push('');
+                }
+            }
+            // Fill the last 2 columns (Año and % Pos) for the bottom row
+            const allAnnualRets = zData.map(r => r[12]).filter(v => v !== null);
+            const avgAnnual = allAnnualRets.length > 0 ? allAnnualRets.reduce((a, b) => a + b, 0) / allAnnualRets.length : null;
+            histRow.push(avgAnnual);
+            histText.push(avgAnnual !== null ? avgAnnual.toFixed(1) : '');
+
+            const allPosPct = zData.map(r => r[13]).filter(v => v !== null);
+            const avgPos = allPosPct.length > 0 ? allPosPct.reduce((a, b) => a + b, 0) / allPosPct.length : null;
+            histRow.push(avgPos);
+            histText.push(avgPos !== null ? avgPos.toFixed(0) + '%' : '');
+
+            // Add bottom row
+            zData.push(histRow);
+            textData.push(histText);
+            const yLabels = [...years.map(String), 'Prob. Hist.'];
+
+            // Color scale: for the heatmap we use the standard red-white-green
+            const allVals = zData.slice(0, -1).map(r => r.slice(0, 12)).flat().filter(v => v !== null);
             const maxAbs = allVals.length > 0 ? Math.max(...allVals.map(Math.abs), 1) : 25;
 
             const trace = {
                 x: monthLabels,
-                y: years.map(String),
+                y: yLabels,
                 z: zData,
                 text: textData,
                 texttemplate: '%{text}',
-                hovertemplate: 'Año: %{y}<br>Mes: %{x}<br>Rentabilidad: %{z:.1f}%<extra></extra>',
+                hovertemplate: '%{y} | %{x}: %{z:.1f}<extra></extra>',
                 type: 'heatmap',
                 colorscale: [
                     [0, '#b91c1c'],
@@ -1714,10 +1786,10 @@
                 ygap: 2
             };
 
-            const height = Math.max(400, years.length * 32 + 100);
+            const height = Math.max(400, (years.length + 1) * 32 + 100);
 
             Plotly.newPlot('monthlyHeatmapChart', [trace], {
-                margin: { t: 20, l: 60, r: 80, b: 40 },
+                margin: { t: 20, l: 70, r: 80, b: 40 },
                 xaxis: { side: 'bottom', fixedrange: true },
                 yaxis: { fixedrange: true, autorange: 'reversed', type: 'category' },
                 height: height
@@ -2458,17 +2530,80 @@
             Plotly.newPlot('athHistogram', [{ x: res.recordReturns.map(x => x * 100), type: 'histogram', name: 'Tras Máximo', opacity: 0.6, marker: { color: 'red' } }, { x: res.nonRecordReturnsSample.map(x => x * 100), type: 'histogram', name: 'Aleatorio', opacity: 0.6, marker: { color: 'blue' } }], { title: 'Distribución de Retornos (%)', barmode: 'overlay', margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
         }
 
-        function calculateAnnualDistribution(data) { const m = {}; data.forEach(d => m[d.date.getFullYear()] = d.price); const y = Object.keys(m).sort(); const r = []; for (let i = 1; i < y.length; i++) r.push({ y: y[i], v: (m[y[i]] / m[y[i - 1]] - 1) * 100 }); return r; }
+        function calculateAnnualDistribution(data) {
+            // Group prices by year
+            const yearMap = {};
+            data.forEach(d => {
+                const y = d.date.getFullYear();
+                if (!yearMap[y]) yearMap[y] = [];
+                yearMap[y].push(d.price);
+            });
+            const years = Object.keys(yearMap).sort();
+            const r = [];
+            for (let i = 1; i < years.length; i++) {
+                const prevPrices = yearMap[years[i - 1]];
+                const lastPricePrevYear = prevPrices[prevPrices.length - 1];
+                const currPrices = yearMap[years[i]];
+                const lastPriceCurrYear = currPrices[currPrices.length - 1];
+                const annualRet = (lastPriceCurrYear / lastPricePrevYear - 1) * 100;
+
+                // Max intra-year drawdown: peak-to-trough within that year's prices
+                let peak = currPrices[0];
+                let maxDD = 0;
+                for (let j = 0; j < currPrices.length; j++) {
+                    if (currPrices[j] > peak) peak = currPrices[j];
+                    const dd = (currPrices[j] / peak - 1) * 100;
+                    if (dd < maxDD) maxDD = dd;
+                }
+                r.push({ y: years[i], v: annualRet, maxDD: maxDD });
+            }
+            return r;
+        }
         function renderAnnualDistributionChart(d, ticker) {
             if (!d) return;
             const currentYear = new Date().getFullYear().toString();
             const colors = d.map(item => item.y === currentYear ? '#ef4444' : '#94a3b8');
-            const opacities = d.map(item => item.y === currentYear ? 1 : 0.6);
-            Plotly.newPlot('annualDistChart', [{
+
+            // Bars: annual returns
+            const barTrace = {
                 x: d.map(i => i.y), y: d.map(i => i.v), type: 'bar',
-                marker: { color: colors, opacity: opacities },
-                text: d.map(i => i.v.toFixed(1) + '%'), textposition: 'auto'
-            }], { title: `Distribución anuales (Resaltado: ${currentYear})`, margin: { t: 40, l: 50, r: 20, b: 50 } }, { responsive: true });
+                marker: { color: colors },
+                text: d.map(i => (i.v >= 0 ? '+' : '') + i.v.toFixed(0) + '%'),
+                textposition: 'outside',
+                textfont: { size: 10 },
+                name: 'Rentabilidad Anual',
+                hovertemplate: '%{x}: %{y:.1f}%<extra></extra>'
+            };
+
+            // Dots: max intra-year drawdown
+            const dotTrace = {
+                x: d.map(i => i.y), y: d.map(i => i.maxDD), type: 'scatter',
+                mode: 'markers+text',
+                marker: { color: '#dc2626', size: 7 },
+                text: d.map(i => i.maxDD.toFixed(0) + '%'),
+                textposition: 'bottom center',
+                textfont: { size: 8, color: '#dc2626' },
+                name: 'Máx. Caída Intra-año',
+                hovertemplate: '%{x}: %{y:.1f}%<extra>Max DD</extra>'
+            };
+
+            // Compute summary stats
+            const avgDD = d.reduce((s, i) => s + i.maxDD, 0) / d.length;
+            const positiveYears = d.filter(i => i.v > 0).length;
+
+            Plotly.newPlot('annualDistChart', [barTrace, dotTrace], {
+                title: `Caídas intra-año vs Rentabilidad anual (${ticker})`,
+                annotations: [{
+                    xref: 'paper', yref: 'paper', x: 0, y: 1.06,
+                    xanchor: 'left', yanchor: 'top', showarrow: false,
+                    text: `A pesar de caídas medias intra-año del ${avgDD.toFixed(1)}%, la rentabilidad anual fue positiva en ${positiveYears} de ${d.length} años`,
+                    font: { size: 11, color: '#6b7280' }
+                }],
+                yaxis: { tickformat: '.0f', ticksuffix: '%', zeroline: true, zerolinecolor: 'black', zerolinewidth: 1 },
+                margin: { t: 60, l: 50, r: 20, b: 50 },
+                showlegend: true,
+                legend: { orientation: 'h', y: -0.12, x: 0, xanchor: 'left' }
+            }, { responsive: true });
         }
 
         // NEW Function: Annual Hist with Years (Tetris Style) - MODIFIED: Gray columns, Black Text
