@@ -173,6 +173,10 @@
                         class="tab-btn active px-6 py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
                         <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>General
                     </button>
+                    <button onclick="switchTab('markets')" id="tab-markets"
+                        class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
+                        <i class="fa-solid fa-globe mr-2"></i>Mercados
+                    </button>
                     <button onclick="switchTab('drawdown')" id="tab-drawdown"
                         class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
                         <i class="fa-solid fa-arrow-trend-down mr-2"></i>Drawdowns
@@ -210,17 +214,20 @@
                 <!-- TAB 1: General Analysis + Best Days -->
                 <div id="content-general" class="tab-content active space-y-6">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                        <div class="flex justify-between items-center mb-2 border-b pb-2 border-gray-100">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
                             <h3 class="text-gray-800 font-bold border-l-4 border-purple-500 pl-3">Precio, Medias Móviles
                                 & RSI (con desviación %)</h3>
+                            <div class="flex flex-wrap gap-2" id="techTimeFilters">
+                                <button onclick="filterTechnicalChart(7, this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                                <button onclick="filterTechnicalChart(30, this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                                <button onclick="filterTechnicalChart(90, this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                                <button onclick="filterTechnicalChart(365, this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                                <button onclick="filterTechnicalChart(1095, this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                                <button onclick="filterTechnicalChart(1825, this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                                <button onclick="filterTechnicalChart(null, this)" class="px-3 py-1 text-xs font-bold rounded-md bg-purple-600 text-white shadow-sm transition-colors ring-2 ring-purple-300">Max</button>
+                            </div>
                         </div>
                         <div id="technicalChart" class="w-full h-[650px]"></div>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
-                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-cyan-600 pl-3">Evolución YTD (Base 10) - Principales Índices</h3>
-                        <p class="text-sm text-gray-500 mb-2">Gráfico normalizado a 10 en el primer día del año.</p>
-                        <div id="ytdBase10Chart" class="w-full h-[400px]"></div>
                     </div>
 
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -298,12 +305,26 @@
                     </div>
                 </div>
 
+                <!-- TAB NUEVA: Mercados -->
+                <div id="content-markets" class="tab-content hidden space-y-6">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
+                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-cyan-600 pl-3">Evolución YTD (Base 10) - Principales Índices</h3>
+                        <p class="text-sm text-gray-500 mb-2">Gráfico normalizado a 10 en el primer día del año.</p>
+                        <div id="ytdBase10Chart" class="w-full h-[400px]"></div>
+                    </div>
+                </div>
+
                 <!-- TAB 2: Drawdown + Dip + Duration -->
                 <div id="content-drawdown" class="tab-content space-y-6">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-red-500 pl-3">Curva de Drawdown
                             Submarina</h3>
                         <div id="drawdownChart" class="w-full h-[400px]"></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-orange-600 pl-3">Evolución a 12 Meses tras Drawdown Actual</h3>
+                        <p class="text-xs text-gray-500 mb-2">Muestra episodios históricos aislados que alcanzaron la caída actual (y su evolución posterior), comparándolos con el episodio presente.</p>
+                        <div id="ddSpaghettiChart" class="w-full h-[500px]"></div>
                     </div>
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                         <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-orange-500 pl-3">Top 10 Peores
@@ -442,13 +463,20 @@
                         <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2"><i
                                 class="fa-solid fa-trophy text-yellow-500"></i> Análisis de Máximos Históricos (ATH)
                         </h2>
-                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-                            <div class="flex justify-between items-center mb-2 border-b pb-2 border-gray-100">
-                                <h3 class="text-gray-800 font-bold border-l-4 border-yellow-500 pl-3">Evolución y Nuevos
-                                    Máximos</h3><span class="text-xs text-gray-500 flex items-center gap-2"><span
-                                        class="w-2 h-2 rounded-full bg-red-500"></span> Nuevo Máximo</span>
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                <div class="flex justify-between items-center mb-2 border-b pb-2 border-gray-100">
+                                    <h3 class="text-gray-800 font-bold border-l-4 border-yellow-500 pl-3">Evolución y Nuevos Máximos</h3>
+                                    <span class="text-xs text-gray-500 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500"></span> Nuevo Máximo</span>
+                                </div>
+                                <div id="athSummaryStats" class="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm hidden"></div>
+                                <div id="athPriceChart" class="w-full h-[350px]"></div>
                             </div>
-                            <div id="athPriceChart" class="w-full h-[400px]"></div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-green-600 pl-3">Rentabilidad Acumulada Promedio</h3>
+                                <p class="text-xs text-gray-500 mb-2">Evolución de la inversión: Cualquier Día vs Nuevo Máximo</p>
+                                <div id="athForwardChart" class="w-full h-[410px]"></div>
+                            </div>
                         </div>
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                             <div
@@ -1060,6 +1088,7 @@
                 ]);
 
                 currentData = rawData;
+                currentTicker = ticker;
                 globalVixData = vixData; // Store globally
                 globalOilData = oilData;
                 globalRatesData = ratesData;
@@ -1072,6 +1101,7 @@
                 const episodes = calculateEpisodes(rawData, ddData.cumulativeMax);
                 const yearlyStats = calculateYearlyStats(rawData);
                 const techData = calculateTechnicalIndicators(rawData);
+                globalTechData = techData;
                 const seasonData = calculateSeasonality(rawData);
                 const annualDist = calculateAnnualDistribution(rawData);
                 const athData = calculateATHAnalysis(rawData);
@@ -1095,6 +1125,7 @@
                 renderBarChart(stats);
                 renderLineChart(timeSeries);
                 renderDrawdownChart(rawData, ddData, ticker);
+                renderDrawdownSpaghettiChart(rawData, ddData, ticker);
                 renderDrawdownTable(episodes);
                 renderYearlyTable(yearlyStats);
                 renderTechnicalChart(rawData, techData, ticker);
@@ -1102,7 +1133,8 @@
                 renderSeasonalityCharts(seasonData, ticker);
                 renderAnnualDistributionChart(annualDist, ticker);
                 renderAnnualHistWithYears(annualDist); // NEW REPLACEMENT
-                renderATHPriceChart(rawData, athData.recordIndices, ticker);
+                renderATHPriceChart(rawData, athData, ticker);
+                renderATHForwardChart(athData.results);
                 updateATHWidgets();
                 updateDipWidgets();
                 renderBestDaysCharts(bestDaysData, ticker);
@@ -2492,10 +2524,14 @@
         function calculateATHAnalysis(data) {
             let maxHigh = -Infinity; const isRecordHigh = new Array(data.length).fill(false), recordIndices = [];
             data.forEach((d, i) => { if (d.price > maxHigh) { maxHigh = d.price; isRecordHigh[i] = true; recordIndices.push(i); } });
-            const horizons = { "1M": 21, "3M": 63, "6M": 126, "12M": 252, "24M": 504 }, results = {};
+            const horizons = { "1M": 21, "3M": 63, "6M": 126, "12M": 252, "24M": 504, "3Y": 756, "5Y": 1260 }, results = {};
             for (const [label, days] of Object.entries(horizons)) {
                 const rec = [], non = [];
                 for (let i = 0; i < data.length - days; i++) { const ret = (data[i + days].price / data[i].price) - 1; if (isRecordHigh[i]) rec.push(ret); else non.push(ret); }
+                
+                const allReturns = rec.concat(non);
+                const meanAll = allReturns.length > 0 ? getMean(allReturns) : 0;
+                
                 let nonSample = non; if (non.length >= rec.length && rec.length > 0) { const s = [...non]; for (let k = s.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1));[s[k], s[j]] = [s[j], s[k]]; } nonSample = s.slice(0, rec.length); }
                 const m1 = getMean(rec), s1 = getStdDev(rec), m2 = getMean(nonSample), s2 = getStdDev(nonSample);
 
@@ -2505,14 +2541,60 @@
                 if (Math.abs(tStat) > 2.58) pText = "< 0.01 (***)";
                 else if (Math.abs(tStat) > 1.96) pText = "< 0.05 (*)";
 
-                results[label] = { recordReturns: rec, nonRecordReturnsSample: nonSample, meanRec: m1, stdRec: s1, meanNon: m2, stdNon: s2, n1: rec.length, n2: nonSample.length, tStat: tStat, pValueText: pText };
+                results[label] = { recordReturns: rec, nonRecordReturnsSample: nonSample, meanRec: m1, stdRec: s1, meanNon: m2, stdNon: s2, meanAll: meanAll, n1: rec.length, n2: nonSample.length, tStat: tStat, pValueText: pText };
             }
-            return { recordIndices, results };
+            return { recordIndices, results, totalDays: data.length };
         }
-        function renderATHPriceChart(data, recordIndices, ticker) {
+        function renderATHPriceChart(data, athData, ticker) {
             const dates = data.map(d => d.date.toISOString().split('T')[0]), prices = data.map(d => d.price);
-            Plotly.newPlot('athPriceChart', [{ x: dates, y: prices, name: ticker, type: 'scatter', line: { color: '#3b82f6', width: 1.5 } }, { x: recordIndices.map(i => dates[i]), y: recordIndices.map(i => prices[i]), name: 'Nuevo Máximo', mode: 'markers', marker: { color: 'red', size: 6 } }], { title: `Evolución de Precios y Máximos Históricos`, yaxis: { title: 'Precio' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+            
+            // Draw summary stats box
+            const pctATH = (athData.recordIndices.length / data.length) * 100;
+            const statsBox = document.getElementById('athSummaryStats');
+            statsBox.classList.remove('hidden');
+            statsBox.innerHTML = `
+                <div class="flex justify-between py-1 border-b border-gray-200">
+                    <span class="font-medium text-gray-700">Días con Nuevos Máximos (ATH):</span>
+                    <span class="font-bold text-gray-900">${athData.recordIndices.length}</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-gray-200">
+                    <span class="font-medium text-gray-700">Total Días Cotizados:</span>
+                    <span class="font-bold text-gray-900">${data.length}</span>
+                </div>
+                <div class="flex justify-between py-1">
+                    <span class="font-medium text-gray-700">% de Días en ATH:</span>
+                    <span class="font-bold text-green-600">${pctATH.toFixed(1)}%</span>
+                </div>
+            `;
+            
+            Plotly.newPlot('athPriceChart', [{ x: dates, y: prices, name: ticker, type: 'scatter', line: { color: '#3b82f6', width: 1.5 } }, { x: athData.recordIndices.map(i => dates[i]), y: athData.recordIndices.map(i => prices[i]), name: 'Nuevo Máximo', mode: 'markers', marker: { color: 'red', size: 5 } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
         }
+        function renderATHForwardChart(results) {
+            const keys = ['3M', '6M', '12M', '24M', '3Y', '5Y'];
+            const labels = ['3 Meses', '6 Meses', '1 Año', '2 Años', '3 Años', '5 Años'];
+            
+            const anyDayRet = keys.map(k => (results[k]?.meanAll * 100) || 0);
+            const athDayRet = keys.map(k => (results[k]?.meanRec * 100) || 0);
+
+            Plotly.newPlot('athForwardChart', [
+                {
+                    x: labels, y: anyDayRet, type: 'bar',
+                    name: 'Cualquier Día', marker: { color: '#4b5563' }, // gray-600
+                    text: anyDayRet.map(v => v ? v.toFixed(0) + '%' : ''), textposition: 'auto'
+                },
+                {
+                    x: labels, y: athDayRet, type: 'bar',
+                    name: 'Día de Máximo', marker: { color: '#84cc16' }, // lime-500
+                    text: athDayRet.map(v => v ? v.toFixed(0) + '%' : ''), textposition: 'auto'
+                }
+            ], {
+                barmode: 'group',
+                yaxis: { tickformat: '.0f', ticksuffix: '%' },
+                margin: { t: 20, l: 50, r: 20, b: 40 },
+                legend: { orientation: 'h', y: 1.1, x: 0 }
+            }, { responsive: true });
+        }
+
         function renderATHWidgets(res) {
             document.getElementById('athStatsTableBody').innerHTML = `<tr class="border-b hover:bg-gray-50"><td class="px-4 py-3 font-medium">Retorno Medio</td><td class="px-4 py-3 text-right font-bold text-red-600">${fmtPct(res.meanRec)}</td><td class="px-4 py-3 text-right font-bold text-blue-600">${fmtPct(res.meanNon)}</td></tr><tr class="bg-gray-50"><td class="px-4 py-3 font-medium">Muestra (N)</td><td class="px-4 py-3 text-right text-gray-500">${res.n1}</td><td class="px-4 py-3 text-right text-gray-500">${res.n2}</td></tr>`;
 
@@ -2730,6 +2812,44 @@
             }, { responsive: true });
         }
 
+        function filterTechnicalChart(days, btnElement) {
+            if (!currentData || !globalTechData || !currentTicker) return;
+            
+            // Update button styles
+            const buttons = document.querySelectorAll('#techTimeFilters button');
+            buttons.forEach(b => {
+                b.classList.remove('bg-purple-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-purple-300');
+                b.classList.add('bg-gray-100', 'text-gray-600', 'font-medium');
+            });
+            if (btnElement) {
+                btnElement.classList.remove('bg-gray-100', 'text-gray-600', 'font-medium');
+                btnElement.classList.add('bg-purple-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-purple-300');
+            }
+
+            // Slice data (assume ~252 trading days per year, simply slice last N points)
+            // Wait, for calendar days, let's use actual dates to be robust.
+            let slicedRawData = currentData;
+            let slicedTechData = globalTechData;
+
+            if (days !== null) {
+                const targetDate = new Date(currentData[currentData.length - 1].date);
+                targetDate.setDate(targetDate.getDate() - days);
+                
+                const startIndex = currentData.findIndex(d => d.date >= targetDate);
+                if (startIndex !== -1) {
+                    slicedRawData = currentData.slice(startIndex);
+                    slicedTechData = {
+                        ma50: globalTechData.ma50.slice(startIndex),
+                        ma200: globalTechData.ma200.slice(startIndex),
+                        rsi: globalTechData.rsi.slice(startIndex)
+                    };
+                }
+            }
+
+            // Re-render
+            renderTechnicalChart(slicedRawData, slicedTechData, currentTicker);
+        }
+
         // Updated calculateRollingStats to support Min/Max Annualized
         function calculateRollingStats(d) {
             return Object.entries(horizonsRolling).map(([k, v]) => {
@@ -2869,6 +2989,115 @@
                     { x: dd.dates[dd.dates.length - 1], y: dd.drawdowns[dd.drawdowns.length - 1], text: `Actual: ${fmtPct(dd.drawdowns[dd.drawdowns.length - 1])}`, showarrow: true, arrowhead: 1, ax: -40, ay: -40, font: { color: 'blue' } }
                 ]
             }, { responsive: true });
+        }
+
+        function renderDrawdownSpaghettiChart(d, dd, ticker) {
+            const currentDD = dd.drawdowns[dd.drawdowns.length - 1];
+            // If drawdown is too small, skip drawing spaghetti
+            if (currentDD > -0.02) {
+                document.getElementById('ddSpaghettiChart').innerHTML = `
+                    <div class="flex items-center justify-center h-full text-gray-500 flex-col">
+                        <i class="fa-solid fa-check-circle text-4xl text-green-500 mb-2"></i>
+                        <p>El activo se encuentra cerca de Máximos Históricos (Caída actual: ${fmtPct(currentDD)}).</p>
+                        <p class="text-xs mt-2 text-gray-400">El análisis comparativo se activa con caídas superiores al 2%.</p>
+                    </div>`;
+                return;
+            }
+
+            const limit = currentDD;
+            const episodes = [];
+            let inEpisode = false;
+            
+            for (let i = 0; i < dd.drawdowns.length; i++) {
+                if (dd.drawdowns[i] <= limit && !inEpisode) {
+                    episodes.push(i);
+                    inEpisode = true;
+                }
+                if (dd.drawdowns[i] === 0) {
+                    inEpisode = false;
+                }
+            }
+
+            if (episodes.length === 0) return;
+
+            const traces = [];
+            const forwardDays = 252; // 1 year of trading days
+
+            // Helper to generate faint colors
+            const faintColors = ['#94a3b8', '#38bdf8', '#c084fc', '#f472b6', '#fbbf24', '#34d399', '#f87171', '#a78bfa', '#fb923c'];
+
+            episodes.forEach((startIndex, idx) => {
+                const isCurrent = (idx === episodes.length - 1) && inEpisode; 
+                const basePrice = d[startIndex].price;
+                const startDate = d[startIndex].date;
+                const year = startDate.getFullYear();
+
+                const x = [];
+                const y = [];
+                
+                const maxLen = Math.min(d.length, startIndex + forwardDays + 1);
+                for (let k = startIndex; k < maxLen; k++) {
+                    x.push(k - startIndex); // Trading days since reaching drawdown
+                    y.push((d[k].price / basePrice) - 1);
+                }
+
+                if (isCurrent) {
+                    traces.push({
+                        x, y,
+                        mode: 'lines',
+                        name: `Actual (${year})`,
+                        line: { color: 'black', width: 3 },
+                        hoverinfo: 'y+name',
+                        hovertemplate: 'Día %{x}: %{y:.1%}<extra>Actual</extra>'
+                    });
+                } else {
+                    traces.push({
+                        x, y,
+                        mode: 'lines',
+                        name: `Episodio ${year}`,
+                        line: { color: faintColors[idx % faintColors.length], width: 1.5, shape: 'spline' },
+                        opacity: 0.6,
+                        hoverinfo: 'y+name',
+                        hovertemplate: `Día %{x}: %{y:.1%}<extra>${year}</extra>`
+                    });
+                }
+            });
+
+            const layout = {
+                title: `¿Qué ocurre tras alcanzar un ${fmtPct(limit)} de Drawdown?`,
+                xaxis: { title: 'Días Bursátiles desde que se alcanza la caída'},
+                yaxis: { title: 'Rentabilidad Acumulada (%)', tickformat: '.1%' },
+                margin: { t: 40, l: 60, r: 20, b: 40 },
+                showlegend: true,
+                hovermode: 'closest'
+            };
+
+            // Add average line
+            if (episodes.length > 1) {
+                const avgY = [];
+                for(let k=0; k<=forwardDays; k++) {
+                    let sum = 0, count = 0;
+                    episodes.forEach(startIndex => {
+                        if (startIndex + k < d.length) {
+                            sum += (d[startIndex+k].price / d[startIndex].price) - 1;
+                            count++;
+                        }
+                    });
+                    if (count > 0) avgY.push(sum / count);
+                    else avgY.push(null);
+                }
+                traces.push({
+                    x: Array.from({length: forwardDays + 1}, (_,i) => i),
+                    y: avgY,
+                    mode: 'lines',
+                    name: 'Media Histórica',
+                    line: { color: 'red', width: 2, dash: 'dash' },
+                    hoverinfo: 'y+name',
+                    hovertemplate: 'Día %{x}: %{y:.1%}<extra>Media</extra>'
+                });
+            }
+
+            Plotly.newPlot('ddSpaghettiChart', traces, layout, { responsive: true });
         }
 
         function renderDrawdownTable(e) { document.getElementById('drawdownTableBody').innerHTML = e.map((i, k) => `<tr><td class="px-4">#${k + 1}</td><td class="px-4 text-red-600 font-bold">${fmtPct(i.drawdown)}</td><td class="px-4">${fmtDate(i.start)}</td><td class="px-4">${fmtDate(i.end)}</td><td class="px-4">${i.recovery ? fmtDate(i.recovery) : '-'}</td><td class="px-4">${Math.round(i.length)}</td><td class="px-4">${Math.round(i.underwater)}</td></tr>`).join(''); }
