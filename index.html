@@ -306,85 +306,161 @@
                 </div>
 
                 <!-- TAB NUEVA: Mercados -->
-                <div id="content-markets" class="tab-content hidden space-y-6">
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
-                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
-                            <div>
-                                <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Evolución Comparativa (Base 10)</h3>
-                                <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer día del periodo seleccionado.</p>
+                <div id="content-markets" class="tab-content hidden space-y-12">
+                    
+                    <!-- SECCION 1: INDICES MUNDIALES -->
+                    <div class="space-y-6">
+                        <div class="flex items-center gap-3 border-b-2 border-cyan-600 pb-2">
+                            <i class="fa-solid fa-earth-americas text-2xl text-cyan-600"></i>
+                            <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Índices Bursátiles Mundiales</h2>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
+                                <div>
+                                    <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Evolución Comparativa (Base 10)</h3>
+                                    <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer día del periodo.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2" id="indicesTimeFilters">
+                                    <button onclick="filterMarketsSection('indices', '1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                                    <button onclick="filterMarketsSection('indices', '1M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                                    <button onclick="filterMarketsSection('indices', '3M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                                    <button onclick="filterMarketsSection('indices', 'YTD', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-300">YTD</button>
+                                    <button onclick="filterMarketsSection('indices', '1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                                    <button onclick="filterMarketsSection('indices', '3Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                                    <button onclick="filterMarketsSection('indices', '5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                                    <button onclick="filterMarketsSection('indices', '10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                                </div>
                             </div>
-                            <div class="flex flex-wrap gap-2" id="marketsTimeFilters">
-                                <button onclick="filterMarketsChart('1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
-                                <button onclick="filterMarketsChart('1M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
-                                <button onclick="filterMarketsChart('3M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
-                                <button onclick="filterMarketsChart('YTD', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-300 transition-colors">YTD</button>
-                                <button onclick="filterMarketsChart('1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
-                                <button onclick="filterMarketsChart('3Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
-                                <button onclick="filterMarketsChart('5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
-                                <button onclick="filterMarketsChart('10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                            <div id="indicesBase10Chart" class="w-full h-[450px]"></div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-blue-600 pl-3">Matriz de Rendimiento y Riesgo</h3>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
+                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Activo</th>
+                                            <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento Acumulado</th>
+                                            <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
+                                            <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
+                                        </tr>
+                                        <tr class="border-b border-gray-200 bg-gray-50">
+                                            <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Índice</th>
+                                            <th class="px-3 py-2 border-l">Diario</th>
+                                            <th class="px-3 py-2">Semana</th>
+                                            <th class="px-3 py-2">Mes</th>
+                                            <th class="px-3 py-2">3 Meses</th>
+                                            <th class="px-3 py-2 bg-cyan-50">YTD</th>
+                                            <th class="px-3 py-2 border-r">1 Año</th>
+                                            <th class="px-3 py-2">3 Años</th>
+                                            <th class="px-3 py-2">5 Años</th>
+                                            <th class="px-3 py-2 border-r">10 Años</th>
+                                            <!-- Riesgo -->
+                                            <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
+                                            <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
+                                            <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
+                                            <th class="px-3 py-2 bg-red-50">MDD 5A</th>
+                                            <th class="px-3 py-2 bg-red-50">MDD HIST</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="indicesTableBody" class="divide-y divide-gray-100"></tbody>
+                                    <tfoot id="indicesTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
+                                </table>
                             </div>
                         </div>
-                        <div id="marketsBase10Chart" class="w-full h-[450px]"></div>
+
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-4 border-b pb-2">
+                                <h3 class="text-gray-800 font-bold border-l-4 border-orange-600 pl-3">Mapa de Calor Anual</h3>
+                                <span class="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full uppercase">Histórico</span>
+                            </div>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
+                                    <thead id="indicesHeatmapHead" class="bg-gray-50 border-b border-gray-200"></thead>
+                                    <tbody id="indicesHeatmapBody"></tbody>
+                                    <tfoot id="indicesHeatmapFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
+                                </table>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-blue-600 pl-3">Matriz de Rendimiento y Riesgo</h3>
-                        <div class="overflow-x-auto custom-scrollbar">
-                            <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
-                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Activo</th>
-                                        <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento Acumulado</th>
-                                        <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
-                                        <th class="px-3 py-3 border-l text-center" colspan="3">Volatilidad (Anual)</th>
-                                    </tr>
-                                    <tr class="border-b border-gray-200 bg-gray-50">
-                                        <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Índice</th>
-                                        <th class="px-3 py-2 border-l">Diario</th>
-                                        <th class="px-3 py-2">Semana</th>
-                                        <th class="px-3 py-2">Mes</th>
-                                        <th class="px-3 py-2">3 Meses</th>
-                                        <th class="px-3 py-2 bg-cyan-50">YTD</th>
-                                        <th class="px-3 py-2 border-r">1 Año</th>
-                                        <!-- Anualizados -->
-                                        <th class="px-3 py-2">3 Años</th>
-                                        <th class="px-3 py-2">5 Años</th>
-                                        <th class="px-3 py-2 border-r">10 Años</th>
-                                        <!-- Volatilidades -->
-                                        <th class="px-3 py-2">1 Año</th>
-                                        <th class="px-3 py-2">3 Años</th>
-                                        <th class="px-3 py-2">5 Años</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="marketsTableBody" class="divide-y divide-gray-100">
-                                    <!-- JS populated -->
-                                </tbody>
-                                <tfoot id="marketsTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
-                                    <!-- JS populated -->
-                                </tfoot>
-                            </table>
+                    <!-- SECCION 2: ASSET CLASSES -->
+                    <div class="space-y-6 pt-8 border-t-4 border-gray-100">
+                        <div class="flex items-center gap-3 border-b-2 border-indigo-600 pb-2">
+                            <i class="fa-solid fa-layer-group text-2xl text-indigo-600"></i>
+                            <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Asignación de Activos (Asset Allocation)</h2>
                         </div>
-                    </div>
 
-                    <!-- NUEVA SECCION: Mapa de Calor Anual -->
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                        <div class="flex items-center justify-between mb-4 border-b pb-2">
-                             <h3 class="text-gray-800 font-bold border-l-4 border-orange-600 pl-3">Mapa de Calor: Rentabilidad Anual Histórica</h3>
-                             <span class="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full uppercase">Últimos 10 Años</span>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
+                                <div>
+                                    <h3 class="text-gray-800 font-bold border-l-4 border-indigo-600 pl-3">Evolución por Clases de Activo</h3>
+                                    <p class="text-xs text-gray-500 mt-1 pl-3">Comparativa de rentabilidad total (Base 10) entre Equity, Bonos y Cash.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2" id="assetsTimeFilters">
+                                    <button onclick="filterMarketsSection('assets', '1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                                    <button onclick="filterMarketsSection('assets', '1M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                                    <button onclick="filterMarketsSection('assets', '3M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                                    <button onclick="filterMarketsSection('assets', 'YTD', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300">YTD</button>
+                                    <button onclick="filterMarketsSection('assets', '1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                                    <button onclick="filterMarketsSection('assets', '3Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                                    <button onclick="filterMarketsSection('assets', '5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                                    <button onclick="filterMarketsSection('assets', '10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                                </div>
+                            </div>
+                            <div id="assetsBase10Chart" class="w-full h-[450px]"></div>
                         </div>
-                        <p class="text-xs text-gray-500 mb-4">Evolución porcentual por años naturales de los principales índices. Colores según intensidad de rentabilidad.</p>
-                        <div class="overflow-x-auto custom-scrollbar">
-                            <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
-                                <thead id="marketsHeatmapHead" class="bg-gray-50 border-b border-gray-200">
-                                    <!-- JS populated -->
-                                </thead>
-                                <tbody id="marketsHeatmapBody">
-                                    <!-- JS populated -->
-                                </tbody>
-                                <tfoot id="marketsHeatmapFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
-                                    <!-- JS populated -->
-                                </tfoot>
-                            </table>
+
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-indigo-600 pl-3">Matriz de Rendimiento y Riesgo</h3>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
+                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Activo</th>
+                                            <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento Acumulado</th>
+                                            <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
+                                            <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
+                                        </tr>
+                                        <tr class="border-b border-gray-200 bg-gray-50">
+                                            <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Instrumento</th>
+                                            <th class="px-3 py-2 border-l">Diario</th>
+                                            <th class="px-3 py-2">Semana</th>
+                                            <th class="px-3 py-2">Mes</th>
+                                            <th class="px-3 py-2">3 Meses</th>
+                                            <th class="px-3 py-2 bg-indigo-50">YTD</th>
+                                            <th class="px-3 py-2 border-r">1 Año</th>
+                                            <th class="px-3 py-2">3 Años</th>
+                                            <th class="px-3 py-2">5 Años</th>
+                                            <th class="px-3 py-2 border-r">10 Años</th>
+                                            <!-- Riesgo -->
+                                            <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
+                                            <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
+                                            <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
+                                            <th class="px-3 py-2 bg-red-50">MDD 5A</th>
+                                            <th class="px-3 py-2 bg-red-50">MDD HIST</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="assetsTableBody" class="divide-y divide-gray-100"></tbody>
+                                    <tfoot id="assetsTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-4 border-b pb-2">
+                                <h3 class="text-gray-800 font-bold border-l-4 border-indigo-600 pl-3">Mapa de Calor: Rentabilidad Anual</h3>
+                                <span class="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase">Evolución Histórica</span>
+                            </div>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
+                                    <thead id="assetsHeatmapHead" class="bg-gray-50 border-b border-gray-200"></thead>
+                                    <tbody id="assetsHeatmapBody"></tbody>
+                                    <tfoot id="assetsHeatmapFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1025,18 +1101,30 @@
         let globalVixData = null; // Store VIX data globally
         let globalOilData = null;
         let globalRatesData = null;
-        let globalMarketsData = {}; // Store raw data for all indices
+        let globalIndicesData = {}; // Store raw data for all indices
+        let globalAssetsData = {};  // Store data for asset classes
 
         const marketIndices = [
             { s: '^GSPC', n: 'S&P 500', f: '🇺🇸' },
             { s: '^STOXX50E', n: 'Euro Stoxx 50', f: '🇪🇺' },
             { s: '^IBEX', n: 'IBEX 35', f: '🇪🇸' },
-            { s: '^DAX', n: 'DAX 40', f: '🇩🇪' },
+            { s: '^GDAXI', n: 'DAX 40', f: '🇩🇪' },
             { s: '^FCHI', n: 'CAC 40', f: '🇫🇷' },
             { s: 'FTSEMIB.MI', n: 'FTSE MIB', f: '🇮🇹' },
+            { s: '^FTSE', n: 'FTSE 100', f: '🇬🇧' },
             { s: '^N225', n: 'Nikkei 225', f: '🇯🇵' },
             { s: '^HSI', n: 'Hang Seng', f: '🇭🇰' },
-            { s: '^FTSE', n: 'FTSE 100', f: '🇬🇧' }
+            { s: '^NSEI', n: 'Nifty 50', f: '🇮🇳' },
+            { s: '000001.SS', n: 'Shanghai Comp', f: '🇨🇳' },
+            { s: '^BVSP', n: 'Bovespa', f: '🇧🇷' }
+        ];
+
+        const assetClasses = [
+            { s: 'IWDA.L', n: 'Renta Variable (Large Cap)', f: '🌎' },
+            { s: 'IUSN.DE', n: 'Renta Variable (Small Cap)', f: '🔍' },
+            { s: 'SGLO.L', n: 'Bonos Gobierno (Global)', f: '🏛️' },
+            { s: 'IBCQ.DE', n: 'Bonos Corporativos (EUR)', f: '🏢' },
+            { s: 'XEON.DE', n: 'Efectivo (Overnight)', f: '💶' }
         ];
 
         // --- Ticker Dictionary Data ---
@@ -1167,30 +1255,37 @@
             updateStatus(`Conectando a Yahoo Finance para ${ticker}...`);
 
             try {
-                // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Markets (10Y)
+                // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Rates (10Y)
                 const tenYearsAgo = new Date(); tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
                 const tenYearStr = tenYearsAgo.toISOString().split('T')[0];
 
                 const [rawData, oilData, vixData, ratesData] = await Promise.all([
                     fetchYahooData(ticker, startDate, endDate),
-                    fetchYahooData('CL=F', startDate, endDate).catch(e => { console.warn("No se pudo bajar Oil", e); return []; }),
-                    fetchYahooData('^VIX', startDate, endDate).catch(e => { console.warn("No se pudo bajar VIX", e); return []; }),
-                    fetchYahooData('^IRX', startDate, endDate).catch(e => { console.warn("No se pudo bajar Tipos", e); return []; })
+                    fetchYahooData('CL=F', startDate, endDate).catch(e => []),
+                    fetchYahooData('^VIX', startDate, endDate).catch(e => []),
+                    fetchYahooData('^IRX', startDate, endDate).catch(e => [])
                 ]);
 
-                // Fetch Markets Data (10Y)
-                updateStatus(`Bajando datos históricos de índices (10 años)...`);
-                const marketPromises = marketIndices.map(m => fetchYahooData(m.s, tenYearStr, endDate).catch(e => []));
-                const marketResults = await Promise.all(marketPromises);
-                marketIndices.forEach((m, i) => { globalMarketsData[m.s] = marketResults[i]; });
+                // Fetch Indices Data (10Y)
+                updateStatus(`Bajando datos históricos de índices mundiales (10 años)...`);
+                const indicesPromises = marketIndices.map(m => fetchYahooData(m.s, tenYearStr, endDate).catch(e => []));
+                const indicesResults = await Promise.all(indicesPromises);
+                marketIndices.forEach((m, i) => { globalIndicesData[m.s] = indicesResults[i]; });
+
+                // Fetch Asset Classes Data (10Y)
+                updateStatus(`Bajando datos de Clases de Activos (10 años)...`);
+                const assetsPromises = assetClasses.map(a => fetchYahooData(a.s, tenYearStr, endDate).catch(e => []));
+                const assetsResults = await Promise.all(assetsPromises);
+                assetClasses.forEach((a, i) => { globalAssetsData[a.s] = assetsResults[i]; });
 
                 currentData = rawData;
                 currentTicker = ticker;
-                globalVixData = vixData; // Store globally
+                globalVixData = vixData; 
                 globalOilData = oilData;
                 globalRatesData = ratesData;
 
                 updateStatus(`Calculando indicadores para ${rawData.length} registros...`);
+
 
                 const stats = calculateRollingStats(rawData);
                 const timeSeries = calculateTimeSeries(rawData);
@@ -1244,7 +1339,8 @@
                 renderSeasonalityDeciles(rawData, ticker);
                 renderMonthlyHeatmap(rawData);
                 // Nueva lógica: Pestaña Mercados con filtro temporal
-                filterMarketsChart('YTD');
+                filterMarketsSection('indices', 'YTD');
+                filterMarketsSection('assets', 'YTD');
 
                 // Render New Sigma Table
                 renderSigmaEvents(generalData);
@@ -3047,33 +3143,26 @@
             Plotly.newPlot('lineChart', Object.entries(s).map(([k, v]) => ({ x: v.x, y: v.y, name: k, line: { color: colors[k] || 'black' } })), { yaxis: { tickformat: '.1%' }, margin: { t: 40, l: 40, r: 20, b: 40 }, title: 'Evolución Rentabilidad Anualizada Móvil' }, { responsive: true });
         }
 
-        // --- NUEVA LÓGICA: PESTAÑA MERCADOS ---
-        function filterMarketsChart(period, btnElement) {
+        // --- REFACTORED: PESTAÑA MERCADOS (GENERIC) ---
+        function filterMarketsSection(sectionType, period, btnElement) {
+            const isIndices = sectionType === 'indices';
+            const config = isIndices ? { list: marketIndices, data: globalIndicesData, filterId: 'indicesTimeFilters', color: 'bg-cyan-600', ring: 'ring-cyan-300' } : { list: assetClasses, data: globalAssetsData, filterId: 'assetsTimeFilters', color: 'bg-indigo-600', ring: 'ring-indigo-300' };
+
             // Update button styles
-            const buttons = document.querySelectorAll('#marketsTimeFilters button');
+            const buttons = document.querySelectorAll(`#${config.filterId} button`);
             buttons.forEach(b => {
-                b.classList.remove('bg-cyan-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-cyan-300');
-                b.classList.add('bg-gray-100', 'text-gray-600', 'font-medium');
+                b.className = 'px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors';
             });
             if (btnElement) {
-                btnElement.classList.remove('bg-gray-100', 'text-gray-600', 'font-medium');
-                btnElement.classList.add('bg-cyan-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-cyan-300');
-            } else {
-                // Find YTD button as default
-                const ytdBtn = Array.from(buttons).find(b => b.innerText === 'YTD');
-                if (ytdBtn) {
-                    ytdBtn.classList.remove('bg-gray-100', 'text-gray-600', 'font-medium');
-                    ytdBtn.classList.add('bg-cyan-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-cyan-300');
-                }
+                btnElement.className = `px-3 py-1 text-xs font-bold rounded-md ${config.color} text-white shadow-sm ring-2 ${config.ring} transition-colors`;
             }
 
             const slicedData = {};
             const today = new Date();
             let targetDate = new Date();
 
-            if (period === 'YTD') {
-                targetDate = new Date(today.getFullYear(), 0, 1);
-            } else if (period === '1W') targetDate.setDate(today.getDate() - 7);
+            if (period === 'YTD') targetDate = new Date(today.getFullYear(), 0, 1);
+            else if (period === '1W') targetDate.setDate(today.getDate() - 7);
             else if (period === '1M') targetDate.setMonth(today.getMonth() - 1);
             else if (period === '3M') targetDate.setMonth(today.getMonth() - 3);
             else if (period === '1Y') targetDate.setFullYear(today.getFullYear() - 1);
@@ -3081,21 +3170,23 @@
             else if (period === '5Y') targetDate.setFullYear(today.getFullYear() - 5);
             else if (period === '10Y') targetDate.setFullYear(today.getFullYear() - 10);
 
-            marketIndices.forEach(m => {
-                const fullData = globalMarketsData[m.s] || [];
+            config.list.forEach(m => {
+                const fullData = config.data[m.s] || [];
                 const idx = fullData.findIndex(d => d.date >= targetDate);
                 slicedData[m.s] = idx !== -1 ? fullData.slice(idx) : [];
             });
 
-            renderMarketsChart(slicedData, period);
-            updateMarketsTable(globalMarketsData);
+            renderMarketsChart(sectionType, slicedData);
+            updateMarketsTable(sectionType, config.data);
         }
 
-        function renderMarketsChart(data, period) {
+        function renderMarketsChart(sectionType, data) {
+            const isIndices = sectionType === 'indices';
+            const config = isIndices ? { list: marketIndices, chartId: 'indicesBase10Chart' } : { list: assetClasses, chartId: 'assetsBase10Chart' };
             const traces = [];
-            const colors = ['#1e3a8a', '#b91c1c', '#15803d', '#7e22ce', '#c2410c', '#0369a1', '#be185d', '#4d7c0f', '#4338ca', '#374151'];
+            const colors = ['#1e3a8a', '#b91c1c', '#15803d', '#7e22ce', '#c2410c', '#0369a1', '#be185d', '#4d7c0f', '#4338ca', '#374151', '#2dd4bf', '#fb923c'];
             
-            marketIndices.forEach((m, i) => {
+            config.list.forEach((m, i) => {
                 const d = data[m.s];
                 if (!d || d.length === 0) return;
                 const firstPrice = d[0].price;
@@ -3104,11 +3195,10 @@
                 
                 traces.push({
                     x, y, mode: 'lines', name: `${m.f} ${m.n}`,
-                    line: { width: i === 0 || m.s === '^STOXX50E' ? 3 : 1.5, color: colors[i % colors.length] },
+                    line: { width: 2, color: colors[i % colors.length] },
                     hovertemplate: `${m.f} ${m.n}: %{y:.2f}<extra></extra>`
                 });
 
-                // Final Marker
                 const lastY = y[y.length - 1];
                 const lastRet = (d[d.length - 1].price / firstPrice) - 1;
                 traces.push({
@@ -3119,39 +3209,29 @@
                 });
             });
 
-            const layout = {
+            Plotly.newPlot(config.chartId, traces, {
                 xaxis: { showgrid: false },
                 yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
                 margin: { t: 20, l: 40, r: 60, b: 40 },
                 legend: { orientation: 'h', x: 0, y: -0.15 },
                 hovermode: 'x unified',
                 plot_bgcolor: 'white'
-            };
-
-            Plotly.newPlot('marketsBase10Chart', traces, layout, { responsive: true });
+            }, { responsive: true });
         }
 
-        function updateMarketsTable(fullDataDict) {
+        function updateMarketsTable(sectionType, fullDataDict) {
+            const isIndices = sectionType === 'indices';
+            const config = isIndices ? { list: marketIndices, tableId: 'indicesTableBody', footId: 'indicesTableFoot' } : { list: assetClasses, tableId: 'assetsTableBody', footId: 'assetsTableFoot' };
             const today = new Date();
-            const milestones = {
-                daily: 1, 
-                week: 5, 
-                month: 21, 
-                threeM: 63,
-                oneY: 252,
-                threeY: 756,
-                fiveY: 1260,
-                tenY: 2520
-            };
+            const milestones = { daily: 1, week: 5, month: 21, threeM: 63, oneY: 252, threeY: 756, fiveY: 1260, tenY: 2520 };
 
             const rows = [];
             const winners = { daily:0, week:0, month:0, threeM:0, ytd:0, oneY:0, threeY:0, fiveY:0, tenY:0 };
 
-            marketIndices.forEach(m => {
+            config.list.forEach(m => {
                 const d = fullDataDict[m.s] || [];
                 if (d.length < 2) return;
                 const last = d[d.length - 1];
-                const prev = d[d.length - 2];
                 
                 const getYTDStart = () => {
                    const startYear = new Date(today.getFullYear(), 0, 1);
@@ -3160,16 +3240,8 @@
                 const ytdIdx = getYTDStart();
                 const ytdStart = ytdIdx !== -1 ? d[ytdIdx] : d[0];
 
-                const getRet = (back) => {
-                    if (d.length <= back) return null;
-                    return (last.price / d[d.length - 1 - back].price) - 1;
-                };
-
-                const getAnnRet = (back) => {
-                    if (d.length <= back) return null;
-                    return Math.pow(last.price / d[d.length - 1 - back].price, 252 / back) - 1;
-                };
-
+                const getRet = (back) => (d.length > back) ? (last.price / d[d.length - 1 - back].price) - 1 : null;
+                const getAnnRet = (back) => (d.length > back) ? Math.pow(last.price / d[d.length - 1 - back].price, 252 / back) - 1 : null;
                 const getVol = (back) => {
                     if (d.length <= back) return null;
                     const slice = d.slice(d.length - 1 - back);
@@ -3177,9 +3249,15 @@
                     for(let i=1; i<slice.length; i++) returns.push(slice[i].price / slice[i-1].price - 1);
                     return getStdDev(returns) * Math.sqrt(252);
                 };
+                const calculateMDD = (data) => {
+                    if (data.length < 2) return 0;
+                    let max = -Infinity, mdd = 0;
+                    data.forEach(p => { if (p.price > max) max = p.price; const dd = p.price / max - 1; if (dd < mdd) mdd = dd; });
+                    return mdd;
+                };
 
                 const stats = {
-                    daily: (last.price / prev.price) - 1,
+                    daily: (last.price / d[d.length - 2].price) - 1,
                     week: getRet(milestones.week),
                     month: getRet(milestones.month),
                     threeM: getRet(milestones.threeM),
@@ -3190,11 +3268,12 @@
                     tenY: getAnnRet(milestones.tenY),
                     vol1: getVol(milestones.oneY),
                     vol3: getVol(milestones.threeY),
-                    vol5: getVol(milestones.fiveY)
+                    vol5: getVol(milestones.fiveY),
+                    mdd5: calculateMDD(d.slice(-milestones.fiveY)),
+                    mddHist: calculateMDD(d)
                 };
 
                 Object.keys(winners).forEach(k => { if (stats[k] > 0) winners[k]++; });
-
                 rows.push({ n: m.n, s: m.s, f: m.f, ...stats });
             });
 
@@ -3204,9 +3283,9 @@
                 return `<td class="px-3 py-2 ${color} ${isBold ? 'font-bold' : ''}">${isPct ? fmtPct(v) : v.toFixed(2)}</td>`;
             };
 
-            document.getElementById('marketsTableBody').innerHTML = rows.map(r => `
+            document.getElementById(config.tableId).innerHTML = rows.map(r => `
                 <tr class="hover:bg-gray-50 border-b">
-                    <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${r.f} ${r.n} <span class="text-[10px] text-gray-400 font-normal ml-1">${r.s}</span></td>
+                    <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${r.f} ${r.n}</td>
                     ${renderCell(r.daily, true, true)}
                     ${renderCell(r.week)}
                     ${renderCell(r.month)}
@@ -3216,117 +3295,69 @@
                     ${renderCell(r.threeY)}
                     ${renderCell(r.fiveY)}
                     ${renderCell(r.tenY)}
-                    <td class="px-3 py-2 border-l text-gray-600">${r.vol1 ? fmtPct(r.vol1) : '-'}</td>
-                    <td class="px-3 py-2 text-gray-600">${r.vol3 ? fmtPct(r.vol3) : '-'}</td>
-                    <td class="px-3 py-2 text-gray-600">${r.vol5 ? fmtPct(r.vol5) : '-'}</td>
+                    <td class="px-3 py-2 border-l text-gray-600 bg-blue-50/30">${r.vol1 ? fmtPct(r.vol1) : '-'}</td>
+                    <td class="px-3 py-2 text-gray-600 bg-blue-50/30">${r.vol3 ? fmtPct(r.vol3) : '-'}</td>
+                    <td class="px-3 py-2 border-r text-gray-600 bg-blue-50/30">${r.vol5 ? fmtPct(r.vol5) : '-'}</td>
+                    <td class="px-3 py-2 text-red-600 bg-red-50/30">${fmtPct(r.mdd5)}</td>
+                    <td class="px-3 py-2 text-red-700 bg-red-50/50 font-bold">${fmtPct(r.mddHist)}</td>
                 </tr>
             `).join('');
 
-            // Footer winners
-            const nTotal = rows.length;
-            const validCounts = { daily:0, week:0, month:0, threeM:0, ytd:0, oneY:0, threeY:0, fiveY:0, tenY:0 };
-            
-            rows.forEach(r => {
-                Object.keys(validCounts).forEach(k => {
-                    if (r[k] !== null && r[k] !== undefined) validCounts[k]++;
-                });
-            });
+            const validCount = k => rows.filter(r => r[k] !== null).length;
+            const winPct = k => { let vc = validCount(k); return vc > 0 ? (winners[k] / vc) : 0; };
 
-            const winPct = k => validCounts[k] > 0 ? (winners[k] / validCounts[k]) : 0;
-
-            document.getElementById('marketsTableFoot').innerHTML = `
+            document.getElementById(config.footId).innerHTML = `
                 <tr>
                     <td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] uppercase">% ACTIVOS (+)</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.daily} activos">${fmtPct(winPct('daily'))}</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.week} activos">${fmtPct(winPct('week'))}</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.month} activos">${fmtPct(winPct('month'))}</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.threeM} activos">${fmtPct(winPct('threeM'))}</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.ytd} activos">${fmtPct(winPct('ytd'))}</td>
-                    <td class="px-3 py-2 border-r" title="Sobre ${validCounts.oneY} activos">${fmtPct(winPct('oneY'))}</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.threeY} activos">${fmtPct(winPct('threeY'))}</td>
-                    <td class="px-3 py-2" title="Sobre ${validCounts.fiveY} activos">${fmtPct(winPct('fiveY'))}</td>
-                    <td class="px-3 py-2 border-r" title="Sobre ${validCounts.tenY} activos">${fmtPct(winPct('tenY'))}</td>
-                    <td class="px-3 py-2" colspan="3">Amplitud de Mercado</td>
+                    <td class="px-3 py-2" title="Sobre ${validCount('daily')}">${fmtPct(winPct('daily'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCount('week')}">${fmtPct(winPct('week'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCount('month')}">${fmtPct(winPct('month'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCount('threeM')}">${fmtPct(winPct('threeM'))}</td>
+                    <td class="px-3 py-2 bg-yellow-50" title="Sobre ${validCount('ytd')}">${fmtPct(winPct('ytd'))}</td>
+                    <td class="px-3 py-2 border-r" title="Sobre ${validCount('oneY')}">${fmtPct(winPct('oneY'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCount('threeY')}">${fmtPct(winPct('threeY'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCount('fiveY')}">${fmtPct(winPct('fiveY'))}</td>
+                    <td class="px-3 py-2 border-r" title="Sobre ${validCount('tenY')}">${fmtPct(winPct('tenY'))}</td>
+                    <td class="px-3 py-2" colspan="5">Mercado: Amplitud & Riesgo</td>
                 </tr>
             `;
 
-            // Trigger Heatmap
-            renderMarketsHeatmap(fullDataDict);
+            renderMarketsHeatmap(sectionType, fullDataDict);
         }
 
-        function renderMarketsHeatmap(fullDataDict) {
-            const currentYear = new Date().getFullYear();
-            const years = [];
-            for (let i = 0; i < 10; i++) years.push(currentYear - i);
+        function renderMarketsHeatmap(sectionType, fullDataDict) {
+            const isIndices = sectionType === 'indices';
+            const config = isIndices ? { list: marketIndices, headId: 'indicesHeatmapHead', bodyId: 'indicesHeatmapBody', footId: 'indicesHeatmapFoot' } : { list: assetClasses, headId: 'assetsHeatmapHead', bodyId: 'assetsHeatmapBody', footId: 'assetsHeatmapFoot' };
+            const years = Array.from({length: 10}, (_, i) => new Date().getFullYear() - i);
             
-            // Header
-            document.getElementById('marketsHeatmapHead').innerHTML = `
-                <tr class="divide-x border-b">
-                    <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r">Activo</th>
-                    ${years.map(y => `<th class="px-2 py-2">${y}</th>`).join('')}
-                </tr>
-            `;
+            document.getElementById(config.headId).innerHTML = `<tr class="divide-x border-b"><th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r">Activo</th>${years.map(y => `<th class="px-2 py-2">${y}</th>`).join('')}</tr>`;
 
             const rows = [];
-            const winnersByYear = {};
-            const totalWithDataByYear = {};
-            years.forEach(y => {
-                winnersByYear[y] = 0;
-                totalWithDataByYear[y] = 0;
-            });
+            const winnersByYear = {}, totalByYear = {};
+            years.forEach(y => { winnersByYear[y] = 0; totalByYear[y] = 0; });
 
-            marketIndices.forEach(m => {
+            config.list.forEach(m => {
                 const d = fullDataDict[m.s] || [];
                 if (d.length < 2) return;
-                
                 let rowHtml = `<td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${m.f} ${m.n}</td>`;
-                
                 years.forEach(y => {
-                    const startOfYear = new Date(y, 0, 1);
-                    const endOfYear = new Date(y, 11, 31);
-                    
-                    const yearIdxs = d.map((x, i) => x.date >= startOfYear && x.date <= endOfYear ? i : null).filter(i => i !== null);
-                    
-                    if (yearIdxs.length >= 2) {
-                        totalWithDataByYear[y]++;
-                        const first = d[yearIdxs[0]];
-                        const last = d[yearIdxs[yearIdxs.length - 1]];
-                        const ret = (last.price / first.price) - 1;
+                    const startYear = new Date(y, 0, 1), endYear = new Date(y, 11, 31);
+                    const yData = d.filter(x => x.date >= startYear && x.date <= endYear);
+                    if (yData.length >= 2) {
+                        totalByYear[y]++;
+                        const ret = (yData[yData.length - 1].price / yData[0].price) - 1;
                         if (ret > 0) winnersByYear[y]++;
-                        
-                        // Heatmap color logic
-                        let color = 'white';
-                        let textColor = 'black';
-                        if (ret > 0) {
-                            const op = Math.min(0.1 + (ret * 2), 0.8);
-                            color = `rgba(34, 197, 94, ${op})`;
-                            if (op > 0.5) textColor = 'white';
-                        } else {
-                            const op = Math.min(0.1 + (Math.abs(ret) * 2), 0.8);
-                            color = `rgba(239, 68, 68, ${op})`;
-                            if (op > 0.5) textColor = 'white';
-                        }
-                        
-                        rowHtml += `<td class="px-2 py-2 border" style="background-color: ${color}; color: ${textColor};">${fmtPct(ret)}</td>`;
-                    } else {
-                        rowHtml += `<td class="px-2 py-2 border text-gray-300">-</td>`;
-                    }
+                        const alpha = Math.min(0.1 + Math.abs(ret) * 2.5, 0.85);
+                        const bgColor = ret > 0 ? `rgba(34, 197, 94, ${alpha})` : `rgba(239, 68, 68, ${alpha})`;
+                        const textColor = alpha > 0.5 ? 'white' : 'black';
+                        rowHtml += `<td class="px-2 py-2 border" style="background-color: ${bgColor}; color: ${textColor}">${fmtPct(ret)}</td>`;
+                    } else rowHtml += `<td class="px-2 py-2 border text-gray-300">-</td>`;
                 });
                 rows.push(`<tr class="divide-x">${rowHtml}</tr>`);
             });
 
-            document.getElementById('marketsHeatmapBody').innerHTML = rows.join('');
-
-            // Footer winners
-            document.getElementById('marketsHeatmapFoot').innerHTML = `
-                <tr class="divide-x border-t-2">
-                    <td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r uppercase">% POSITIVOS</td>
-                    ${years.map(y => {
-                        const pct = totalWithDataByYear[y] > 0 ? (winnersByYear[y] / totalWithDataByYear[y]) : 0;
-                        return `<td class="px-2 py-2" title="Sobre ${totalWithDataByYear[y]} activos">${fmtPct(pct)}</td>`;
-                    }).join('')}
-                </tr>
-            `;
+            document.getElementById(config.bodyId).innerHTML = rows.join('');
+            document.getElementById(config.footId).innerHTML = `<tr class="divide-x border-t-2"><td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r uppercase">% POSITIVOS</td>${years.map(y => `<td class="px-2 py-2" title="Sobre ${totalByYear[y]}">${fmtPct(totalByYear[y] > 0 ? winnersByYear[y]/totalByYear[y] : 0)}</td>`).join('')}</tr>`;
         }
 
         function renderDrawdownChart(d, dd, t) {
