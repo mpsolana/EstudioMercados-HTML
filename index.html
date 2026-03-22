@@ -1003,6 +1003,20 @@
         let globalVixData = null; // Store VIX data globally
         let globalOilData = null;
         let globalRatesData = null;
+        let globalMarketsData = {}; // Store raw data for all indices
+
+        const marketIndices = [
+            { s: '^GSPC', n: 'S&P 500' },
+            { s: '^NDX', n: 'Nasdaq 100' },
+            { s: '^DJI', n: 'Dow Jones' },
+            { s: '^STOXX50E', n: 'Euro Stoxx 50' },
+            { s: '^IBEX', n: 'IBEX 35' },
+            { s: '^DAX', n: 'DAX 40' },
+            { s: '^N225', n: 'Nikkei 225' },
+            { s: '^HSI', n: 'Hang Seng' },
+            { s: '^FTSE', n: 'FTSE 100' },
+            { s: 'BTC-USD', n: 'Bitcoin' }
+        ];
 
         // --- Ticker Dictionary Data ---
         const commonTickers = [
@@ -1132,13 +1146,22 @@
             updateStatus(`Conectando a Yahoo Finance para ${ticker}...`);
 
             try {
-                // Fetch main Ticker, Oil (CL=F), and VIX (^VIX)
+                // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Markets (10Y)
+                const tenYearsAgo = new Date(); tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+                const tenYearStr = tenYearsAgo.toISOString().split('T')[0];
+
                 const [rawData, oilData, vixData, ratesData] = await Promise.all([
                     fetchYahooData(ticker, startDate, endDate),
                     fetchYahooData('CL=F', startDate, endDate).catch(e => { console.warn("No se pudo bajar Oil", e); return []; }),
                     fetchYahooData('^VIX', startDate, endDate).catch(e => { console.warn("No se pudo bajar VIX", e); return []; }),
                     fetchYahooData('^IRX', startDate, endDate).catch(e => { console.warn("No se pudo bajar Tipos", e); return []; })
                 ]);
+
+                // Fetch Markets Data (10Y)
+                updateStatus(`Bajando datos históricos de índices (10 años)...`);
+                const marketPromises = marketIndices.map(m => fetchYahooData(m.s, tenYearStr, endDate).catch(e => []));
+                const marketResults = await Promise.all(marketPromises);
+                marketIndices.forEach((m, i) => { globalMarketsData[m.s] = marketResults[i]; });
 
                 currentData = rawData;
                 currentTicker = ticker;
@@ -1199,8 +1222,8 @@
                 renderSeasonalityYoY(yoyAnalysisData, ticker);
                 renderSeasonalityDeciles(rawData, ticker);
                 renderMonthlyHeatmap(rawData);
-                // Gráfica adicional: YTD normalizado a base 10 para índices principales
-                renderYTDBase10(['^GSPC','^STOXX50E','^N225','^HSI','^IBEX','^DAX']);
+                // Nueva lógica: Pestaña Mercados con filtro temporal
+                filterMarketsChart('YTD');
 
                 // Render New Sigma Table
                 renderSigmaEvents(generalData);
@@ -3003,30 +3026,199 @@
             Plotly.newPlot('lineChart', Object.entries(s).map(([k, v]) => ({ x: v.x, y: v.y, name: k, line: { color: colors[k] || 'black' } })), { yaxis: { tickformat: '.1%' }, margin: { t: 40, l: 40, r: 20, b: 40 }, title: 'Evolución Rentabilidad Anualizada Móvil' }, { responsive: true });
         }
 
-        // Nueva función: renderiza evolución YTD normalizada a base 10 para una lista de tickers
-        async function renderYTDBase10(tickers) {
-            try {
-                const endDate = document.getElementById('endDate').value;
-                const year = new Date().getFullYear();
-                const startDate = `${year}-01-01`;
-                const promises = tickers.map(t => fetchYahooData(t, startDate, endDate).catch(e => null));
-                const results = await Promise.all(promises);
-                const traces = [];
-                for (let i = 0; i < tickers.length; i++) {
-                    const data = results[i];
-                    if (!data || data.length === 0) continue;
-                    const firstPrice = data[0].price;
-                    const x = data.map(d => d.date);
-                    const y = data.map(d => (d.price / firstPrice) * 10);
-                    traces.push({ x, y, mode: 'lines', name: tickers[i], line: { width: 2 } });
-                    // añadir punto final con etiqueta de rentabilidad YTD
-                    const lastY = y[y.length - 1];
-                    const lastPct = (data[data.length - 1].price / firstPrice) - 1;
-                    traces.push({ x: [x[x.length - 1]], y: [lastY], mode: 'markers+text', marker: { size: 7 }, text: [fmtPct(lastPct)], textposition: 'top right', showlegend: false });
+        // --- NUEVA LÓGICA: PESTAÑA MERCADOS ---
+        function filterMarketsChart(period, btnElement) {
+            // Update button styles
+            const buttons = document.querySelectorAll('#marketsTimeFilters button');
+            buttons.forEach(b => {
+                b.classList.remove('bg-cyan-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-cyan-300');
+                b.classList.add('bg-gray-100', 'text-gray-600', 'font-medium');
+            });
+            if (btnElement) {
+                btnElement.classList.remove('bg-gray-100', 'text-gray-600', 'font-medium');
+                btnElement.classList.add('bg-cyan-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-cyan-300');
+            } else {
+                // Find YTD button as default
+                const ytdBtn = Array.from(buttons).find(b => b.innerText === 'YTD');
+                if (ytdBtn) {
+                    ytdBtn.classList.remove('bg-gray-100', 'text-gray-600', 'font-medium');
+                    ytdBtn.classList.add('bg-cyan-600', 'text-white', 'font-bold', 'shadow-sm', 'ring-2', 'ring-cyan-300');
                 }
-                const layout = { title: `YTD (Base 10) - Principales Índices`, yaxis: { title: 'Base 10' }, margin: { t: 40, l: 60, r: 20, b: 40 }, legend: { orientation: 'h', x: 0, y: -0.2 } };
-                Plotly.newPlot('ytdBase10Chart', traces, layout, { responsive: true });
-            } catch (e) { console.error('Error renderYTDBase10', e); }
+            }
+
+            const slicedData = {};
+            const today = new Date();
+            let targetDate = new Date();
+
+            if (period === 'YTD') {
+                targetDate = new Date(today.getFullYear(), 0, 1);
+            } else if (period === '1W') targetDate.setDate(today.getDate() - 7);
+            else if (period === '1M') targetDate.setMonth(today.getMonth() - 1);
+            else if (period === '3M') targetDate.setMonth(today.getMonth() - 3);
+            else if (period === '1Y') targetDate.setFullYear(today.getFullYear() - 1);
+            else if (period === '3Y') targetDate.setFullYear(today.getFullYear() - 3);
+            else if (period === '5Y') targetDate.setFullYear(today.getFullYear() - 5);
+            else if (period === '10Y') targetDate.setFullYear(today.getFullYear() - 10);
+
+            marketIndices.forEach(m => {
+                const fullData = globalMarketsData[m.s] || [];
+                const idx = fullData.findIndex(d => d.date >= targetDate);
+                slicedData[m.s] = idx !== -1 ? fullData.slice(idx) : [];
+            });
+
+            renderMarketsChart(slicedData, period);
+            updateMarketsTable(globalMarketsData);
+        }
+
+        function renderMarketsChart(data, period) {
+            const traces = [];
+            const colors = ['#1e3a8a', '#b91c1c', '#15803d', '#7e22ce', '#c2410c', '#0369a1', '#be185d', '#4d7c0f', '#4338ca', '#374151'];
+            
+            marketIndices.forEach((m, i) => {
+                const d = data[m.s];
+                if (!d || d.length === 0) return;
+                const firstPrice = d[0].price;
+                const x = d.map(item => item.date);
+                const y = d.map(item => (item.price / firstPrice) * 10);
+                
+                traces.push({
+                    x, y, mode: 'lines', name: m.n,
+                    line: { width: i < 3 ? 3 : 1.5, color: colors[i % colors.length] },
+                    hovertemplate: `${m.n}: %{y:.2f}<extra></extra>`
+                });
+
+                // Final Marker
+                const lastY = y[y.length - 1];
+                const lastRet = (d[d.length - 1].price / firstPrice) - 1;
+                traces.push({
+                    x: [x[x.length - 1]], y: [lastY],
+                    mode: 'markers+text', marker: { color: colors[i % colors.length], size: 6 },
+                    text: [fmtPct(lastRet)], textposition: 'middle right',
+                    showlegend: false, textfont: { size: 9, color: colors[i % colors.length] }
+                });
+            });
+
+            const layout = {
+                xaxis: { showgrid: false },
+                yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
+                margin: { t: 20, l: 40, r: 60, b: 40 },
+                legend: { orientation: 'h', x: 0, y: -0.15 },
+                hovermode: 'x unified',
+                plot_bgcolor: 'white'
+            };
+
+            Plotly.newPlot('marketsBase10Chart', traces, layout, { responsive: true });
+        }
+
+        function updateMarketsTable(fullDataDict) {
+            const today = new Date();
+            const milestones = {
+                daily: 1, 
+                week: 5, 
+                month: 21, 
+                threeM: 63,
+                oneY: 252,
+                threeY: 756,
+                fiveY: 1260,
+                tenY: 2520
+            };
+
+            const rows = [];
+            const winners = { daily:0, week:0, month:0, threeM:0, ytd:0, oneY:0, threeY:0, fiveY:0, tenY:0 };
+
+            marketIndices.forEach(m => {
+                const d = fullDataDict[m.s] || [];
+                if (d.length < 2) return;
+                const last = d[d.length - 1];
+                const prev = d[d.length - 2];
+                
+                const getYTDStart = () => {
+                   const startYear = new Date(today.getFullYear(), 0, 1);
+                   return d.findIndex(x => x.date >= startYear);
+                };
+                const ytdIdx = getYTDStart();
+                const ytdStart = ytdIdx !== -1 ? d[ytdIdx] : d[0];
+
+                const getRet = (back) => {
+                    if (d.length <= back) return null;
+                    return (last.price / d[d.length - 1 - back].price) - 1;
+                };
+
+                const getAnnRet = (back) => {
+                    if (d.length <= back) return null;
+                    return Math.pow(last.price / d[d.length - 1 - back].price, 252 / back) - 1;
+                };
+
+                const getVol = (back) => {
+                    if (d.length <= back) return null;
+                    const slice = d.slice(d.length - 1 - back);
+                    const returns = [];
+                    for(let i=1; i<slice.length; i++) returns.push(slice[i].price / slice[i-1].price - 1);
+                    return getStdDev(returns) * Math.sqrt(252);
+                };
+
+                const stats = {
+                    daily: (last.price / prev.price) - 1,
+                    week: getRet(milestones.week),
+                    month: getRet(milestones.month),
+                    threeM: getRet(milestones.threeM),
+                    ytd: (last.price / ytdStart.price) - 1,
+                    oneY: getRet(milestones.oneY),
+                    threeY: getAnnRet(milestones.threeY),
+                    fiveY: getAnnRet(milestones.fiveY),
+                    tenY: getAnnRet(milestones.tenY),
+                    vol1: getVol(milestones.oneY),
+                    vol3: getVol(milestones.threeY),
+                    vol5: getVol(milestones.fiveY)
+                };
+
+                Object.keys(winners).forEach(k => { if (stats[k] > 0) winners[k]++; });
+
+                rows.push({ n: m.n, s: m.s, ...stats });
+            });
+
+            const renderCell = (v, isPct=true, isBold=false) => {
+                if (v === null || v === undefined) return '<td class="px-3 py-2 text-gray-400">-</td>';
+                const color = v > 0 ? 'text-green-600' : (v < 0 ? 'text-red-600' : 'text-gray-600');
+                return `<td class="px-3 py-2 ${color} ${isBold ? 'font-bold' : ''}">${isPct ? fmtPct(v) : v.toFixed(2)}</td>`;
+            };
+
+            document.getElementById('marketsTableBody').innerHTML = rows.map(r => `
+                <tr class="hover:bg-gray-50 border-b">
+                    <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${r.n} <span class="text-[10px] text-gray-400 font-normal ml-1">${r.s}</span></td>
+                    ${renderCell(r.daily, true, true)}
+                    ${renderCell(r.week)}
+                    ${renderCell(r.month)}
+                    ${renderCell(r.threeM)}
+                    ${renderCell(r.ytd, true, true)}
+                    ${renderCell(r.oneY, true, false)}
+                    ${renderCell(r.threeY)}
+                    ${renderCell(r.fiveY)}
+                    ${renderCell(r.tenY)}
+                    <td class="px-3 py-2 border-l text-gray-600">${r.vol1 ? fmtPct(r.vol1) : '-'}</td>
+                    <td class="px-3 py-2 text-gray-600">${r.vol3 ? fmtPct(r.vol3) : '-'}</td>
+                    <td class="px-3 py-2 text-gray-600">${r.vol5 ? fmtPct(r.vol5) : '-'}</td>
+                </tr>
+            `).join('');
+
+            // Footer winners
+            const n = rows.length;
+            const winPct = k => n > 0 ? (winners[k]/n) : 0;
+            document.getElementById('marketsTableFoot').innerHTML = `
+                <tr>
+                    <td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">% ACTIVOS (+)</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('daily'))}</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('week'))}</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('month'))}</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('threeM'))}</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('ytd'))}</td>
+                    <td class="px-3 py-2 border-r">${fmtPct(winPct('oneY'))}</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('threeY'))}</td>
+                    <td class="px-3 py-2">${fmtPct(winPct('fiveY'))}</td>
+                    <td class="px-3 py-2 border-r">${fmtPct(winPct('tenY'))}</td>
+                    <td class="px-3 py-2" colspan="3">Amplitud de Mercado</td>
+                </tr>
+            `;
         }
 
         function renderDrawdownChart(d, dd, t) {
