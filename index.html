@@ -308,9 +308,62 @@
                 <!-- TAB NUEVA: Mercados -->
                 <div id="content-markets" class="tab-content hidden space-y-6">
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
-                        <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-cyan-600 pl-3">Evolución YTD (Base 10) - Principales Índices</h3>
-                        <p class="text-sm text-gray-500 mb-2">Gráfico normalizado a 10 en el primer día del año.</p>
-                        <div id="ytdBase10Chart" class="w-full h-[400px]"></div>
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
+                            <div>
+                                <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Evolución Comparativa (Base 10)</h3>
+                                <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer día del periodo seleccionado.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2" id="marketsTimeFilters">
+                                <button onclick="filterMarketsChart('1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                                <button onclick="filterMarketsChart('1M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                                <button onclick="filterMarketsChart('3M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                                <button onclick="filterMarketsChart('YTD', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-300 transition-colors">YTD</button>
+                                <button onclick="filterMarketsChart('1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                                <button onclick="filterMarketsChart('3Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                                <button onclick="filterMarketsChart('5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                                <button onclick="filterMarketsChart('10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                            </div>
+                        </div>
+                        <div id="marketsBase10Chart" class="w-full h-[450px]"></div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-blue-600 pl-3">Matriz de Rendimiento y Riesgo</h3>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Activo</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento Acumulado</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="3">Volatilidad (Anual)</th>
+                                    </tr>
+                                    <tr class="border-b border-gray-200 bg-gray-50">
+                                        <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Índice</th>
+                                        <th class="px-3 py-2 border-l">Diario</th>
+                                        <th class="px-3 py-2">Semana</th>
+                                        <th class="px-3 py-2">Mes</th>
+                                        <th class="px-3 py-2">3 Meses</th>
+                                        <th class="px-3 py-2 bg-cyan-50">YTD</th>
+                                        <th class="px-3 py-2 border-r">1 Año</th>
+                                        <!-- Anualizados -->
+                                        <th class="px-3 py-2">3 Años</th>
+                                        <th class="px-3 py-2">5 Años</th>
+                                        <th class="px-3 py-2 border-r">10 Años</th>
+                                        <!-- Volatilidades -->
+                                        <th class="px-3 py-2">1 Año</th>
+                                        <th class="px-3 py-2">3 Años</th>
+                                        <th class="px-3 py-2">5 Años</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="marketsTableBody" class="divide-y divide-gray-100">
+                                    <!-- JS populated -->
+                                </tbody>
+                                <tfoot id="marketsTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
+                                    <!-- JS populated -->
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
