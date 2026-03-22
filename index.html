@@ -319,7 +319,7 @@
                             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
                                 <div>
                                     <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Evolución Comparativa (Base 10)</h3>
-                                    <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer día del periodo.</p>
+                                    <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer día del periodo seleccionado.</p>
                                 </div>
                                 <div class="flex flex-wrap gap-2" id="indicesTimeFilters">
                                     <button onclick="filterMarketsSection('indices', '1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
@@ -333,6 +333,7 @@
                                 </div>
                             </div>
                             <div id="indicesBase10Chart" class="w-full h-[450px]"></div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Fuente: Yahoo Finance. Tickers: SPY, IEV, IBEX.MC, ^GDAXI, ^FCHI, FTSEMIB.MI, ^FTSE, ^N225, ^HSI, ^NSEI, 000001.SS, ^BVSP. Metodología: Rentabilidad total normalizada.</p>
                         </div>
 
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -357,7 +358,6 @@
                                             <th class="px-3 py-2">3 Años</th>
                                             <th class="px-3 py-2">5 Años</th>
                                             <th class="px-3 py-2 border-r">10 Años</th>
-                                            <!-- Riesgo -->
                                             <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
                                             <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
                                             <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
@@ -369,6 +369,7 @@
                                     <tfoot id="indicesTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
                                 </table>
                             </div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Notas: CAGR (Compounded Annual Growth Rate). Volatilidad σ anualizada (desviación estandar de retornos diarios * sqrt(252)). Max Drawdown calculated using daily closing prices.</p>
                         </div>
 
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -383,6 +384,7 @@
                                     <tfoot id="indicesHeatmapFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
                                 </table>
                             </div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Metodología: Cada celda representa la rentabilidad del año natural. La fila inferior "% POSITIVOS" indica la amplitud de mercado anual basada en los activos disponibles en ese momento.</p>
                         </div>
                     </div>
 
@@ -411,6 +413,7 @@
                                 </div>
                             </div>
                             <div id="assetsBase10Chart" class="w-full h-[450px]"></div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Fuente: Yahoo Finance. Tickers: IWDA.L (Equity World), IUSN.DE (Small Cap), SGLO.L (Gov Bonds), IBCQ.DE (Corp Bonds), XEON.DE (Cash). Histórico máximo disponible para cada ETF.</p>
                         </div>
 
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -435,7 +438,6 @@
                                             <th class="px-3 py-2">3 Años</th>
                                             <th class="px-3 py-2">5 Años</th>
                                             <th class="px-3 py-2 border-r">10 Años</th>
-                                            <!-- Riesgo -->
                                             <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
                                             <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
                                             <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
@@ -447,6 +449,7 @@
                                     <tfoot id="assetsTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
                                 </table>
                             </div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Metodología: Rendimientos calculados en EUR para activos denominados en EUR y USD/GBP (según Yahoo Finance). No incluye ajuste por inflación.</p>
                         </div>
 
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -461,6 +464,42 @@
                                     <tfoot id="assetsHeatmapFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
                                 </table>
                             </div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Nota: Se utiliza el ticker representativo (IE00B4L5Y983, IE00B6R52259, etc.) para cada clase de activo.</p>
+                        </div>
+                    </div>
+
+                    <!-- SECCION 3: BLENDED RETURNS (60/40) -->
+                    <div class="space-y-6 pt-8 border-t-4 border-gray-100">
+                        <div class="flex items-center gap-3 border-b-2 border-emerald-600 pb-2">
+                            <i class="fa-solid fa-scale-balanced text-2xl text-emerald-600"></i>
+                            <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Análisis de Cartera Equilibrada (Blended Returns)</h2>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Rango de Rentabilidades Anualizadas (Stocks vs Bonds vs 60/40)</h3>
+                            <div id="blendedRollingChart" class="w-full h-[500px]"></div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">Fuente: Yahoo Finance. RV: IWDA.L (60%), RF: EAGG.PA (40%). Metodología: Rebalanceo diario de pesos. Se muestran las rentabilidades anualizadas máximas, mínimas y medias para periodos de 1, 5, 10 y 20 años móviles sobre el histórico conjunto disponible.</p>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Resumen de Crecimiento y Rentabilidad</h3>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap border-collapse">
+                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left font-extrabold">Activo / Estrategia</th>
+                                            <th class="px-4 py-3">Rent. Media Anualizada</th>
+                                            <th class="px-4 py-3">Volatilidad (σ)</th>
+                                            <th class="px-4 py-3">Max DD Histórico</th>
+                                            <th class="px-4 py-3 font-bold bg-emerald-50 text-emerald-800">Crecimiento $100.000 (20A*)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="blendedStatsTableBody" class="divide-y divide-gray-100">
+                                        <tr><td colspan="5" class="px-4 py-8 text-center italic text-gray-400">Calculando datos históricos...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-[10px] text-gray-400 mt-2 italic border-t pt-2">* El crecimiento se proyecta a 20 años basado en la rentabilidad media (CAGR) si hay menos de 20 años de histórico. Datos brutos sin ajustar por inflación.</p>
                         </div>
                     </div>
                 </div>
@@ -1103,6 +1142,7 @@
         let globalRatesData = null;
         let globalIndicesData = {}; // Store raw data for all indices
         let globalAssetsData = {};  // Store data for asset classes
+        let globalBlendedData = null; // Analysis for 60/40 Stocks/Bonds
 
         const marketIndices = [
             { s: '^GSPC', n: 'S&P 500', f: '🇺🇸' },
@@ -1278,6 +1318,14 @@
                 const assetsResults = await Promise.all(assetsPromises);
                 assetClasses.forEach((a, i) => { globalAssetsData[a.s] = assetsResults[i]; });
 
+                // Fetch Blended Data (MAX History for IWDA.L and EAGG.PA)
+                updateStatus(`Bajando datos históricos para análisis 60/40 (Horizonte Máximo)...`);
+                const [blendedStocks, blendedBonds] = await Promise.all([
+                    fetchYahooData('IWDA.L', '1900-01-01', endDate).catch(e => []),
+                    fetchYahooData('EAGG.PA', '1900-01-01', endDate).catch(e => [])
+                ]);
+                globalBlendedData = calculateBlendedAnalysis(blendedStocks, blendedBonds);
+
                 currentData = rawData;
                 currentTicker = ticker;
                 globalVixData = vixData; 
@@ -1341,6 +1389,7 @@
                 // Nueva lógica: Pestaña Mercados con filtro temporal
                 filterMarketsSection('indices', 'YTD');
                 filterMarketsSection('assets', 'YTD');
+                renderBlendedAnalysis();
 
                 // Render New Sigma Table
                 renderSigmaEvents(generalData);
@@ -3486,6 +3535,180 @@
 
         function renderDrawdownTable(e) { document.getElementById('drawdownTableBody').innerHTML = e.map((i, k) => `<tr><td class="px-4">#${k + 1}</td><td class="px-4 text-red-600 font-bold">${fmtPct(i.drawdown)}</td><td class="px-4">${fmtDate(i.start)}</td><td class="px-4">${fmtDate(i.end)}</td><td class="px-4">${i.recovery ? fmtDate(i.recovery) : '-'}</td><td class="px-4">${Math.round(i.length)}</td><td class="px-4">${Math.round(i.underwater)}</td></tr>`).join(''); }
         function renderYearlyTable(d) { document.getElementById('annualTableBody').innerHTML = d.map(i => `<tr><td class="px-4">${i.range}</td><td class="px-4 text-right font-bold ${i.return > 0 ? 'text-green-600' : 'text-red-500'}">${fmtPct(i.return)}</td><td class="px-4 text-right">${fmtPct(i.volatility)}</td></tr>`).join(''); }
+
+        // --- TICKER UTILS & FORMATTING ---
+        const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+        const fmtDate = (d) => new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const getMean = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+        const getStdDev = (arr) => {
+            const m = getMean(arr);
+            return Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - m, 2), 0) / arr.length);
+        };
+        const getPercentile = (arr, p) => {
+            const sorted = [...arr].sort((a,b) => a-b);
+            const pos = (sorted.length - 1) * p / 100;
+            const base = Math.floor(pos);
+            const rest = pos - base;
+            if (sorted[base+1] !== undefined) return sorted[base] + rest * (sorted[base+1] - sorted[base]);
+            return sorted[base];
+        };
+
+        // --- BLENDED ANALYSIS LOGIC ---
+        function calculateBlendedAnalysis(stocks, bonds) {
+            if (!stocks || !bonds || stocks.length < 10 || bonds.length < 10) return null;
+
+            const stockMap = new Map();
+            stocks.forEach(d => stockMap.set(d.date.toISOString().split('T')[0], d.price));
+            const bondMap = new Map();
+            bonds.forEach(d => bondMap.set(d.date.toISOString().split('T')[0], d.price));
+
+            const allDates = [...new Set([...stockMap.keys(), ...bondMap.keys()])].sort();
+            
+            let alignedStocks = [], alignedBonds = [], alignedDates = [];
+            let lastS = null, lastB = null;
+
+            allDates.forEach(date => {
+                const s = stockMap.get(date) ?? lastS;
+                const b = bondMap.get(date) ?? lastB;
+                if (s !== null && b !== null) {
+                    alignedStocks.push(s);
+                    alignedBonds.push(b);
+                    alignedDates.push(date);
+                }
+                if (stockMap.has(date)) lastS = stockMap.get(date);
+                if (bondMap.has(date)) lastB = bondMap.get(date);
+            });
+
+            if (alignedDates.length < 20) return null;
+
+            // Compute Growth of 100 with Daily Rebalancing to 60/40
+            let pVal = 100, sVal = 100, bVal = 100;
+            const pSeries = [pVal], sSeries = [sVal], bSeries = [bVal];
+            
+            for (let i = 1; i < alignedDates.length; i++) {
+                const rS = (alignedStocks[i] / alignedStocks[i-1]) - 1;
+                const rB = (alignedBonds[i] / alignedBonds[i-1]) - 1;
+                const rP = 0.6 * rS + 0.4 * rB;
+                
+                pVal *= (1 + rP);
+                sVal *= (1 + rS);
+                bVal *= (1 + rB);
+                
+                pSeries.push(pVal);
+                sSeries.push(sVal);
+                bSeries.push(bVal);
+            }
+
+            return { dates: alignedDates, portfolio: pSeries, stocks: sSeries, bonds: bSeries };
+        }
+
+        function renderBlendedAnalysis() {
+            const container = document.getElementById('blendedStatsTableBody');
+            if (!globalBlendedData) {
+                if (container) container.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-red-400">Datos insuficientes para el análisis comparativo (Stocks/Bonds).</td></tr>';
+                return;
+            }
+
+            const { dates, portfolio, stocks, bonds } = globalBlendedData;
+            const horizons = [
+                { label: '1 Año', days: 252 },
+                { label: '5 Años', days: 1260 },
+                { label: '10 Años', days: 2520 },
+                { label: '20 Años', days: 5040 }
+            ];
+
+            const assetConfigs = [
+                { name: 'Stocks (IWDA.L)', data: stocks, color: '#76a02d' },
+                { name: 'Bonds (EAGG.PA)', data: bonds, color: '#004a80' },
+                { name: 'Portfolio 60/40', data: portfolio, color: '#4b5563' }
+            ];
+
+            const traces = [];
+            
+            assetConfigs.forEach(asset => {
+                const x = [], yAvg = [], yMax = [], yMin = [];
+                
+                horizons.forEach(h => {
+                    if (asset.data.length > h.days) {
+                        const rolling = [];
+                        for (let i = h.days; i < asset.data.length; i++) {
+                            const ret = Math.pow(asset.data[i] / asset.data[i - h.days], 252 / h.days) - 1;
+                            rolling.push(ret);
+                        }
+                        if (rolling.length > 0) {
+                            x.push(h.label);
+                            yAvg.push(getMean(rolling));
+                            yMin.push(Math.min(...rolling));
+                            yMax.push(Math.max(...rolling));
+                        }
+                    }
+                });
+
+                if (x.length > 0) {
+                    traces.push({
+                        x: x,
+                        y: yAvg,
+                        name: asset.name,
+                        type: 'bar',
+                        marker: { color: asset.color },
+                        error_y: {
+                            type: 'data',
+                            symmetric: false,
+                            array: yMax.map((v, i) => v - yAvg[i]),
+                            arrayminus: yAvg.map((v, i) => yAvg[i] - v),
+                            visible: true,
+                            thickness: 2,
+                            width: 10,
+                            color: '#1f2937'
+                        },
+                        customdata: yMax.map((v, i) => [v, yMin[i]]),
+                        hovertemplate: `<b>${asset.name}</b><br>Máximo: %{customdata[0]:.1%}<br>Media: %{y:.1%}<br>Mínimo: %{customdata[1]:.1%}<extra></extra>`
+                    });
+                }
+            });
+
+            const layout = {
+                title: 'Rango de Rentabilidades Anualizadas (Mín / Media / Máx)',
+                barmode: 'group',
+                yaxis: { title: 'Rentabilidad Anualizada', tickformat: '.0%' },
+                legend: { orientation: 'h', y: -0.2 },
+                margin: { t: 60, b: 100, l: 60, r: 20 },
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('blendedRollingChart', traces, layout, { responsive: true });
+
+            // Stats Table
+            let html = '';
+            assetConfigs.forEach(asset => {
+                const n = asset.data.length;
+                const cagr = Math.pow(asset.data[n-1]/asset.data[0], 252/n) - 1;
+                
+                const logRets = [];
+                for(let i=1; i<n; i++) logRets.push(Math.log(asset.data[i]/asset.data[i-1]));
+                const vol = Math.sqrt(252) * getStdDev(logRets);
+
+                let maxVal = 0, mdd = 0;
+                asset.data.forEach(v => {
+                    if (v > maxVal) maxVal = v;
+                    const dd = (v / maxVal) - 1;
+                    if (dd < mdd) mdd = dd;
+                });
+
+                const growth20 = 100000 * Math.pow(1 + cagr, 20);
+
+                html += `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 text-left font-bold text-gray-800">${asset.name}</td>
+                        <td class="px-4 py-3 font-semibold text-blue-700">${fmtPct(cagr)}</td>
+                        <td class="px-4 py-3 text-gray-500">${fmtPct(vol)}</td>
+                        <td class="px-4 py-3 text-red-600">${fmtPct(mdd)}</td>
+                        <td class="px-4 py-3 font-black bg-emerald-50 text-emerald-800">${growth20.toLocaleString('es-ES', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</td>
+                    </tr>
+                `;
+            });
+            container.innerHTML = html;
+        }
 
         window.onload = () => {
             renderTickerDictionary();
