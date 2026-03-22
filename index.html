@@ -3223,20 +3223,29 @@
             `).join('');
 
             // Footer winners
-            const n = rows.length;
-            const winPct = k => n > 0 ? (winners[k]/n) : 0;
+            const nTotal = rows.length;
+            const validCounts = { daily:0, week:0, month:0, threeM:0, ytd:0, oneY:0, threeY:0, fiveY:0, tenY:0 };
+            
+            rows.forEach(r => {
+                Object.keys(validCounts).forEach(k => {
+                    if (r[k] !== null && r[k] !== undefined) validCounts[k]++;
+                });
+            });
+
+            const winPct = k => validCounts[k] > 0 ? (winners[k] / validCounts[k]) : 0;
+
             document.getElementById('marketsTableFoot').innerHTML = `
                 <tr>
                     <td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] uppercase">% ACTIVOS (+)</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('daily'))}</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('week'))}</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('month'))}</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('threeM'))}</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('ytd'))}</td>
-                    <td class="px-3 py-2 border-r">${fmtPct(winPct('oneY'))}</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('threeY'))}</td>
-                    <td class="px-3 py-2">${fmtPct(winPct('fiveY'))}</td>
-                    <td class="px-3 py-2 border-r">${fmtPct(winPct('tenY'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.daily} activos">${fmtPct(winPct('daily'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.week} activos">${fmtPct(winPct('week'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.month} activos">${fmtPct(winPct('month'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.threeM} activos">${fmtPct(winPct('threeM'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.ytd} activos">${fmtPct(winPct('ytd'))}</td>
+                    <td class="px-3 py-2 border-r" title="Sobre ${validCounts.oneY} activos">${fmtPct(winPct('oneY'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.threeY} activos">${fmtPct(winPct('threeY'))}</td>
+                    <td class="px-3 py-2" title="Sobre ${validCounts.fiveY} activos">${fmtPct(winPct('fiveY'))}</td>
+                    <td class="px-3 py-2 border-r" title="Sobre ${validCounts.tenY} activos">${fmtPct(winPct('tenY'))}</td>
                     <td class="px-3 py-2" colspan="3">Amplitud de Mercado</td>
                 </tr>
             `;
@@ -3260,7 +3269,11 @@
 
             const rows = [];
             const winnersByYear = {};
-            years.forEach(y => winnersByYear[y] = 0);
+            const totalWithDataByYear = {};
+            years.forEach(y => {
+                winnersByYear[y] = 0;
+                totalWithDataByYear[y] = 0;
+            });
 
             marketIndices.forEach(m => {
                 const d = fullDataDict[m.s] || [];
@@ -3275,6 +3288,7 @@
                     const yearIdxs = d.map((x, i) => x.date >= startOfYear && x.date <= endOfYear ? i : null).filter(i => i !== null);
                     
                     if (yearIdxs.length >= 2) {
+                        totalWithDataByYear[y]++;
                         const first = d[yearIdxs[0]];
                         const last = d[yearIdxs[yearIdxs.length - 1]];
                         const ret = (last.price / first.price) - 1;
@@ -3304,11 +3318,13 @@
             document.getElementById('marketsHeatmapBody').innerHTML = rows.join('');
 
             // Footer winners
-            const n = marketIndices.length;
             document.getElementById('marketsHeatmapFoot').innerHTML = `
                 <tr class="divide-x border-t-2">
-                    <td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r">% POSITIVOS</td>
-                    ${years.map(y => `<td class="px-2 py-2">${fmtPct(winnersByYear[y] / n)}</td>`).join('')}
+                    <td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r uppercase">% POSITIVOS</td>
+                    ${years.map(y => {
+                        const pct = totalWithDataByYear[y] > 0 ? (winnersByYear[y] / totalWithDataByYear[y]) : 0;
+                        return `<td class="px-2 py-2" title="Sobre ${totalWithDataByYear[y]} activos">${fmtPct(pct)}</td>`;
+                    }).join('')}
                 </tr>
             `;
         }
