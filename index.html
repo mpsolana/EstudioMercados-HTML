@@ -147,10 +147,7 @@
     <!-- ==================== SECTION: MERCADOS ==================== -->
     <div id="section-mercados" class="app-section active">
         <div class="container mx-auto p-4 lg:p-6">
-            <div id="marketsLoader" class="flex flex-col justify-center items-center py-20">
-                <div class="loading-spinner mb-4"></div>
-                <p class="text-gray-500 font-medium animate-pulse">Cargando datos de mercados...</p>
-            </div>
+            <!-- marketsLoader removed to avoid persistent blank area -->
             <div id="marketsContent" class="space-y-12">
                 <!-- INDICES MUNDIALES (movido desde la pestaña interna) -->
                 <!-- SECCION 1: INDICES MUNDIALES -->
@@ -369,6 +366,24 @@
                             </table>
                         </div>
                     </div>
+                </div>
+            </div>
+            <!-- NUEVAS GRÁFICAS: Volatilidad (VIX & MOVE) y Divisas (Base 10 vs EUR) -->
+            <div class="space-y-8 pt-8">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-4 border-b pb-2">
+                        <h3 class="text-gray-800 font-bold border-l-4 border-rose-600 pl-3">Volatilidad: ^VIX vs ^MOVE</h3>
+                        <p class="text-xs text-gray-500">Índice de volatilidad de Renta Variable (^VIX) y Renta Fija (^MOVE)</p>
+                    </div>
+                    <div id="volatilityChart" class="w-full h-[420px]"></div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-4 border-b pb-2">
+                        <h3 class="text-gray-800 font-bold border-l-4 border-emerald-600 pl-3">Divisas (Evolución Base 10 vs EUR)</h3>
+                        <p class="text-xs text-gray-500">Principales pares EUR/* normalizados a Base 10 (últimos años)</p>
+                    </div>
+                    <div id="currenciesBase10Chart" class="w-full h-[420px]"></div>
                 </div>
             </div>
         </div>
@@ -1308,6 +1323,8 @@
             let globalVixData = null; // Store VIX data globally
             let globalOilData = null;
             let globalRatesData = null;
+            let globalMoveData = null; // ^MOVE (fixed income volatility)
+            let globalCurrenciesData = {}; // currency data keyed by ticker
             let globalIndicesData = {}; // Store raw data for all indices
             let globalAssetsData = {};  // Store data for asset classes
 
@@ -1333,6 +1350,71 @@
                 { s: 'IBCQ.DE', n: 'Bonos Corporativos (EUR)', f: '🏢' },
                 { s: 'XEON.DE', n: 'Efectivo (Overnight)', f: '💶' }
             ];
+
+            // Currency tickers (EUR base pairs)
+            const currencyTickers = [
+                'EURUSD=X','EURGBP=X','EURJPY=X','EURCHF=X','EURCAD=X','EURSEK=X','EURHUF=X'
+            ];
+
+            // Load VIX, MOVE and currencies for markets section
+            async function loadMarketsExtras() {
+                try {
+                    const today = new Date().toISOString().split('T')[0];
+                    const tenYearsAgo = new Date(); tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+                    const tenYearStr = tenYearsAgo.toISOString().split('T')[0];
+
+                    // Fetch VIX and MOVE
+                    const [vixRaw, moveRaw] = await Promise.all([
+                        fetchYahooData('^VIX', tenYearStr, today).catch(() => []),
+                        fetchYahooData('^MOVE', tenYearStr, today).catch(() => [])
+                    ]);
+                    globalVixData = vixRaw;
+                    globalMoveData = moveRaw;
+
+                    // Fetch currencies in parallel
+                    const curPromises = currencyTickers.map(t => fetchYahooData(t, tenYearStr, today).catch(() => []));
+                    const curResults = await Promise.all(curPromises);
+                    currencyTickers.forEach((t, i) => { globalCurrenciesData[t] = curResults[i] || []; });
+
+                    // Render charts if data available
+                    renderVolatilityChart();
+                    renderCurrenciesBase10();
+                } catch (e) {
+                    console.error('Error loading markets extras:', e);
+                }
+            }
+
+            function renderVolatilityChart() {
+                const traces = [];
+                if (globalVixData && globalVixData.length) {
+                    traces.push({ x: globalVixData.map(d => d.date), y: globalVixData.map(d => d.price), mode: 'lines', name: '^VIX', line: { color: '#ef4444' } });
+                }
+                if (globalMoveData && globalMoveData.length) {
+                    traces.push({ x: globalMoveData.map(d => d.date), y: globalMoveData.map(d => d.price), mode: 'lines', name: '^MOVE', line: { color: '#2563eb' } });
+                }
+                if (traces.length === 0) {
+                    document.getElementById('volatilityChart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>';
+                    return;
+                }
+                Plotly.newPlot('volatilityChart', traces, { title: '^VIX vs ^MOVE', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Valor' } }, { responsive: true });
+            }
+
+            function renderCurrenciesBase10() {
+                const tickers = currencyTickers;
+                const traces = [];
+                const colors = ['#1e3a8a', '#b91c1c', '#15803d', '#7e22ce', '#c2410c', '#0369a1', '#4d7c0f', '#374151'];
+                tickers.forEach((t, i) => {
+                    const d = globalCurrenciesData[t] || [];
+                    if (!d || d.length === 0) return;
+                    const first = d[0].price || 1;
+                    traces.push({ x: d.map(p => p.date), y: d.map(p => (p.price / first) * 10), mode: 'lines', name: t.replace('=X',''), line: { color: colors[i % colors.length], width: 2 }, hovertemplate: `${t}: %{y:.2f}<extra></extra>` });
+                });
+                if (traces.length === 0) {
+                    document.getElementById('currenciesBase10Chart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>';
+                    return;
+                }
+                Plotly.newPlot('currenciesBase10Chart', traces, { title: 'Divisas (Base 10 vs EUR)', margin: { t: 40, l: 60, r: 20, b: 40 }, legend: { orientation: 'h', y: -0.2 } }, { responsive: true });
+            }
 
             // --- Top-level section switcher (Mercados / Individual / Cartera / Ayuda) ---
             function switchSection(name) {
@@ -3737,6 +3819,8 @@
                 updateVersionTimestamp();
                 // Ensure top-level section classes/active buttons are synced
                 switchSection('mercados');
+                // 3. Load VIX, MOVE and currency data for markets charts
+                loadMarketsExtras();
             };
         </script>
 </body>
