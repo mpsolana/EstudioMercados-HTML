@@ -642,14 +642,7 @@
                     // Render portfolio cumulative chart
                     Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#059669', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
 
-                    // Render composition small pie
-                    const compDivId = 'portfolioCompositionMini';
-                    let compDiv = document.getElementById(compDivId);
-                    if (!compDiv) {
-                        compDiv = document.createElement('div'); compDiv.id = compDivId; compDiv.className = 'mt-4 w-56 h-40';
-                        document.getElementById('portfolioChart').parentElement.appendChild(compDiv);
-                    }
-                    Plotly.newPlot(compDivId, [{ labels: entries.map(e=>e.ticker), values: entries.map(e=>e.weight), type:'pie' }], { title: 'Composición (pesos)' }, { responsive:true, displayModeBar:false });
+                    // Composition chart intentionally removed per user request
 
                     // Save to global loadedPortfolio
                     loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn };
@@ -665,41 +658,23 @@
             }
 
             // Run full analysis using previously loaded portfolio series
-            function analyzeLoadedPortfolio() {
+            async function analyzeLoadedPortfolio() {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData) return alert('Primero carga la cartera.');
                 try {
-                    const rawData = loadedPortfolio.portfolioData.map(d=>({ date: d.date, price: d.price }));
-                    currentData = rawData; currentTicker = 'CARTERA';
-                    const stats = calculateRollingStats(rawData);
-                    const timeSeries = calculateTimeSeries(rawData);
-                    const ddData = calculateDrawdownData(rawData);
-                    const episodes = calculateEpisodes(rawData, ddData.cumulativeMax);
-                    const yearlyStats = calculateYearlyStats(rawData);
-                    const techData = calculateTechnicalIndicators(rawData);
-                    const seasonData = calculateSeasonality(rawData);
-                    const annualDist = calculateAnnualDistribution(rawData);
-                    const athData = calculateATHAnalysis(rawData);
-                    const generalData = calculateGeneralMetrics(rawData);
-                    const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
-                    const bestDaysData = calculateBestDaysAnalysis(rawData);
-                    const ddDurationData = calculateDrawdownDurations(rawData, ddData.cumulativeMax);
+                    // Prepare inputs so runAnalysis can reuse the exact same pipeline as Análisis Individual
+                    // We set the ticker input to a sentinel value and place the precomputed portfolio series into currentData
+                    document.getElementById('tickerInput').value = 'CARTERA';
+                    const sd = loadedPortfolio.commonDates[0];
+                    const ed = loadedPortfolio.commonDates[loadedPortfolio.commonDates.length - 1];
+                    document.getElementById('startDate').value = sd;
+                    document.getElementById('endDate').value = ed;
 
-                    renderTable(stats);
-                    renderBarChart(stats);
-                    renderLineChart(timeSeries);
-                    renderDrawdownChart(rawData, ddData, 'CARTERA');
-                    renderDrawdownSpaghettiChart(rawData, ddData, 'CARTERA');
-                    renderDrawdownTable(episodes);
-                    renderYearlyTable(yearlyStats);
-                    renderTechnicalChart(rawData, techData, 'CARTERA');
-                    renderGeneralMetrics(generalData, 'CARTERA');
-                    renderSeasonalityCharts(seasonData, 'CARTERA');
-                    renderAnnualDistributionChart(annualDist, 'CARTERA');
-                    renderATHPriceChart(rawData, athData, 'CARTERA');
-                    renderATHForwardChart(athData.results);
-                    renderSigmaEvents(generalData);
-                    renderBestDaysCharts(bestDaysData, 'CARTERA');
-                    renderDrawdownDurationTable(ddDurationData);
+                    // Use the existing global holder so runAnalysis can pick it up when asked to use loaded data
+                    currentData = loadedPortfolio.portfolioData.map(d=>({ date: d.date, price: d.price }));
+                    currentTicker = 'CARTERA';
+
+                    // Use the same async pipeline as runAnalysis but instruct it to use existing currentData
+                    await runAnalysis(true);
 
                     document.getElementById('portfolioNotice').innerText = `Análisis completado — CAGR: ${fmtPct(loadedPortfolio.cagr)}, Volatilidad (ann): ${fmtPct(loadedPortfolio.portVolAnn)}`;
                 } catch (e) {
@@ -1915,7 +1890,7 @@
                 updateRatesMatrix();
             }
 
-            async function runAnalysis() {
+            async function runAnalysis(useLoaded = false) {
                 const ticker = document.getElementById('tickerInput').value.toUpperCase().trim();
                 const startDate = document.getElementById('startDate').value;
                 const endDate = document.getElementById('endDate').value;
@@ -1927,16 +1902,22 @@
                 updateStatus(`Conectando a Yahoo Finance para ${ticker}...`);
 
                 try {
-                    // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Rates (10Y)
-                    const tenYearsAgo = new Date(); tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-                    const tenYearStr = tenYearsAgo.toISOString().split('T')[0];
+                    // If requested, reuse already-loaded `currentData` (portfolio) instead of fetching
+                    let rawData, oilData = [], vixData = [], ratesData = [];
+                    if (useLoaded && ticker === 'CARTERA' && currentData && currentData.length) {
+                        rawData = currentData;
+                    } else {
+                        // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Rates (10Y)
+                        const tenYearsAgo = new Date(); tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+                        const tenYearStr = tenYearsAgo.toISOString().split('T')[0];
 
-                    const [rawData, oilData, vixData, ratesData] = await Promise.all([
-                        fetchYahooData(ticker, startDate, endDate),
-                        fetchYahooData('CL=F', startDate, endDate).catch(e => []),
-                        fetchYahooData('^VIX', startDate, endDate).catch(e => []),
-                        fetchYahooData('^IRX', startDate, endDate).catch(e => [])
-                    ]);
+                        [rawData, oilData, vixData, ratesData] = await Promise.all([
+                            fetchYahooData(ticker, startDate, endDate),
+                            fetchYahooData('CL=F', startDate, endDate).catch(e => []),
+                            fetchYahooData('^VIX', startDate, endDate).catch(e => []),
+                            fetchYahooData('^IRX', startDate, endDate).catch(e => [])
+                        ]);
+                    }
 
                     // NOTA: La carga de índices y clases de activos se realiza ahora desde la
                     // sección Mercados con el botón 'Cargar Mercados' para compartimentar la carga.
