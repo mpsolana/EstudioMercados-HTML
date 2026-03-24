@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MPS MarketAnalyzer v13 24032026 12:58</title>
+    <title id="docTitle">MPS MarketAnalyzer v13</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -122,7 +122,7 @@
                 <h1 class="text-xl font-bold tracking-wide">MPS Market<span class="text-blue-400">Analyzer</span> Pro
                 </h1>
             </div>
-            <div class="text-xs text-gray-400 hidden sm:block">v13 24/03/2026 12:58</div>
+            <div class="text-xs text-gray-400 hidden sm:block" id="versionLabel">v13</div>
         </div>
     </nav>
 
@@ -151,8 +151,313 @@
                 <div class="loading-spinner mb-4"></div>
                 <p class="text-gray-500 font-medium animate-pulse">Cargando datos de mercados...</p>
             </div>
-            <div id="marketsContent" class="hidden space-y-12">
-                <!-- Content will be moved here from content-markets -->
+            <div id="marketsContent" class="space-y-12">
+                <!-- INDICES MUNDIALES (movido desde la pestaña interna) -->
+                <!-- SECCION 1: INDICES MUNDIALES -->
+                <div class="space-y-6">
+                    <div class="flex items-center gap-3 border-b-2 border-cyan-600 pb-2">
+                        <i class="fa-solid fa-earth-americas text-2xl text-cyan-600"></i>
+                        <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Índices Bursátiles
+                            Mundiales</h2>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <div
+                            class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
+                            <div>
+                                <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Evolución
+                                    Comparativa (Base 10)</h3>
+                                <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer
+                                    día del periodo.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2" id="indicesTimeFilters">
+                                <button onclick="filterMarketsSection('indices', '1W', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                                <button onclick="filterMarketsSection('indices', '1M', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                                <button onclick="filterMarketsSection('indices', '3M', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                                <button onclick="filterMarketsSection('indices', 'YTD', this)"
+                                    class="px-3 py-1 text-xs font-bold rounded-md bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-300">YTD</button>
+                                <button onclick="filterMarketsSection('indices', '1Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                                <button onclick="filterMarketsSection('indices', '3Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                                <button onclick="filterMarketsSection('indices', '5Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                                <button onclick="filterMarketsSection('indices', '10Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                            </div>
+                        </div>
+                        <div id="indicesBase10Chart" class="w-full h-[450px]"></div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-blue-600 pl-3">Matriz de
+                            Rendimiento y Riesgo</h3>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
+                                <thead
+                                    class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th
+                                            class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                            Activo</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento
+                                            Acumulado
+                                        </th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y
+                                            MaxDD)
+                                        </th>
+                                    </tr>
+                                    <tr class="border-b border-gray-200 bg-gray-50">
+                                        <th
+                                            class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                            Índice</th>
+                                        <th class="px-3 py-2 border-l">Diario</th>
+                                        <th class="px-3 py-2">Semana</th>
+                                        <th class="px-3 py-2">Mes</th>
+                                        <th class="px-3 py-2">3 Meses</th>
+                                        <th class="px-3 py-2 bg-cyan-50">YTD</th>
+                                        <th class="px-3 py-2 border-r">1 Año</th>
+                                        <th class="px-3 py-2">3 Años</th>
+                                        <th class="px-3 py-2">5 Años</th>
+                                        <th class="px-3 py-2 border-r">10 Años</th>
+                                        <!-- Riesgo -->
+                                        <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
+                                        <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
+                                        <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
+                                        <th class="px-3 py-2 bg-red-50">MDD 5A</th>
+                                        <th class="px-3 py-2 bg-red-50">MDD HIST</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="indicesTableBody" class="divide-y divide-gray-100"></tbody>
+                                <tfoot id="indicesTableFoot"
+                                    class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between mb-4 border-b pb-2">
+                            <h3 class="text-gray-800 font-bold border-l-4 border-orange-600 pl-3">Mapa de Calor
+                                Anual</h3>
+                            <span
+                                class="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full uppercase">Histórico</span>
+                        </div>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
+                                <thead id="indicesHeatmapHead" class="bg-gray-50 border-b border-gray-200">
+                                </thead>
+                                <tbody id="indicesHeatmapBody"></tbody>
+                                <tfoot id="indicesHeatmapFoot"
+                                    class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCION 2: ASSET CLASSES (movido) -->
+                <div class="space-y-6 pt-8 border-t-4 border-gray-100">
+                    <div class="flex items-center gap-3 border-b-2 border-indigo-600 pb-2">
+                        <i class="fa-solid fa-layer-group text-2xl text-indigo-600"></i>
+                        <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Asignación de
+                            Activos
+                            (Asset Allocation)</h2>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <div
+                            class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
+                            <div>
+                                <h3 class="text-gray-800 font-bold border-l-4 border-indigo-600 pl-3">Evolución
+                                    por
+                                    Clases de Activo</h3>
+                                <p class="text-xs text-gray-500 mt-1 pl-3">Comparativa de rentabilidad total
+                                    (Base
+                                    10) entre Equity, Bonos y Cash.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2" id="assetsTimeFilters">
+                                <button onclick="filterMarketsSection('assets', '1W', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                                <button onclick="filterMarketsSection('assets', '1M', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                                <button onclick="filterMarketsSection('assets', '3M', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                                <button onclick="filterMarketsSection('assets', 'YTD', this)"
+                                    class="px-3 py-1 text-xs font-bold rounded-md bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300">YTD</button>
+                                <button onclick="filterMarketsSection('assets', '1Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                                <button onclick="filterMarketsSection('assets', '3Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                                <button onclick="filterMarketsSection('assets', '5Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                                <button onclick="filterMarketsSection('assets', '10Y', this)"
+                                    class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                            </div>
+                        </div>
+                        <div id="assetsBase10Chart" class="w-full h-[450px]"></div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-indigo-600 pl-3">Matriz de
+                            Rendimiento y Riesgo</h3>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
+                                <thead
+                                    class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th
+                                            class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                            Activo</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento
+                                            Acumulado
+                                        </th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y
+                                            MaxDD)
+                                        </th>
+                                    </tr>
+                                    <tr class="border-b border-gray-200 bg-gray-50">
+                                        <th
+                                            class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                            Instrumento</th>
+                                        <th class="px-3 py-2 border-l">Diario</th>
+                                        <th class="px-3 py-2">Semana</th>
+                                        <th class="px-3 py-2">Mes</th>
+                                        <th class="px-3 py-2">3 Meses</th>
+                                        <th class="px-3 py-2 bg-indigo-50">YTD</th>
+                                        <th class="px-3 py-2 border-r">1 Año</th>
+                                        <th class="px-3 py-2">3 Años</th>
+                                        <th class="px-3 py-2">5 Años</th>
+                                        <th class="px-3 py-2 border-r">10 Años</th>
+                                        <!-- Riesgo -->
+                                        <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
+                                        <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
+                                        <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
+                                        <th class="px-3 py-2 bg-red-50">MDD 5A</th>
+                                        <th class="px-3 py-2 bg-red-50">MDD HIST</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="assetsTableBody" class="divide-y divide-gray-100"></tbody>
+                                <tfoot id="assetsTableFoot"
+                                    class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between mb-4 border-b pb-2">
+                            <h3 class="text-gray-800 font-bold border-l-4 border-indigo-600 pl-3">Mapa de Calor:
+                                Rentabilidad Anual</h3>
+                            <span
+                                class="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase">Evolución
+                                Histórica</span>
+                        </div>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
+                                <thead id="assetsHeatmapHead" class="bg-gray-50 border-b border-gray-200">
+                                </thead>
+                                <tbody id="assetsHeatmapBody"></tbody>
+                                <tfoot id="assetsHeatmapFoot"
+                                    class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SECTION: CARTERA (vacía por ahora) ==================== -->
+    <div id="section-cartera" class="app-section">
+        <div class="container mx-auto p-6">
+            <div class="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center text-gray-600">
+                <h2 class="text-xl font-bold mb-2">Análisis Cartera</h2>
+                <p class="text-sm">Sección vacía por ahora — contenido pendiente.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SECTION: AYUDA (movida desde la pestaña interna) ==================== -->
+    <div id="section-ayuda" class="app-section">
+        <div class="container mx-auto p-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es MPS MarketAnalyzer Pro?
+                </h2>
+
+                <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
+
+                    <p>
+                        <strong class="text-gray-900">MPS MarketAnalyzer Pro v11.4b</strong> es una herramienta
+                        de análisis financiero (todo se ejecuta en tu navegador, sin enviar datos a ningún
+                        servidor).
+                    </p>
+
+                    <p class="font-semibold text-gray-800">Funcionalidades principales:</p>
+                    <ul class="list-disc pl-6 space-y-2">
+                        <li><strong>Análisis técnico:</strong> Precio con medias móviles (50 y 200), RSI(14)
+                            y
+                            desviación % respecto a las medias.</li>
+                        <li><strong>Métricas de rentabilidad y riesgo:</strong> CAGR, volatilidad
+                            anualizada,
+                            mejor/peor día, rachas, VaR 95%, eventos extremos (>±3σ).</li>
+                        <li><strong>Estudio “Mejores días”:</strong> Cuánto patrimonio pierdes si te pierdes
+                            los
+                            10/20/30 mejores días del mercado.</li>
+                        <li><strong>Drawdowns y “Buy the Dip”:</strong> Análisis detallado de caídas >5%,
+                            >10% y
+                            >20% con rentabilidades posteriores a 1 mes, 6 meses, 1, 3 y 5 años.</li>
+                        <li><strong>Rentabilidades móviles:</strong> Media, mínimo y máximo (total y
+                            anualizado)
+                            para ventanas de 3 meses hasta 15 años.</li>
+                        <li><strong>Máximos históricos (ATH):</strong> ¿Es rentable comprar en nuevos
+                            máximos?
+                            Comparativa estadística frente a días aleatorios con test t y valor p.</li>
+                        <li><strong>Estacionalidad:</strong> Rentabilidad por mes, trimestre, semana del año
+                            y
+                            distribución histórica anual (con año actual resaltado).</li>
+                        <li><strong>VIX (“índice del miedo”):</strong> Rentabilidad tras picos de
+                            volatilidad
+                            (>20, >30, >40…) y correlación con retornos futuros.</li>
+                        <li><strong>Impacto del petróleo:</strong> Qué ocurre cuando el crudo supera los 100
+                            USD/baril.</li>
+                        <li><strong>Correlaciones:</strong> Matriz y correlación móvil entre cualquier
+                            combinación de activos (SPY, QQQ, Bitcoin, bonos, etc.).</li>
+                        <li><strong>Diccionario de tickers:</strong> Más de 40 activos comunes con búsqueda
+                            rápida en el panel izquierdo.</li>
+                    </ul>
+
+                    <p class="font-semibold text-gray-800 mt-4">Cómo usarla:</p>
+                    <ol class="list-decimal pl-6 space-y-1">
+                        <li>Escribe o selecciona el ticker de Yahoo Finance (ej: SPY, ^IBEX, BTC-USD,
+                            AAPL…).
+                        </li>
+                        <li>Ajusta las fechas de inicio y fin (por defecto desde 2000 hasta hoy).</li>
+                        <li>Pulsa “Ejecutar Análisis” y espera unos segundos.</li>
+                        <li>Navega por las pestañas: General, Drawdowns, Rolling, Estacionalidad, VIX,
+                            Petróleo,
+                            Correlaciones y Ayuda.</li>
+                    </ol>
+
+                    <p class="mt-4 text-xs text-gray-500">
+                        Todos los cálculos y gráficos se generan al instante en tu navegador usando
+                        Plotly.js y
+                        Math.js. No se guarda ni transmite ningún dato.
+                    </p>
+
+                    <p class="mt-4 font-medium text-blue-600">
+                        Ideal para inversores particulares, analistas y educadores que quieran entender
+                        rápidamente el comportamiento histórico y las estadísticas clave de cualquier activo
+                        cotizado.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
@@ -379,228 +684,7 @@
                         </div>
                     </div>
 
-                    <!-- TAB NUEVA: Mercados -->
-                    <div id="content-markets" class="tab-content hidden space-y-12">
-
-                        <!-- SECCION 1: INDICES MUNDIALES -->
-                        <div class="space-y-6">
-                            <div class="flex items-center gap-3 border-b-2 border-cyan-600 pb-2">
-                                <i class="fa-solid fa-earth-americas text-2xl text-cyan-600"></i>
-                                <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Índices Bursátiles
-                                    Mundiales</h2>
-                            </div>
-
-                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                <div
-                                    class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
-                                    <div>
-                                        <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Evolución
-                                            Comparativa (Base 10)</h3>
-                                        <p class="text-xs text-gray-500 mt-1 pl-3">Gráfico normalizado a 10 en el primer
-                                            día
-                                            del periodo.</p>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2" id="indicesTimeFilters">
-                                        <button onclick="filterMarketsSection('indices', '1W', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
-                                        <button onclick="filterMarketsSection('indices', '1M', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
-                                        <button onclick="filterMarketsSection('indices', '3M', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
-                                        <button onclick="filterMarketsSection('indices', 'YTD', this)"
-                                            class="px-3 py-1 text-xs font-bold rounded-md bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-300">YTD</button>
-                                        <button onclick="filterMarketsSection('indices', '1Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
-                                        <button onclick="filterMarketsSection('indices', '3Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
-                                        <button onclick="filterMarketsSection('indices', '5Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
-                                        <button onclick="filterMarketsSection('indices', '10Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
-                                    </div>
-                                </div>
-                                <div id="indicesBase10Chart" class="w-full h-[450px]"></div>
-                            </div>
-
-                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                                <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-blue-600 pl-3">Matriz de
-                                    Rendimiento y Riesgo</h3>
-                                <div class="overflow-x-auto custom-scrollbar">
-                                    <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
-                                        <thead
-                                            class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th
-                                                    class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                                    Activo</th>
-                                                <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento
-                                                    Acumulado
-                                                </th>
-                                                <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
-                                                <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y
-                                                    MaxDD)
-                                                </th>
-                                            </tr>
-                                            <tr class="border-b border-gray-200 bg-gray-50">
-                                                <th
-                                                    class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                                    Índice</th>
-                                                <th class="px-3 py-2 border-l">Diario</th>
-                                                <th class="px-3 py-2">Semana</th>
-                                                <th class="px-3 py-2">Mes</th>
-                                                <th class="px-3 py-2">3 Meses</th>
-                                                <th class="px-3 py-2 bg-cyan-50">YTD</th>
-                                                <th class="px-3 py-2 border-r">1 Año</th>
-                                                <th class="px-3 py-2">3 Años</th>
-                                                <th class="px-3 py-2">5 Años</th>
-                                                <th class="px-3 py-2 border-r">10 Años</th>
-                                                <!-- Riesgo -->
-                                                <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
-                                                <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
-                                                <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
-                                                <th class="px-3 py-2 bg-red-50">MDD 5A</th>
-                                                <th class="px-3 py-2 bg-red-50">MDD HIST</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="indicesTableBody" class="divide-y divide-gray-100"></tbody>
-                                        <tfoot id="indicesTableFoot"
-                                            class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                                <div class="flex items-center justify-between mb-4 border-b pb-2">
-                                    <h3 class="text-gray-800 font-bold border-l-4 border-orange-600 pl-3">Mapa de Calor
-                                        Anual</h3>
-                                    <span
-                                        class="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full uppercase">Histórico</span>
-                                </div>
-                                <div class="overflow-x-auto custom-scrollbar">
-                                    <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
-                                        <thead id="indicesHeatmapHead" class="bg-gray-50 border-b border-gray-200">
-                                        </thead>
-                                        <tbody id="indicesHeatmapBody"></tbody>
-                                        <tfoot id="indicesHeatmapFoot"
-                                            class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- SECCION 2: ASSET CLASSES -->
-                        <div class="space-y-6 pt-8 border-t-4 border-gray-100">
-                            <div class="flex items-center gap-3 border-b-2 border-indigo-600 pb-2">
-                                <i class="fa-solid fa-layer-group text-2xl text-indigo-600"></i>
-                                <h2 class="text-xl font-black text-gray-800 uppercase tracking-tight">Asignación de
-                                    Activos
-                                    (Asset Allocation)</h2>
-                            </div>
-
-                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                                <div
-                                    class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 border-gray-100 gap-4">
-                                    <div>
-                                        <h3 class="text-gray-800 font-bold border-l-4 border-indigo-600 pl-3">Evolución
-                                            por
-                                            Clases de Activo</h3>
-                                        <p class="text-xs text-gray-500 mt-1 pl-3">Comparativa de rentabilidad total
-                                            (Base
-                                            10) entre Equity, Bonos y Cash.</p>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2" id="assetsTimeFilters">
-                                        <button onclick="filterMarketsSection('assets', '1W', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
-                                        <button onclick="filterMarketsSection('assets', '1M', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
-                                        <button onclick="filterMarketsSection('assets', '3M', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
-                                        <button onclick="filterMarketsSection('assets', 'YTD', this)"
-                                            class="px-3 py-1 text-xs font-bold rounded-md bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300">YTD</button>
-                                        <button onclick="filterMarketsSection('assets', '1Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
-                                        <button onclick="filterMarketsSection('assets', '3Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
-                                        <button onclick="filterMarketsSection('assets', '5Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
-                                        <button onclick="filterMarketsSection('assets', '10Y', this)"
-                                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
-                                    </div>
-                                </div>
-                                <div id="assetsBase10Chart" class="w-full h-[450px]"></div>
-                            </div>
-
-                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                                <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-indigo-600 pl-3">Matriz de
-                                    Rendimiento y Riesgo</h3>
-                                <div class="overflow-x-auto custom-scrollbar">
-                                    <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
-                                        <thead
-                                            class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th
-                                                    class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                                    Activo</th>
-                                                <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento
-                                                    Acumulado
-                                                </th>
-                                                <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
-                                                <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y
-                                                    MaxDD)
-                                                </th>
-                                            </tr>
-                                            <tr class="border-b border-gray-200 bg-gray-50">
-                                                <th
-                                                    class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                                    Instrumento</th>
-                                                <th class="px-3 py-2 border-l">Diario</th>
-                                                <th class="px-3 py-2">Semana</th>
-                                                <th class="px-3 py-2">Mes</th>
-                                                <th class="px-3 py-2">3 Meses</th>
-                                                <th class="px-3 py-2 bg-indigo-50">YTD</th>
-                                                <th class="px-3 py-2 border-r">1 Año</th>
-                                                <th class="px-3 py-2">3 Años</th>
-                                                <th class="px-3 py-2">5 Años</th>
-                                                <th class="px-3 py-2 border-r">10 Años</th>
-                                                <!-- Riesgo -->
-                                                <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
-                                                <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
-                                                <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
-                                                <th class="px-3 py-2 bg-red-50">MDD 5A</th>
-                                                <th class="px-3 py-2 bg-red-50">MDD HIST</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="assetsTableBody" class="divide-y divide-gray-100"></tbody>
-                                        <tfoot id="assetsTableFoot"
-                                            class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                                <div class="flex items-center justify-between mb-4 border-b pb-2">
-                                    <h3 class="text-gray-800 font-bold border-l-4 border-indigo-600 pl-3">Mapa de Calor:
-                                        Rentabilidad Anual</h3>
-                                    <span
-                                        class="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase">Evolución
-                                        Histórica</span>
-                                </div>
-                                <div class="overflow-x-auto custom-scrollbar">
-                                    <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
-                                        <thead id="assetsHeatmapHead" class="bg-gray-50 border-b border-gray-200">
-                                        </thead>
-                                        <tbody id="assetsHeatmapBody"></tbody>
-                                        <tfoot id="assetsHeatmapFoot"
-                                            class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800">
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Markets tab moved to top-level section -->
 
                     <!-- TAB 2: Drawdown + Dip + Duration -->
                     <div id="content-drawdown" class="tab-content space-y-6">
@@ -1209,85 +1293,7 @@
                         </div>
                     </div>
 
-                    <!-- TAB: HELP & TICKERS -->
-                    <div id="content-help" class="tab-content space-y-6">
-                        <!-- Manual -->
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es MPS MarketAnalyzer Pro?
-                            </h2>
-
-                            <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
-
-                                <p>
-                                    <strong class="text-gray-900">MPS MarketAnalyzer Pro v11.4b</strong> es una
-                                    herramienta
-                                    de análisis financiero (todo se ejecuta en tu navegador, sin enviar datos a ningún
-                                    servidor).
-                                </p>
-
-                                <p class="font-semibold text-gray-800">Funcionalidades principales:</p>
-                                <ul class="list-disc pl-6 space-y-2">
-                                    <li><strong>Análisis técnico:</strong> Precio con medias móviles (50 y 200), RSI(14)
-                                        y
-                                        desviación % respecto a las medias.</li>
-                                    <li><strong>Métricas de rentabilidad y riesgo:</strong> CAGR, volatilidad
-                                        anualizada,
-                                        mejor/peor día, rachas, VaR 95%, eventos extremos (>±3σ).</li>
-                                    <li><strong>Estudio “Mejores días”:</strong> Cuánto patrimonio pierdes si te pierdes
-                                        los
-                                        10/20/30 mejores días del mercado.</li>
-                                    <li><strong>Drawdowns y “Buy the Dip”:</strong> Análisis detallado de caídas >5%,
-                                        >10% y
-                                        >20% con rentabilidades posteriores a 1 mes, 6 meses, 1, 3 y 5 años.</li>
-                                    <li><strong>Rentabilidades móviles:</strong> Media, mínimo y máximo (total y
-                                        anualizado)
-                                        para ventanas de 3 meses hasta 15 años.</li>
-                                    <li><strong>Máximos históricos (ATH):</strong> ¿Es rentable comprar en nuevos
-                                        máximos?
-                                        Comparativa estadística frente a días aleatorios con test t y valor p.</li>
-                                    <li><strong>Estacionalidad:</strong> Rentabilidad por mes, trimestre, semana del año
-                                        y
-                                        distribución histórica anual (con año actual resaltado).</li>
-                                    <li><strong>VIX (“índice del miedo”):</strong> Rentabilidad tras picos de
-                                        volatilidad
-                                        (>20, >30, >40…) y correlación con retornos futuros.</li>
-                                    <li><strong>Impacto del petróleo:</strong> Qué ocurre cuando el crudo supera los 100
-                                        USD/baril.</li>
-                                    <li><strong>Correlaciones:</strong> Matriz y correlación móvil entre cualquier
-                                        combinación de activos (SPY, QQQ, GLD, Bitcoin, bonos, etc.).</li>
-                                    <li><strong>Diccionario de tickers:</strong> Más de 40 activos comunes con búsqueda
-                                        rápida en el panel izquierdo.</li>
-                                </ul>
-
-                                <p class="font-semibold text-gray-800 mt-4">Cómo usarla:</p>
-                                <ol class="list-decimal pl-6 space-y-1">
-                                    <li>Escribe o selecciona el ticker de Yahoo Finance (ej: SPY, ^IBEX, BTC-USD,
-                                        AAPL…).
-                                    </li>
-                                    <li>Ajusta las fechas de inicio y fin (por defecto desde 2000 hasta hoy).</li>
-                                    <li>Pulsa “Ejecutar Análisis” y espera unos segundos.</li>
-                                    <li>Navega por las pestañas: General, Drawdowns, Rolling, Estacionalidad, VIX,
-                                        Petróleo,
-                                        Correlaciones y Ayuda.</li>
-                                </ol>
-
-                                <p class="mt-4 text-xs text-gray-500">
-                                    Todos los cálculos y gráficos se generan al instante en tu navegador usando
-                                    Plotly.js y
-                                    Math.js. No se guarda ni transmite ningún dato.
-                                </p>
-
-                                <p class="mt-4 font-medium text-blue-600">
-                                    Ideal para inversores particulares, analistas y educadores que quieran entender
-                                    rápidamente el comportamiento histórico y las estadísticas clave de cualquier activo
-                                    cotizado.
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Diccionario de Tickers (movido al panel izquierdo) -->
-                    </div>
+                    <!-- Help tab moved to top-level section -->
                 </div>
             </main>
         </div>
@@ -1327,6 +1333,41 @@
                 { s: 'IBCQ.DE', n: 'Bonos Corporativos (EUR)', f: '🏢' },
                 { s: 'XEON.DE', n: 'Efectivo (Overnight)', f: '💶' }
             ];
+
+            // --- Top-level section switcher (Mercados / Individual / Cartera / Ayuda) ---
+            function switchSection(name) {
+                // Hide all sections
+                document.querySelectorAll('.app-section').forEach(s => s.classList.remove('active'));
+
+                // Remove active state from top buttons
+                document.querySelectorAll('.top-nav-btn').forEach(b => b.classList.remove('active'));
+
+                // Activate button
+                const btn = document.getElementById(`section-btn-${name}`);
+                if (btn) btn.classList.add('active');
+
+                // Show section
+                const sec = document.getElementById(`section-${name}`);
+                if (sec) sec.classList.add('active');
+
+                // Force resize for Plotly responsiveness
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
+            }
+
+            // --- Version timestamp updater (v13 + fecha y hora actuales) ---
+            function updateVersionTimestamp() {
+                try {
+                    const now = new Date();
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    const ts = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                    const label = document.getElementById('versionLabel');
+                    if (label) label.innerText = `v13 ${ts}`;
+                    const title = document.getElementById('docTitle');
+                    if (title) title.innerText = `MPS MarketAnalyzer v13 ${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                    // Also update document.title for the browser tab
+                    document.title = title ? title.innerText : `MPS MarketAnalyzer v13 ${ts}`;
+                } catch (e) { /* no-op */ }
+            }
 
             // --- Ticker Dictionary Data ---
             const commonTickers = [
@@ -3692,6 +3733,10 @@
                 renderTickerDictionary();
                 // 1. Set End Date Default to Today
                 document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+                // 2. Update version label with current date/time
+                updateVersionTimestamp();
+                // Ensure top-level section classes/active buttons are synced
+                switchSection('mercados');
             };
         </script>
 </body>
