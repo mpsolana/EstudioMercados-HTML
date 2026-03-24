@@ -619,8 +619,25 @@
                     const wVec = entries.map(e=>e.weight);
                     const wCol = math.matrix(wVec);
                     const covMat = math.matrix(cov);
-                    const portVarDaily = math.multiply(math.multiply(math.transpose(wCol), covMat), wCol).toArray()[0][0];
-                    const portVolAnn = Math.sqrt(Math.max(portVarDaily,0)) * Math.sqrt(252);
+                    // math.multiply may return a number, a Matrix-like object or nested arrays depending on mathjs build.
+                    let portVarResult = math.multiply(math.multiply(math.transpose(wCol), covMat), wCol);
+                    let portVarDaily;
+                    if (typeof portVarResult === 'number') {
+                        portVarDaily = portVarResult;
+                    } else if (portVarResult && typeof portVarResult.valueOf === 'function') {
+                        const v = portVarResult.valueOf();
+                        if (Array.isArray(v)) {
+                            if (Array.isArray(v[0])) portVarDaily = v[0][0]; else portVarDaily = v[0];
+                        } else {
+                            portVarDaily = Number(v) || 0;
+                        }
+                    } else if (Array.isArray(portVarResult)) {
+                        const v = portVarResult;
+                        if (Array.isArray(v[0])) portVarDaily = v[0][0]; else portVarDaily = v[0];
+                    } else {
+                        portVarDaily = Number(portVarResult) || 0;
+                    }
+                    const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(252);
 
                     // Render portfolio cumulative chart
                     Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#059669', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
