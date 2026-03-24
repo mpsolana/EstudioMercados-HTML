@@ -3552,20 +3552,18 @@
                     // Normalize each series to Base 10 by its first available point and plot on separate axes
                     const traces = [];
                     if (vixS && vixS.length) {
-                        const first = vixS[0].price || 1;
-                        traces.push({ x: vixS.map(d => d.date), y: vixS.map(d => (d.price / first) * 10), name: '^VIX (Base10)', line: { color: '#ef4444' }, yaxis: 'y1' });
+                        traces.push({ x: vixS.map(d => d.date), y: vixS.map(d => d.price), name: '^VIX', line: { color: '#ef4444' }, yaxis: 'y1', hovertemplate: '^VIX: %{y:.2f}<extra></extra>' });
                     }
                     if (moveS && moveS.length) {
-                        const first = moveS[0].price || 1;
-                        traces.push({ x: moveS.map(d => d.date), y: moveS.map(d => (d.price / first) * 10), name: '^MOVE (Base10)', line: { color: '#2563eb' }, yaxis: 'y2' });
+                        traces.push({ x: moveS.map(d => d.date), y: moveS.map(d => d.price), name: '^MOVE', line: { color: '#2563eb' }, yaxis: 'y2', hovertemplate: '^MOVE: %{y:.2f}<extra></extra>' });
                     }
                     if (traces.length === 0) { document.getElementById('volatilityChart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>'; return; }
 
                     const layout = {
-                        title: '^VIX vs ^MOVE (cada uno normalizado, ejes separados)',
+                        title: '^VIX vs ^MOVE (valores reales, ejes separados)',
                         xaxis: { showgrid: false },
-                        yaxis: { title: 'VIX (Base10)', side: 'left' },
-                        yaxis2: { title: 'MOVE (Base10)', overlaying: 'y', side: 'right' },
+                        yaxis: { title: 'VIX', side: 'left' },
+                        yaxis2: { title: 'MOVE', overlaying: 'y', side: 'right' },
                         margin: { t: 40, l: 50, r: 60, b: 40 },
                         hovermode: 'x unified'
                     };
