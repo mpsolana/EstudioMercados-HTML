@@ -451,7 +451,8 @@
                     <div class="flex gap-2">
                         <button onclick="addPortfolioRow()" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">Agregar Activo</button>
                         <button onclick="normalizeWeights()" class="px-3 py-1 bg-yellow-100 rounded hover:bg-yellow-200 text-sm">Normalizar Pesos</button>
-                        <button onclick="runPortfolioAnalysis()" class="ml-auto px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Ejecutar Análisis Cartera</button>
+                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()" class="ml-auto px-4 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">Cargar Evolución Cartera</button>
+                        <button id="analyzePortfolioBtn" onclick="analyzeLoadedPortfolio()" disabled class="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Ejecutar Análisis Cartera</button>
                     </div>
 
                     <div id="portfolioInfo" class="text-xs text-gray-600 mt-2">
@@ -515,144 +516,177 @@
                 inputs.forEach((inp, idx) => { inp.value = (weights[idx] / sum).toFixed(4); });
             }
 
-            async function runPortfolioAnalysis() {
+            // Globals to hold loaded portfolio series
+            let loadedPortfolio = null; // { entries, commonDates, portfolioData, stats }
+
+            // Fetch prices, align, compute portfolio cumulative series and composition chart only
+            async function loadPortfolioSeries() {
                 const rows = Array.from(document.querySelectorAll('.portfolio-row'));
                 const entries = rows.map(r => {
                     const t = r.querySelector('.portfolio-ticker')?.value?.toUpperCase()?.trim() || '';
                     const w = parseFloat(r.querySelector('.portfolio-weight')?.value) || 0;
                     return { ticker: t, weight: w };
-                }).filter(e => e.ticker && !isNaN(e.weight));
-                if (entries.length < 1) return alert('Añade al menos un activo con peso.');
-                const totalW = entries.reduce((s,e)=>s+e.weight,0);
-                // Normalize if weights don't sum to 1
-                if (Math.abs(1 - totalW) > 0.0001) entries.forEach(e => e.weight = e.weight / totalW);
+                }).filter(e => e.ticker);
+                if (entries.length < 1) return alert('Añade al menos un activo con ticker.');
+                // normalize weights here
+                let totalW = entries.reduce((s,e)=>s+e.weight,0);
+                if (totalW === 0) entries.forEach(e => e.weight = 1 / entries.length); else entries.forEach(e => e.weight = e.weight / totalW);
 
                 const startDate = document.getElementById('startDate').value || '2000-01-01';
                 const endDate = document.getElementById('endDate').value || new Date().toISOString().split('T')[0];
 
-                document.getElementById('portfolioNotice').innerText = 'Descargando datos...';
+                document.getElementById('portfolioNotice').innerText = 'Descargando datos de precios...';
+                document.getElementById('analyzePortfolioBtn').disabled = true;
 
                 try {
-                    const promises = entries.map(e => fetchYahooData(e.ticker, startDate, endDate).catch(err => { console.error(err); return [];}));
+                    const promises = entries.map(e => fetchYahooData(e.ticker, startDate, endDate).catch(err => { console.error(err); return null;}));
                     const results = await Promise.all(promises);
-                    // Map ticker -> series
+
+                    const failed = [];
                     const seriesMap = {};
-                    for (let i=0;i<entries.length;i++) seriesMap[entries[i].ticker] = results[i] || [];
+                    for (let i=0;i<entries.length;i++){
+                        const t = entries[i].ticker;
+                        const res = results[i];
+                        if (!res || res.length === 0) { failed.push(t); continue; }
+                        // ensure sorted
+                        res.sort((a,b)=>a.date - b.date);
+                        seriesMap[t] = res;
+                    }
+                    if (failed.length > 0) {
+                        document.getElementById('portfolioNotice').innerText = `Error descargando: ${failed.join(', ')}. Se eliminarán del cálculo.`;
+                        // remove failed from entries
+                        for (const f of failed) { const idx = entries.findIndex(x=>x.ticker===f); if (idx>=0) entries.splice(idx,1); }
+                    }
+                    if (Object.keys(seriesMap).length === 0) { document.getElementById('portfolioNotice').innerText = 'No hay datos válidos.'; return; }
 
-                    // Determine common dates (intersection) to cap by asset with least history
-                    const dateSets = Object.values(seriesMap).map(s => new Set(s.map(d=>d.date.toISOString().split('T')[0])));
-                    const commonDates = Array.from(dateSets.reduce((a, b) => new Set([...a].filter(x => b.has(x))))).sort();
-                    if (commonDates.length < 2) { document.getElementById('portfolioNotice').innerText = 'No hay fechas comunes suficientes entre los activos.'; return; }
+                    // Find common date window by using max(firstDate) and min(lastDate)
+                    const firstDates = Object.values(seriesMap).map(s => s[0].date);
+                    const lastDates = Object.values(seriesMap).map(s => s[s.length-1].date);
+                    const maxStart = new Date(Math.max(...firstDates.map(d=>d.getTime())));
+                    const minEnd = new Date(Math.min(...lastDates.map(d=>d.getTime())));
+                    if (maxStart >= minEnd) { document.getElementById('portfolioNotice').innerText = 'No existe solapamiento temporal suficiente entre activos.'; return; }
 
-                    // Build aligned price arrays per ticker using commonDates
-                    const aligned = {};
-                    commonDates.forEach(dateStr => {
-                        Object.keys(seriesMap).forEach(t => {
-                            const item = seriesMap[t].find(d => d.date.toISOString().split('T')[0] === dateStr);
-                            if (!aligned[t]) aligned[t] = [];
-                            aligned[t].push(item ? item.price : null);
-                        });
+                    // Build map per ticker for fast lookup
+                    const maps = {};
+                    Object.keys(seriesMap).forEach(t => { maps[t] = new Map(seriesMap[t].map(d => [d.date.toISOString().split('T')[0], d.price])); });
+
+                    // Use the dates of the ticker with most days within window as base (pick first series)
+                    const baseTicker = Object.keys(seriesMap)[0];
+                    const baseDates = seriesMap[baseTicker].map(d => d.date.toISOString().split('T')[0]).filter(ds => {
+                        const dt = new Date(ds);
+                        return (dt >= maxStart && dt <= minEnd);
                     });
 
-                    // Remove any leading nulls (shouldn't be necessary due to intersection) and compute daily returns
+                    const commonDates = baseDates.filter(ds => Object.keys(maps).every(t => maps[t].has(ds)));
+                    if (commonDates.length < 2) { document.getElementById('portfolioNotice').innerText = 'No hay fechas comunes suficientes entre los activos tras filtrado.'; return; }
+
+                    // Build aligned prices and returns
+                    const aligned = {};
+                    commonDates.forEach(ds => { Object.keys(maps).forEach(t => { if (!aligned[t]) aligned[t]=[]; aligned[t].push(maps[t].get(ds)); }); });
                     const tickers = Object.keys(aligned);
                     const n = commonDates.length;
-                    const returns = {}; // per ticker
+                    const returns = {};
                     for (const t of tickers) {
                         returns[t] = [];
-                        for (let i=1;i<n;i++) {
-                            const p0 = aligned[t][i-1], p1 = aligned[t][i];
-                            if (p0 == null || p1 == null) { returns[t].push(0); } else { returns[t].push((p1 / p0) - 1); }
-                        }
+                        for (let i=1;i<n;i++) { const p0 = aligned[t][i-1], p1 = aligned[t][i]; returns[t].push((p1 / p0) - 1); }
                     }
 
-                    // Portfolio returns (weighted sum)
+                    // portfolio returns
                     const portReturns = [];
                     for (let i=0;i<n-1;i++) {
                         let rp = 0;
-                        for (const e of entries) rp += (e.weight || 0) * (returns[e.ticker][i] || 0);
+                        for (const e of entries) { const w = e.weight || 0; rp += w * (returns[e.ticker][i] || 0); }
                         portReturns.push(rp);
                     }
 
-                    // Portfolio cumulative series (start value 1000)
+                    // cumulative values
                     const values = [1000];
                     for (let i=0;i<portReturns.length;i++) values.push(values[values.length-1] * (1 + portReturns[i]));
+                    const portfolioData = commonDates.map((ds, idx) => ({ date: new Date(ds), price: values[idx] }));
 
-                    const portSeries = commonDates.slice(0); // dates aligned
-                    const portfolioData = [];
-                    for (let i=0;i<values.length;i++) portfolioData.push({ date: new Date(portSeries[i]), price: values[i] });
+                    // basic stats
+                    const firstPrice = portfolioData[0].price, lastPrice = portfolioData[portfolioData.length-1].price;
+                    const daysElapsed = (portfolioData[portfolioData.length-1].date - portfolioData[0].date) / 86400000;
+                    const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
 
-                    // Inform user about start date used (activo con menos historial)
-                    const usedStart = portSeries[0];
-                    document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${usedStart} (fecha limitada por activo con menos historial).`;
-
-                    // Compute statistics: covariance-based volatility and CAGR
-                    const returnsMatrix = tickers.map(t => returns[t]);
-                    const rows = returnsMatrix[0].length;
-                    // Build covariance matrix of daily returns
+                    // covariance & volatility
                     const cov = math.zeros(tickers.length, tickers.length)._data;
                     for (let i=0;i<tickers.length;i++){
                         for (let j=0;j<tickers.length;j++){
-                            const xi = returns[tickers[i]], xj = returns[tickers[j]];
-                            cov[i][j] = covarianceSample(xi, xj);
+                            cov[i][j] = covarianceSample(returns[tickers[i]], returns[tickers[j]]);
                         }
                     }
-                    const wVec = entries.map(e => e.weight);
-                    // Portfolio daily variance = w^T * cov * w
+                    const wVec = entries.map(e=>e.weight);
                     const wCol = math.matrix(wVec);
                     const covMat = math.matrix(cov);
                     const portVarDaily = math.multiply(math.multiply(math.transpose(wCol), covMat), wCol).toArray()[0][0];
                     const portVolAnn = Math.sqrt(Math.max(portVarDaily,0)) * Math.sqrt(252);
 
-                    // CAGR (from portfolioData)
-                    const firstPrice = portfolioData[0].price, lastPrice = portfolioData[portfolioData.length-1].price;
-                    const daysElapsed = (portfolioData[portfolioData.length-1].date - portfolioData[0].date) / 86400000;
-                    const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
-
-                    // Render portfolio chart (cumulative value)
+                    // Render portfolio cumulative chart
                     Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#059669', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
 
-                    // Now pass portfolioData to the existing analysis renderers (reuse pipeline from runAnalysis)
-                    try {
-                        const rawData = portfolioData.map(d=>({ date: d.date, price: d.price }));
-                        currentData = rawData; currentTicker = 'CARTERA';
-                        const stats = calculateRollingStats(rawData);
-                        const timeSeries = calculateTimeSeries(rawData);
-                        const ddData = calculateDrawdownData(rawData);
-                        const episodes = calculateEpisodes(rawData, ddData.cumulativeMax);
-                        const yearlyStats = calculateYearlyStats(rawData);
-                        const techData = calculateTechnicalIndicators(rawData);
-                        const seasonData = calculateSeasonality(rawData);
-                        const annualDist = calculateAnnualDistribution(rawData);
-                        const athData = calculateATHAnalysis(rawData);
-                        const generalData = calculateGeneralMetrics(rawData);
-                        const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
-                        const bestDaysData = calculateBestDaysAnalysis(rawData);
-                        const ddDurationData = calculateDrawdownDurations(rawData, ddData.cumulativeMax);
+                    // Render composition small pie
+                    const compDivId = 'portfolioCompositionMini';
+                    let compDiv = document.getElementById(compDivId);
+                    if (!compDiv) {
+                        compDiv = document.createElement('div'); compDiv.id = compDivId; compDiv.className = 'mt-4 w-56 h-40';
+                        document.getElementById('portfolioChart').parentElement.appendChild(compDiv);
+                    }
+                    Plotly.newPlot(compDivId, [{ labels: entries.map(e=>e.ticker), values: entries.map(e=>e.weight), type:'pie' }], { title: 'Composición (pesos)' }, { responsive:true, displayModeBar:false });
 
-                        renderTable(stats);
-                        renderBarChart(stats);
-                        renderLineChart(timeSeries);
-                        renderDrawdownChart(rawData, ddData, 'CARTERA');
-                        renderDrawdownSpaghettiChart(rawData, ddData, 'CARTERA');
-                        renderDrawdownTable(episodes);
-                        renderYearlyTable(yearlyStats);
-                        renderTechnicalChart(rawData, techData, 'CARTERA');
-                        renderGeneralMetrics(generalData, 'CARTERA');
-                        renderSeasonalityCharts(seasonData, 'CARTERA');
-                        renderAnnualDistributionChart(annualDist, 'CARTERA');
-                        renderATHPriceChart(rawData, athData, 'CARTERA');
-                        renderATHForwardChart(athData.results);
-                        renderSigmaEvents(generalData);
-                        renderBestDaysCharts(bestDaysData, 'CARTERA');
-                        renderDrawdownDurationTable(ddDurationData);
-
-                        document.getElementById('portfolioNotice').innerText = `Análisis completado — CAGR: ${fmtPct(cagr)}, Volatilidad (ann): ${fmtPct(portVolAnn)}`;
-                    } catch (e) { console.error('Error integrando análisis cartera:', e); document.getElementById('portfolioNotice').innerText = 'Error al generar análisis detallado.'; }
+                    // Save to global loadedPortfolio
+                    loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn };
+                    document.getElementById('portfolioNotice').innerText = `Cartera cargada — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}.`;
+                    document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length-1]}.`;
+                    document.getElementById('analyzePortfolioBtn').disabled = false;
 
                 } catch (err) {
                     console.error(err);
                     document.getElementById('portfolioNotice').innerText = 'Error descargando datos.';
+                }
+            }
+
+            // Run full analysis using previously loaded portfolio series
+            function analyzeLoadedPortfolio() {
+                if (!loadedPortfolio || !loadedPortfolio.portfolioData) return alert('Primero carga la evolución de la cartera.');
+                try {
+                    const rawData = loadedPortfolio.portfolioData.map(d=>({ date: d.date, price: d.price }));
+                    currentData = rawData; currentTicker = 'CARTERA';
+                    const stats = calculateRollingStats(rawData);
+                    const timeSeries = calculateTimeSeries(rawData);
+                    const ddData = calculateDrawdownData(rawData);
+                    const episodes = calculateEpisodes(rawData, ddData.cumulativeMax);
+                    const yearlyStats = calculateYearlyStats(rawData);
+                    const techData = calculateTechnicalIndicators(rawData);
+                    const seasonData = calculateSeasonality(rawData);
+                    const annualDist = calculateAnnualDistribution(rawData);
+                    const athData = calculateATHAnalysis(rawData);
+                    const generalData = calculateGeneralMetrics(rawData);
+                    const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
+                    const bestDaysData = calculateBestDaysAnalysis(rawData);
+                    const ddDurationData = calculateDrawdownDurations(rawData, ddData.cumulativeMax);
+
+                    renderTable(stats);
+                    renderBarChart(stats);
+                    renderLineChart(timeSeries);
+                    renderDrawdownChart(rawData, ddData, 'CARTERA');
+                    renderDrawdownSpaghettiChart(rawData, ddData, 'CARTERA');
+                    renderDrawdownTable(episodes);
+                    renderYearlyTable(yearlyStats);
+                    renderTechnicalChart(rawData, techData, 'CARTERA');
+                    renderGeneralMetrics(generalData, 'CARTERA');
+                    renderSeasonalityCharts(seasonData, 'CARTERA');
+                    renderAnnualDistributionChart(annualDist, 'CARTERA');
+                    renderATHPriceChart(rawData, athData, 'CARTERA');
+                    renderATHForwardChart(athData.results);
+                    renderSigmaEvents(generalData);
+                    renderBestDaysCharts(bestDaysData, 'CARTERA');
+                    renderDrawdownDurationTable(ddDurationData);
+
+                    document.getElementById('portfolioNotice').innerText = `Análisis completado — CAGR: ${fmtPct(loadedPortfolio.cagr)}, Volatilidad (ann): ${fmtPct(loadedPortfolio.portVolAnn)}`;
+                } catch (e) {
+                    console.error('Error integrando análisis cartera:', e);
+                    document.getElementById('portfolioNotice').innerText = 'Error al generar análisis detallado.';
                 }
             }
 
