@@ -412,14 +412,245 @@
         </div>
     </div>
 
-    <!-- ==================== SECTION: CARTERA (vacía por ahora) ==================== -->
+    <!-- ==================== SECTION: CARTERA ==================== -->
     <div id="section-cartera" class="app-section">
         <div class="container mx-auto p-6">
-            <div class="bg-white p-8 rounded-xl shadow-md border border-gray-200 text-center text-gray-600">
-                <h2 class="text-xl font-bold mb-2">Análisis Cartera</h2>
-                <p class="text-sm">Sección vacía por ahora — contenido pendiente.</p>
+            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold">Análisis Cartera</h2>
+                    <div class="text-xs text-gray-500">Introduce tickers y pesos, luego pulsa <span class="font-bold">Ejecutar Análisis Cartera</span>.</div>
+                </div>
+
+                <div id="portfolioBuilder" class="space-y-3">
+                    <div class="grid grid-cols-12 gap-2 items-center portfolio-row">
+                        <div class="col-span-5">
+                            <input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" placeholder="Ticker (Ej: SPY)" value="SPY">
+                        </div>
+                        <div class="col-span-4">
+                            <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.6)" value="0.6">
+                        </div>
+                        <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
+                        <div class="col-span-1 text-right">
+                            <button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-12 gap-2 items-center portfolio-row">
+                        <div class="col-span-5">
+                            <input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" placeholder="Ticker (Ej: TLT)" value="TLT">
+                        </div>
+                        <div class="col-span-4">
+                            <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.4)" value="0.4">
+                        </div>
+                        <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
+                        <div class="col-span-1 text-right">
+                            <button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="addPortfolioRow()" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">Agregar Activo</button>
+                        <button onclick="normalizeWeights()" class="px-3 py-1 bg-yellow-100 rounded hover:bg-yellow-200 text-sm">Normalizar Pesos</button>
+                        <button onclick="runPortfolioAnalysis()" class="ml-auto px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Ejecutar Análisis Cartera</button>
+                    </div>
+
+                    <div id="portfolioInfo" class="text-xs text-gray-600 mt-2">
+                        <div id="portfolioNotice" class="mb-1"></div>
+                        <div id="portfolioStartDate" class="mb-1"></div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <div id="portfolioChart" class="w-full h-[520px] bg-white border border-gray-100 rounded-lg"></div>
+                </div>
+
+                <div class="mt-4 text-xs text-gray-500">
+                    <strong>Nota (metodología):</strong> Para construir la serie de la cartera se calculan los retornos simples diarios de cada activo $r_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1$, la rentabilidad diaria de la cartera es $r_{p,t}=\sum_i w_i\,r_{i,t}$. La evolución acumulada se obtiene por capitalización: $V_{t}=V_0\prod_{s\le t}(1+r_{p,s})$. La volatilidad de la cartera se calcula usando la matriz de covarianzas diarias: $\sigma_p=\sqrt{w^T \Sigma_{daily} w}\times\sqrt{252}$ (annualizada). El periodo analizado queda acotado por el activo con menos historial (se informará la fecha de inicio usada).
+                </div>
             </div>
         </div>
+        <script>
+            function addPortfolioRow() {
+                const container = document.getElementById('portfolioBuilder');
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 gap-2 items-center portfolio-row';
+                row.innerHTML = `
+                    <div class="col-span-5">
+                        <input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" placeholder="Ticker (Ej: AAPL)">
+                    </div>
+                    <div class="col-span-4">
+                        <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.2)">
+                    </div>
+                    <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
+                    <div class="col-span-1 text-right">
+                        <button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button>
+                    </div>
+                `;
+                container.insertBefore(row, container.querySelector('div.mt-6'));
+            }
+
+            function removePortfolioRow(btn) {
+                const row = btn.closest('.portfolio-row');
+                if (row) row.remove();
+            }
+
+            function normalizeWeights() {
+                const weights = Array.from(document.querySelectorAll('.portfolio-weight')).map(i => parseFloat(i.value) || 0);
+                const sum = weights.reduce((a,b)=>a+b,0) || 1;
+                document.querySelectorAll('.portfolio-weight').forEach((inp, idx) => { inp.value = (weights[idx] / sum).toFixed(4); });
+            }
+
+            async function runPortfolioAnalysis() {
+                const rows = Array.from(document.querySelectorAll('.portfolio-row'));
+                const entries = rows.map(r => {
+                    const t = r.querySelector('.portfolio-ticker')?.value?.toUpperCase()?.trim() || '';
+                    const w = parseFloat(r.querySelector('.portfolio-weight')?.value) || 0;
+                    return { ticker: t, weight: w };
+                }).filter(e => e.ticker && !isNaN(e.weight));
+                if (entries.length < 1) return alert('Añade al menos un activo con peso.');
+                const totalW = entries.reduce((s,e)=>s+e.weight,0);
+                // Normalize if weights don't sum to 1
+                if (Math.abs(1 - totalW) > 0.0001) entries.forEach(e => e.weight = e.weight / totalW);
+
+                const startDate = document.getElementById('startDate').value || '2000-01-01';
+                const endDate = document.getElementById('endDate').value || new Date().toISOString().split('T')[0];
+
+                document.getElementById('portfolioNotice').innerText = 'Descargando datos...';
+
+                try {
+                    const promises = entries.map(e => fetchYahooData(e.ticker, startDate, endDate).catch(err => { console.error(err); return [];}));
+                    const results = await Promise.all(promises);
+                    // Map ticker -> series
+                    const seriesMap = {};
+                    for (let i=0;i<entries.length;i++) seriesMap[entries[i].ticker] = results[i] || [];
+
+                    // Determine common dates (intersection) to cap by asset with least history
+                    const dateSets = Object.values(seriesMap).map(s => new Set(s.map(d=>d.date.toISOString().split('T')[0])));
+                    const commonDates = Array.from(dateSets.reduce((a, b) => new Set([...a].filter(x => b.has(x))))).sort();
+                    if (commonDates.length < 2) { document.getElementById('portfolioNotice').innerText = 'No hay fechas comunes suficientes entre los activos.'; return; }
+
+                    // Build aligned price arrays per ticker using commonDates
+                    const aligned = {};
+                    commonDates.forEach(dateStr => {
+                        Object.keys(seriesMap).forEach(t => {
+                            const item = seriesMap[t].find(d => d.date.toISOString().split('T')[0] === dateStr);
+                            if (!aligned[t]) aligned[t] = [];
+                            aligned[t].push(item ? item.price : null);
+                        });
+                    });
+
+                    // Remove any leading nulls (shouldn't be necessary due to intersection) and compute daily returns
+                    const tickers = Object.keys(aligned);
+                    const n = commonDates.length;
+                    const returns = {}; // per ticker
+                    for (const t of tickers) {
+                        returns[t] = [];
+                        for (let i=1;i<n;i++) {
+                            const p0 = aligned[t][i-1], p1 = aligned[t][i];
+                            if (p0 == null || p1 == null) { returns[t].push(0); } else { returns[t].push((p1 / p0) - 1); }
+                        }
+                    }
+
+                    // Portfolio returns (weighted sum)
+                    const portReturns = [];
+                    for (let i=0;i<n-1;i++) {
+                        let rp = 0;
+                        for (const e of entries) rp += (e.weight || 0) * (returns[e.ticker][i] || 0);
+                        portReturns.push(rp);
+                    }
+
+                    // Portfolio cumulative series (start value 1000)
+                    const values = [1000];
+                    for (let i=0;i<portReturns.length;i++) values.push(values[values.length-1] * (1 + portReturns[i]));
+
+                    const portSeries = commonDates.slice(0); // dates aligned
+                    const portfolioData = [];
+                    for (let i=0;i<values.length;i++) portfolioData.push({ date: new Date(portSeries[i]), price: values[i] });
+
+                    // Inform user about start date used (activo con menos historial)
+                    const usedStart = portSeries[0];
+                    document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${usedStart} (fecha limitada por activo con menos historial).`;
+
+                    // Compute statistics: covariance-based volatility and CAGR
+                    const returnsMatrix = tickers.map(t => returns[t]);
+                    const rows = returnsMatrix[0].length;
+                    // Build covariance matrix of daily returns
+                    const cov = math.zeros(tickers.length, tickers.length)._data;
+                    for (let i=0;i<tickers.length;i++){
+                        for (let j=0;j<tickers.length;j++){
+                            const xi = returns[tickers[i]], xj = returns[tickers[j]];
+                            cov[i][j] = covarianceSample(xi, xj);
+                        }
+                    }
+                    const wVec = entries.map(e => e.weight);
+                    // Portfolio daily variance = w^T * cov * w
+                    const wCol = math.matrix(wVec);
+                    const covMat = math.matrix(cov);
+                    const portVarDaily = math.multiply(math.multiply(math.transpose(wCol), covMat), wCol).toArray()[0][0];
+                    const portVolAnn = Math.sqrt(Math.max(portVarDaily,0)) * Math.sqrt(252);
+
+                    // CAGR (from portfolioData)
+                    const firstPrice = portfolioData[0].price, lastPrice = portfolioData[portfolioData.length-1].price;
+                    const daysElapsed = (portfolioData[portfolioData.length-1].date - portfolioData[0].date) / 86400000;
+                    const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
+
+                    // Render portfolio chart (cumulative value)
+                    Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#059669', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
+
+                    // Now pass portfolioData to the existing analysis renderers (reuse pipeline from runAnalysis)
+                    try {
+                        const rawData = portfolioData.map(d=>({ date: d.date, price: d.price }));
+                        currentData = rawData; currentTicker = 'CARTERA';
+                        const stats = calculateRollingStats(rawData);
+                        const timeSeries = calculateTimeSeries(rawData);
+                        const ddData = calculateDrawdownData(rawData);
+                        const episodes = calculateEpisodes(rawData, ddData.cumulativeMax);
+                        const yearlyStats = calculateYearlyStats(rawData);
+                        const techData = calculateTechnicalIndicators(rawData);
+                        const seasonData = calculateSeasonality(rawData);
+                        const annualDist = calculateAnnualDistribution(rawData);
+                        const athData = calculateATHAnalysis(rawData);
+                        const generalData = calculateGeneralMetrics(rawData);
+                        const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
+                        const bestDaysData = calculateBestDaysAnalysis(rawData);
+                        const ddDurationData = calculateDrawdownDurations(rawData, ddData.cumulativeMax);
+
+                        renderTable(stats);
+                        renderBarChart(stats);
+                        renderLineChart(timeSeries);
+                        renderDrawdownChart(rawData, ddData, 'CARTERA');
+                        renderDrawdownSpaghettiChart(rawData, ddData, 'CARTERA');
+                        renderDrawdownTable(episodes);
+                        renderYearlyTable(yearlyStats);
+                        renderTechnicalChart(rawData, techData, 'CARTERA');
+                        renderGeneralMetrics(generalData, 'CARTERA');
+                        renderSeasonalityCharts(seasonData, 'CARTERA');
+                        renderAnnualDistributionChart(annualDist, 'CARTERA');
+                        renderATHPriceChart(rawData, athData, 'CARTERA');
+                        renderATHForwardChart(athData.results);
+                        renderSigmaEvents(generalData);
+                        renderBestDaysCharts(bestDaysData, 'CARTERA');
+                        renderDrawdownDurationTable(ddDurationData);
+
+                        document.getElementById('portfolioNotice').innerText = `Análisis completado — CAGR: ${fmtPct(cagr)}, Volatilidad (ann): ${fmtPct(portVolAnn)}`;
+                    } catch (e) { console.error('Error integrando análisis cartera:', e); document.getElementById('portfolioNotice').innerText = 'Error al generar análisis detallado.'; }
+
+                } catch (err) {
+                    console.error(err);
+                    document.getElementById('portfolioNotice').innerText = 'Error descargando datos.';
+                }
+            }
+
+            // Small helper: sample covariance
+            function covarianceSample(a, b) {
+                const n = Math.min(a.length, b.length);
+                if (n <= 1) return 0;
+                const ma = getMean(a), mb = getMean(b);
+                let sum = 0;
+                for (let i=0;i<n;i++) sum += (a[i] - ma) * (b[i] - mb);
+                return sum / (n - 1);
+            }
+        </script>
     </div>
 
     <!-- ==================== SECTION: AYUDA (movida desde la pestaña interna) ==================== -->
