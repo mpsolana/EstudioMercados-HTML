@@ -479,14 +479,20 @@
                         <input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" placeholder="Ticker (Ej: AAPL)">
                     </div>
                     <div class="col-span-4">
-                        <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.2)">
+                        <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.2)" value="0">
                     </div>
                     <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
                     <div class="col-span-1 text-right">
                         <button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button>
                     </div>
                 `;
-                container.insertBefore(row, container.querySelector('div.mt-6'));
+                // Insert before the portfolio chart container if present, otherwise append
+                const chartAnchor = document.getElementById('portfolioChart');
+                if (chartAnchor && chartAnchor.parentElement === container.parentElement) {
+                    container.parentElement.insertBefore(row, chartAnchor);
+                } else {
+                    container.appendChild(row);
+                }
             }
 
             function removePortfolioRow(btn) {
@@ -495,9 +501,18 @@
             }
 
             function normalizeWeights() {
-                const weights = Array.from(document.querySelectorAll('.portfolio-weight')).map(i => parseFloat(i.value) || 0);
-                const sum = weights.reduce((a,b)=>a+b,0) || 1;
-                document.querySelectorAll('.portfolio-weight').forEach((inp, idx) => { inp.value = (weights[idx] / sum).toFixed(4); });
+                const container = document.getElementById('portfolioBuilder');
+                const inputs = Array.from(container.querySelectorAll('.portfolio-weight'));
+                if (inputs.length === 0) return;
+                const weights = inputs.map(i => parseFloat(i.value) || 0);
+                const sum = weights.reduce((a, b) => a + b, 0);
+                if (sum === 0) {
+                    // If all zeros, distribute equally
+                    const equal = 1 / inputs.length;
+                    inputs.forEach(i => i.value = equal.toFixed(4));
+                    return;
+                }
+                inputs.forEach((inp, idx) => { inp.value = (weights[idx] / sum).toFixed(4); });
             }
 
             async function runPortfolioAnalysis() {
