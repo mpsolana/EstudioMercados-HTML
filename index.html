@@ -451,7 +451,7 @@
                     <div class="flex gap-2">
                         <button onclick="addPortfolioRow()" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">Agregar Activo</button>
                         <button onclick="normalizeWeights()" class="px-3 py-1 bg-yellow-100 rounded hover:bg-yellow-200 text-sm">Normalizar Pesos</button>
-                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()" class="ml-auto px-4 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">Cargar Evolución Cartera</button>
+                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()" class="ml-auto px-4 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">Cargar Cartera</button>
                         <button id="analyzePortfolioBtn" onclick="analyzeLoadedPortfolio()" disabled class="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Ejecutar Análisis Cartera</button>
                     </div>
 
@@ -641,14 +641,15 @@
                     document.getElementById('analyzePortfolioBtn').disabled = false;
 
                 } catch (err) {
-                    console.error(err);
-                    document.getElementById('portfolioNotice').innerText = 'Error descargando datos.';
+                    console.error('loadPortfolioSeries error:', err);
+                    const msg = err && err.message ? err.message : String(err);
+                    document.getElementById('portfolioNotice').innerText = `Error descargando datos: ${msg}`;
                 }
             }
 
             // Run full analysis using previously loaded portfolio series
             function analyzeLoadedPortfolio() {
-                if (!loadedPortfolio || !loadedPortfolio.portfolioData) return alert('Primero carga la evolución de la cartera.');
+                if (!loadedPortfolio || !loadedPortfolio.portfolioData) return alert('Primero carga la cartera.');
                 try {
                     const rawData = loadedPortfolio.portfolioData.map(d=>({ date: d.date, price: d.price }));
                     currentData = rawData; currentTicker = 'CARTERA';
