@@ -791,6 +791,7 @@
                 // Per requirements: backtest window = 3 years, forecast horizon = 12 months (1 year)
                 const backtestYears = 3;
                 const forwardYears = 1;
+                const mcYears = Math.max(1, parseInt(document.getElementById('mcYears').value) || 50);
                 const capital = parseFloat(document.getElementById('mcCapital').value) || 100000;
                 if (!currentData || currentData.length < 2) return alert('Carga y analiza primero un activo o cartera.');
                 document.getElementById('forecastStatus').innerText = `Ejecutando ${sims} simulaciones (horizonte ${forwardYears}y)...`;
@@ -893,7 +894,7 @@
                     const color = ['#06b6d4','#0ea5a4','#60a5fa','#34d399','#1e40af'][p];
                     traces.push({ x: monthsX, y, mode:'lines', name, line:{color, dash: p===2? 'solid' : 'dot'} });
                 }
-                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses (en ${currencyLabel})`, margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:`Balance (${currencyLabel})`} }, { responsive:true });
+                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses`, margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:'Balance (u.m.)'} }, { responsive:true });
 
                 // Drawdown histogram
                 Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v=>v*100), type:'histogram', marker:{color:'#ef4444'}, nbinsx:20 }], { title: 'Histograma Máx Drawdown (%)', xaxis:{title:'Max. Drawdown (%)'} }, { responsive:true });
@@ -911,15 +912,16 @@
                 }).join('');
                 document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${header}</thead><tbody>${rows}</tbody></table>`;
 
-                // Expected annual return percentiles for 1 year only (since forwardYears=1)
-                const horizons = [1];
+
+                // Expected annual return percentiles for multiple horizons (use user-selected mcYears)
+                const horizons = Array.from(new Set([1, Math.min(mcYears,3), Math.min(mcYears,5), mcYears]));
                 const expectedRows = horizons.map(h => {
                     const arr = endBalances.map(b => Math.pow(b/lastMonetaryDisplay, 1/h)-1).sort((a,b)=>a-b);
-                    return `<tr><td class="px-3 py-2 font-bold">${h} Year</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
+                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h>1?'s':''}</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
                 }).join('');
                 document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10%</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
 
-                // Probabilities table: Prob(ret >= x%) for 1y horizon using simulations
+                // Probabilities table: Prob(ret >= x%) for selected horizons using simulations
                 const thresholds = [0.00, 0.025, 0.05, 0.075, 0.10, 0.125];
                 const probHeader = `<tr><th>Horizon</th>${thresholds.map(t=>`<th class="px-3 py-2">>= ${ (t*100).toFixed(2) }%</th>`).join('')}</tr>`;
                 const probRows = horizons.map(h=>{
@@ -928,6 +930,29 @@
                     return `<tr><td class="px-3 py-2 font-bold">${h}y</td>${cells}</tr>`;
                 }).join('');
                 document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${probHeader}</thead><tbody>${probRows}</tbody></table>`;
+
+                // --- Long-term evolution chart (annual steps) using mcYears ---
+                const muAnn = meanLogFull * tradingDays;
+                const sigmaAnn = stdLogFull * Math.sqrt(tradingDays);
+                const longTermYears = mcYears;
+                const longTermSamples = Array.from({length: longTermYears+1}, ()=>[]); // year0..yearN
+                for (let s=0;s<sims;s++){
+                    let S = 1.0;
+                    longTermSamples[0].push(lastMonetaryDisplay);
+                    for (let y=1;y<=longTermYears;y++){
+                        const z = randn_bm();
+                        S = S * Math.exp((muAnn - 0.5 * sigmaAnn * sigmaAnn) + sigmaAnn * z);
+                        longTermSamples[y].push(lastMonetaryDisplay * S);
+                    }
+                }
+                const yearsX = Array.from({length: longTermYears+1}, (_,i)=>i);
+                const ltPercentiles = [0.10,0.25,0.5,0.75,0.90];
+                const ltTraces = ltPercentiles.map((p,idx)=>{
+                    const ys = longTermSamples.map(arr => quantile(arr.slice().sort((a,b)=>a-b), p));
+                    const colors = ['#06b6d4','#0ea5a4','#60a5fa','#34d399','#1e40af'];
+                    return { x: yearsX, y: ys, mode:'lines', name:`${Math.round(p*100)}th`, line:{color:colors[idx]}};
+                });
+                Plotly.newPlot('forecastLongTermChart', ltTraces, { title: `Evolución a largo plazo (${mcYears} años) - percentiles`, margin:{t:40}, xaxis:{title:'Años'}, yaxis:{title:'Balance (u.m.)'} }, { responsive:true });
 
                 // Also calculate historical metrics from full series (CAGR, vol)
                 const firstFullPrice = fullPrices[0];
@@ -944,8 +969,8 @@
             }
 
             function formatMetric(val, key) {
-                if (key.toLowerCase().includes('balance')) return `$${Number(val).toLocaleString(undefined, {maximumFractionDigits:0})}`;
-                if (key.toLowerCase().includes('drawdown')) return `${fmtPct(val)}`;
+                if (key && key.toLowerCase().includes('balance')) return `${Number(val).toLocaleString(undefined, {maximumFractionDigits:0})} u.m.`;
+                if (key && key.toLowerCase().includes('drawdown')) return `${fmtPct(val)}`;
                 return fmtPct(val);
             }
         </script>
@@ -1871,7 +1896,7 @@
                                 <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Forecast: Simulaciones Montecarlo</h3>
                                 <div class="flex items-center gap-2">
                                     <label class="text-sm text-gray-600">Simulaciones</label>
-                                    <input id="mcSims" type="number" value="10000" class="w-28 p-1 border rounded text-sm" />
+                                    <input id="mcSims" type="number" value="2000" class="w-28 p-1 border rounded text-sm" />
                                     <label class="text-sm text-gray-600">Capital</label>
                                     <input id="mcCapital" type="number" value="100000" class="w-28 p-1 border rounded text-sm" />
                                     <label class="text-sm text-gray-600">Horiz. años</label>
@@ -1882,10 +1907,9 @@
                             <p class="text-xs text-gray-500 mb-3">Simulaciones geométricas (GBM) sobre log-returns históricos del activo/cartera seleccionado. Genera percentiles, histograma de max drawdown y tablas resumen.</p>
                             <div id="forecastStatus" class="text-xs text-gray-600 mb-2"></div>
                             <div id="forecastCharts" class="space-y-4">
-                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    <div class="bg-white p-3 rounded border"><div id="forecastBalanceChart" class="w-full h-[420px]"></div></div>
-                                    <div class="bg-white p-3 rounded border"><div id="forecastDrawdownHist" class="w-full h-[420px]"></div></div>
-                                </div>
+                                <div class="bg-white p-3 rounded border"><div id="forecastBalanceChart" class="w-full h-[520px]"></div></div>
+                                <div class="bg-white p-3 rounded border"><div id="forecastLongTermChart" class="w-full h-[420px]"></div></div>
+                                <div class="bg-white p-3 rounded border"><div id="forecastDrawdownHist" class="w-full h-[320px]"></div></div>
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Performance Summary</h4><div id="forecastPerfTable" class="text-sm"></div></div>
                                     <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Expected Annual Return (percentiles)</h4><div id="forecastExpectedTable" class="text-sm"></div></div>
