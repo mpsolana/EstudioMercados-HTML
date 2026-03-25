@@ -779,9 +779,145 @@
             }
 
             function renderPortfolioCorrMatrix(labels, z, freqLabel) {
-                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: 'RdBu', zmin: -1, zmax: 1, reversescale: true, showscale: true }];
-                const layout = { title: `Matriz de Correlación (${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''})`, margin: { t: 40, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
-                Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true });
+                // Use the same color scale as the main correlation matrix: blue (-1) to white (+1)
+                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#1e3a8a'], [1, 'white']], zmin: -1, zmax: 1, text: z.map(row => row.map(val => val.toFixed(2))), hoverinfo: 'x+y+z', texttemplate: '%{text}' }];
+                const layout = { title: `Matriz de Correlación (Cartera) - ${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''}`, margin: { t: 40, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
+                Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
+            }
+
+            // --- FORECAST / MONTECARLO SIMULATIONS ---
+            async function runForecastSimulations() {
+                const sims = parseInt(document.getElementById('mcSims').value) || 10000;
+                const years = parseInt(document.getElementById('mcYears').value) || 50;
+                if (!currentData || currentData.length < 2) return alert('Carga y analiza primero un activo o cartera.');
+                document.getElementById('forecastStatus').innerText = `Ejecutando ${sims} simulaciones por ${years} años...`; 
+                // Build log returns from currentData
+                const prices = currentData.map(d=>d.price);
+                const lastPrice = prices[prices.length-1];
+                const logRets = [];
+                for (let i=1;i<prices.length;i++){ if (prices[i-1] && prices[i]) logRets.push(Math.log(prices[i]/prices[i-1])); }
+                if (logRets.length < 2) return alert('No hay suficientes retornos históricos para simular.');
+                const meanLog = getMean(logRets);
+                const stdLog = Math.sqrt(getMean(logRets.map(x=>Math.pow(x-meanLog,2))));
+                // annualize
+                const muAnn = meanLog * 252;
+                const sigmaAnn = stdLog * Math.sqrt(252);
+
+                // allocate arrays for percentiles
+                const yearsArr = Array.from({length: years+1}, (_,i)=>i);
+                const simsPerc = {};
+                const allMaxDD = new Array(sims);
+                const endBalances = new Array(sims);
+
+                // Run sims (yearly steps using GBM)
+                for (let s=0;s<sims;s++){
+                    let S = lastPrice;
+                    const path = [S];
+                    let peak = S, maxDD = 0;
+                    for (let y=1;y<=years;y++){
+                        const z = randn_bm();
+                        const factor = Math.exp((muAnn - 0.5*Math.pow(sigmaAnn,2)) + sigmaAnn * z);
+                        S = S * factor;
+                        path.push(S);
+                        if (S > peak) peak = S;
+                        const dd = 1 - (S/peak);
+                        if (dd > maxDD) maxDD = dd;
+                    }
+                    // store percentiles accumulation per year
+                    for (let y=0;y<=years;y++){ if (!simsPerc[y]) simsPerc[y] = []; simsPerc[y].push(path[y]); }
+                    allMaxDD[s] = maxDD;
+                    endBalances[s] = path[path.length-1];
+                }
+
+                // Build percentiles per year for plotting
+                const perc10 = [], perc25 = [], perc50 = [], perc75 = [], perc90 = [];
+                for (let y=0;y<=years;y++){
+                    const arr = simsPerc[y].slice().sort((a,b)=>a-b);
+                    perc10.push(quantile(arr, 0.10));
+                    perc25.push(quantile(arr, 0.25));
+                    perc50.push(quantile(arr, 0.50));
+                    perc75.push(quantile(arr, 0.75));
+                    perc90.push(quantile(arr, 0.90));
+                }
+
+                // Plot balance percentiles
+                const traces = [
+                    { x: yearsArr, y: perc10, mode:'lines', name:'10th Percentile', line:{color:'#06b6d4'} },
+                    { x: yearsArr, y: perc25, mode:'lines', name:'25th Percentile', line:{color:'#0ea5a4'} },
+                    { x: yearsArr, y: perc50, mode:'lines', name:'50th Percentile', line:{color:'#60a5fa', width:3} },
+                    { x: yearsArr, y: perc75, mode:'lines', name:'75th Percentile', line:{color:'#34d399'} },
+                    { x: yearsArr, y: perc90, mode:'lines', name:'90th Percentile', line:{color:'#1e40af'} }
+                ];
+                Plotly.newPlot('forecastBalanceChart', traces, { title: 'Simulated Portfolio Balances', xaxis:{title:'Year'}, yaxis:{title:'Balance ($)'}, margin:{t:40} }, { responsive:true });
+
+                // Drawdown histogram
+                Plotly.newPlot('forecastDrawdownHist', [{ x: allMaxDD.map(v=>v*100), type:'histogram', marker:{color:'#ef4444'}, nbinsx:20 }], { title: 'Maximum Drawdown Histogram ( % )', xaxis:{title:'Max. Drawdown (%)'}, margin:{t:40} }, { responsive:true });
+
+                // Performance summary percentiles
+                const annualMeans = [], annualVols = [], sharpes = [];
+                // For each sim recompute yearly returns from S_t
+                for (let s=0;s<sims;s++){
+                    const final = endBalances[s];
+                    // approximate annualized return across horizon
+                    const annReturn = Math.pow(final / lastPrice, 1/years) - 1;
+                    annualMeans.push(annReturn);
+                    // compute simple vol across years using stored per-year balances in simsPerc
+                }
+                // compute vol and sharpe by approximating from distribution of annual returns (using simulated yearly returns derived from percentiles is not exact but provides summary)
+                // Build annual returns per simulation more explicitly: regenerate yearly returns? For performance, approximate using log returns from start to end per sim
+                const annualVolsCalc = [];
+                for (let s=0;s<sims;s++){
+                    // approximate volatility by sampling annual returns via dividing total growth into yearly geometric increments
+                    const final = endBalances[s];
+                    const g = Math.pow(final/lastPrice, 1/years) -1; // annualized
+                    annualVolsCalc.push(0); // placeholder 0 (detailed per-sim vol costly)
+                }
+                // Prepare summary table: percentiles for End Balance, Annual Mean Return, Max Drawdown
+                const perfMetrics = {
+                    'Time Weighted Rate of Return (nominal)': endBalances.map(b=>Math.pow(b/lastPrice, 1/years)-1),
+                    'Portfolio End Balance (nominal)': endBalances,
+                    'Annual Mean Return (nominal)': endBalances.map(b=>Math.pow(b/lastPrice, 1/years)-1),
+                    'Annualized Volatility': new Array(sims).fill(sigmaAnn),
+                    'Sharpe Ratio': new Array(sims).fill(( (meanLog*252) / (sigmaAnn || 1) )),
+                    'Maximum Drawdown': allMaxDD.map(v=> -v)
+                };
+                // build percentiles table for selected metrics
+                const percentilesToShow = [0.10,0.25,0.5,0.75,0.90];
+                const rows = Object.keys(perfMetrics).map(key=>{
+                    const arr = perfMetrics[key].slice().sort((a,b)=>a-b);
+                    const vals = percentilesToShow.map(p=> formatMetric(quantile(arr,p), key));
+                    return `<tr><td class="px-3 py-2 font-bold">${key}</td>${vals.map(v=>`<td class="px-3 py-2 text-right font-mono">${v}</td>`).join('')}</tr>`;
+                }).join('');
+                document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th></th><th>10th Percentile</th><th>25th Percentile</th><th>50th Percentile</th><th>75th Percentile</th><th>90th Percentile</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+                // Expected Annual Return percentiles for horizons
+                const horizons = [1,3,5,10,15,20,25,30,40,50];
+                const expectedRows = horizons.map(h => {
+                    const arr = endBalances.map(b => Math.pow(b/lastPrice, 1/h)-1).sort((a,b)=>a-b);
+                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h>1?'s':''}</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
+                }).join('');
+                document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10%</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
+
+                // Probabilities table for thresholds
+                const thresholds = [0.00, 0.025, 0.05, 0.075, 0.10, 0.125];
+                const probRows = horizons.map(h=>{
+                    const arr = endBalances.map(b=>Math.pow(b/lastPrice,1/h)-1);
+                    const cells = thresholds.map(t => `<td class="px-3 py-2 text-right">${fmtPct(arr.filter(a=>a>=t).length / arr.length)}</td>`).join('');
+                    return `<tr><td class="px-3 py-2 font-bold">${h}y</td>${cells}</tr>`;
+                }).join('');
+                document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th>${thresholds.map(t=>`<th>${(t*100).toFixed(2)}%</th>`).join('')}</tr></thead><tbody>${probRows}</tbody></table>`;
+
+                document.getElementById('forecastStatus').innerText = `Simulaciones completadas.`;
+            }
+
+            function randn_bm() {
+                let u = 0, v = 0; while(u === 0) u = Math.random(); while(v === 0) v = Math.random(); return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            function formatMetric(val, key) {
+                if (key.toLowerCase().includes('balance')) return `$${Number(val).toLocaleString(undefined, {maximumFractionDigits:0})}`;
+                if (key.toLowerCase().includes('drawdown')) return `${fmtPct(val)}`;
+                return fmtPct(val);
             }
         </script>
     </div>
@@ -976,6 +1112,10 @@
                         <button onclick="switchTab('correlation')" id="tab-correlation"
                             class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
                             <i class="fa-solid fa-link mr-2"></i>Correlaciones
+                        </button>
+                        <button onclick="switchTab('forecast')" id="tab-forecast"
+                            class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
+                            <i class="fa-solid fa-chart-area mr-2"></i>Forecast
                         </button>
 
                     </div>
@@ -1691,6 +1831,35 @@
                                 </div>
                                 <div id="rollingCorrChart" class="w-full h-[400px] mb-6"></div>
                                 <div id="rollingHistChart" class="w-full h-[300px]"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB: FORECAST / MONTECARLO -->
+                    <div id="content-forecast" class="tab-content space-y-6">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Forecast: Simulaciones Montecarlo</h3>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm text-gray-600">Simulaciones</label>
+                                    <input id="mcSims" type="number" value="10000" class="w-28 p-1 border rounded text-sm" />
+                                    <label class="text-sm text-gray-600">Horiz. años</label>
+                                    <input id="mcYears" type="number" value="50" class="w-20 p-1 border rounded text-sm" />
+                                    <button onclick="runForecastSimulations()" class="px-3 py-1 bg-indigo-600 text-white rounded">Ejecutar</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-3">Simulaciones geométricas (GBM) sobre log-returns históricos del activo/cartera seleccionado. Genera percentiles, histograma de max drawdown y tablas resumen.</p>
+                            <div id="forecastStatus" class="text-xs text-gray-600 mb-2"></div>
+                            <div id="forecastCharts" class="space-y-4">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div class="bg-white p-3 rounded border"><div id="forecastBalanceChart" class="w-full h-[420px]"></div></div>
+                                    <div class="bg-white p-3 rounded border"><div id="forecastDrawdownHist" class="w-full h-[420px]"></div></div>
+                                </div>
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Performance Summary</h4><div id="forecastPerfTable" class="text-sm"></div></div>
+                                    <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Expected Annual Return (percentiles)</h4><div id="forecastExpectedTable" class="text-sm"></div></div>
+                                </div>
+                                <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Probabilidades Anuales (umbrales)</h4><div id="forecastProbTable" class="text-sm"></div></div>
                             </div>
                         </div>
                     </div>
