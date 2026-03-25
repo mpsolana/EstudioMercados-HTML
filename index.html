@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Math.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <!-- KaTeX for rendering math in the portfolio methodology note -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$', right: '$', display: false},{left: '$$', right: '$$', display: true}]});"></script>
 
     <style>
         .tab-content {
@@ -465,6 +469,27 @@
                     <div id="portfolioChart" class="w-full h-[520px] bg-white border border-gray-100 rounded-lg"></div>
                 </div>
 
+                <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-bold">Composición Cartera (Pesos)</h4>
+                        </div>
+                        <div id="portfolioCompositionChart" class="w-full h-[320px]"></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-bold">Matriz de Correlación (Periodo)</h4>
+                            <select id="portfolioCorrFreq" onchange="updatePortfolioCorr()" class="text-sm p-1 border rounded bg-gray-50">
+                                <option value="D">Diaria</option>
+                                <option value="M" selected>Mensual (~21d)</option>
+                                <option value="6M">6 Meses (~126d)</option>
+                                <option value="A">Anual (~252d)</option>
+                            </select>
+                        </div>
+                        <div id="portfolioCorrMatrixChart" class="w-full h-[320px]"></div>
+                    </div>
+                </div>
+
                 <div class="mt-4 text-xs text-gray-500">
                     <strong>Nota (metodología):</strong> Para construir la serie de la cartera se calculan los retornos simples diarios de cada activo $r_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1$, la rentabilidad diaria de la cartera es $r_{p,t}=\sum_i w_i\,r_{i,t}$. La evolución acumulada se obtiene por capitalización: $V_{t}=V_0\prod_{s\le t}(1+r_{p,s})$. La volatilidad de la cartera se calcula usando la matriz de covarianzas diarias: $\sigma_p=\sqrt{w^T \Sigma_{daily} w}\times\sqrt{252}$ (annualizada). El periodo analizado queda acotado por el activo con menos historial (se informará la fecha de inicio usada).
                 </div>
@@ -642,10 +667,15 @@
                     // Render portfolio cumulative chart
                     Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#059669', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
 
-                    // Composition chart intentionally removed per user request
+                    // Save returns, covariance and ticker list for later use (composition + correlation)
+                    const corrTickers = tickers.slice();
+                    // store returns aligned (arrays of length n-1)
+                    loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, cov, corrTickers };
 
-                    // Save to global loadedPortfolio
-                    loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn };
+                    // Render composition pie and initial correlation matrix (default frequency selector)
+                    try { renderPortfolioComposition(entries); } catch(e){ console.warn('composition render failed', e); }
+                    try { updatePortfolioCorr(); } catch(e){ console.warn('corr render failed', e); }
+
                     document.getElementById('portfolioNotice').innerText = `Cartera cargada — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}.`;
                     document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length-1]}.`;
                     document.getElementById('analyzePortfolioBtn').disabled = false;
@@ -691,6 +721,67 @@
                 let sum = 0;
                 for (let i=0;i<n;i++) sum += (a[i] - ma) * (b[i] - mb);
                 return sum / (n - 1);
+            }
+
+            // Render portfolio composition as a Pie chart
+            function renderPortfolioComposition(entries) {
+                const labels = entries.map(e => e.ticker);
+                const values = entries.map(e => (e.weight || 0));
+                const colors = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#7c3aed'];
+                const trace = [{ labels, values, type: 'pie', hole: 0.35, marker: { colors } }];
+                const layout = { title: 'Composición de la Cartera (Pesos)', margin: { t: 40, l: 20, r: 20, b: 20 }, legend: { orientation: 'h', y: -0.15 } };
+                Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
+            }
+
+            // Update portfolio correlation matrix based on selected frequency
+            function updatePortfolioCorr() {
+                if (!loadedPortfolio || !loadedPortfolio.returns) return;
+                const freq = document.getElementById('portfolioCorrFreq')?.value || 'M';
+                const freqMap = { 'D': 1, 'M': 21, '6M': 126, 'A': 252 };
+                const windowDays = freqMap[freq] || 21;
+                const baseReturns = loadedPortfolio.returns; // object: ticker -> daily returns
+                const tickers = loadedPortfolio.corrTickers;
+                const agg = {};
+                // aggregate returns into non-overlapping windows of size windowDays (simple period returns: sum of daily returns)
+                tickers.forEach(t => {
+                    const r = baseReturns[t] || [];
+                    const arr = [];
+                    for (let i = 0; i < r.length; i += windowDays) {
+                        let sum = 0, count = 0;
+                        for (let j = i; j < Math.min(i + windowDays, r.length); j++) { sum += r[j]; count++; }
+                        if (count > 0) arr.push(sum);
+                    }
+                    agg[t] = arr;
+                });
+
+                // build correlation matrix (align by minimum length)
+                const minLen = Math.min(...tickers.map(t => (agg[t]||[]).length));
+                const trimmed = {};
+                tickers.forEach(t => { trimmed[t] = (agg[t]||[]).slice(0, minLen); });
+
+                const z = [];
+                for (let i = 0; i < tickers.length; i++) {
+                    const row = [];
+                    for (let j = 0; j < tickers.length; j++) {
+                        const a = trimmed[tickers[i]] || [];
+                        const b = trimmed[tickers[j]] || [];
+                        const cov = covarianceSample(a, b);
+                        const sdA = Math.sqrt(math.mean(a.map(x=>Math.pow(x-getMean(a),2))) || 0);
+                        const sdB = Math.sqrt(math.mean(b.map(x=>Math.pow(x-getMean(b),2))) || 0);
+                        let corr = 0;
+                        if (sdA > 0 && sdB > 0) corr = cov / (sdA * sdB);
+                        row.push(Number(corr.toFixed(4)));
+                    }
+                    z.push(row);
+                }
+
+                renderPortfolioCorrMatrix(tickers, z, freq);
+            }
+
+            function renderPortfolioCorrMatrix(labels, z, freqLabel) {
+                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: 'RdBu', zmin: -1, zmax: 1, reversescale: true, showscale: true }];
+                const layout = { title: `Matriz de Correlación (${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''})`, margin: { t: 40, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
+                Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true });
             }
         </script>
     </div>
@@ -1905,12 +1996,15 @@
                     // If requested, reuse already-loaded `currentData` (portfolio) instead of fetching
                     let rawData, oilData = [], vixData = [], ratesData = [];
                     if (useLoaded && ticker === 'CARTERA' && currentData && currentData.length) {
+                        // Reuse loaded portfolio series but still fetch extras (VIX, Oil, Rates)
                         rawData = currentData;
+                        [oilData, vixData, ratesData] = await Promise.all([
+                            fetchYahooData('CL=F', startDate, endDate).catch(e => []),
+                            fetchYahooData('^VIX', startDate, endDate).catch(e => []),
+                            fetchYahooData('^IRX', startDate, endDate).catch(e => [])
+                        ]);
                     } else {
                         // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Rates (10Y)
-                        const tenYearsAgo = new Date(); tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-                        const tenYearStr = tenYearsAgo.toISOString().split('T')[0];
-
                         [rawData, oilData, vixData, ratesData] = await Promise.all([
                             fetchYahooData(ticker, startDate, endDate),
                             fetchYahooData('CL=F', startDate, endDate).catch(e => []),
