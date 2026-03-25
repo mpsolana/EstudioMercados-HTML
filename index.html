@@ -788,120 +788,120 @@
             // --- FORECAST / MONTECARLO SIMULATIONS ---
             async function runForecastSimulations() {
                 const sims = Math.max(100, parseInt(document.getElementById('mcSims').value) || 10000);
-                const years = Math.max(1, parseInt(document.getElementById('mcYears').value) || 1);
+                // Per requirements: backtest window = 3 years, forecast horizon = 12 months (1 year)
+                const backtestYears = 3;
+                const forwardYears = 1;
                 const capital = parseFloat(document.getElementById('mcCapital').value) || 100000;
                 if (!currentData || currentData.length < 2) return alert('Carga y analiza primero un activo o cartera.');
-                document.getElementById('forecastStatus').innerText = `Ejecutando ${sims} simulaciones por ${years} años...`; 
+                document.getElementById('forecastStatus').innerText = `Ejecutando ${sims} simulaciones (horizonte ${forwardYears}y)...`;
 
-                // Build daily log returns from currentData
-                const prices = currentData.map(d=>d.price);
-                const dates = currentData.map(d=>d.date);
-                const lastPrice = prices[prices.length-1];
-                const logRets = [];
-                for (let i=1;i<prices.length;i++){ if (prices[i-1] && prices[i]) logRets.push(Math.log(prices[i]/prices[i-1])); }
-                if (logRets.length < 10) return alert('No hay suficientes retornos históricos para simular.');
+                // Use full series for statistics (as requested)
+                const fullPrices = currentData.map(d=>d.price);
+                const fullDates = currentData.map(d=>d.date);
+                const nFull = fullPrices.length;
+                if (nFull < 10) return alert('No hay suficientes datos históricos.');
 
-                const meanLog = getMean(logRets);
-                const stdLog = Math.sqrt(getMean(logRets.map(x=>Math.pow(x-meanLog,2))));
+                // compute daily log-returns from full series
+                const fullLogRets = [];
+                for (let i=1;i<nFull;i++){ if (fullPrices[i-1] && fullPrices[i]) fullLogRets.push(Math.log(fullPrices[i]/fullPrices[i-1])); }
+                const meanLogFull = getMean(fullLogRets);
+                const stdLogFull = Math.sqrt(getMean(fullLogRets.map(x=>Math.pow(x-meanLogFull,2))));
 
-                // Daily GBM parameters
-                const mu = meanLog; // daily drift (in log-returns)
-                const sigma = stdLog; // daily volatility
-                const tradingDaysPerYear = 252;
-                const totalDays = years * tradingDaysPerYear;
-                const dt = 1 / tradingDaysPerYear;
+                // Backtest window: last 3 years of data
+                const tradingDays = 252;
+                const backtestDays = Math.min(nFull, backtestYears * tradingDays);
+                const startIdx = nFull - backtestDays;
+                const windowPrices = fullPrices.slice(startIdx);
+                const windowDates = fullDates.slice(startIdx);
+                // base-10 normalization at start of window
+                const p0 = windowPrices[0];
+                const indexBase10 = windowPrices.map(p => (p / p0) * 10);
+                // monetary historic series: start capital corresponds to index=10
+                const histBalances = indexBase10.map(idx => capital * (idx / 10));
 
-                // Prepare containers
-                const allMaxDD = new Array(sims);
+                // If EUR conversion available, convert prices/balances to EUR using latest EURUSD rate
+                let eurFactor = null; // divisor: price_in_eur = price_usd / eurFactor (eurFactor = USD per EUR)
+                if (globalCurrenciesData && globalCurrenciesData['EURUSD=X'] && globalCurrenciesData['EURUSD=X'].length) {
+                    const eurSeries = globalCurrenciesData['EURUSD=X'];
+                    const eurLast = eurSeries[eurSeries.length-1].price;
+                    if (eurLast && !isNaN(eurLast) && eurLast > 0) eurFactor = eurLast;
+                } else {
+                    // try to fetch latest EURUSD on demand for the full period
+                    try {
+                        const sd = fullDates[0].toISOString().split('T')[0];
+                        const ed = fullDates[fullDates.length-1].toISOString().split('T')[0];
+                        const eurData = await fetchYahooData('EURUSD=X', sd, ed).catch(()=>[]);
+                        if (eurData && eurData.length) { const eurLast = eurData[eurData.length-1].price; if (eurLast>0) eurFactor = eurLast; }
+                    } catch(e){ /* ignore */ }
+                }
+                const currencyLabel = eurFactor ? 'EUR' : 'native';
+                const histBalancesDisplay = eurFactor ? histBalances.map(v=>v / eurFactor) : histBalances.slice();
+
+                // Simulation forward: daily GBM using full-series stats, for forwardYears (1 year)
+                const dt = 1 / tradingDays;
+                const totalDays = forwardYears * tradingDays;
+                const monthlyCheckpoint = Math.round(tradingDays / 12);
+
+                const monthlySamples = Array.from({length: 13}, ()=>[]); // 0..12 (t0 + 12 months)
+                const maxDrawdowns = new Array(sims);
                 const endBalances = new Array(sims);
-                const monthlyIndices = [];
-                const daysPerMonth = Math.round(tradingDaysPerYear/12);
-                for (let m=1;m<=12;m++) monthlyIndices.push(m*daysPerMonth);
 
-                // Preallocate monthly samples: array of arrays
-                const monthlySamples = Array.from({length: monthlyIndices.length+1}, ()=>[]); // include t0
+                const lastIndexValue = indexBase10[indexBase10.length-1];
+                const lastMonetary = capital * (lastIndexValue / 10);
+                const lastMonetaryDisplay = eurFactor ? lastMonetary / eurFactor : lastMonetary;
 
-                // For yearly percentiles (per full year) prepare indices
-                const yearlyIndices = [];
-                for (let y=0;y<=years;y++) yearlyIndices.push(y*tradingDaysPerYear);
-                const yearlySamples = Array.from({length: yearlyIndices.length}, ()=>[]);
-
-                // Run simulations (daily steps). For performance, keep inner loops minimal.
                 for (let s=0;s<sims;s++){
-                    let S = 1.0; // simulate growth factor starting at 1
-                    let peak = S, maxDD = 0;
-                    // collect checkpoints for monthly/yearly
-                    let monthCounter = 0, yearCounter = 0;
-                    // check t=0
-                    monthlySamples[0].push(S * capital);
-                    yearlySamples[0].push(S * capital);
+                    let S = 1.0; // growth factor relative to last price
+                    let peak = 1.0, maxDD = 0;
+                    // push t0
+                    monthlySamples[0].push(lastMonetaryDisplay);
                     for (let t=1;t<=totalDays;t++){
                         const z = randn_bm();
-                        S = S * Math.exp((mu - 0.5 * sigma * sigma) * dt + sigma * Math.sqrt(dt) * z);
+                        S = S * Math.exp((meanLogFull - 0.5 * stdLogFull * stdLogFull) * dt + stdLogFull * Math.sqrt(dt) * z);
                         if (S > peak) peak = S;
-                        const dd = 1 - (S/peak);
-                        if (dd > maxDD) maxDD = dd;
-                        // monthly checkpoint
-                        if (monthlyIndices.includes(t)) {
-                            const idx = monthlyIndices.indexOf(t) + 1; // +1 because 0 is t0
-                            monthlySamples[idx].push(S * capital);
-                        }
-                        // yearly checkpoint
-                        if (yearlyIndices.includes(t)) {
-                            const yidx = yearlyIndices.indexOf(t);
-                            yearlySamples[yidx].push(S * capital);
+                        const dd = 1 - (S/peak); if (dd>maxDD) maxDD = dd;
+                        if (t % monthlyCheckpoint === 0) {
+                            const monthIdx = t / monthlyCheckpoint;
+                            const bal = lastMonetaryDisplay * S;
+                            monthlySamples[monthIdx].push(bal);
                         }
                     }
-                    allMaxDD[s] = maxDD;
-                    endBalances[s] = S * capital;
+                    maxDrawdowns[s] = maxDD;
+                    endBalances[s] = lastMonetaryDisplay * S;
                 }
 
-                // Build percentiles for yearly horizon
+                // Compute deciles for monthlySamples
                 const percentiles = [0.10,0.25,0.5,0.75,0.90];
-                const yearsArr = yearlyIndices.map((d,i)=>i); // 0..years
-                const yearlyPerc = percentiles.map(() => []);
-                for (let yi=0; yi<yearlySamples.length; yi++){
-                    const arr = yearlySamples[yi].slice().sort((a,b)=>a-b);
-                    for (let p=0;p<percentiles.length;p++) yearlyPerc[p].push(quantile(arr, percentiles[p]));
-                }
-
-                // Build percentiles for next 12 months (monthlySamples indexes 0..12)
-                const monthPerc = percentiles.map(() => []);
+                const monthPerc = percentiles.map(()=>[]);
                 for (let mi=0; mi<monthlySamples.length; mi++){
                     const arr = monthlySamples[mi].slice().sort((a,b)=>a-b);
                     for (let p=0;p<percentiles.length;p++) monthPerc[p].push(quantile(arr, percentiles[p]));
                 }
 
-                // Prepare historical scaled balances (start at capital)
-                const histBalances = prices.map(p => capital * (p / prices[0]));
-                const histDates = dates.map(d => new Date(d));
-
-                // Future monthly dates (approx) for plotting
-                const futureMonthlyDates = [];
-                const lastDate = histDates[histDates.length-1];
-                for (let m=1;m<=12;m++){ const dtm = new Date(lastDate); dtm.setDate(dtm.getDate() + m*30); futureMonthlyDates.push(dtm); }
-
-                // Combined plot: historical line + monthly percentile lines (prepend current capital at t0)
+                // Build plot: historical backtest limited to 3 years (base10 scaled to capital) and deciles from last day
+                const histX = windowDates.map(d=>new Date(d));
                 const traces = [];
-                traces.push({ x: histDates, y: histBalances, mode:'lines', name:'Histórico (capital ajustado)', line:{color:'#111827', width:2} });
-                // For monthly percentiles, build x as [lastDate, futureMonthlyDates...], y as [capital, monthPerc[p][1..]]
-                const monthsX = [lastDate, ...futureMonthlyDates];
+                traces.push({ x: histX, y: histBalancesDisplay, mode:'lines', name:`Histórico (últimos ${backtestYears}y)`, line:{color:'#111827', width:2} });
+                // future monthly dates from last real date
+                const futureDates = [];
+                const lastDate = histX[histX.length-1];
+                for (let m=1;m<=12;m++){ const dtm = new Date(lastDate); dtm.setMonth(dtm.getMonth()+m); futureDates.push(dtm); }
+                const monthsX = [lastDate, ...futureDates];
                 for (let p=0;p<percentiles.length;p++){
-                    const y = [capital, ...monthPerc[p].slice(1)]; // monthlySamples[0] is t0
+                    const y = [lastMonetaryDisplay, ...monthPerc[p].slice(1)];
                     const name = `${Math.round(percentiles[p]*100)}th Percentile`;
                     const color = ['#06b6d4','#0ea5a4','#60a5fa','#34d399','#1e40af'][p];
-                    traces.push({ x: monthsX, y, mode:'lines', name, line:{color} });
+                    traces.push({ x: monthsX, y, mode:'lines', name, line:{color, dash: p===2? 'solid' : 'dot'} });
                 }
-                Plotly.newPlot('forecastBalanceChart', traces, { title: 'Backtest histórico + Deciles próximos 12 meses', margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:'Balance ($)'} }, { responsive:true });
+                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses (en ${currencyLabel})`, margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:`Balance (${currencyLabel})`} }, { responsive:true });
 
-                // Drawdown histogram (max drawdown in %)
-                Plotly.newPlot('forecastDrawdownHist', [{ x: allMaxDD.map(v=>v*100), type:'histogram', marker:{color:'#ef4444'}, nbinsx:20 }], { title: 'Maximum Drawdown Histogram ( % )', xaxis:{title:'Max. Drawdown (%)'}, margin:{t:40} }, { responsive:true });
+                // Drawdown histogram
+                Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v=>v*100), type:'histogram', marker:{color:'#ef4444'}, nbinsx:20 }], { title: 'Histograma Máx Drawdown (%)', xaxis:{title:'Max. Drawdown (%)'} }, { responsive:true });
 
-                // Performance summary: compute percentiles for selected metrics
+                // Performance summary: percentiles of end balance and max drawdown
                 const perfMetrics = {
                     'Portfolio End Balance (nominal)': endBalances,
-                    'Annualized Return (1y eq.)': endBalances.map(b => Math.pow(b/capital, 1/Math.max(1, years)) - 1),
-                    'Maximum Drawdown': allMaxDD.map(v => v)
+                    'Maximum Drawdown': maxDrawdowns
                 };
                 const header = `<tr><th></th>${[10,25,50,75,90].map(p=>`<th class="px-3 py-2 text-right">${p}th</th>`).join('')}</tr>`;
                 const rows = Object.keys(perfMetrics).map(key=>{
@@ -911,25 +911,32 @@
                 }).join('');
                 document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${header}</thead><tbody>${rows}</tbody></table>`;
 
-                // Expected Annual Return percentiles for common horizons (1,3,5,10,15,20,25,30,40,50)
-                const horizons = [1,3,5,10,15,20,25,30,40,50];
+                // Expected annual return percentiles for 1 year only (since forwardYears=1)
+                const horizons = [1];
                 const expectedRows = horizons.map(h => {
-                    const arr = endBalances.map(b => Math.pow(b/capital, 1/h)-1).sort((a,b)=>a-b);
-                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h>1?'s':''}</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
+                    const arr = endBalances.map(b => Math.pow(b/lastMonetaryDisplay, 1/h)-1).sort((a,b)=>a-b);
+                    return `<tr><td class="px-3 py-2 font-bold">${h} Year</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
                 }).join('');
                 document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10%</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
 
-                // Probabilities table: Prob(ret >= x%) for each horizon
+                // Probabilities table: Prob(ret >= x%) for 1y horizon using simulations
                 const thresholds = [0.00, 0.025, 0.05, 0.075, 0.10, 0.125];
                 const probHeader = `<tr><th>Horizon</th>${thresholds.map(t=>`<th class="px-3 py-2">>= ${ (t*100).toFixed(2) }%</th>`).join('')}</tr>`;
                 const probRows = horizons.map(h=>{
-                    const arr = endBalances.map(b=>Math.pow(b/capital,1/h)-1);
+                    const arr = endBalances.map(b=>Math.pow(b/lastMonetaryDisplay,1/h)-1);
                     const cells = thresholds.map(t => `<td class="px-3 py-2 text-right">${fmtPct(arr.filter(a=>a>=t).length / arr.length)}</td>`).join('');
                     return `<tr><td class="px-3 py-2 font-bold">${h}y</td>${cells}</tr>`;
                 }).join('');
                 document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${probHeader}</thead><tbody>${probRows}</tbody></table>`;
 
-                document.getElementById('forecastStatus').innerText = `Simulaciones completadas.`;
+                // Also calculate historical metrics from full series (CAGR, vol)
+                const firstFullPrice = fullPrices[0];
+                const lastFullPrice = fullPrices[fullPrices.length-1];
+                const daysElapsed = (fullDates[fullDates.length-1] - fullDates[0]) / 86400000;
+                const cagrFull = Math.pow(lastFullPrice / firstFullPrice, 365.25 / daysElapsed) - 1;
+                const volAnnFull = stdLogFull * Math.sqrt(tradingDays);
+                const histMetricsHtml = `<div>Hist. CAGR: <strong>${fmtPct(cagrFull)}</strong> — Vol ann: <strong>${fmtPct(volAnnFull)}</strong> — Data points: ${nFull}</div>`;
+                document.getElementById('forecastStatus').innerHTML = `Simulaciones completadas. ${histMetricsHtml}`;
             }
 
             function randn_bm() {
