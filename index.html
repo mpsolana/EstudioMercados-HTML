@@ -841,9 +841,9 @@
                 // Simulation forward: daily GBM using full-series stats, for forwardYears (1 year)
                 const dt = 1 / tradingDays;
                 const totalDays = forwardYears * tradingDays;
-                const dailyCheckpoint = 1; // store every day for fidelity
+                const monthlyCheckpoint = Math.round(tradingDays / 12);
 
-                const dailySamples = Array.from({length: totalDays+1}, ()=>[]); // day 0..totalDays (daily)
+                const monthlySamples = Array.from({length: 13}, ()=>[]); // 0..12 (t0 + 12 months)
                 const maxDrawdowns = new Array(sims);
                 const endBalances = new Array(sims);
 
@@ -853,55 +853,50 @@
 
                 for (let s=0;s<sims;s++){
                     let S = 1.0; // growth factor relative to last price
-                    let peakBalance = lastMonetaryDisplay, maxDD = 0; // track max drawdown from initial bal
+                    let peak = 1.0, maxDD = 0;
                     // push t0
-                    dailySamples[0].push(lastMonetaryDisplay);
+                    monthlySamples[0].push(lastMonetaryDisplay);
                     for (let t=1;t<=totalDays;t++){
                         const z = randn_bm();
-                        S = S * Math.exp((meanLogFull - 0.5 * stdLogFull * stdLogFull) * dt + stdLogFull * Math.sqrt(dt) * z);
-                        const bal = lastMonetaryDisplay * S;
-                        if (bal > peakBalance) peakBalance = bal;
-                        const dd = bal / peakBalance - 1; // drawdown same as historical: price/max - 1
-                        if (dd < maxDD) maxDD = dd;
-                        dailySamples[t].push(bal);
+                        // meanLogFull and stdLogFull are daily log-return stats, so simulate daily r ~ N(meanLogFull, stdLogFull)
+                        const r = meanLogFull + stdLogFull * z;
+                        S = S * Math.exp(r);
+                        if (S > peak) peak = S;
+                        const dd = 1 - (S/peak); if (dd>maxDD) maxDD = dd;
+                        if (t % monthlyCheckpoint === 0) {
+                            const monthIdx = t / monthlyCheckpoint;
+                            const bal = lastMonetaryDisplay * S;
+                            monthlySamples[monthIdx].push(bal);
+                        }
                     }
                     maxDrawdowns[s] = maxDD;
                     endBalances[s] = lastMonetaryDisplay * S;
                 }
 
-                // Compute deciles for dailySamples (using all daily points for smooth percentiles)
+                // Compute deciles for monthlySamples
                 const percentiles = [0.10,0.25,0.5,0.75,0.90];
-                const dayPerc = percentiles.map(()=>[]);
-                for (let di=0; di<dailySamples.length; di++){
-                    const arr = dailySamples[di].slice().sort((a,b)=>a-b);
-                    for (let p=0;p<percentiles.length;p++) dayPerc[p].push(quantile(arr, percentiles[p]));
+                const monthPerc = percentiles.map(()=>[]);
+                for (let mi=0; mi<monthlySamples.length; mi++){
+                    const arr = monthlySamples[mi].slice().sort((a,b)=>a-b);
+                    for (let p=0;p<percentiles.length;p++) monthPerc[p].push(quantile(arr, percentiles[p]));
                 }
 
-                // Build plot: historical backtest (3 years) and deciles from last day (12 months forward, DAILY)
+                // Build plot: historical backtest limited to 3 years (base10 scaled to capital) and deciles from last day
                 const histX = windowDates.map(d=>new Date(d));
                 const traces = [];
                 traces.push({ x: histX, y: histBalancesDisplay, mode:'lines', name:`Histórico (últimos ${backtestYears}y)`, line:{color:'#111827', width:2} });
-                
-                // Generate future DAILY dates (252 trading days = ~1 calendar year with weekends, but more precise is ~1 trading year)
-                const futureDatesDaily = [];
-                let nextDate = new Date(lastDate);
-                nextDate.setDate(nextDate.getDate() + 1);
-                while (futureDatesDaily.length < totalDays) {
-                    // Skip weekends
-                    if (nextDate.getDay() !== 0 && nextDate.getDay() !== 6) {
-                        futureDatesDaily.push(new Date(nextDate));
-                    }
-                    nextDate.setDate(nextDate.getDate() + 1);
-                }
-                
-                const daysX = [lastDate, ...futureDatesDaily.slice(0, totalDays)];
+                // future monthly dates from last real date
+                const futureDates = [];
+                const lastDate = histX[histX.length-1];
+                for (let m=1;m<=12;m++){ const dtm = new Date(lastDate); dtm.setMonth(dtm.getMonth()+m); futureDates.push(dtm); }
+                const monthsX = [lastDate, ...futureDates];
                 for (let p=0;p<percentiles.length;p++){
-                    const y = [lastMonetaryDisplay, ...dayPerc[p].slice(1, totalDays+1)];
+                    const y = [lastMonetaryDisplay, ...monthPerc[p].slice(1)];
                     const name = `${Math.round(percentiles[p]*100)}th Percentile`;
                     const color = ['#06b6d4','#0ea5a4','#60a5fa','#34d399','#1e40af'][p];
-                    traces.push({ x: daysX.slice(0, y.length), y, mode:'lines', name, line:{color, dash: p===2? 'solid' : 'dot'} });
+                    traces.push({ x: monthsX, y, mode:'lines', name, line:{color, dash: p===2? 'solid' : 'dot'} });
                 }
-                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses (diarios)`, margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:'Balance (u.m.)'} }, { responsive:true });
+                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses`, margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:'Balance (u.m.)'} }, { responsive:true });
 
                 // Drawdown histogram
                 Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v=>v*100), type:'histogram', marker:{color:'#ef4444'}, nbinsx:20 }], { title: 'Histograma Máx Drawdown (%)', xaxis:{title:'Max. Drawdown (%)'} }, { responsive:true });
@@ -919,62 +914,53 @@
                 }).join('');
                 document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${header}</thead><tbody>${rows}</tbody></table>`;
 
-                // Expected annual return percentiles AND simulation-based probabilities for multiple horizons
-                // We need to simulate for each horizon independently (not annualize from 1y)
-                const horizons = Array.from(new Set([1, Math.min(mcYears,3), Math.min(mcYears,5), mcYears]));
-                
-                // For each horizon, run simulations and compute end balances
-                const horizonEndBalances = {}; // key: horizon years, value: [endBalance1, endBalance2, ...]
-                for (const h of horizons) {
-                    const hDays = h * tradingDays;
-                    horizonEndBalances[h] = new Array(sims);
-                    for (let s=0;s<sims;s++){
-                        let S = 1.0;
-                        for (let t=0;t<hDays;t++){
-                            const z = randn_bm();
-                            S = S * Math.exp((meanLogFull - 0.5 * stdLogFull * stdLogFull) * dt + stdLogFull * Math.sqrt(dt) * z);
-                        }
-                        horizonEndBalances[h][s] = lastMonetaryDisplay * S;
+
+                // --- Long-term evolution chart (annual steps) using mcYears ---
+                const muAnn = meanLogFull * tradingDays;
+                const sigmaAnn = stdLogFull * Math.sqrt(tradingDays);
+                const longTermYears = mcYears;
+                const longTermSamples = Array.from({length: longTermYears+1}, ()=>[]); // year0..yearN
+                for (let s=0;s<sims;s++){
+                    let S = 1.0;
+                    longTermSamples[0].push(lastMonetaryDisplay);
+                    for (let y=1;y<=longTermYears;y++){
+                        // annual log-return as sum of daily logs: Normal(muAnn, sigmaAnn)
+                        const z = randn_bm();
+                        const r_ann = muAnn + sigmaAnn * z;
+                        S = S * Math.exp(r_ann);
+                        longTermSamples[y].push(lastMonetaryDisplay * S);
                     }
                 }
-                
-                // Expected annual return percentiles for multiple horizons
+
+                // Expected annual return percentiles for multiple horizons (use user-selected mcYears)
+                const horizons = Array.from(new Set([1, Math.min(mcYears,3), Math.min(mcYears,5), mcYears]));
                 const expectedRows = horizons.map(h => {
-                    const arr = horizonEndBalances[h].map(b => Math.pow(b/lastMonetaryDisplay, 1/h)-1).sort((a,b)=>a-b);
+                    let arr;
+                    if (h === 1) {
+                        arr = endBalances.map(b => Math.pow(b/lastMonetaryDisplay, 1/h)-1);
+                    } else if (longTermSamples[h]) {
+                        arr = longTermSamples[h].map(v => Math.pow(v/lastMonetaryDisplay, 1/h)-1);
+                    } else {
+                        arr = endBalances.map(b => Math.pow(b/lastMonetaryDisplay, 1/h)-1);
+                    }
+                    arr = arr.sort((a,b)=>a-b);
                     return `<tr><td class="px-3 py-2 font-bold">${h} Year${h>1?'s':''}</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
                 }).join('');
                 document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10%</th><th>25%</th><th>50%</th><th>75%</th><th>90%</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
 
-                // Probabilities table: Prob(ret >= x%) for selected horizons using their actual simulations
+                // Probabilities table: Prob(ret >= x%) for selected horizons using simulations
                 const thresholds = [0.00, 0.025, 0.05, 0.075, 0.10, 0.125];
                 const probHeader = `<tr><th>Horizon</th>${thresholds.map(t=>`<th class="px-3 py-2">>= ${ (t*100).toFixed(2) }%</th>`).join('')}</tr>`;
                 const probRows = horizons.map(h=>{
-                    const arr = horizonEndBalances[h].map(b=>Math.pow(b/lastMonetaryDisplay,1/h)-1);
+                    let arr;
+                    if (h === 1) arr = endBalances.map(b=>Math.pow(b/lastMonetaryDisplay,1/h)-1);
+                    else if (longTermSamples[h]) arr = longTermSamples[h].map(v=>Math.pow(v/lastMonetaryDisplay,1/h)-1);
+                    else arr = endBalances.map(b=>Math.pow(b/lastMonetaryDisplay,1/h)-1);
                     const cells = thresholds.map(t => `<td class="px-3 py-2 text-right">${fmtPct(arr.filter(a=>a>=t).length / arr.length)}</td>`).join('');
                     return `<tr><td class="px-3 py-2 font-bold">${h}y</td>${cells}</tr>`;
                 }).join('');
                 document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${probHeader}</thead><tbody>${probRows}</tbody></table>`;
 
-                // --- Long-term evolution chart (annual steps) using mcYears ---
-                // Use the mcYears simulation from horizonEndBalances(mcYears) to get annual checkpoints
-                const longTermYears = mcYears;
-                const longTermDays = longTermYears * tradingDays;
-                const longTermCheckpoint = tradingDays; // save every year
-                const longTermSamples = Array.from({length: longTermYears+1}, ()=>[]);
-                for (let s=0;s<sims;s++){
-                    let S = 1.0;
-                    longTermSamples[0].push(lastMonetaryDisplay);
-                    let dayCount = 0;
-                    for (let t=0;t<longTermDays;t++){
-                        dayCount++;
-                        const z = randn_bm();
-                        S = S * Math.exp((meanLogFull - 0.5 * stdLogFull * stdLogFull) * dt + stdLogFull * Math.sqrt(dt) * z);
-                        if (dayCount % longTermCheckpoint === 0){
-                            const yearIdx = dayCount / longTermCheckpoint;
-                            longTermSamples[yearIdx].push(lastMonetaryDisplay * S);
-                        }
-                    }
-                }
                 const yearsX = Array.from({length: longTermYears+1}, (_,i)=>i);
                 const ltPercentiles = [0.10,0.25,0.5,0.75,0.90];
                 const ltTraces = ltPercentiles.map((p,idx)=>{
