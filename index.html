@@ -352,6 +352,7 @@
                                 </tfoot>
                             </table>
                         </div>
+                        <div class="text-xs text-gray-400 mt-3 italic">* Índices representativos utilizados: IWDA.L (Renta Variable Large Cap), IUSN.DE (Renta Variable Small Cap), SGLO.L (Bonos Gobierno Global), IBCQ.DE (Bonos Corporativos EUR), XEON.DE (Efectivo Overnight).</div>
                     </div>
 
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
@@ -4211,6 +4212,9 @@
                 const traces = [];
                 const colors = ['#1e3a8a', '#b91c1c', '#15803d', '#7e22ce', '#c2410c', '#0369a1', '#be185d', '#4d7c0f', '#4338ca', '#374151', '#2dd4bf', '#fb923c'];
 
+                let positiveCount = 0;
+                let totalAssets = 0;
+
                 config.list.forEach((m, i) => {
                     const d = data[m.s];
                     if (!d || d.length === 0) return;
@@ -4226,6 +4230,10 @@
 
                     const lastY = y[y.length - 1];
                     const lastRet = (d[d.length - 1].price / firstPrice) - 1;
+                    
+                    if (lastRet > 0) positiveCount++;
+                    totalAssets++;
+
                     traces.push({
                         x: [x[x.length - 1]], y: [lastY],
                         mode: 'markers+text', marker: { color: colors[i % colors.length], size: 6 },
@@ -4234,13 +4242,33 @@
                     });
                 });
 
+                const pctPositive = totalAssets > 0 ? ((positiveCount / totalAssets) * 100).toFixed(0) : 0;
+
                 Plotly.newPlot(config.chartId, traces, {
                     xaxis: { showgrid: false },
                     yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
                     margin: { t: 20, l: 40, r: 60, b: 40 },
                     legend: { orientation: 'h', x: 0, y: -0.15 },
                     hovermode: 'x unified',
-                    plot_bgcolor: 'white'
+                    plot_bgcolor: 'white',
+                    shapes: [{
+                        type: 'line',
+                        xref: 'paper', x0: 0, x1: 1,
+                        yref: 'y', y0: 10, y1: 10,
+                        line: { color: 'black', width: 2, dash: 'dash' }
+                    }],
+                    annotations: [{
+                        xref: 'paper', yref: 'paper',
+                        x: 0.01, y: 0.98,
+                        xanchor: 'left', yanchor: 'top',
+                        text: `Activos en positivo: ${pctPositive}%`,
+                        showarrow: false,
+                        font: { size: 12, color: 'black', family: 'sans-serif' },
+                        bgcolor: 'rgba(255,255,255,0.85)',
+                        bordercolor: '#d1d5db',
+                        borderwidth: 1,
+                        borderpad: 4
+                    }]
                 }, { responsive: true });
             }
 
