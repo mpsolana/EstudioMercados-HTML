@@ -76,6 +76,33 @@
         .cursor-pointer:hover {
             background-color: #eff6ff;
         }
+
+        .sortable-th {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background-color 0.15s;
+        }
+
+        .sortable-th:hover {
+            background-color: #e0e7ff !important;
+        }
+
+        .sortable-th::after {
+            content: ' ⇅';
+            font-size: 9px;
+            opacity: 0.4;
+        }
+
+        .sortable-th.sort-desc::after {
+            content: ' ▼';
+            opacity: 0.9;
+        }
+
+        .sortable-th.sort-asc::after {
+            content: ' ▲';
+            opacity: 0.9;
+        }
     </style>
 </head>
 
@@ -347,22 +374,22 @@
                                             <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
                                         </tr>
                                         <tr class="border-b border-gray-200 bg-gray-50">
-                                            <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Índice</th>
-                                            <th class="px-3 py-2 border-l">Diario</th>
-                                            <th class="px-3 py-2">Semana</th>
-                                            <th class="px-3 py-2">Mes</th>
-                                            <th class="px-3 py-2">3 Meses</th>
-                                            <th class="px-3 py-2 bg-cyan-50">YTD</th>
-                                            <th class="px-3 py-2 border-r">1 Año</th>
-                                            <th class="px-3 py-2">3 Años</th>
-                                            <th class="px-3 py-2">5 Años</th>
-                                            <th class="px-3 py-2 border-r">10 Años</th>
+                                            <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] sortable-th" onclick="triggerSort('indices', 'n')">Índice</th>
+                                            <th class="px-3 py-2 border-l sortable-th" onclick="triggerSort('indices', 'daily')">Diario</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('indices', 'week')">Semana</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('indices', 'month')">Mes</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('indices', 'threeM')">3 Meses</th>
+                                            <th class="px-3 py-2 bg-cyan-50 sortable-th" onclick="triggerSort('indices', 'ytd')">YTD</th>
+                                            <th class="px-3 py-2 border-r sortable-th" onclick="triggerSort('indices', 'oneY')">1 Año</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('indices', 'threeY')">3 Años</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('indices', 'fiveY')">5 Años</th>
+                                            <th class="px-3 py-2 border-r sortable-th" onclick="triggerSort('indices', 'tenY')">10 Años</th>
                                             <!-- Riesgo -->
-                                            <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
-                                            <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
-                                            <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
-                                            <th class="px-3 py-2 bg-red-50">MDD 5A</th>
-                                            <th class="px-3 py-2 bg-red-50">MDD HIST</th>
+                                            <th class="px-3 py-2 bg-blue-50 sortable-th" onclick="triggerSort('indices', 'vol1')">Vol 1A</th>
+                                            <th class="px-3 py-2 bg-blue-50 sortable-th" onclick="triggerSort('indices', 'vol3')">Vol 3A</th>
+                                            <th class="px-3 py-2 bg-blue-50 border-r sortable-th" onclick="triggerSort('indices', 'vol5')">Vol 5A</th>
+                                            <th class="px-3 py-2 bg-red-50 sortable-th" onclick="triggerSort('indices', 'mdd5')">MDD 5A</th>
+                                            <th class="px-3 py-2 bg-red-50 sortable-th" onclick="triggerSort('indices', 'mddHist')">MDD HIST</th>
                                         </tr>
                                     </thead>
                                     <tbody id="indicesTableBody" class="divide-y divide-gray-100"></tbody>
@@ -425,22 +452,22 @@
                                             <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
                                         </tr>
                                         <tr class="border-b border-gray-200 bg-gray-50">
-                                            <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Instrumento</th>
-                                            <th class="px-3 py-2 border-l">Diario</th>
-                                            <th class="px-3 py-2">Semana</th>
-                                            <th class="px-3 py-2">Mes</th>
-                                            <th class="px-3 py-2">3 Meses</th>
-                                            <th class="px-3 py-2 bg-indigo-50">YTD</th>
-                                            <th class="px-3 py-2 border-r">1 Año</th>
-                                            <th class="px-3 py-2">3 Años</th>
-                                            <th class="px-3 py-2">5 Años</th>
-                                            <th class="px-3 py-2 border-r">10 Años</th>
+                                            <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] sortable-th" onclick="triggerSort('assets', 'n')">Instrumento</th>
+                                            <th class="px-3 py-2 border-l sortable-th" onclick="triggerSort('assets', 'daily')">Diario</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('assets', 'week')">Semana</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('assets', 'month')">Mes</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('assets', 'threeM')">3 Meses</th>
+                                            <th class="px-3 py-2 bg-indigo-50 sortable-th" onclick="triggerSort('assets', 'ytd')">YTD</th>
+                                            <th class="px-3 py-2 border-r sortable-th" onclick="triggerSort('assets', 'oneY')">1 Año</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('assets', 'threeY')">3 Años</th>
+                                            <th class="px-3 py-2 sortable-th" onclick="triggerSort('assets', 'fiveY')">5 Años</th>
+                                            <th class="px-3 py-2 border-r sortable-th" onclick="triggerSort('assets', 'tenY')">10 Años</th>
                                             <!-- Riesgo -->
-                                            <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
-                                            <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
-                                            <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
-                                            <th class="px-3 py-2 bg-red-50">MDD 5A</th>
-                                            <th class="px-3 py-2 bg-red-50">MDD HIST</th>
+                                            <th class="px-3 py-2 bg-blue-50 sortable-th" onclick="triggerSort('assets', 'vol1')">Vol 1A</th>
+                                            <th class="px-3 py-2 bg-blue-50 sortable-th" onclick="triggerSort('assets', 'vol3')">Vol 3A</th>
+                                            <th class="px-3 py-2 bg-blue-50 border-r sortable-th" onclick="triggerSort('assets', 'vol5')">Vol 5A</th>
+                                            <th class="px-3 py-2 bg-red-50 sortable-th" onclick="triggerSort('assets', 'mdd5')">MDD 5A</th>
+                                            <th class="px-3 py-2 bg-red-50 sortable-th" onclick="triggerSort('assets', 'mddHist')">MDD HIST</th>
                                         </tr>
                                     </thead>
                                     <tbody id="assetsTableBody" class="divide-y divide-gray-100"></tbody>
@@ -3277,32 +3304,8 @@
                 rows.push({ n: m.n, s: m.s, f: m.f, ...stats });
             });
 
-            const renderCell = (v, isPct=true, isBold=false) => {
-                if (v === null || v === undefined) return '<td class="px-3 py-2 text-gray-400">-</td>';
-                const color = v > 0 ? 'text-green-600' : (v < 0 ? 'text-red-600' : 'text-gray-600');
-                return `<td class="px-3 py-2 ${color} ${isBold ? 'font-bold' : ''}">${isPct ? fmtPct(v) : v.toFixed(2)}</td>`;
-            };
-
-            document.getElementById(config.tableId).innerHTML = rows.map(r => `
-                <tr class="hover:bg-gray-50 border-b">
-                    <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${r.f} ${r.n}</td>
-                    ${renderCell(r.daily, true, true)}
-                    ${renderCell(r.week)}
-                    ${renderCell(r.month)}
-                    ${renderCell(r.threeM)}
-                    ${renderCell(r.ytd, true, true)}
-                    ${renderCell(r.oneY, true, false)}
-                    ${renderCell(r.threeY)}
-                    ${renderCell(r.fiveY)}
-                    ${renderCell(r.tenY)}
-                    <td class="px-3 py-2 border-l text-gray-600 bg-blue-50/30">${r.vol1 ? fmtPct(r.vol1) : '-'}</td>
-                    <td class="px-3 py-2 text-gray-600 bg-blue-50/30">${r.vol3 ? fmtPct(r.vol3) : '-'}</td>
-                    <td class="px-3 py-2 border-r text-gray-600 bg-blue-50/30">${r.vol5 ? fmtPct(r.vol5) : '-'}</td>
-                    <td class="px-3 py-2 text-red-600 bg-red-50/30">${fmtPct(r.mdd5)}</td>
-                    <td class="px-3 py-2 text-red-700 bg-red-50/50 font-bold">${fmtPct(r.mddHist)}</td>
-                </tr>
-            `).join('');
-
+            globalTableRows[sectionType] = rows;
+            
             const validCount = k => rows.filter(r => r[k] !== null).length;
             const winPct = k => { let vc = validCount(k); return vc > 0 ? (winners[k] / vc) : 0; };
 
@@ -3322,15 +3325,75 @@
                 </tr>
             `;
 
+            renderSortedMarketsTable(sectionType);
             renderMarketsHeatmap(sectionType, fullDataDict);
+        }
+
+        function renderSortedMarketsTable(sectionType) {
+            const isIndices = sectionType === 'indices';
+            const tableId = isIndices ? 'indicesTableBody' : 'assetsTableBody';
+            
+            const rows = [...globalTableRows[sectionType]];
+            const sortConf = currentSort[sectionType];
+            
+            if (sortConf.col) {
+                rows.sort((a, b) => {
+                    let valA = a[sortConf.col];
+                    let valB = b[sortConf.col];
+                    if (valA === null || valA === undefined || isNaN(valA) && typeof valA !== 'string') valA = -999999;
+                    if (valB === null || valB === undefined || isNaN(valB) && typeof valB !== 'string') valB = -999999;
+                    
+                    if (typeof valA === 'string') return sortConf.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    return sortConf.asc ? valA - valB : valB - valA;
+                });
+            }
+
+            const renderCell = (v, isPct=true, isBold=false) => {
+                if (v === null || v === undefined || v === -999999) return '<td class="px-3 py-2 text-gray-400">-</td>';
+                const color = v > 0 ? 'text-green-600' : (v < 0 ? 'text-red-600' : 'text-gray-600');
+                return `<td class="px-3 py-2 ${color} ${isBold ? 'font-bold' : ''}">${isPct ? fmtPct(v) : v.toFixed(2)}</td>`;
+            };
+
+            document.getElementById(tableId).innerHTML = rows.map(r => `
+                <tr class="hover:bg-gray-50 border-b">
+                    <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${r.f} ${r.n}</td>
+                    ${renderCell(r.daily, true, true)}
+                    ${renderCell(r.week)}
+                    ${renderCell(r.month)}
+                    ${renderCell(r.threeM)}
+                    ${renderCell(r.ytd, true, true)}
+                    ${renderCell(r.oneY, true, false)}
+                    ${renderCell(r.threeY)}
+                    ${renderCell(r.fiveY)}
+                    ${renderCell(r.tenY)}
+                    <td class="px-3 py-2 border-l text-gray-600 bg-blue-50/30">${r.vol1 ? fmtPct(r.vol1) : '-'}</td>
+                    <td class="px-3 py-2 text-gray-600 bg-blue-50/30">${r.vol3 ? fmtPct(r.vol3) : '-'}</td>
+                    <td class="px-3 py-2 border-r text-gray-600 bg-blue-50/30">${r.vol5 ? fmtPct(r.vol5) : '-'}</td>
+                    <td class="px-3 py-2 text-red-600 bg-red-50/30">${fmtPct(r.mdd5)}</td>
+                    <td class="px-3 py-2 text-red-700 bg-red-50/50 font-bold">${fmtPct(r.mddHist)}</td>
+                </tr>
+            `).join('');
+
+            const thead = document.getElementById(tableId).previousElementSibling;
+            if (thead) {
+                const ths = thead.querySelectorAll('.sortable-th');
+                ths.forEach(th => {
+                    th.classList.remove('sort-asc', 'sort-desc');
+                    const onclickText = th.getAttribute('onclick');
+                    if (onclickText && onclickText.includes(`'${sortConf.col}'`) && onclickText.includes(`'${sectionType}'`)) {
+                        th.classList.add(sortConf.asc ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            }
         }
 
         function renderMarketsHeatmap(sectionType, fullDataDict) {
             const isIndices = sectionType === 'indices';
-            const config = isIndices ? { list: marketIndices, headId: 'indicesHeatmapHead', bodyId: 'indicesHeatmapBody', footId: 'indicesHeatmapFoot' } : { list: assetClasses, headId: 'assetsHeatmapHead', bodyId: 'assetsHeatmapBody', footId: 'assetsHeatmapFoot' };
+            const config = isIndices ? { list: marketIndices, headId: 'indicesHeatmapHead', footId: 'indicesHeatmapFoot' } : { list: assetClasses, headId: 'assetsHeatmapHead', footId: 'assetsHeatmapFoot' };
             const years = Array.from({length: 10}, (_, i) => new Date().getFullYear() - i);
+            globalHeatmapYears = years;
             
-            document.getElementById(config.headId).innerHTML = `<tr class="divide-x border-b"><th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r">Activo</th>${years.map(y => `<th class="px-2 py-2">${y}</th>`).join('')}</tr>`;
+            document.getElementById(config.headId).innerHTML = `<tr class="divide-x border-b"><th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r sortable-th" onclick="triggerSort('${sectionType}', 'n', true)">Activo</th>${years.map(y => `<th class="px-2 py-2 sortable-th" onclick="triggerSort('${sectionType}', '${y}', true)">${y}</th>`).join('')}</tr>`;
 
             const rows = [];
             const winnersByYear = {}, totalByYear = {};
@@ -3339,7 +3402,9 @@
             config.list.forEach(m => {
                 const d = fullDataDict[m.s] || [];
                 if (d.length < 2) return;
-                let rowHtml = `<td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${m.f} ${m.n}</td>`;
+                
+                const rowObj = { n: m.n, f: m.f, s: m.s, rets: {} };
+                
                 years.forEach(y => {
                     const startYear = new Date(y, 0, 1), endYear = new Date(y, 11, 31);
                     const yData = d.filter(x => x.date >= startYear && x.date <= endYear);
@@ -3347,17 +3412,71 @@
                         totalByYear[y]++;
                         const ret = (yData[yData.length - 1].price / yData[0].price) - 1;
                         if (ret > 0) winnersByYear[y]++;
+                        rowObj.rets[y] = ret;
+                    } else {
+                        rowObj.rets[y] = null;
+                    }
+                });
+                rows.push(rowObj);
+            });
+
+            globalHeatmapRows[sectionType] = rows;
+
+            document.getElementById(config.footId).innerHTML = `<tr class="divide-x border-t-2"><td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r uppercase">% POSITIVOS</td>${years.map(y => `<td class="px-2 py-2" title="Sobre ${totalByYear[y]}">${fmtPct(totalByYear[y] > 0 ? winnersByYear[y]/totalByYear[y] : 0)}</td>`).join('')}</tr>`;
+
+            renderSortedHeatmap(sectionType);
+        }
+
+        function renderSortedHeatmap(sectionType) {
+            const isIndices = sectionType === 'indices';
+            const config = isIndices ? { bodyId: 'indicesHeatmapBody', headId: 'indicesHeatmapHead' } : { bodyId: 'assetsHeatmapBody', headId: 'assetsHeatmapHead' };
+            const rows = [...globalHeatmapRows[sectionType]];
+            const sortConf = currentSort[sectionType + 'Hm'];
+            const years = globalHeatmapYears;
+            
+            if (sortConf.col) {
+                rows.sort((a, b) => {
+                    if (sortConf.col === 'n') {
+                        return sortConf.asc ? a.n.localeCompare(b.n) : b.n.localeCompare(a.n);
+                    } else {
+                        let valA = a.rets[sortConf.col];
+                        let valB = b.rets[sortConf.col];
+                        if (valA === null || valA === undefined || isNaN(valA)) valA = -999999;
+                        if (valB === null || valB === undefined || isNaN(valB)) valB = -999999;
+                        return sortConf.asc ? valA - valB : valB - valA;
+                    }
+                });
+            }
+
+            const htmlRows = rows.map(r => {
+                let rowHtml = `<td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">${r.f} ${r.n}</td>`;
+                years.forEach(y => {
+                    const ret = r.rets[y];
+                    if (ret !== null && ret !== undefined) {
                         const alpha = Math.min(0.1 + Math.abs(ret) * 2.5, 0.85);
                         const bgColor = ret > 0 ? `rgba(34, 197, 94, ${alpha})` : `rgba(239, 68, 68, ${alpha})`;
                         const textColor = alpha > 0.5 ? 'white' : 'black';
                         rowHtml += `<td class="px-2 py-2 border" style="background-color: ${bgColor}; color: ${textColor}">${fmtPct(ret)}</td>`;
-                    } else rowHtml += `<td class="px-2 py-2 border text-gray-300">-</td>`;
+                    } else {
+                        rowHtml += `<td class="px-2 py-2 border text-gray-300">-</td>`;
+                    }
                 });
-                rows.push(`<tr class="divide-x">${rowHtml}</tr>`);
+                return `<tr class="divide-x">${rowHtml}</tr>`;
             });
 
-            document.getElementById(config.bodyId).innerHTML = rows.join('');
-            document.getElementById(config.footId).innerHTML = `<tr class="divide-x border-t-2"><td class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r uppercase">% POSITIVOS</td>${years.map(y => `<td class="px-2 py-2" title="Sobre ${totalByYear[y]}">${fmtPct(totalByYear[y] > 0 ? winnersByYear[y]/totalByYear[y] : 0)}</td>`).join('')}</tr>`;
+            document.getElementById(config.bodyId).innerHTML = htmlRows.join('');
+            
+            const thead = document.getElementById(config.headId);
+            if (thead) {
+                const ths = thead.querySelectorAll('.sortable-th');
+                ths.forEach(th => {
+                    th.classList.remove('sort-asc', 'sort-desc');
+                    const onclickText = th.getAttribute('onclick');
+                    if (onclickText && onclickText.includes(`'${sortConf.col}'`) && onclickText.includes(`'${sectionType}'`)) {
+                        th.classList.add(sortConf.asc ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            }
         }
 
         function renderDrawdownChart(d, dd, t) {
