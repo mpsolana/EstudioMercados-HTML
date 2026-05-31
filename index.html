@@ -123,7 +123,7 @@
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <i class="fa-solid fa-chart-simple text-blue-400 text-xl"></i>
-                <h1 class="text-xl font-bold tracking-wide">MPS Market<span class="text-blue-400">Analyzer</span> Pro
+                <h1 class="text-xl font-bold tracking-wide">MPS Market<span class="text-blue-400">Analyzer</span>
                 </h1>
             </div>
             <div class="text-xs text-gray-400 hidden sm:block" id="versionLabel">v13</div>
@@ -502,8 +502,8 @@
                     <div class="flex gap-2">
                         <button onclick="addPortfolioRow()" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">Agregar Activo</button>
                         <button onclick="normalizeWeights()" class="px-3 py-1 bg-yellow-100 rounded hover:bg-yellow-200 text-sm">Normalizar Pesos</button>
-                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()" class="ml-auto px-4 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">Cargar Cartera</button>
-                        <button id="analyzePortfolioBtn" onclick="analyzeLoadedPortfolio()" disabled class="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Ejecutar Análisis Cartera</button>
+                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()" class="ml-auto px-4 py-2 bg-slate-600 text-white rounded font-bold hover:bg-slate-700">Cargar Cartera</button>
+                        <button id="analyzePortfolioBtn" onclick="analyzeLoadedPortfolio()" disabled class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">Ejecutar Análisis Cartera</button>
                     </div>
 
                     <div id="portfolioInfo" class="text-xs text-gray-600 mt-2">
@@ -712,7 +712,7 @@
                     const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(252);
 
                     // Render portfolio cumulative chart
-                    Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#059669', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
+                    Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#2563eb', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
 
                     // Save returns, covariance and ticker list for later use (composition + correlation)
                     const corrTickers = tickers.slice();
@@ -774,7 +774,7 @@
             function renderPortfolioComposition(entries) {
                 const labels = entries.map(e => e.ticker);
                 const values = entries.map(e => (e.weight || 0));
-                const colors = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#7c3aed'];
+                const colors = ['#1e3a8a','#2563eb','#3b82f6','#60a5fa','#93c5fd','#475569','#64748b','#94a3b8'];
                 const trace = [{ labels, values, type: 'pie', hole: 0.35, marker: { colors } }];
                 const layout = { title: 'Composición de la Cartera (Pesos)', margin: { t: 40, l: 20, r: 20, b: 20 }, legend: { orientation: 'h', y: -0.15 } };
                 Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
@@ -1045,48 +1045,77 @@
         <div class="container mx-auto p-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es MPS MarketAnalyzer Pro?
+                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es MPS MarketAnalyzer?
                 </h2>
 
                 <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
-
                     <p>
-                        <strong class="text-gray-900">MPS MarketAnalyzer Pro v13</strong> es una herramienta
-                        avanzada de análisis financiero y estadístico. Todo se ejecuta localmente en tu navegador sin enviar datos a ningún servidor externo.
+                        <strong class="text-gray-900">MPS MarketAnalyzer v13</strong> es una plataforma avanzada de análisis financiero y estadístico diseñada para operar enteramente en el lado del cliente (tu navegador). Toda la ejecución de procesamiento y modelos cuantitativos ocurre de manera local, ofreciendo privacidad y alta velocidad de cálculo.
                     </p>
 
-                    <p class="font-semibold text-gray-800">Principales Módulos:</p>
-                    <ul class="list-disc pl-6 space-y-2">
-                        <li><strong>Mercados y Asset Allocation:</strong> Matrices de riesgo/retorno, visión macro (Base 10) con Heatmaps interactivos y gráficos de rentabilidad de Divisas, Índices y Activos diversificados.</li>
-                        <li><strong>Análisis Individual:</strong> Estudio a fondo de activos con medias móviles, correlación VIX, caídas (Buy the Dip), estacionalidad y <strong>Heatmap tipo Forward Returns</strong>.</li>
-                        <li><strong>Análisis de Cartera:</strong> Creación de portafolios ponderados con Backtest, Drawdown Histórico (spaghetti chart), matriz de correlaciones Pearson real y simulación de desempeño.</li>
-                        <li><strong>Pronósticos (Montecarlo):</strong> Motor estocástico embebido por Movimiento Browniano para calcular métricas esperadas del capital a largo plazo sin depender de supuestos gaussianos estáticos.</li>
-                        <li><strong>Eventos Sistémicos:</strong> Impacto del oro, petróleo, y eventos extremos (>±3σ) a lo largo del tiempo.</li>
-                        <li><strong>Comportamiento ATH:</strong> Backtesting sobre "¿es rentable comprar en máximos históricos?" y test estadísticos.</li>
-                    </ul>
+                    <h3 class="font-semibold text-gray-800 mt-6 border-b border-gray-100 pb-2">Resumen de Módulos Funcionales:</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h4 class="font-bold text-blue-600 mb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-globe"></i> 1. Mercados y Asset Allocation
+                            </h4>
+                            <p class="text-xs mb-2">Monitorización de Renta Variable Global, Renta Fija y Materias Primas con índices representativos.</p>
+                            <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                                <li>Matrices detalladas de rendimiento (YTD, 1A, alcistas, etc.) y riesgo (Volatilidad, Max Drawdown).</li>
+                                <li><strong>Matrices Interactivas:</strong> Ahora puedes hacer clic en las cabeceras de la tabla para <strong>ordenar de mayor a menor y viceversa</strong>.</li>
+                                <li>Mapas de calor anualizados (Heatmaps) con cálculo continuo sobre series reales.</li>
+                                <li>Análisis base 10 histórico y seguimiento de vol (\^VIX, \^MOVE) y curva de divisas.</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h4 class="font-bold text-rose-500 mb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-chart-column"></i> 2. Análisis Individual
+                            </h4>
+                            <p class="text-xs mb-2">Inspección pormenorizada de cualquier ticker (Acciones, ETFs, Futuros).</p>
+                            <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                                <li>Comportamiento ante caídas (Buy the dip) con matrices de retorno/riesgo pos-drawdown y Spaghetti charts.</li>
+                                <li>Matriz 'Forward Returns', Estacionalidad YTD contra series temporales anuales y agrupaciones mensuales.</li>
+                                <li>Evaluación de inversión tras alcanzar Máximos Históricos (ATH) o tras eventos de repunte del \^VIX o subidas del crudo.</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h4 class="font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-briefcase"></i> 3. Análisis de Cartera
+                            </h4>
+                            <p class="text-xs mb-2">Constructor de portfolios personalizados.</p>
+                            <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                                <li>Backtesting completo aplicando las proporciones indicadas por el usuario.</li>
+                                <li>Cálculo en vivo de la matriz estadística de la cartera (CAGR, Volatilidad) en relación cruzada a los integrantes.</li>
+                                <li>Evaluación precisa de la Matriz de Correlación de Pearson con marcos interactivos (Diaria, Mensual, Anual).</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <h4 class="font-bold text-purple-600 mb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> 4. Simulación Avanzada (Montecarlo)
+                            </h4>
+                            <p class="text-xs mb-2">Motores estocásticos y proyecciones de rentabilidad a través de Movimiento Browniano Geométrico adaptativo.</p>
+                            <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                                <li>Construcción de miles de caminos alcateorios ajustados paramétricamente con el historial cargado.</li>
+                                <li>Rutas estimadas, Drawdowns máximos hipotéticos y probabilidad de retornos en el espacio del 1-50 años.</li>
+                            </ul>
+                        </div>
+                    </div>
 
-                    <p class="font-semibold text-gray-800 mt-4">Puesta en Marcha:</p>
-                    <ol class="list-decimal pl-6 space-y-1">
-                        <li>Escribe o selecciona el ticker de Yahoo Finance (ej: SPY, ^IBEX, BTC-USD,
-                            AAPL…).
-                        </li>
-                        <li>Ajusta las fechas de inicio y fin (por defecto desde 2000 hasta hoy).</li>
-                        <li>Pulsa “Ejecutar Análisis” y espera unos segundos.</li>
-                        <li>Navega por las pestañas: General, Drawdowns, Rolling, Estacionalidad, VIX,
-                            Petróleo,
-                            Correlaciones y Ayuda.</li>
+                    <h3 class="font-semibold text-gray-800 mt-6 border-b border-gray-100 pb-2">Guía Rápida de Utilización:</h3>
+                    <ol class="list-decimal pl-6 space-y-2 mt-2">
+                        <li><strong>Identifica el activo:</strong> Ve a "Análisis Individual" e introduce un ticker válido procedente de Yahoo! Finance (ej: AAPL, AAPL.MX para internacionales).</li>
+                        <li><strong>Define la ventana temporal:</strong> Modifica la fecha de origen si deseas observar comportamientos puntuales.</li>
+                        <li><strong>Inicia el Cálculo:</strong> Pulsa sobre el botón rojo de ejecución y espera a que la señal visual del "Loader" termine. Dependiendo de los servidores remotos de datos puede tomar 2 a 5 segundos.</li>
+                        <li><strong>Evalúa las correlaciones:</strong> El panel superior de visualizaciones tiene opciones como Rolling, Estacionalidad y ATH, permitiendo el cambio mediante un solo click.</li>
+                        <li><strong>Ordenación Dinámica:</strong> Puedes ordenar múltiples paneles y reportes simplemente haciendo click sobre la cabecera deseada para priorizar la mejor / peor métrica.</li>
                     </ol>
 
-                    <p class="mt-4 text-xs text-gray-500">
-                        Todos los cálculos y gráficos se generan al instante en tu navegador usando
-                        Plotly.js y
-                        Math.js. No se guarda ni transmite ningún dato.
-                    </p>
-
-                    <p class="mt-4 font-medium text-blue-600">
-                        Ideal para inversores particulares, analistas y educadores que quieran entender
-                        rápidamente el comportamiento histórico y las estadísticas clave de cualquier activo
-                        cotizado.
+                    <p class="mt-6 text-xs text-gray-400 border-t border-gray-100 pt-4 text-center">
+                        <i class="fa-solid fa-microchip"></i> Engine impulsado enteramente por Javascript, Tailwind V3, Math.js & Plotly.js. No hay almacenamiento de telemetría.
                     </p>
                 </div>
             </div>
@@ -4154,9 +4183,9 @@
                 const maxForward = years.length - 1; 
                 const maxForwardLimit = Math.min(31, maxForward); // Limit to 31 years arbitrarily
                 
-                let headHtml = '<tr class="border-b divide-x"><th class="px-2 py-1 bg-gray-100 border-r text-left sticky left-0 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Años<br><span class="text-[9px] text-gray-400 font-normal">Hacia adelante</span></th>';
-                years.forEach(y => {
-                    headHtml += `<th class="px-2 py-1">${y}</th>`;
+                let headHtml = '<tr class="border-b divide-x"><th class="px-2 py-1 bg-gray-100 border-r text-left sticky left-0 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] cursor-pointer hover:bg-gray-200" title="Ordenar" onclick="sortTable(\'rollingForwardMatrixBody\', 0, false)">Años<br><span class="text-[9px] text-gray-400 font-normal">Hacia adelante</span></th>';
+                years.forEach((y, idx) => {
+                    headHtml += `<th class="px-2 py-1 cursor-pointer hover:bg-gray-200" title="Ordenar" onclick="sortTable('rollingForwardMatrixBody', ${idx + 1}, true)">${y}</th>`;
                 });
                 headHtml += '</tr>';
                 document.getElementById('rollingForwardMatrixHead').innerHTML = headHtml;
@@ -4542,10 +4571,48 @@
                     <td class="px-3 py-2" title="Sobre ${validCount('fiveY')}">${fmtPct(winPct('fiveY'))}</td>
                     <td class="px-3 py-2 border-r" title="Sobre ${validCount('tenY')}">${fmtPct(winPct('tenY'))}</td>
                     <td class="px-3 py-2" colspan="5">Mercado: Amplitud & Riesgo</td>
+                    <td class="px-3 py-2" colspan="5">Mercado: Amplitud & Riesgo</td>
                 </tr>
             `;
 
+                // Make headers sortable dynamically
+                const thead = document.getElementById(config.tableId).parentElement.querySelector('thead tr:last-child');
+                if (thead && !thead.dataset.sortable) {
+                    Array.from(thead.children).forEach((th, idx) => {
+                        th.classList.add('cursor-pointer', 'hover:bg-gray-200', 'transition-colors');
+                        th.title = 'Click para ordenar';
+                        th.onclick = () => sortTable(config.tableId, idx, idx > 0);
+                    });
+                    thead.dataset.sortable = 'true';
+                }
+
                 if (!config.skipHeatmap) renderMarketsHeatmap(sectionType, fullDataDict);
+            }
+
+            // NEW FUNCTION: Sort Tables
+            let sortDirection = {};
+            function sortTable(tableBodyId, columnIdx, isNumeric = true) {
+                const tbody = document.getElementById(tableBodyId);
+                if (!tbody) return;
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const sortKey = tableBodyId + '-' + columnIdx;
+                sortDirection[sortKey] = !sortDirection[sortKey];
+                const asc = sortDirection[sortKey];
+                
+                rows.sort((a, b) => {
+                    const aCell = a.cells[columnIdx];
+                    const bCell = b.cells[columnIdx];
+                    if (!aCell || !bCell) return 0;
+                    let aCol = aCell.innerText.replace(/%/g, '').trim();
+                    let bCol = bCell.innerText.replace(/%/g, '').trim();
+                    if (isNumeric) {
+                        if (aCol === '-') aCol = '-999999';
+                        if (bCol === '-') bCol = '-999999';
+                        return asc ? (parseFloat(aCol) || 0) - (parseFloat(bCol) || 0) : (parseFloat(bCol) || 0) - (parseFloat(aCol) || 0);
+                    }
+                    return asc ? aCol.localeCompare(bCol) : bCol.localeCompare(aCol);
+                });
+                rows.forEach(r => tbody.appendChild(r));
             }
 
             function renderMarketsHeatmap(sectionType, fullDataDict) {
@@ -4553,7 +4620,7 @@
                 const config = isIndices ? { list: marketIndices, headId: 'indicesHeatmapHead', bodyId: 'indicesHeatmapBody', footId: 'indicesHeatmapFoot' } : { list: assetClasses, headId: 'assetsHeatmapHead', bodyId: 'assetsHeatmapBody', footId: 'assetsHeatmapFoot' };
                 const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
 
-                document.getElementById(config.headId).innerHTML = `<tr class="divide-x border-b"><th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r">Activo</th>${years.map(y => `<th class="px-2 py-2">${y}</th>`).join('')}</tr>`;
+                document.getElementById(config.headId).innerHTML = `<tr class="divide-x border-b"><th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 border-r cursor-pointer hover:bg-gray-200" title="Ordenar" onclick="sortTable('${config.bodyId}', 0, false)">Activo</th>${years.map((y, idx) => `<th class="px-2 py-2 cursor-pointer hover:bg-gray-200" title="Ordenar" onclick="sortTable('${config.bodyId}', ${idx + 1}, true)">${y}</th>`).join('')}</tr>`;
 
                 const rows = [];
                 const winnersByYear = {}, totalByYear = {};
