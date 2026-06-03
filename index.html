@@ -17,7 +17,8 @@
     <!-- KaTeX for rendering math in the portfolio methodology note -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$', right: '$', display: false},{left: '$$', right: '$$', display: true}]});"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.body, {delimiters: [{left: '$', right: '$', display: false},{left: '$$', right: '$$', display: true}]});"></script>
 
     <style>
         .tab-content {
@@ -145,6 +146,12 @@
             <button onclick="switchSection('ayuda')" id="section-btn-ayuda" class="top-nav-btn">
                 <i class="fa-solid fa-circle-question mr-2"></i>Ayuda
             </button>
+            <button onclick="switchSection('valoraciones')" id="section-btn-valoraciones" class="top-nav-btn">
+                <i class="fa-solid fa-scale-balanced mr-2"></i>Valoraciones Relativas
+            </button>
+            <button onclick="switchSection('macro')" id="section-btn-macro" class="top-nav-btn">
+                <i class="fa-solid fa-earth-europe mr-2"></i>Macro Dashboard
+            </button>
         </div>
     </div>
 
@@ -154,7 +161,9 @@
             <!-- marketsLoader removed to avoid persistent blank area -->
             <div id="marketsContent" class="space-y-12">
                 <div class="flex justify-end mb-4">
-                    <button onclick="loadMarketsData()" class="px-4 py-2 bg-sky-600 text-white rounded-md shadow hover:bg-sky-700">Cargar Mercados</button>
+                    <button onclick="loadMarketsData()"
+                        class="px-4 py-2 bg-sky-600 text-white rounded-md shadow hover:bg-sky-700">Cargar
+                        Mercados</button>
                 </div>
                 <!-- INDICES MUNDIALES (movido desde la pestaña interna) -->
                 <!-- SECCION 1: INDICES MUNDIALES -->
@@ -201,8 +210,7 @@
                             Rendimiento y Riesgo</h3>
                         <div class="overflow-x-auto custom-scrollbar">
                             <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
-                                <thead
-                                    class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
                                     <tr>
                                         <th
                                             class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -311,8 +319,7 @@
                             Rendimiento y Riesgo</h3>
                         <div class="overflow-x-auto custom-scrollbar">
                             <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
-                                <thead
-                                    class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
                                     <tr>
                                         <th
                                             class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -352,11 +359,18 @@
                                 </tfoot>
                             </table>
                         </div>
-                        <div class="text-[11px] text-gray-500 mt-3 bg-gray-50 p-3 rounded border border-gray-100 italic">
+                        <div
+                            class="text-[11px] text-gray-500 mt-3 bg-gray-50 p-3 rounded border border-gray-100 italic">
                             <b>* Activos representativos utilizados:</b><br>
-                            &bull; <b>IWDA.L:</b> Renta Variable Large Cap (US$) | &bull; <b>0P00012I66.F:</b> Renta Variable Small Cap (EUR) | &bull; <b>SGLO.L:</b> Bonos Gobierno Global (EUR Hdg) | &bull; <b>IBCQ.DE:</b> Bonos Corporativos (EUR) | &bull; <b>XEON.DE:</b> Efectivo Overnight (EUR)<br>
-                            &bull; <b>INFR.MI:</b> Infraestructuras Globales (EUR) | &bull; <b>SXRS.DE:</b> Commodities Diversificados (EUR) | &bull; <b>GC=F:</b> Oro Futuros (US$) | &bull; <b>IBCI.MI:</b> Bonos TIPS ligados Inflación (EUR)<br>
-                            &bull; <b>10AJ.DE:</b> Real Estate Europa (EUR) | &bull; <b>CL=F:</b> Petróleo Crudo WTI (US$) | &bull; <b>BTC-USD:</b> Bitcoin (US$) | &bull; <b>CATB.MI:</b> Cat Bonds (US$)
+                            &bull; <b>IWDA.L:</b> Renta Variable Large Cap (US$) | &bull; <b>0P00012I66.F:</b> Renta
+                            Variable Small Cap (EUR) | &bull; <b>SGLO.L:</b> Bonos Gobierno Global (EUR Hdg) | &bull;
+                            <b>IBCQ.DE:</b> Bonos Corporativos (EUR) | &bull; <b>XEON.DE:</b> Efectivo Overnight
+                            (EUR)<br>
+                            &bull; <b>INFR.MI:</b> Infraestructuras Globales (EUR) | &bull; <b>SXRS.DE:</b> Commodities
+                            Diversificados (EUR) | &bull; <b>GC=F:</b> Oro Futuros (US$) | &bull; <b>IBCI.MI:</b> Bonos
+                            TIPS ligados Inflación (EUR)<br>
+                            &bull; <b>10AJ.DE:</b> Real Estate Europa (EUR) | &bull; <b>CL=F:</b> Petróleo Crudo WTI
+                            (US$) | &bull; <b>BTC-USD:</b> Bitcoin (US$) | &bull; <b>CATB.MI:</b> Cat Bonds (US$)
                         </div>
                     </div>
 
@@ -385,53 +399,78 @@
             <div class="space-y-8 pt-8">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <div class="flex items-center justify-between mb-4 border-b pb-2">
-                        <h3 class="text-gray-800 font-bold border-l-4 border-rose-600 pl-3">Volatilidad: ^VIX vs ^MOVE</h3>
-                        <p class="text-xs text-gray-500">Índice de volatilidad de Renta Variable (^VIX) y Renta Fija (^MOVE)</p>
+                        <h3 class="text-gray-800 font-bold border-l-4 border-rose-600 pl-3">Volatilidad: ^VIX vs ^MOVE
+                        </h3>
+                        <p class="text-xs text-gray-500">Índice de volatilidad de Renta Variable (^VIX) y Renta Fija
+                            (^MOVE)</p>
                     </div>
                     <div class="flex justify-end mb-3" id="volatilityTimeFilters">
-                        <button onclick="filterMarketsSection('volatility','1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
-                        <button onclick="filterMarketsSection('volatility','1M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
-                        <button onclick="filterMarketsSection('volatility','3M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
-                        <button onclick="filterMarketsSection('volatility','YTD', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-rose-600 text-white shadow-sm ring-2 ring-rose-300">YTD</button>
-                        <button onclick="filterMarketsSection('volatility','1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
-                        <button onclick="filterMarketsSection('volatility','3Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
-                        <button onclick="filterMarketsSection('volatility','5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
-                        <button onclick="filterMarketsSection('volatility','10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                        <button onclick="filterMarketsSection('volatility','1W', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                        <button onclick="filterMarketsSection('volatility','1M', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                        <button onclick="filterMarketsSection('volatility','3M', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                        <button onclick="filterMarketsSection('volatility','YTD', this)"
+                            class="px-3 py-1 text-xs font-bold rounded-md bg-rose-600 text-white shadow-sm ring-2 ring-rose-300">YTD</button>
+                        <button onclick="filterMarketsSection('volatility','1Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                        <button onclick="filterMarketsSection('volatility','3Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                        <button onclick="filterMarketsSection('volatility','5Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                        <button onclick="filterMarketsSection('volatility','10Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
                     </div>
                     <div id="volatilityChart" class="w-full h-[420px]"></div>
                 </div>
 
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <div class="flex items-center justify-between mb-4 border-b pb-2">
-                        <h3 class="text-gray-800 font-bold border-l-4 border-emerald-600 pl-3">Divisas (Evolución Base 10 vs EUR)</h3>
-                        <p class="text-xs text-gray-500">Principales pares EUR/* normalizados a Base 10 (últimos años)</p>
+                        <h3 class="text-gray-800 font-bold border-l-4 border-emerald-600 pl-3">Divisas (Evolución Base
+                            10 vs EUR)</h3>
+                        <p class="text-xs text-gray-500">Principales pares EUR/* normalizados a Base 10 (últimos años)
+                        </p>
                     </div>
                     <div class="flex justify-end mb-3" id="currenciesTimeFilters">
-                        <button onclick="filterMarketsSection('currencies','1W', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
-                        <button onclick="filterMarketsSection('currencies','1M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
-                        <button onclick="filterMarketsSection('currencies','3M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
-                        <button onclick="filterMarketsSection('currencies','YTD', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300">YTD</button>
-                        <button onclick="filterMarketsSection('currencies','1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
-                        <button onclick="filterMarketsSection('currencies','3Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
-                        <button onclick="filterMarketsSection('currencies','5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
-                        <button onclick="filterMarketsSection('currencies','10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
+                        <button onclick="filterMarketsSection('currencies','1W', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1S</button>
+                        <button onclick="filterMarketsSection('currencies','1M', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1M</button>
+                        <button onclick="filterMarketsSection('currencies','3M', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3M</button>
+                        <button onclick="filterMarketsSection('currencies','YTD', this)"
+                            class="px-3 py-1 text-xs font-bold rounded-md bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300">YTD</button>
+                        <button onclick="filterMarketsSection('currencies','1Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">1A</button>
+                        <button onclick="filterMarketsSection('currencies','3Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">3A</button>
+                        <button onclick="filterMarketsSection('currencies','5Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">5A</button>
+                        <button onclick="filterMarketsSection('currencies','10Y', this)"
+                            class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">10A</button>
                     </div>
                     <div id="currenciesBase10Chart" class="w-full h-[420px]"></div>
                 </div>
 
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Matriz de Rendimiento y Riesgo (Divisas)</h3>
+                    <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Matriz de Rendimiento y
+                        Riesgo (Divisas)</h3>
                     <div class="overflow-x-auto custom-scrollbar">
                         <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
                             <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
                                 <tr>
-                                    <th class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Activo</th>
+                                    <th
+                                        class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                        Activo</th>
                                     <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento Acumulado</th>
                                     <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
                                     <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
                                 </tr>
                                 <tr class="border-b border-gray-200 bg-gray-50">
-                                    <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Instrumento</th>
+                                    <th
+                                        class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                        Instrumento</th>
                                     <th class="px-3 py-2 border-l">Diario</th>
                                     <th class="px-3 py-2">Semana</th>
                                     <th class="px-3 py-2">Mes</th>
@@ -450,13 +489,17 @@
                                 </tr>
                             </thead>
                             <tbody id="currenciesTableBody" class="divide-y divide-gray-100"></tbody>
-                            <tfoot id="currenciesTableFoot" class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
+                            <tfoot id="currenciesTableFoot"
+                                class="bg-gray-50 font-bold border-t-2 border-gray-200 text-gray-800"></tfoot>
                         </table>
                     </div>
                     <div class="text-[11px] text-gray-500 mt-3 bg-gray-50 p-3 rounded border border-gray-100 italic">
                         <b>* Divisas monitoreadas (Base EUR):</b><br>
-                        &bull; <b>EURUSD=X:</b> Euro / Dólar | &bull; <b>EURGBP=X:</b> Euro / Libra | &bull; <b>EURJPY=X:</b> Euro / Yen | &bull; <b>EURCHF=X:</b> Euro / Franco Suizo<br>
-                        &bull; <b>EURCAD=X:</b> Euro / Dólar Canadiense | &bull; <b>EURAUD=X:</b> Euro / Dólar Australiano | &bull; <b>EURSEK=X:</b> Euro / Corona Sueca | &bull; <b>EURHUF=X:</b> Euro / Forinto Húngaro
+                        &bull; <b>EURUSD=X:</b> Euro / Dólar | &bull; <b>EURGBP=X:</b> Euro / Libra | &bull;
+                        <b>EURJPY=X:</b> Euro / Yen | &bull; <b>EURCHF=X:</b> Euro / Franco Suizo<br>
+                        &bull; <b>EURCAD=X:</b> Euro / Dólar Canadiense | &bull; <b>EURAUD=X:</b> Euro / Dólar
+                        Australiano | &bull; <b>EURSEK=X:</b> Euro / Corona Sueca | &bull; <b>EURHUF=X:</b> Euro /
+                        Forinto Húngaro
                     </div>
                 </div>
             </div>
@@ -469,41 +512,57 @@
             <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-bold">Análisis Cartera</h2>
-                    <div class="text-xs text-gray-500">Introduce tickers y pesos, luego pulsa <span class="font-bold">Ejecutar Análisis Cartera</span>.</div>
+                    <div class="text-xs text-gray-500">Introduce tickers y pesos, luego pulsa <span
+                            class="font-bold">Ejecutar Análisis Cartera</span>.</div>
                 </div>
 
                 <div id="portfolioBuilder" class="space-y-3">
                     <div class="grid grid-cols-12 gap-2 items-center portfolio-row">
                         <div class="col-span-5">
-                            <input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" placeholder="Ticker (Ej: SPY)" value="SPY">
+                            <input
+                                class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono"
+                                placeholder="Ticker (Ej: SPY)" value="SPY">
                         </div>
                         <div class="col-span-4">
-                            <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.6)" value="0.6">
+                            <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm"
+                                placeholder="Peso (Ej: 0.6)" value="0.6">
                         </div>
                         <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
                         <div class="col-span-1 text-right">
-                            <button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button>
+                            <button onclick="removePortfolioRow(this)"
+                                class="text-red-500 hover:text-red-700">Eliminar</button>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-12 gap-2 items-center portfolio-row">
                         <div class="col-span-5">
-                            <input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" placeholder="Ticker (Ej: TLT)" value="TLT">
+                            <input
+                                class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono"
+                                placeholder="Ticker (Ej: TLT)" value="TLT">
                         </div>
                         <div class="col-span-4">
-                            <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" placeholder="Peso (Ej: 0.4)" value="0.4">
+                            <input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm"
+                                placeholder="Peso (Ej: 0.4)" value="0.4">
                         </div>
                         <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
                         <div class="col-span-1 text-right">
-                            <button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button>
+                            <button onclick="removePortfolioRow(this)"
+                                class="text-red-500 hover:text-red-700">Eliminar</button>
                         </div>
                     </div>
 
                     <div class="flex gap-2">
-                        <button onclick="addPortfolioRow()" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">Agregar Activo</button>
-                        <button onclick="normalizeWeights()" class="px-3 py-1 bg-yellow-100 rounded hover:bg-yellow-200 text-sm">Normalizar Pesos</button>
-                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()" class="ml-auto px-4 py-2 bg-slate-600 text-white rounded font-bold hover:bg-slate-700">Cargar Cartera</button>
-                        <button id="analyzePortfolioBtn" onclick="analyzeLoadedPortfolio()" disabled class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">Ejecutar Análisis Cartera</button>
+                        <button onclick="addPortfolioRow()"
+                            class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">Agregar Activo</button>
+                        <button onclick="normalizeWeights()"
+                            class="px-3 py-1 bg-yellow-100 rounded hover:bg-yellow-200 text-sm">Normalizar
+                            Pesos</button>
+                        <button id="loadPortfolioBtn" onclick="loadPortfolioSeries()"
+                            class="ml-auto px-4 py-2 bg-slate-600 text-white rounded font-bold hover:bg-slate-700">Cargar
+                            Cartera</button>
+                        <button id="analyzePortfolioBtn" onclick="analyzeLoadedPortfolio()" disabled
+                            class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">Ejecutar
+                            Análisis Cartera</button>
                     </div>
 
                     <div id="portfolioInfo" class="text-xs text-gray-600 mt-2">
@@ -526,7 +585,8 @@
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <div class="flex items-center justify-between mb-2">
                             <h4 class="font-bold">Matriz de Correlación (Periodo)</h4>
-                            <select id="portfolioCorrFreq" onchange="updatePortfolioCorr()" class="text-sm p-1 border rounded bg-gray-50">
+                            <select id="portfolioCorrFreq" onchange="updatePortfolioCorr()"
+                                class="text-sm p-1 border rounded bg-gray-50">
                                 <option value="D">Diaria</option>
                                 <option value="M" selected>Mensual (~21d)</option>
                                 <option value="6M">6 Meses (~126d)</option>
@@ -538,7 +598,13 @@
                 </div>
 
                 <div class="mt-4 text-xs text-gray-500">
-                    <strong>Nota (metodología):</strong> Para construir la serie de la cartera se calculan los retornos simples diarios de cada activo $r_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1$, la rentabilidad diaria de la cartera es $r_{p,t}=\sum_i w_i\,r_{i,t}$. La evolución acumulada se obtiene por capitalización: $V_{t}=V_0\prod_{s\le t}(1+r_{p,s})$. La volatilidad de la cartera se calcula usando la matriz de covarianzas diarias: $\sigma_p=\sqrt{w^T \Sigma_{daily} w}\times\sqrt{252}$ (annualizada). El periodo analizado queda acotado por el activo con menos historial (se informará la fecha de inicio usada).
+                    <strong>Nota (metodología):</strong> Para construir la serie de la cartera se calculan los retornos
+                    simples diarios de cada activo $r_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1$, la rentabilidad diaria de la
+                    cartera es $r_{p,t}=\sum_i w_i\,r_{i,t}$. La evolución acumulada se obtiene por capitalización:
+                    $V_{t}=V_0\prod_{s\le t}(1+r_{p,s})$. La volatilidad de la cartera se calcula usando la matriz de
+                    covarianzas diarias: $\sigma_p=\sqrt{w^T \Sigma_{daily} w}\times\sqrt{252}$ (annualizada). El
+                    periodo analizado queda acotado por el activo con menos historial (se informará la fecha de inicio
+                    usada).
                 </div>
             </div>
         </div>
@@ -601,7 +667,7 @@
                 }).filter(e => e.ticker);
                 if (entries.length < 1) return alert('Añade al menos un activo con ticker.');
                 // normalize weights here
-                let totalW = entries.reduce((s,e)=>s+e.weight,0);
+                let totalW = entries.reduce((s, e) => s + e.weight, 0);
                 if (totalW === 0) entries.forEach(e => e.weight = 1 / entries.length); else entries.forEach(e => e.weight = e.weight / totalW);
 
                 const startDate = document.getElementById('startDate').value || '2000-01-01';
@@ -611,31 +677,31 @@
                 document.getElementById('analyzePortfolioBtn').disabled = true;
 
                 try {
-                    const promises = entries.map(e => fetchYahooData(e.ticker, startDate, endDate).catch(err => { console.error(err); return null;}));
+                    const promises = entries.map(e => fetchYahooData(e.ticker, startDate, endDate).catch(err => { console.error(err); return null; }));
                     const results = await Promise.all(promises);
 
                     const failed = [];
                     const seriesMap = {};
-                    for (let i=0;i<entries.length;i++){
+                    for (let i = 0; i < entries.length; i++) {
                         const t = entries[i].ticker;
                         const res = results[i];
                         if (!res || res.length === 0) { failed.push(t); continue; }
                         // ensure sorted
-                        res.sort((a,b)=>a.date - b.date);
+                        res.sort((a, b) => a.date - b.date);
                         seriesMap[t] = res;
                     }
                     if (failed.length > 0) {
                         document.getElementById('portfolioNotice').innerText = `Error descargando: ${failed.join(', ')}. Se eliminarán del cálculo.`;
                         // remove failed from entries
-                        for (const f of failed) { const idx = entries.findIndex(x=>x.ticker===f); if (idx>=0) entries.splice(idx,1); }
+                        for (const f of failed) { const idx = entries.findIndex(x => x.ticker === f); if (idx >= 0) entries.splice(idx, 1); }
                     }
                     if (Object.keys(seriesMap).length === 0) { document.getElementById('portfolioNotice').innerText = 'No hay datos válidos.'; return; }
 
                     // Find common date window by using max(firstDate) and min(lastDate)
                     const firstDates = Object.values(seriesMap).map(s => s[0].date);
-                    const lastDates = Object.values(seriesMap).map(s => s[s.length-1].date);
-                    const maxStart = new Date(Math.max(...firstDates.map(d=>d.getTime())));
-                    const minEnd = new Date(Math.min(...lastDates.map(d=>d.getTime())));
+                    const lastDates = Object.values(seriesMap).map(s => s[s.length - 1].date);
+                    const maxStart = new Date(Math.max(...firstDates.map(d => d.getTime())));
+                    const minEnd = new Date(Math.min(...lastDates.map(d => d.getTime())));
                     if (maxStart >= minEnd) { document.getElementById('portfolioNotice').innerText = 'No existe solapamiento temporal suficiente entre activos.'; return; }
 
                     // Build map per ticker for fast lookup
@@ -654,18 +720,18 @@
 
                     // Build aligned prices and returns
                     const aligned = {};
-                    commonDates.forEach(ds => { Object.keys(maps).forEach(t => { if (!aligned[t]) aligned[t]=[]; aligned[t].push(maps[t].get(ds)); }); });
+                    commonDates.forEach(ds => { Object.keys(maps).forEach(t => { if (!aligned[t]) aligned[t] = []; aligned[t].push(maps[t].get(ds)); }); });
                     const tickers = Object.keys(aligned);
                     const n = commonDates.length;
                     const returns = {};
                     for (const t of tickers) {
                         returns[t] = [];
-                        for (let i=1;i<n;i++) { const p0 = aligned[t][i-1], p1 = aligned[t][i]; returns[t].push((p1 / p0) - 1); }
+                        for (let i = 1; i < n; i++) { const p0 = aligned[t][i - 1], p1 = aligned[t][i]; returns[t].push((p1 / p0) - 1); }
                     }
 
                     // portfolio returns
                     const portReturns = [];
-                    for (let i=0;i<n-1;i++) {
+                    for (let i = 0; i < n - 1; i++) {
                         let rp = 0;
                         for (const e of entries) { const w = e.weight || 0; rp += w * (returns[e.ticker][i] || 0); }
                         portReturns.push(rp);
@@ -673,22 +739,22 @@
 
                     // cumulative values
                     const values = [1000];
-                    for (let i=0;i<portReturns.length;i++) values.push(values[values.length-1] * (1 + portReturns[i]));
+                    for (let i = 0; i < portReturns.length; i++) values.push(values[values.length - 1] * (1 + portReturns[i]));
                     const portfolioData = commonDates.map((ds, idx) => ({ date: new Date(ds), price: values[idx] }));
 
                     // basic stats
-                    const firstPrice = portfolioData[0].price, lastPrice = portfolioData[portfolioData.length-1].price;
-                    const daysElapsed = (portfolioData[portfolioData.length-1].date - portfolioData[0].date) / 86400000;
+                    const firstPrice = portfolioData[0].price, lastPrice = portfolioData[portfolioData.length - 1].price;
+                    const daysElapsed = (portfolioData[portfolioData.length - 1].date - portfolioData[0].date) / 86400000;
                     const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
 
                     // covariance & volatility
                     const cov = math.zeros(tickers.length, tickers.length)._data;
-                    for (let i=0;i<tickers.length;i++){
-                        for (let j=0;j<tickers.length;j++){
+                    for (let i = 0; i < tickers.length; i++) {
+                        for (let j = 0; j < tickers.length; j++) {
                             cov[i][j] = covarianceSample(returns[tickers[i]], returns[tickers[j]]);
                         }
                     }
-                    const wVec = entries.map(e=>e.weight);
+                    const wVec = entries.map(e => e.weight);
                     const wCol = math.matrix(wVec);
                     const covMat = math.matrix(cov);
                     // math.multiply may return a number, a Matrix-like object or nested arrays depending on mathjs build.
@@ -712,7 +778,7 @@
                     const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(252);
 
                     // Render portfolio cumulative chart
-                    Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d=>d.date), y: portfolioData.map(d=>d.price), mode:'lines', name:'Patrimonio', line:{color:'#2563eb', width:2} }], { title: 'Evolución Cartera (Backtest)', margin:{t:40,l:60,r:20,b:40}, yaxis:{title:'Patrimonio'} }, { responsive:true });
+                    Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d => d.date), y: portfolioData.map(d => d.price), mode: 'lines', name: 'Patrimonio', line: { color: '#2563eb', width: 2 } }], { title: 'Evolución Cartera (Backtest)', margin: { t: 40, l: 60, r: 20, b: 40 }, yaxis: { title: 'Patrimonio' } }, { responsive: true });
 
                     // Save returns, covariance and ticker list for later use (composition + correlation)
                     const corrTickers = tickers.slice();
@@ -720,11 +786,11 @@
                     loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, cov, corrTickers };
 
                     // Render composition pie and initial correlation matrix (default frequency selector)
-                    try { renderPortfolioComposition(entries); } catch(e){ console.warn('composition render failed', e); }
-                    try { updatePortfolioCorr(); } catch(e){ console.warn('corr render failed', e); }
+                    try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
+                    try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
 
                     document.getElementById('portfolioNotice').innerText = `Cartera cargada — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}.`;
-                    document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length-1]}.`;
+                    document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                     document.getElementById('analyzePortfolioBtn').disabled = false;
 
                 } catch (err) {
@@ -747,7 +813,7 @@
                     document.getElementById('endDate').value = ed;
 
                     // Use the existing global holder so runAnalysis can pick it up when asked to use loaded data
-                    currentData = loadedPortfolio.portfolioData.map(d=>({ date: d.date, price: d.price }));
+                    currentData = loadedPortfolio.portfolioData.map(d => ({ date: d.date, price: d.price }));
                     currentTicker = 'CARTERA';
 
                     // Use the same async pipeline as runAnalysis but instruct it to use existing currentData
@@ -766,7 +832,7 @@
                 if (n <= 1) return 0;
                 const ma = getMean(a), mb = getMean(b);
                 let sum = 0;
-                for (let i=0;i<n;i++) sum += (a[i] - ma) * (b[i] - mb);
+                for (let i = 0; i < n; i++) sum += (a[i] - ma) * (b[i] - mb);
                 return sum / (n - 1);
             }
 
@@ -774,7 +840,7 @@
             function renderPortfolioComposition(entries) {
                 const labels = entries.map(e => e.ticker);
                 const values = entries.map(e => (e.weight || 0));
-                const colors = ['#1e3a8a','#2563eb','#3b82f6','#60a5fa','#93c5fd','#475569','#64748b','#94a3b8'];
+                const colors = ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#475569', '#64748b', '#94a3b8'];
                 const trace = [{ labels, values, type: 'pie', hole: 0.35, marker: { colors } }];
                 const layout = { title: 'Composición de la Cartera (Pesos)', margin: { t: 40, l: 20, r: 20, b: 20 }, legend: { orientation: 'h', y: -0.15 } };
                 Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
@@ -802,9 +868,9 @@
                 });
 
                 // build correlation matrix (align by minimum length)
-                const minLen = Math.min(...tickers.map(t => (agg[t]||[]).length));
+                const minLen = Math.min(...tickers.map(t => (agg[t] || []).length));
                 const trimmed = {};
-                tickers.forEach(t => { trimmed[t] = (agg[t]||[]).slice(0, minLen); });
+                tickers.forEach(t => { trimmed[t] = (agg[t] || []).slice(0, minLen); });
 
                 const z = [];
                 for (let i = 0; i < tickers.length; i++) {
@@ -845,16 +911,16 @@
                 document.getElementById('forecastStatus').innerText = `Ejecutando ${sims} simulaciones (horizonte ${forwardYears}y)...`;
 
                 // Use full series for statistics (as requested)
-                const fullPrices = currentData.map(d=>d.price);
-                const fullDates = currentData.map(d=>d.date);
+                const fullPrices = currentData.map(d => d.price);
+                const fullDates = currentData.map(d => d.date);
                 const nFull = fullPrices.length;
                 if (nFull < 10) return alert('No hay suficientes datos históricos.');
 
                 // compute daily log-returns from full series
                 const fullLogRets = [];
-                for (let i=1;i<nFull;i++){ if (fullPrices[i-1] && fullPrices[i]) fullLogRets.push(Math.log(fullPrices[i]/fullPrices[i-1])); }
+                for (let i = 1; i < nFull; i++) { if (fullPrices[i - 1] && fullPrices[i]) fullLogRets.push(Math.log(fullPrices[i] / fullPrices[i - 1])); }
                 const meanLogFull = getMean(fullLogRets);
-                const stdLogFull = Math.sqrt(getMean(fullLogRets.map(x=>Math.pow(x-meanLogFull,2))));
+                const stdLogFull = Math.sqrt(getMean(fullLogRets.map(x => Math.pow(x - meanLogFull, 2))));
 
                 // Backtest window: last 3 years of data
                 const tradingDays = 252;
@@ -872,67 +938,67 @@
                 let eurFactor = null; // divisor: price_in_eur = price_usd / eurFactor (eurFactor = USD per EUR)
                 if (globalCurrenciesData && globalCurrenciesData['EURUSD=X'] && globalCurrenciesData['EURUSD=X'].length) {
                     const eurSeries = globalCurrenciesData['EURUSD=X'];
-                    const eurLast = eurSeries[eurSeries.length-1].price;
+                    const eurLast = eurSeries[eurSeries.length - 1].price;
                     if (eurLast && !isNaN(eurLast) && eurLast > 0) eurFactor = eurLast;
                 } else {
                     // try to fetch latest EURUSD on demand for the full period
                     try {
                         const sd = fullDates[0].toISOString().split('T')[0];
-                        const ed = fullDates[fullDates.length-1].toISOString().split('T')[0];
-                        const eurData = await fetchYahooData('EURUSD=X', sd, ed).catch(()=>[]);
-                        if (eurData && eurData.length) { const eurLast = eurData[eurData.length-1].price; if (eurLast>0) eurFactor = eurLast; }
-                    } catch(e){ /* ignore */ }
+                        const ed = fullDates[fullDates.length - 1].toISOString().split('T')[0];
+                        const eurData = await fetchYahooData('EURUSD=X', sd, ed).catch(() => []);
+                        if (eurData && eurData.length) { const eurLast = eurData[eurData.length - 1].price; if (eurLast > 0) eurFactor = eurLast; }
+                    } catch (e) { /* ignore */ }
                 }
                 const currencyLabel = eurFactor ? 'EUR' : 'native';
-                const histBalancesDisplay = eurFactor ? histBalances.map(v=>v / eurFactor) : histBalances.slice();
+                const histBalancesDisplay = eurFactor ? histBalances.map(v => v / eurFactor) : histBalances.slice();
 
                 // Short-term (1y forward) and Long-term (daily) simulations setup
                 const dt = 1 / tradingDays;
                 const monthlyCheckpoint = Math.round(tradingDays / 12);
-                
-                const lastIndexValue = indexBase10[indexBase10.length-1];
+
+                const lastIndexValue = indexBase10[indexBase10.length - 1];
                 const lastMonetary = capital * (lastIndexValue / 10);
                 const lastMonetaryDisplay = eurFactor ? lastMonetary / eurFactor : lastMonetary;
 
                 // 1) First graphic: 12 months array
-                const monthlySamples = Array.from({length: 13}, ()=>[]); 
+                const monthlySamples = Array.from({ length: 13 }, () => []);
                 // 2) Long-term tracking: mcYears mapped at annual frequency
                 const longTermYears = mcYears;
-                const longTermSamples = Array.from({length: longTermYears+1}, ()=>[]); 
-                
+                const longTermSamples = Array.from({ length: longTermYears + 1 }, () => []);
+
                 // 3) True Max Drawdown over the backtest duration
-                const histDays = nFull; 
+                const histDays = nFull;
                 const histYears = histDays / tradingDays;
                 const maxDrawdowns = new Array(sims);
-                
+
                 const maxSimDays = Math.max(histDays, longTermYears * tradingDays);
 
-                for (let s=0; s<sims; s++) {
-                    let S = 1.0; 
+                for (let s = 0; s < sims; s++) {
+                    let S = 1.0;
                     let peak = 1.0, maxDD = 0;
-                    
+
                     monthlySamples[0].push(lastMonetaryDisplay);
                     longTermSamples[0].push(lastMonetaryDisplay);
-                    
-                    for (let t=1; t<=maxSimDays; t++) {
+
+                    for (let t = 1; t <= maxSimDays; t++) {
                         const z = randn_bm();
                         // Daily GBM matching full backtest stats
                         const r = meanLogFull + stdLogFull * z;
                         S = S * Math.exp(r);
-                        
+
                         // Track max drawdown up to histDays limit to keep comparison apples-to-apples with historical
                         if (t <= histDays) {
                             if (S > peak) peak = S;
-                            const dd = 1 - (S/peak);
+                            const dd = 1 - (S / peak);
                             if (dd > maxDD) maxDD = dd;
                         }
-                        
+
                         // Monthly saves for 1st graphic (only up to 1 year = 252 days)
                         if (t <= tradingDays && t % monthlyCheckpoint === 0) {
                             const monthIdx = Math.round(t / monthlyCheckpoint);
                             monthlySamples[monthIdx].push(lastMonetaryDisplay * S);
                         }
-                        
+
                         // Annual saves for long term tables and chart
                         if (t % tradingDays === 0) {
                             const y = Math.round(t / tradingDays);
@@ -941,87 +1007,87 @@
                             }
                         }
                     }
-                    
+
                     maxDrawdowns[s] = maxDD;
                 }
 
                 // Compute deciles for monthlySamples (1y forward plot)
-                const percentiles = [0.10,0.25,0.5,0.75,0.90];
-                const monthPerc = percentiles.map(()=>[]);
-                for (let mi=0; mi<monthlySamples.length; mi++){
-                    const arr = monthlySamples[mi].slice().sort((a,b)=>a-b);
-                    for (let p=0;p<percentiles.length;p++) monthPerc[p].push(quantile(arr, percentiles[p]));
+                const percentiles = [0.10, 0.25, 0.5, 0.75, 0.90];
+                const monthPerc = percentiles.map(() => []);
+                for (let mi = 0; mi < monthlySamples.length; mi++) {
+                    const arr = monthlySamples[mi].slice().sort((a, b) => a - b);
+                    for (let p = 0; p < percentiles.length; p++) monthPerc[p].push(quantile(arr, percentiles[p]));
                 }
 
                 // Build plot: historical backtest limited to 3 years (base10 scaled to capital) and deciles from last day
-                const histX = windowDates.map(d=>new Date(d));
+                const histX = windowDates.map(d => new Date(d));
                 const traces = [];
-                traces.push({ x: histX, y: histBalancesDisplay, mode:'lines', name:`Histórico (últimos ${backtestYears}y)`, line:{color:'#111827', width:2} });
+                traces.push({ x: histX, y: histBalancesDisplay, mode: 'lines', name: `Histórico (últimos ${backtestYears}y)`, line: { color: '#111827', width: 2 } });
                 // future monthly dates from last real date
                 const futureDates = [];
-                const lastDate = histX[histX.length-1];
-                for (let m=1;m<=12;m++){ const dtm = new Date(lastDate); dtm.setMonth(dtm.getMonth()+m); futureDates.push(dtm); }
+                const lastDate = histX[histX.length - 1];
+                for (let m = 1; m <= 12; m++) { const dtm = new Date(lastDate); dtm.setMonth(dtm.getMonth() + m); futureDates.push(dtm); }
                 const monthsX = [lastDate, ...futureDates];
-                for (let p=0;p<percentiles.length;p++){
+                for (let p = 0; p < percentiles.length; p++) {
                     // Using "nth Percentile" naming inside plot legend
                     const y = [lastMonetaryDisplay, ...monthPerc[p].slice(1)];
-                    const name = `${Math.round(percentiles[p]*100)}th Percentile`;
-                    const color = ['#06b6d4','#0ea5a4','#60a5fa','#34d399','#1e40af'][p];
-                    traces.push({ x: monthsX, y, mode:'lines', name, line:{color, dash: p===2? 'solid' : 'dot'} });
+                    const name = `${Math.round(percentiles[p] * 100)}th Percentile`;
+                    const color = ['#06b6d4', '#0ea5a4', '#60a5fa', '#34d399', '#1e40af'][p];
+                    traces.push({ x: monthsX, y, mode: 'lines', name, line: { color, dash: p === 2 ? 'solid' : 'dot' } });
                 }
-                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses`, margin:{t:40}, xaxis:{title:'Fecha'}, yaxis:{title:'Balance (u.m.)'} }, { responsive:true });
+                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y + Deciles 12 meses`, margin: { t: 40 }, xaxis: { title: 'Fecha' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
 
                 // Drawdown histogram
-                Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v=>v*100), type:'histogram', marker:{color:'#ef4444'}, nbinsx:20 }], { title: `Histograma Máx Drawdown (Simulado ${Math.round(histYears)}y) (%)`, xaxis:{title:'Max. Drawdown (%)'} }, { responsive:true });
+                Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v => v * 100), type: 'histogram', marker: { color: '#ef4444' }, nbinsx: 20 }], { title: `Histograma Máx Drawdown (Simulado ${Math.round(histYears)}y) (%)`, xaxis: { title: 'Max. Drawdown (%)' } }, { responsive: true });
 
                 // Performance summary: percentiles of end balance and max drawdown
                 const perfMetrics = {
                     [`Portfolio End Balance (${mcYears}y)`]: longTermSamples[mcYears],
                     [`Maximum Drawdown (${Math.round(histYears)}y)`]: maxDrawdowns
                 };
-                const header = `<tr><th></th>${[10,25,50,75,90].map(p=>`<th class="px-3 py-2 text-right">${p}th</th>`).join('')}</tr>`;
-                const rows = Object.keys(perfMetrics).map(key=>{
-                    const arr = perfMetrics[key].slice().sort((a,b)=>a-b);
-                    const vals = [0.10,0.25,0.5,0.75,0.90].map(p=> formatMetric(quantile(arr,p), key));
-                    return `<tr><td class="px-3 py-2 font-bold">${key}</td>${vals.map(v=>`<td class="px-3 py-2 text-right font-mono">${v}</td>`).join('')}</tr>`;
+                const header = `<tr><th></th>${[10, 25, 50, 75, 90].map(p => `<th class="px-3 py-2 text-right">${p}th</th>`).join('')}</tr>`;
+                const rows = Object.keys(perfMetrics).map(key => {
+                    const arr = perfMetrics[key].slice().sort((a, b) => a - b);
+                    const vals = [0.10, 0.25, 0.5, 0.75, 0.90].map(p => formatMetric(quantile(arr, p), key));
+                    return `<tr><td class="px-3 py-2 font-bold">${key}</td>${vals.map(v => `<td class="px-3 py-2 text-right font-mono">${v}</td>`).join('')}</tr>`;
                 }).join('');
                 document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${header}</thead><tbody>${rows}</tbody></table>`;
 
                 // Expected annual return percentiles for multiple horizons (use user-selected mcYears)
-                const horizons = Array.from(new Set([1, Math.min(mcYears,3), Math.min(mcYears,5), mcYears]));
+                const horizons = Array.from(new Set([1, Math.min(mcYears, 3), Math.min(mcYears, 5), mcYears]));
                 const expectedRows = horizons.map(h => {
                     const sampleArr = longTermSamples[h];
                     if (!sampleArr || sampleArr.length === 0) return '';
-                    const arr = sampleArr.map(b => Math.pow(b/lastMonetaryDisplay, 1/h)-1).sort((a,b)=>a-b);
-                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h>1?'s':''}</td>${[0.1,0.25,0.5,0.75,0.9].map(p=>`<td class="px-3 py-2 text-right">${fmtPct(quantile(arr,p))}</td>`).join('')}</tr>`;
-                }).filter(r=>r!=='').join('');
+                    const arr = sampleArr.map(b => Math.pow(b / lastMonetaryDisplay, 1 / h) - 1).sort((a, b) => a - b);
+                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h > 1 ? 's' : ''}</td>${[0.1, 0.25, 0.5, 0.75, 0.9].map(p => `<td class="px-3 py-2 text-right">${fmtPct(quantile(arr, p))}</td>`).join('')}</tr>`;
+                }).filter(r => r !== '').join('');
                 document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10th</th><th>25th</th><th>50th</th><th>75th</th><th>90th</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
 
                 // Probabilities table: Prob(ret >= x%) for selected horizons using simulations
                 const thresholds = [0.00, 0.025, 0.05, 0.075, 0.10, 0.125];
-                const probHeader = `<tr><th>Horizon</th>${thresholds.map(t=>`<th class="px-3 py-2">>= ${ (t*100).toFixed(2) }%</th>`).join('')}</tr>`;
-                const probRows = horizons.map(h=>{
+                const probHeader = `<tr><th>Horizon</th>${thresholds.map(t => `<th class="px-3 py-2">>= ${(t * 100).toFixed(2)}%</th>`).join('')}</tr>`;
+                const probRows = horizons.map(h => {
                     const sampleArr = longTermSamples[h];
                     if (!sampleArr || sampleArr.length === 0) return '';
-                    const arr = sampleArr.map(b=>Math.pow(b/lastMonetaryDisplay,1/h)-1);
-                    const cells = thresholds.map(t => `<td class="px-3 py-2 text-right">${fmtPct(arr.filter(a=>a>=t).length / arr.length)}</td>`).join('');
+                    const arr = sampleArr.map(b => Math.pow(b / lastMonetaryDisplay, 1 / h) - 1);
+                    const cells = thresholds.map(t => `<td class="px-3 py-2 text-right">${fmtPct(arr.filter(a => a >= t).length / arr.length)}</td>`).join('');
                     return `<tr><td class="px-3 py-2 font-bold">${h}y</td>${cells}</tr>`;
-                }).filter(r=>r!=='').join('');
+                }).filter(r => r !== '').join('');
                 document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${probHeader}</thead><tbody>${probRows}</tbody></table>`;
 
-                const yearsX = Array.from({length: longTermYears+1}, (_,i)=>i);
-                const ltPercentiles = [0.10,0.25,0.5,0.75,0.90];
-                const ltTraces = ltPercentiles.map((p,idx)=>{
-                    const ys = longTermSamples.map(arr => quantile(arr.slice().sort((a,b)=>a-b), p));
-                    const colors = ['#06b6d4','#0ea5a4','#60a5fa','#34d399','#1e40af'];
-                    return { x: yearsX, y: ys, mode:'lines', name:`${Math.round(p*100)}th`, line:{color:colors[idx]}};
+                const yearsX = Array.from({ length: longTermYears + 1 }, (_, i) => i);
+                const ltPercentiles = [0.10, 0.25, 0.5, 0.75, 0.90];
+                const ltTraces = ltPercentiles.map((p, idx) => {
+                    const ys = longTermSamples.map(arr => quantile(arr.slice().sort((a, b) => a - b), p));
+                    const colors = ['#06b6d4', '#0ea5a4', '#60a5fa', '#34d399', '#1e40af'];
+                    return { x: yearsX, y: ys, mode: 'lines', name: `${Math.round(p * 100)}th`, line: { color: colors[idx] } };
                 });
-                Plotly.newPlot('forecastLongTermChart', ltTraces, { title: `Evolución a largo plazo (${mcYears} años) - percentiles`, margin:{t:40}, xaxis:{title:'Años'}, yaxis:{title:'Balance (u.m.)'} }, { responsive:true });
+                Plotly.newPlot('forecastLongTermChart', ltTraces, { title: `Evolución a largo plazo (${mcYears} años) - percentiles`, margin: { t: 40 }, xaxis: { title: 'Años' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
 
                 // Also calculate historical metrics from full series (CAGR, vol)
                 const firstFullPrice = fullPrices[0];
-                const lastFullPrice = fullPrices[fullPrices.length-1];
-                const daysElapsed = (fullDates[fullDates.length-1] - fullDates[0]) / 86400000;
+                const lastFullPrice = fullPrices[fullPrices.length - 1];
+                const daysElapsed = (fullDates[fullDates.length - 1] - fullDates[0]) / 86400000;
                 const cagrFull = Math.pow(lastFullPrice / firstFullPrice, 365.25 / daysElapsed) - 1;
                 const volAnnFull = stdLogFull * Math.sqrt(tradingDays);
                 const histMetricsHtml = `<div>Hist. CAGR: <strong>${fmtPct(cagrFull)}</strong> — Vol ann: <strong>${fmtPct(volAnnFull)}</strong> — Data points: ${nFull}</div>`;
@@ -1029,11 +1095,11 @@
             }
 
             function randn_bm() {
-                let u = 0, v = 0; while(u === 0) u = Math.random(); while(v === 0) v = Math.random(); return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
             }
 
             function formatMetric(val, key) {
-                if (key && key.toLowerCase().includes('balance')) return `${Number(val).toLocaleString(undefined, {maximumFractionDigits:0})} u.m.`;
+                if (key && key.toLowerCase().includes('balance')) return `${Number(val).toLocaleString(undefined, { maximumFractionDigits: 0 })} u.m.`;
                 if (key && key.toLowerCase().includes('drawdown')) return `${fmtPct(val)}`;
                 return fmtPct(val);
             }
@@ -1050,37 +1116,49 @@
 
                 <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
                     <p>
-                        <strong class="text-gray-900">MPS MarketAnalyzer v13</strong> es una plataforma avanzada de análisis financiero y estadístico diseñada para operar enteramente en el lado del cliente (tu navegador). Toda la ejecución de procesamiento y modelos cuantitativos ocurre de manera local, ofreciendo privacidad y alta velocidad de cálculo.
+                        <strong class="text-gray-900">MPS MarketAnalyzer v13</strong> es una plataforma avanzada de
+                        análisis financiero y estadístico diseñada para operar enteramente en el lado del cliente (tu
+                        navegador). Toda la ejecución de procesamiento y modelos cuantitativos ocurre de manera local,
+                        ofreciendo privacidad y alta velocidad de cálculo.
                     </p>
 
-                    <h3 class="font-semibold text-gray-800 mt-6 border-b border-gray-100 pb-2">Resumen de Módulos Funcionales:</h3>
-                    
+                    <h3 class="font-semibold text-gray-800 mt-6 border-b border-gray-100 pb-2">Resumen de Módulos
+                        Funcionales:</h3>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
                             <h4 class="font-bold text-blue-600 mb-2 flex items-center gap-2">
                                 <i class="fa-solid fa-globe"></i> 1. Mercados y Asset Allocation
                             </h4>
-                            <p class="text-xs mb-2">Monitorización de Renta Variable Global, Renta Fija y Materias Primas con índices representativos.</p>
+                            <p class="text-xs mb-2">Monitorización de Renta Variable Global, Renta Fija y Materias
+                                Primas con índices representativos.</p>
                             <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
-                                <li>Matrices detalladas de rendimiento (YTD, 1A, alcistas, etc.) y riesgo (Volatilidad, Max Drawdown).</li>
-                                <li><strong>Matrices Interactivas:</strong> Ahora puedes hacer clic en las cabeceras de la tabla para <strong>ordenar de mayor a menor y viceversa</strong>.</li>
+                                <li>Matrices detalladas de rendimiento (YTD, 1A, alcistas, etc.) y riesgo (Volatilidad,
+                                    Max Drawdown).</li>
+                                <li><strong>Matrices Interactivas:</strong> Ahora puedes hacer clic en las cabeceras de
+                                    la tabla para <strong>ordenar de mayor a menor y viceversa</strong>.</li>
                                 <li>Mapas de calor anualizados (Heatmaps) con cálculo continuo sobre series reales.</li>
-                                <li>Análisis base 10 histórico y seguimiento de vol (\^VIX, \^MOVE) y curva de divisas.</li>
+                                <li>Análisis base 10 histórico y seguimiento de vol (\^VIX, \^MOVE) y curva de divisas.
+                                </li>
                             </ul>
                         </div>
-                        
+
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
                             <h4 class="font-bold text-rose-500 mb-2 flex items-center gap-2">
                                 <i class="fa-solid fa-chart-column"></i> 2. Análisis Individual
                             </h4>
-                            <p class="text-xs mb-2">Inspección pormenorizada de cualquier ticker (Acciones, ETFs, Futuros).</p>
+                            <p class="text-xs mb-2">Inspección pormenorizada de cualquier ticker (Acciones, ETFs,
+                                Futuros).</p>
                             <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
-                                <li>Comportamiento ante caídas (Buy the dip) con matrices de retorno/riesgo pos-drawdown y Spaghetti charts.</li>
-                                <li>Matriz 'Forward Returns', Estacionalidad YTD contra series temporales anuales y agrupaciones mensuales.</li>
-                                <li>Evaluación de inversión tras alcanzar Máximos Históricos (ATH) o tras eventos de repunte del \^VIX o subidas del crudo.</li>
+                                <li>Comportamiento ante caídas (Buy the dip) con matrices de retorno/riesgo pos-drawdown
+                                    y Spaghetti charts.</li>
+                                <li>Matriz 'Forward Returns', Estacionalidad YTD contra series temporales anuales y
+                                    agrupaciones mensuales.</li>
+                                <li>Evaluación de inversión tras alcanzar Máximos Históricos (ATH) o tras eventos de
+                                    repunte del \^VIX o subidas del crudo.</li>
                             </ul>
                         </div>
-                        
+
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
                             <h4 class="font-bold text-slate-700 mb-2 flex items-center gap-2">
                                 <i class="fa-solid fa-briefcase"></i> 3. Análisis de Cartera
@@ -1088,34 +1166,49 @@
                             <p class="text-xs mb-2">Constructor de portfolios personalizados.</p>
                             <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
                                 <li>Backtesting completo aplicando las proporciones indicadas por el usuario.</li>
-                                <li>Cálculo en vivo de la matriz estadística de la cartera (CAGR, Volatilidad) en relación cruzada a los integrantes.</li>
-                                <li>Evaluación precisa de la Matriz de Correlación de Pearson con marcos interactivos (Diaria, Mensual, Anual).</li>
+                                <li>Cálculo en vivo de la matriz estadística de la cartera (CAGR, Volatilidad) en
+                                    relación cruzada a los integrantes.</li>
+                                <li>Evaluación precisa de la Matriz de Correlación de Pearson con marcos interactivos
+                                    (Diaria, Mensual, Anual).</li>
                             </ul>
                         </div>
-                        
+
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
                             <h4 class="font-bold text-purple-600 mb-2 flex items-center gap-2">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i> 4. Simulación Avanzada (Montecarlo)
                             </h4>
-                            <p class="text-xs mb-2">Motores estocásticos y proyecciones de rentabilidad a través de Movimiento Browniano Geométrico adaptativo.</p>
+                            <p class="text-xs mb-2">Motores estocásticos y proyecciones de rentabilidad a través de
+                                Movimiento Browniano Geométrico adaptativo.</p>
                             <ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">
-                                <li>Construcción de miles de caminos alcateorios ajustados paramétricamente con el historial cargado.</li>
-                                <li>Rutas estimadas, Drawdowns máximos hipotéticos y probabilidad de retornos en el espacio del 1-50 años.</li>
+                                <li>Construcción de miles de caminos alcateorios ajustados paramétricamente con el
+                                    historial cargado.</li>
+                                <li>Rutas estimadas, Drawdowns máximos hipotéticos y probabilidad de retornos en el
+                                    espacio del 1-50 años.</li>
                             </ul>
                         </div>
                     </div>
 
-                    <h3 class="font-semibold text-gray-800 mt-6 border-b border-gray-100 pb-2">Guía Rápida de Utilización:</h3>
+                    <h3 class="font-semibold text-gray-800 mt-6 border-b border-gray-100 pb-2">Guía Rápida de
+                        Utilización:</h3>
                     <ol class="list-decimal pl-6 space-y-2 mt-2">
-                        <li><strong>Identifica el activo:</strong> Ve a "Análisis Individual" e introduce un ticker válido procedente de Yahoo! Finance (ej: AAPL, AAPL.MX para internacionales).</li>
-                        <li><strong>Define la ventana temporal:</strong> Modifica la fecha de origen si deseas observar comportamientos puntuales.</li>
-                        <li><strong>Inicia el Cálculo:</strong> Pulsa sobre el botón rojo de ejecución y espera a que la señal visual del "Loader" termine. Dependiendo de los servidores remotos de datos puede tomar 2 a 5 segundos.</li>
-                        <li><strong>Evalúa las correlaciones:</strong> El panel superior de visualizaciones tiene opciones como Rolling, Estacionalidad y ATH, permitiendo el cambio mediante un solo click.</li>
-                        <li><strong>Ordenación Dinámica:</strong> Puedes ordenar múltiples paneles y reportes simplemente haciendo click sobre la cabecera deseada para priorizar la mejor / peor métrica.</li>
+                        <li><strong>Identifica el activo:</strong> Ve a "Análisis Individual" e introduce un ticker
+                            válido procedente de Yahoo! Finance (ej: AAPL, AAPL.MX para internacionales).</li>
+                        <li><strong>Define la ventana temporal:</strong> Modifica la fecha de origen si deseas observar
+                            comportamientos puntuales.</li>
+                        <li><strong>Inicia el Cálculo:</strong> Pulsa sobre el botón rojo de ejecución y espera a que la
+                            señal visual del "Loader" termine. Dependiendo de los servidores remotos de datos puede
+                            tomar 2 a 5 segundos.</li>
+                        <li><strong>Evalúa las correlaciones:</strong> El panel superior de visualizaciones tiene
+                            opciones como Rolling, Estacionalidad y ATH, permitiendo el cambio mediante un solo click.
+                        </li>
+                        <li><strong>Ordenación Dinámica:</strong> Puedes ordenar múltiples paneles y reportes
+                            simplemente haciendo click sobre la cabecera deseada para priorizar la mejor / peor métrica.
+                        </li>
                     </ol>
 
                     <p class="mt-6 text-xs text-gray-400 border-t border-gray-100 pt-4 text-center">
-                        <i class="fa-solid fa-microchip"></i> Engine impulsado enteramente por Javascript, Tailwind V3, Math.js & Plotly.js. No hay almacenamiento de telemetría.
+                        <i class="fa-solid fa-microchip"></i> Engine impulsado enteramente por Javascript, Tailwind V3,
+                        Math.js & Plotly.js. No hay almacenamiento de telemetría.
                     </p>
                 </div>
             </div>
@@ -1502,11 +1595,14 @@
 
                         <!-- NEW FORWARD RETURNS HEATMAP -->
                         <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                            <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-emerald-600 pl-3">Matriz de Rentabilidad: Años Hacia Adelante (Forward Returns)</h3>
-                            <p class="text-xs text-gray-500 mb-2">Rentabilidad anualizada (CAGR) por Año Natural de inicio vs Horizonte de retención (N Años).</p>
+                            <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-emerald-600 pl-3">Matriz de
+                                Rentabilidad: Años Hacia Adelante (Forward Returns)</h3>
+                            <p class="text-xs text-gray-500 mb-2">Rentabilidad anualizada (CAGR) por Año Natural de
+                                inicio vs Horizonte de retención (N Años).</p>
                             <div class="overflow-x-auto custom-scrollbar">
                                 <table class="min-w-full text-[11px] text-center text-gray-600 border-collapse">
-                                    <thead id="rollingForwardMatrixHead" class="bg-gray-50 border-b border-gray-200 font-bold"></thead>
+                                    <thead id="rollingForwardMatrixHead"
+                                        class="bg-gray-50 border-b border-gray-200 font-bold"></thead>
                                     <tbody id="rollingForwardMatrixBody"></tbody>
                                 </table>
                             </div>
@@ -1973,28 +2069,50 @@
                     <div id="content-forecast" class="tab-content space-y-6">
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                             <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Forecast: Simulaciones Montecarlo</h3>
+                                <h3 class="text-gray-800 font-bold border-l-4 border-cyan-600 pl-3">Forecast:
+                                    Simulaciones Montecarlo</h3>
                                 <div class="flex items-center gap-2">
                                     <label class="text-sm text-gray-600">Simulaciones</label>
-                                    <input id="mcSims" type="number" value="2000" class="w-28 p-1 border rounded text-sm" />
+                                    <input id="mcSims" type="number" value="2000"
+                                        class="w-28 p-1 border rounded text-sm" />
                                     <label class="text-sm text-gray-600">Capital</label>
-                                    <input id="mcCapital" type="number" value="100000" class="w-28 p-1 border rounded text-sm" />
+                                    <input id="mcCapital" type="number" value="100000"
+                                        class="w-28 p-1 border rounded text-sm" />
                                     <label class="text-sm text-gray-600">Horiz. años</label>
-                                    <input id="mcYears" type="number" value="50" class="w-20 p-1 border rounded text-sm" />
-                                    <button onclick="runForecastSimulations()" class="px-3 py-1 bg-indigo-600 text-white rounded">Ejecutar</button>
+                                    <input id="mcYears" type="number" value="50"
+                                        class="w-20 p-1 border rounded text-sm" />
+                                    <button onclick="runForecastSimulations()"
+                                        class="px-3 py-1 bg-indigo-600 text-white rounded">Ejecutar</button>
                                 </div>
                             </div>
-                            <p class="text-xs text-gray-500 mb-3">Simulaciones geométricas (GBM) sobre log-returns históricos del activo/cartera seleccionado. Genera percentiles, histograma de max drawdown y tablas resumen.</p>
+                            <p class="text-xs text-gray-500 mb-3">Simulaciones geométricas (GBM) sobre log-returns
+                                históricos del activo/cartera seleccionado. Genera percentiles, histograma de max
+                                drawdown y tablas resumen.</p>
                             <div id="forecastStatus" class="text-xs text-gray-600 mb-2"></div>
                             <div id="forecastCharts" class="space-y-4">
-                                <div class="bg-white p-3 rounded border"><div id="forecastBalanceChart" class="w-full h-[520px]"></div></div>
-                                <div class="bg-white p-3 rounded border"><div id="forecastLongTermChart" class="w-full h-[420px]"></div></div>
-                                <div class="bg-white p-3 rounded border"><div id="forecastDrawdownHist" class="w-full h-[320px]"></div></div>
-                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Performance Summary</h4><div id="forecastPerfTable" class="text-sm"></div></div>
-                                    <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Expected Annual Return (percentiles)</h4><div id="forecastExpectedTable" class="text-sm"></div></div>
+                                <div class="bg-white p-3 rounded border">
+                                    <div id="forecastBalanceChart" class="w-full h-[520px]"></div>
                                 </div>
-                                <div class="bg-white p-3 rounded border"><h4 class="font-bold mb-2">Probabilidades Anuales (umbrales)</h4><div id="forecastProbTable" class="text-sm"></div></div>
+                                <div class="bg-white p-3 rounded border">
+                                    <div id="forecastLongTermChart" class="w-full h-[420px]"></div>
+                                </div>
+                                <div class="bg-white p-3 rounded border">
+                                    <div id="forecastDrawdownHist" class="w-full h-[320px]"></div>
+                                </div>
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div class="bg-white p-3 rounded border">
+                                        <h4 class="font-bold mb-2">Performance Summary</h4>
+                                        <div id="forecastPerfTable" class="text-sm"></div>
+                                    </div>
+                                    <div class="bg-white p-3 rounded border">
+                                        <h4 class="font-bold mb-2">Expected Annual Return (percentiles)</h4>
+                                        <div id="forecastExpectedTable" class="text-sm"></div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-3 rounded border">
+                                    <h4 class="font-bold mb-2">Probabilidades Anuales (umbrales)</h4>
+                                    <div id="forecastProbTable" class="text-sm"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2079,7 +2197,7 @@
 
             // Currency tickers (EUR base pairs)
             const currencyTickers = [
-                'EURUSD=X','EURGBP=X','EURJPY=X','EURCHF=X','EURCAD=X','EURSEK=X','EURHUF=X'
+                'EURUSD=X', 'EURGBP=X', 'EURJPY=X', 'EURCHF=X', 'EURCAD=X', 'EURSEK=X', 'EURHUF=X'
             ];
 
             // Load VIX, MOVE and currencies for markets section
@@ -2133,7 +2251,7 @@
                     const d = globalCurrenciesData[t] || [];
                     if (!d || d.length === 0) return;
                     const first = d[0].price || 1;
-                    traces.push({ x: d.map(p => p.date), y: d.map(p => (p.price / first) * 10), mode: 'lines', name: t.replace('=X',''), line: { color: colors[i % colors.length], width: 2 }, hovertemplate: `${t}: %{y:.2f}<extra></extra>` });
+                    traces.push({ x: d.map(p => p.date), y: d.map(p => (p.price / first) * 10), mode: 'lines', name: t.replace('=X', ''), line: { color: colors[i % colors.length], width: 2 }, hovertemplate: `${t}: %{y:.2f}<extra></extra>` });
                 });
                 if (traces.length === 0) {
                     document.getElementById('currenciesBase10Chart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>';
@@ -4163,7 +4281,7 @@
             // Render Forward Returns Matrix (Years Forward vs Start Year)
             function renderForwardReturnsMatrix(data) {
                 if (!data || data.length < 2) return;
-                
+
                 // Group the last closing price of each year
                 const yearEnds = {};
                 data.forEach(d => {
@@ -4172,7 +4290,7 @@
                     yearEnds[y] = d.price;
                 });
 
-                const years = Object.keys(yearEnds).map(Number).sort((a,b)=>a-b);
+                const years = Object.keys(yearEnds).map(Number).sort((a, b) => a - b);
                 if (years.length < 2) {
                     document.getElementById('rollingForwardMatrixHead').innerHTML = "<tr><td>Datos insuficientes para matriz de años</td></tr>";
                     document.getElementById('rollingForwardMatrixBody').innerHTML = "";
@@ -4180,9 +4298,9 @@
                 }
 
                 // Generamos tabla: Filas = Años forward (1 a max), Columnas = Year
-                const maxForward = years.length - 1; 
+                const maxForward = years.length - 1;
                 const maxForwardLimit = Math.min(31, maxForward); // Limit to 31 years arbitrarily
-                
+
                 let headHtml = '<tr class="border-b divide-x"><th class="px-2 py-1 bg-gray-100 border-r text-left sticky left-0 z-10 w-32 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] cursor-pointer hover:bg-gray-200" title="Ordenar" onclick="sortTable(\'rollingForwardMatrixBody\', 0, false)">Años<br><span class="text-[9px] text-gray-400 font-normal">Hacia adelante</span></th>';
                 years.forEach((y, idx) => {
                     headHtml += `<th class="px-2 py-1 cursor-pointer hover:bg-gray-200" title="Ordenar" onclick="sortTable('rollingForwardMatrixBody', ${idx + 1}, true)">${y}</th>`;
@@ -4194,10 +4312,10 @@
                 for (let fw = 1; fw <= maxForwardLimit; fw++) {
                     bodyHtml += `<tr class="border-b divide-x hover:bg-gray-50">`;
                     bodyHtml += `<td class="px-2 py-2 font-bold bg-white text-left border-r sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Año ${fw}</td>`;
-                    
+
                     years.forEach((startY) => {
                         const targetY = startY + fw;
-                        if (targetY > years[years.length-1] || !yearEnds[targetY]) {
+                        if (targetY > years[years.length - 1] || !yearEnds[targetY]) {
                             // Blank
                             bodyHtml += `<td class="px-2 py-1 bg-white"></td>`;
                         } else {
@@ -4205,7 +4323,7 @@
                             const startPrice = yearEnds[startY];
                             const targetPrice = yearEnds[targetY];
                             const cagr = Math.pow(targetPrice / startPrice, 1 / fw) - 1;
-                            
+
                             const isPos = cagr >= 0;
                             let intenseClass;
                             if (isPos) {
@@ -4332,7 +4450,7 @@
 
                     const traces = [];
                     const colors = ['#1e3a8a', '#b91c1c', '#15803d', '#7e22ce', '#c2410c', '#0369a1', '#4d7c0f', '#374151'];
-                    
+
                     let positiveCount = 0;
                     let totalAssets = 0;
 
@@ -4341,16 +4459,16 @@
                         const idx = full.findIndex(d => d.date >= targetDate);
                         const sliced = idx !== -1 ? full.slice(idx) : [];
                         if (!sliced || sliced.length === 0) return;
-                        
+
                         const firstPrice = sliced[0].price || 1;
                         const x = sliced.map(d => d.date);
                         const y = sliced.map(d => (d.price / firstPrice) * 10);
-                        
-                        traces.push({ x, y, mode: 'lines', name: t.replace('=X',''), line: { color: colors[i % colors.length] }, hovertemplate: `${t.replace('=X','')}: %{y:.2f}<extra></extra>` });
+
+                        traces.push({ x, y, mode: 'lines', name: t.replace('=X', ''), line: { color: colors[i % colors.length] }, hovertemplate: `${t.replace('=X', '')}: %{y:.2f}<extra></extra>` });
 
                         const lastY = y[y.length - 1];
                         const lastRet = (sliced[sliced.length - 1].price / firstPrice) - 1;
-                        
+
                         if (lastRet > 0) positiveCount++;
                         totalAssets++;
 
@@ -4363,12 +4481,12 @@
                     });
 
                     if (traces.length === 0) { document.getElementById('currenciesBase10Chart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>'; return; }
-                    
+
                     const pctPositive = totalAssets > 0 ? ((positiveCount / totalAssets) * 100).toFixed(0) : 0;
 
-                    const layout = { 
-                        title: 'Divisas (Base 10 vs EUR)', 
-                        margin: { t: 40, l: 60, r: 60, b: 40 }, 
+                    const layout = {
+                        title: 'Divisas (Base 10 vs EUR)',
+                        margin: { t: 40, l: 60, r: 60, b: 40 },
                         legend: { orientation: 'h', x: 0, y: -0.15 },
                         xaxis: { showgrid: false },
                         yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
@@ -4424,7 +4542,7 @@
 
                     const lastY = y[y.length - 1];
                     const lastRet = (d[d.length - 1].price / firstPrice) - 1;
-                    
+
                     if (lastRet > 0) positiveCount++;
                     totalAssets++;
 
@@ -4469,7 +4587,7 @@
             function updateMarketsTable(sectionType, fullDataDict) {
                 const isIndices = sectionType === 'indices';
                 const currencyObjects = currencyTickers.map(t => ({ s: t, n: t.replace('=X', ''), f: '💱' }));
-                
+
                 let config;
                 if (sectionType === 'indices') config = { list: marketIndices, tableId: 'indicesTableBody', footId: 'indicesTableFoot', skipHeatmap: false };
                 else if (sectionType === 'assets') config = { list: assetClasses, tableId: 'assetsTableBody', footId: 'assetsTableFoot', skipHeatmap: false };
@@ -4598,7 +4716,7 @@
                 const sortKey = tableBodyId + '-' + columnIdx;
                 sortDirection[sortKey] = !sortDirection[sortKey];
                 const asc = sortDirection[sortKey];
-                
+
                 rows.sort((a, b) => {
                     const aCell = a.cells[columnIdx];
                     const bCell = b.cells[columnIdx];
@@ -4789,6 +4907,659 @@
                 loadMarketsExtras();
             };
         </script>
+
+    <!-- ==================== SECTION: VALORACIONES RELATIVAS ==================== -->
+    <div id="section-valoraciones" class="app-section">
+        <div class="container mx-auto p-4 lg:p-6 space-y-10">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-2xl text-violet-600"></i>
+                    <h2 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Valoraciones Relativas</h2>
+                </div>
+                <button onclick="loadValoracionesData()" id="valLoadBtn"
+                    class="px-5 py-2 bg-violet-600 text-white rounded-lg shadow hover:bg-violet-700 font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-rotate mr-1"></i> Cargar Datos
+                </button>
+            </div>
+            <p id="valStatus" class="text-sm text-gray-500 -mt-6"></p>
+
+            <!-- ===== RENTA FIJA ===== -->
+            <div class="space-y-6 border-t-4 border-violet-200 pt-6">
+                <div class="flex items-center gap-3 border-b-2 border-violet-600 pb-2">
+                    <i class="fa-solid fa-landmark text-xl text-violet-600"></i>
+                    <h3 class="text-lg font-black text-gray-800 uppercase tracking-tight">Renta Fija — Spreads y Curva (EUR)</h3>
+                </div>
+
+                <!-- Time filter shared -->
+                <div class="flex gap-2 flex-wrap" id="valRFFilters">
+                    <span class="text-xs font-bold text-gray-500 self-center pr-2">Periodo:</span>
+                    <button onclick="filterValoraciones('6M', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200">6M</button>
+                    <button onclick="filterValoraciones('1Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200">1A</button>
+                    <button onclick="filterValoraciones('3Y', this)" class="px-3 py-1 text-xs font-bold rounded-md bg-violet-600 text-white shadow-sm ring-2 ring-violet-300">3A</button>
+                    <button onclick="filterValoraciones('5Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200">5A</button>
+                    <button onclick="filterValoraciones('10Y', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200">10A</button>
+                    <button onclick="filterValoraciones('MAX', this)" class="px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200">MÁX</button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- HY vs IG EUR -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-red-500 pl-3">Spread HY vs IG EUR (Evolución Relativa)</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">Base 10 normalizado · IHYG.L (HY) vs IBCX.DE (IG) · Fuente: Yahoo Finance</p>
+                        <div id="valHYIGChart" class="w-full h-[320px]"></div>
+                    </div>
+                    <!-- Crédito vs Govies -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-orange-500 pl-3">Crédito (IG) vs Govies EUR (Evolución Relativa)</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">Base 10 normalizado · IBCX.DE (Crédito) vs IBGL.L (Gobierno) · Fuente: Yahoo Finance</p>
+                        <div id="valCreditGovieChart" class="w-full h-[320px]"></div>
+                    </div>
+                </div>
+
+                <!-- Curva por tramos -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-blue-500 pl-3">Curva de Tipos: Tramos de Duración EUR (Evolución Base 10)</h4>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">IBGS.L (corto), IBGM.DE (medio), IBGL.L (largo) · Permite ver la forma de la curva soberana EUR · Fuente: Yahoo Finance</p>
+                    <div id="valCurvaChart" class="w-full h-[340px]"></div>
+                </div>
+
+                <!-- Spread ratio table RF -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+                    <h4 class="text-gray-800 font-bold mb-3 border-l-4 border-violet-500 pl-3">Tabla Resumen: Ratios de Spread (último vs histórico)</h4>
+                    <table class="min-w-full text-xs text-center text-gray-600">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="px-4 py-2 text-left font-bold">Par</th>
+                                <th class="px-3 py-2">Ratio actual</th>
+                                <th class="px-3 py-2">Máximo histórico</th>
+                                <th class="px-3 py-2">Mínimo histórico</th>
+                                <th class="px-3 py-2">Percentil actual</th>
+                            </tr>
+                        </thead>
+                        <tbody id="valRFTableBody" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== RENTA VARIABLE ===== -->
+            <div class="space-y-6 border-t-4 border-emerald-200 pt-6">
+                <div class="flex items-center gap-3 border-b-2 border-emerald-600 pb-2">
+                    <i class="fa-solid fa-chart-pie text-xl text-emerald-600"></i>
+                    <h3 class="text-lg font-black text-gray-800 uppercase tracking-tight">Renta Variable — Valoraciones Relativas</h3>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Sectores globales -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-emerald-600 pl-3">Sectores MSCI Global vs ACWI (Rendimiento Relativo)</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">Ratio precio sector/ACWI normalizado Base 10 · ETFs iShares globales · Fuente: Yahoo Finance</p>
+                        <div id="valSectorChart" class="w-full h-[380px]"></div>
+                    </div>
+                    <!-- Small vs Large -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-teal-600 pl-3">Small Cap vs Large Cap (Ratio de Valoración Relativa)</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">IWM (Russell 2000) / SPY (S&P 500) normalizado Base 10 · Fuente: Yahoo Finance</p>
+                        <div id="valSmallLargeChart" class="w-full h-[380px]"></div>
+                    </div>
+                </div>
+
+                <!-- EM vs DM -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-cyan-600 pl-3">Mercados Emergentes vs Desarrollados (Ratio de Valoración Relativa)</h4>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">EEM (MSCI EM) / ACWI (MSCI All World) normalizado Base 10 · Fuente: Yahoo Finance</p>
+                    <div id="valEMDMChart" class="w-full h-[320px]"></div>
+                </div>
+
+                <!-- Barras rendimiento relativo sectores YTD -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-indigo-600 pl-3">Rendimiento Relativo Sectorial (YTD vs ACWI)</h4>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Diferencia de rentabilidad acumulada YTD entre cada sector y ACWI (puntos porcentuales)</p>
+                    <div id="valSectorBarChart" class="w-full h-[360px]"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <script>
+            // Global data for valoraciones
+            let valData = {};
+            let valPeriod = '3Y'; // default
+
+            const VAL_RF_SERIES = [
+                { key: 'HY', ticker: 'IHYG.L', label: 'HY EUR', color: '#dc2626' },
+                { key: 'IG', ticker: 'IBCX.DE', label: 'IG EUR', color: '#2563eb' },
+                { key: 'GOV', ticker: 'IBGL.L', label: 'Govies EUR (Largo)', color: '#059669' },
+                { key: 'GOVS', ticker: 'IBGS.L', label: 'Govies EUR (Corto)', color: '#7c3aed' },
+                { key: 'GOVM', ticker: 'IBGM.DE', label: 'Govies EUR (Medio)', color: '#d97706' }
+            ];
+
+            const VAL_RV_SECTORS = [
+                { ticker: 'IXN', label: 'Tecnología', color: '#6366f1' },
+                { ticker: 'IXJ', label: 'Salud', color: '#22c55e' },
+                { ticker: 'IXG', label: 'Financiero', color: '#3b82f6' },
+                { ticker: 'IXC', label: 'Energía', color: '#f59e0b' },
+                { ticker: 'JXI', label: 'Utilities', color: '#8b5cf6' },
+                { ticker: 'RXI', label: 'Consumo Disc.', color: '#ef4444' },
+                { ticker: 'KXI', label: 'Consumo Est.', color: '#14b8a6' },
+                { ticker: 'EXI', label: 'Industriales', color: '#64748b' },
+                { ticker: 'MXI', label: 'Materiales', color: '#a16207' }
+            ];
+
+            async function loadValoracionesData() {
+                const btn = document.getElementById('valLoadBtn');
+                const status = document.getElementById('valStatus');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Cargando...';
+                status.textContent = 'Descargando ETFs de Renta Fija y Renta Variable...';
+
+                const today = new Date().toISOString().split('T')[0];
+                const start10Y = new Date(); start10Y.setFullYear(start10Y.getFullYear() - 10);
+                const startStr = start10Y.toISOString().split('T')[0];
+
+                try {
+                    // RF tickers
+                    const rfTickers = VAL_RF_SERIES.map(s => s.ticker);
+                    // RV tickers: sectors + ACWI + IWM + SPY + EEM
+                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(['ACWI', 'IWM', 'SPY', 'EEM']);
+                    const allTickers = [...rfTickers, ...rvTickers];
+
+                    const results = await Promise.all(
+                        allTickers.map(t => fetchYahooData(t, startStr, today).catch(() => []))
+                    );
+                    allTickers.forEach((t, i) => { valData[t] = results[i] || []; });
+
+                    status.textContent = `Datos cargados correctamente (${new Date().toLocaleDateString('es-ES')}).`;
+                    btn.innerHTML = '<i class="fa-solid fa-rotate mr-1"></i> Recargar';
+                    btn.disabled = false;
+
+                    renderValoraciones(valPeriod);
+                } catch(e) {
+                    status.textContent = 'Error descargando datos: ' + e.message;
+                    btn.innerHTML = '<i class="fa-solid fa-rotate mr-1"></i> Cargar Datos';
+                    btn.disabled = false;
+                }
+            }
+
+            function filterValoraciones(period, btnEl) {
+                valPeriod = period;
+                // Update button styles
+                document.querySelectorAll('#valRFFilters button').forEach(b => {
+                    b.className = 'px-3 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200';
+                });
+                if (btnEl) btnEl.className = 'px-3 py-1 text-xs font-bold rounded-md bg-violet-600 text-white shadow-sm ring-2 ring-violet-300';
+                if (Object.keys(valData).length > 0) renderValoraciones(period);
+            }
+
+            function sliceValByPeriod(series, period) {
+                if (!series || series.length === 0) return [];
+                const today = new Date();
+                let target = new Date(today);
+                if (period === '6M') target.setMonth(today.getMonth() - 6);
+                else if (period === '1Y') target.setFullYear(today.getFullYear() - 1);
+                else if (period === '3Y') target.setFullYear(today.getFullYear() - 3);
+                else if (period === '5Y') target.setFullYear(today.getFullYear() - 5);
+                else if (period === '10Y') target.setFullYear(today.getFullYear() - 10);
+                else return series; // MAX
+                return series.filter(d => d.date >= target);
+            }
+
+            function normalizeBase10(series) {
+                if (!series || series.length === 0) return [];
+                const first = series[0].price;
+                return series.map(d => ({ date: d.date, value: (d.price / first) * 10 }));
+            }
+
+            function spreadRatio(seriesA, seriesB) {
+                // Align on common dates, compute ratio A/B
+                if (!seriesA.length || !seriesB.length) return [];
+                const mapB = new Map(seriesB.map(d => [d.date.toISOString().split('T')[0], d.price]));
+                return seriesA
+                    .map(d => {
+                        const ds = d.date.toISOString().split('T')[0];
+                        const pb = mapB.get(ds);
+                        if (!pb) return null;
+                        return { date: d.date, value: d.price / pb };
+                    })
+                    .filter(x => x !== null);
+            }
+
+            function renderValoraciones(period) {
+                renderValRF(period);
+                renderValRV(period);
+            }
+
+            function renderValRF(period) {
+                const HY = sliceValByPeriod(valData['IHYG.L'], period);
+                const IG = sliceValByPeriod(valData['IBCX.DE'], period);
+                const GOV = sliceValByPeriod(valData['IBGL.L'], period);
+                const GOVS = sliceValByPeriod(valData['IBGS.L'], period);
+                const GOVM = sliceValByPeriod(valData['IBGM.DE'], period);
+
+                const chartLayout = (title) => ({
+                    margin: { t: 20, l: 50, r: 20, b: 40 },
+                    xaxis: { showgrid: false },
+                    yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
+                    hovermode: 'x unified',
+                    legend: { orientation: 'h', y: -0.2 },
+                    plot_bgcolor: 'white',
+                    shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 10, y1: 10, line: { color: '#94a3b8', width: 1, dash: 'dot' } }]
+                });
+
+                // HY vs IG chart
+                const HYn = normalizeBase10(HY);
+                const IGn = normalizeBase10(IG);
+                Plotly.newPlot('valHYIGChart', [
+                    { x: HYn.map(d => d.date), y: HYn.map(d => d.value), mode: 'lines', name: 'HY EUR (IHYG.L)', line: { color: '#dc2626', width: 2 } },
+                    { x: IGn.map(d => d.date), y: IGn.map(d => d.value), mode: 'lines', name: 'IG EUR (IBCX.DE)', line: { color: '#2563eb', width: 2 } }
+                ], chartLayout('HY vs IG'), { responsive: true });
+
+                // Crédito vs Govies chart
+                const GOVn = normalizeBase10(GOV);
+                Plotly.newPlot('valCreditGovieChart', [
+                    { x: IGn.map(d => d.date), y: IGn.map(d => d.value), mode: 'lines', name: 'IG EUR (IBCX.DE)', line: { color: '#f97316', width: 2 } },
+                    { x: GOVn.map(d => d.date), y: GOVn.map(d => d.value), mode: 'lines', name: 'Govies EUR Largo (IBGL.L)', line: { color: '#059669', width: 2 } }
+                ], chartLayout('Crédito vs Govies'), { responsive: true });
+
+                // Curva de tipos por tramos
+                const GOVSn = normalizeBase10(GOVS);
+                const GOVMn = normalizeBase10(GOVM);
+                Plotly.newPlot('valCurvaChart', [
+                    { x: GOVSn.map(d => d.date), y: GOVSn.map(d => d.value), mode: 'lines', name: 'Corto (IBGS.L, 1-3Y)', line: { color: '#7c3aed', width: 2 } },
+                    { x: GOVMn.map(d => d.date), y: GOVMn.map(d => d.value), mode: 'lines', name: 'Medio (IBGM.DE, 5-7Y)', line: { color: '#d97706', width: 2 } },
+                    { x: GOVn.map(d => d.date), y: GOVn.map(d => d.value), mode: 'lines', name: 'Largo (IBGL.L, 10Y+)', line: { color: '#0ea5e9', width: 2 } }
+                ], {
+                    ...chartLayout('Curva EUR'),
+                    annotations: [{
+                        xref: 'paper', yref: 'paper', x: 0.01, y: 0.98,
+                        xanchor: 'left', yanchor: 'top', showarrow: false,
+                        text: 'Largo > Corto = Curva Normal | Largo < Corto = Curva Invertida',
+                        font: { size: 10, color: '#6b7280' }
+                    }]
+                }, { responsive: true });
+
+                // RF Table
+                const rfPairs = [
+                    { label: 'HY / IG EUR', nameA: 'IHYG.L', nameB: 'IBCX.DE' },
+                    { label: 'IG Crédito / Govies EUR', nameA: 'IBCX.DE', nameB: 'IBGL.L' },
+                    { label: 'Corto / Largo EUR (Curva)', nameA: 'IBGS.L', nameB: 'IBGL.L' },
+                    { label: 'Medio / Largo EUR', nameA: 'IBGM.DE', nameB: 'IBGL.L' }
+                ];
+
+                const tbody = document.getElementById('valRFTableBody');
+                tbody.innerHTML = rfPairs.map(pair => {
+                    const rA = valData[pair.nameA] || [];
+                    const rB = valData[pair.nameB] || [];
+                    const ratio = spreadRatio(rA, rB);
+                    if (ratio.length === 0) return `<tr><td class="px-4 py-2 text-left font-bold">${pair.label}</td><td colspan="4" class="text-center text-gray-400">Sin datos</td></tr>`;
+                    const vals = ratio.map(r => r.value);
+                    const lastVal = vals[vals.length - 1];
+                    const maxVal = Math.max(...vals);
+                    const minVal = Math.min(...vals);
+                    const pct = vals.length > 1 ? ((lastVal - minVal) / (maxVal - minVal) * 100) : 50;
+                    const pctColor = pct > 70 ? 'text-red-600 font-bold' : pct < 30 ? 'text-green-600 font-bold' : 'text-gray-700';
+                    return `<tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 text-left font-bold text-gray-800">${pair.label}</td>
+                        <td class="px-3 py-2">${lastVal.toFixed(3)}</td>
+                        <td class="px-3 py-2 text-red-500">${maxVal.toFixed(3)}</td>
+                        <td class="px-3 py-2 text-green-600">${minVal.toFixed(3)}</td>
+                        <td class="px-3 py-2 ${pctColor}">${pct.toFixed(0)}%</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            function renderValRV(period) {
+                const ACWI = valData['ACWI'] || [];
+                const IWM = valData['IWM'] || [];
+                const SPY = valData['SPY'] || [];
+                const EEM = valData['EEM'] || [];
+
+                const lineLayout = {
+                    margin: { t: 20, l: 50, r: 20, b: 40 },
+                    xaxis: { showgrid: false },
+                    yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
+                    hovermode: 'x unified', legend: { orientation: 'h', y: -0.2 },
+                    plot_bgcolor: 'white',
+                    shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 10, y1: 10, line: { color: '#94a3b8', width: 1, dash: 'dot' } }]
+                };
+
+                // Sectores vs ACWI (ratio)
+                const colors = ['#6366f1','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#ef4444','#14b8a6','#64748b','#a16207'];
+                const sectorTraces = VAL_RV_SECTORS.map((s, i) => {
+                    const sectData = sliceValByPeriod(valData[s.ticker], period);
+                    const acwiSliced = sliceValByPeriod(ACWI, period);
+                    const ratio = spreadRatio(sectData, acwiSliced);
+                    const norm = normalizeBase10(ratio.map(r => ({ date: r.date, price: r.value })));
+                    return { x: norm.map(d => d.date), y: norm.map(d => d.value), mode: 'lines', name: s.label, line: { color: colors[i % colors.length], width: 1.5 } };
+                }).filter(t => t.x.length > 0);
+
+                Plotly.newPlot('valSectorChart', sectorTraces, lineLayout, { responsive: true });
+
+                // Small vs Large
+                const iwmSliced = sliceValByPeriod(IWM, period);
+                const spySliced = sliceValByPeriod(SPY, period);
+                const smallLargeRatio = spreadRatio(iwmSliced, spySliced);
+                const sln = normalizeBase10(smallLargeRatio.map(r => ({ date: r.date, price: r.value })));
+                Plotly.newPlot('valSmallLargeChart', [
+                    { x: sln.map(d => d.date), y: sln.map(d => d.value), mode: 'lines', name: 'Small / Large (IWM/SPY)', line: { color: '#0d9488', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(13,148,136,0.07)' }
+                ], {
+                    ...lineLayout,
+                    annotations: sln.length > 0 ? [{ xref: 'paper', yref: 'paper', x: 0.99, y: 0.98, xanchor: 'right', yanchor: 'top', showarrow: false, text: `Valor actual: ${sln[sln.length-1].value.toFixed(2)}`, font: { size: 11, color: '#0d9488' }, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, borderpad: 4 }] : []
+                }, { responsive: true });
+
+                // EM vs DM
+                const eemSliced = sliceValByPeriod(EEM, period);
+                const acwiSliced2 = sliceValByPeriod(ACWI, period);
+                const emDMRatio = spreadRatio(eemSliced, acwiSliced2);
+                const en = normalizeBase10(emDMRatio.map(r => ({ date: r.date, price: r.value })));
+                Plotly.newPlot('valEMDMChart', [
+                    { x: en.map(d => d.date), y: en.map(d => d.value), mode: 'lines', name: 'EM / Developed (EEM/ACWI)', line: { color: '#7c3aed', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(124,58,237,0.07)' }
+                ], {
+                    ...lineLayout,
+                    annotations: en.length > 0 ? [{ xref: 'paper', yref: 'paper', x: 0.99, y: 0.98, xanchor: 'right', yanchor: 'top', showarrow: false, text: `Valor actual: ${en[en.length-1].value.toFixed(2)}`, font: { size: 11, color: '#7c3aed' }, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, borderpad: 4 }] : []
+                }, { responsive: true });
+
+                // YTD bars relative to ACWI
+                const ytdStart = new Date(new Date().getFullYear(), 0, 1);
+                const getYTDRet = (ticker) => {
+                    const d = valData[ticker] || [];
+                    const ytdD = d.filter(x => x.date >= ytdStart);
+                    if (ytdD.length < 2) return null;
+                    return (ytdD[ytdD.length-1].price / ytdD[0].price) - 1;
+                };
+                const acwiYTD = getYTDRet('ACWI');
+                const barData = VAL_RV_SECTORS.map(s => ({
+                    label: s.label,
+                    rel: acwiYTD !== null && getYTDRet(s.ticker) !== null ? (getYTDRet(s.ticker) - acwiYTD) * 100 : null
+                })).filter(d => d.rel !== null).sort((a, b) => b.rel - a.rel);
+
+                Plotly.newPlot('valSectorBarChart', [{
+                    x: barData.map(d => d.label),
+                    y: barData.map(d => d.rel),
+                    type: 'bar',
+                    marker: { color: barData.map(d => d.rel >= 0 ? '#22c55e' : '#ef4444') },
+                    text: barData.map(d => (d.rel >= 0 ? '+' : '') + d.rel.toFixed(1) + 'pp'),
+                    textposition: 'auto'
+                }], {
+                    yaxis: { title: 'pp vs ACWI', zeroline: true, zerolinecolor: '#374151', zerolinewidth: 2 },
+                    margin: { t: 10, l: 50, r: 20, b: 80 },
+                    plot_bgcolor: 'white',
+                    bargap: 0.3
+                }, { responsive: true });
+            }
+        </script>
+    </div>
+
+    <!-- ==================== SECTION: MACRO DASHBOARD ==================== -->
+    <div id="section-macro" class="app-section">
+        <div class="container mx-auto p-4 lg:p-6 space-y-8">
+
+            <!-- Header -->
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-earth-europe text-2xl text-sky-600"></i>
+                <h2 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Macro Dashboard</h2>
+            </div>
+
+            <!-- API Key box -->
+            <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-key mr-1"></i> FRED API Key <span class="text-gray-400 font-normal">(gratuita en <a href="https://fred.stlouisfed.org" target="_blank" class="underline">fred.stlouisfed.org</a>)</span></label>
+                    <input type="text" id="fredApiKey" placeholder="Introduce tu FRED API Key aquí..."
+                        class="w-full p-2 border border-sky-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+                </div>
+                <div class="flex flex-col gap-2">
+                    <button onclick="loadMacroData()" id="macroLoadBtn"
+                        class="px-5 py-2 bg-sky-600 text-white rounded-lg shadow hover:bg-sky-700 font-bold whitespace-nowrap flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> Cargar Datos Macro
+                    </button>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="filterMacro('5Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">5A</button>
+                        <button onclick="filterMacro('10Y',this)" class="px-2 py-0.5 text-xs rounded bg-sky-600 text-white font-bold">10A</button>
+                        <button onclick="filterMacro('20Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">20A</button>
+                        <button onclick="filterMacro('MAX',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">MÁX</button>
+                    </div>
+                </div>
+            </div>
+            <p id="macroStatus" class="text-sm text-gray-500 -mt-4"></p>
+
+            <!-- Charts grid -->
+            <div class="space-y-6">
+
+                <!-- PMI -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-sky-600 pl-3">PMI Compuesto — EEUU, Eurozona, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Zona ≥50 expansión / &lt;50 contracción · Fuente: FRED (St. Louis Fed)</p>
+                    <div id="macroPMIChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: US ISM Compuesto (NAPMCI), EZ PMI (EURHICPALLMINMSM proxy), China (CHPMIMFG), India (INPRMANMISMIL)</div>
+                </div>
+
+                <!-- Inflación CPI -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflación (CPI YoY %) — EEUU, Eurozona, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Variación anual del Índice de Precios al Consumo · Fuente: FRED</p>
+                    <div id="macroCPIChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: CPIAUCSL (US), CP0000EZ19M086NEST (EZ), CHNCPIALLMINMEI (China), INDCPIALLMINMEI (India)</div>
+                </div>
+
+                <!-- Tipos oficiales -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos de Interés Oficiales (%) — EEUU, Eurozona, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Tipo de referencia de cada banco central · Fuente: FRED</p>
+                    <div id="macroRatesChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: FEDFUNDS (US Fed), ECBDFR (ECB Depo), IRSTCI01CNM156N (China), IRSTCI01INM156N (India)</div>
+                </div>
+
+                <!-- 10Y Bonds -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-green-600 pl-3">Bono Soberano 10 Años (%) — EEUU, Eurozona, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Rentabilidad del bono gobierno a 10 años · Fuente: FRED</p>
+                    <div id="macro10YChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: DGS10 (US), IRLTLT01EZM156N (EZ), IRLTLT01CNM156N (China), IRLTLT01INM156N (India)</div>
+                </div>
+
+                <!-- Desempleo -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-purple-600 pl-3">Tasa de Desempleo (%) — EEUU, Eurozona, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">% de la fuerza laboral sin empleo · Fuente: FRED</p>
+                    <div id="macroUnemplChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: UNRATE (US), LRHUTTTTEZM156S (EZ), LRUN64TTCNM156S (China), LRUN64TTINM156S (India)</div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <script>
+            // ---- MACRO DASHBOARD LOGIC ----
+            let macroRawData = {}; // { seriesId: [{date, value}] }
+            let macroPeriod = '10Y';
+
+            const MACRO_SERIES = {
+                pmi: [
+                    { id: 'NAPMCI',           label: 'EEUU (ISM)',    color: '#2563eb' },
+                    { id: 'EURPMICOMM',       label: 'Eurozona',      color: '#f59e0b' },
+                    { id: 'CHPMIMFG',         label: 'China (Mfg)',   color: '#ef4444' },
+                    { id: 'INPRMANMISMIL',    label: 'India (Mfg)',   color: '#10b981' }
+                ],
+                cpi: [
+                    { id: 'CPIAUCSL',              label: 'EEUU CPI',    color: '#2563eb', yoy: true },
+                    { id: 'CP0000EZ19M086NEST',    label: 'Eurozona HICP', color: '#f59e0b', yoy: false },
+                    { id: 'CHNCPIALLMINMEI',       label: 'China CPI',   color: '#ef4444', yoy: false },
+                    { id: 'INDCPIALLMINMEI',       label: 'India CPI',   color: '#10b981', yoy: false }
+                ],
+                rates: [
+                    { id: 'FEDFUNDS',              label: 'Fed Funds (US)',     color: '#2563eb' },
+                    { id: 'ECBDFR',                label: 'ECB Depo Rate',      color: '#f59e0b' },
+                    { id: 'IRSTCI01CNM156N',       label: 'China Policy Rate',  color: '#ef4444' },
+                    { id: 'IRSTCI01INM156N',       label: 'India Policy Rate',  color: '#10b981' }
+                ],
+                bonds10y: [
+                    { id: 'DGS10',                 label: 'US 10Y',      color: '#2563eb' },
+                    { id: 'IRLTLT01EZM156N',       label: 'EZ 10Y',      color: '#f59e0b' },
+                    { id: 'IRLTLT01CNM156N',       label: 'China 10Y',   color: '#ef4444' },
+                    { id: 'IRLTLT01INM156N',       label: 'India 10Y',   color: '#10b981' }
+                ],
+                unemp: [
+                    { id: 'UNRATE',                label: 'EEUU',        color: '#2563eb' },
+                    { id: 'LRHUTTTTEZM156S',       label: 'Eurozona',    color: '#f59e0b' },
+                    { id: 'LRUN64TTCNM156S',       label: 'China',       color: '#ef4444' },
+                    { id: 'LRUN64TTINM156S',       label: 'India',       color: '#10b981' }
+                ]
+            };
+
+            async function fetchFREDSeries(seriesId, apiKey) {
+                const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`FRED API error for ${seriesId}: ${resp.status}`);
+                const json = await resp.json();
+                if (!json.observations) return [];
+                return json.observations
+                    .filter(o => o.value !== '.' && o.value !== '')
+                    .map(o => ({ date: new Date(o.date), value: parseFloat(o.value) }));
+            }
+
+            function calcYoY(series) {
+                // Returns YoY % change for each point (needs 12 months back)
+                if (series.length < 13) return [];
+                const result = [];
+                for (let i = 12; i < series.length; i++) {
+                    const prev = series[i - 12].value;
+                    if (prev !== 0) result.push({ date: series[i].date, value: ((series[i].value / prev) - 1) * 100 });
+                }
+                return result;
+            }
+
+            function sliceMacroByPeriod(series, period) {
+                if (!series || series.length === 0) return [];
+                const today = new Date();
+                let target = new Date(today);
+                if (period === '5Y') target.setFullYear(today.getFullYear() - 5);
+                else if (period === '10Y') target.setFullYear(today.getFullYear() - 10);
+                else if (period === '20Y') target.setFullYear(today.getFullYear() - 20);
+                else return series;
+                return series.filter(d => d.date >= target);
+            }
+
+            async function loadMacroData() {
+                const apiKey = document.getElementById('fredApiKey').value.trim();
+                if (!apiKey) {
+                    alert('Por favor, introduce tu FRED API Key. Regístrate gratis en https://fred.stlouisfed.org/');
+                    return;
+                }
+                // Save key in localStorage for convenience
+                try { localStorage.setItem('mps_fred_api_key', apiKey); } catch(e) {}
+
+                const btn = document.getElementById('macroLoadBtn');
+                const status = document.getElementById('macroStatus');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Descargando...';
+
+                // Collect all unique series IDs
+                const allSeries = Object.values(MACRO_SERIES).flat().map(s => s.id);
+                const uniqueSeries = [...new Set(allSeries)];
+
+                status.textContent = `Descargando ${uniqueSeries.length} series de FRED...`;
+                macroRawData = {};
+
+                const results = await Promise.allSettled(
+                    uniqueSeries.map(id => fetchFREDSeries(id, apiKey).then(data => ({ id, data })))
+                );
+
+                let loaded = 0;
+                results.forEach(r => {
+                    if (r.status === 'fulfilled' && r.value.data.length > 0) {
+                        macroRawData[r.value.id] = r.value.data;
+                        loaded++;
+                    } else if (r.status === 'rejected') {
+                        console.warn('FRED fetch failed:', r.reason);
+                    } else if (r.status === 'fulfilled') {
+                        console.warn('Empty data for series', r.value.id);
+                    }
+                });
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Recargar';
+                status.textContent = `${loaded}/${uniqueSeries.length} series cargadas. Última actualización: ${new Date().toLocaleString('es-ES')}.`;
+
+                renderMacroDashboard(macroPeriod);
+            }
+
+            function filterMacro(period, btnEl) {
+                macroPeriod = period;
+                document.querySelectorAll('#section-macro .flex.gap-2.flex-wrap button').forEach(b => {
+                    b.className = 'px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600';
+                });
+                if (btnEl) btnEl.className = 'px-2 py-0.5 text-xs rounded bg-sky-600 text-white font-bold';
+                if (Object.keys(macroRawData).length > 0) renderMacroDashboard(period);
+            }
+
+            function renderMacroDashboard(period) {
+                renderMacroChart('macroPMIChart', MACRO_SERIES.pmi, period, 'PMI Compuesto', false, { refline: 50 });
+                renderMacroChart('macroCPIChart', MACRO_SERIES.cpi, period, 'Inflación CPI YoY (%)', true, { refline: 2, yformat: '.1f', ysuffix: '%' });
+                renderMacroChart('macroRatesChart', MACRO_SERIES.rates, period, 'Tipos Oficiales (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
+                renderMacroChart('macro10YChart', MACRO_SERIES.bonds10y, period, 'Bono 10Y (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
+                renderMacroChart('macroUnemplChart', MACRO_SERIES.unemp, period, 'Desempleo (%)', false, { refline: null, yformat: '.1f', ysuffix: '%' });
+            }
+
+            function renderMacroChart(chartId, seriesDef, period, title, doYoY, opts) {
+                const traces = seriesDef.map(s => {
+                    let raw = macroRawData[s.id] || [];
+                    if (doYoY && s.yoy === true) raw = calcYoY(raw);
+                    else if (doYoY && s.yoy === false) raw = raw; // already YoY from FRED
+                    const sliced = sliceMacroByPeriod(raw, period);
+                    return {
+                        x: sliced.map(d => d.date),
+                        y: sliced.map(d => d.value),
+                        mode: 'lines',
+                        name: s.label,
+                        line: { color: s.color, width: 2 },
+                        hovertemplate: `${s.label}: %{y:.2f}${opts.ysuffix || ''}<extra></extra>`
+                    };
+                }).filter(t => t.x.length > 0);
+
+                const shapes = [];
+                if (opts.refline !== null && opts.refline !== undefined) {
+                    shapes.push({
+                        type: 'line', xref: 'paper', x0: 0, x1: 1,
+                        yref: 'y', y0: opts.refline, y1: opts.refline,
+                        line: { color: '#9ca3af', width: 1.5, dash: 'dash' }
+                    });
+                }
+
+                if (traces.length === 0) {
+                    document.getElementById(chartId).innerHTML = '<div class="text-sm text-gray-400 text-center py-16"><i class="fa-solid fa-circle-exclamation mr-2"></i>Sin datos — carga los datos FRED primero.</div>';
+                    return;
+                }
+
+                Plotly.newPlot(chartId, traces, {
+                    margin: { t: 10, l: 55, r: 20, b: 40 },
+                    xaxis: { showgrid: false },
+                    yaxis: {
+                        gridcolor: '#f3f4f6',
+                        ticksuffix: opts.ysuffix || '',
+                        tickformat: opts.yformat || ''
+                    },
+                    hovermode: 'x unified',
+                    legend: { orientation: 'h', y: -0.2 },
+                    plot_bgcolor: 'white',
+                    shapes
+                }, { responsive: true });
+            }
+
+            // Restore FRED key from localStorage on load
+            (function() {
+                try {
+                    const saved = localStorage.getItem('mps_fred_api_key');
+                    if (saved) {
+                        const input = document.getElementById('fredApiKey');
+                        if (input) input.value = saved;
+                    }
+                } catch(e) {}
+            })();
+        </script>
+    </div>
+
 </body>
 
 
