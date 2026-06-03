@@ -5327,12 +5327,12 @@
             <!-- Charts grid -->
             <div class="space-y-6">
 
-                <!-- PMI -->
+                <!-- CLI (Indicadores Adelantados) -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-sky-600 pl-3">PMI Compuesto — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Zona ≥50 expansión / &lt;50 contracción · Fuente: FRED (St. Louis Fed)</p>
-                    <div id="macroPMIChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: US ISM Compuesto (NAPMCI), EZ PMI (EURHICPALLMINMSM proxy), China (CHPMIMFG), India (INPRMANMISMIL)</div>
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-sky-600 pl-3">CLI (Indicador Adelantado OECD) — EEUU, Alemania, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Zona ≥100 expansión / <100 contracción · Fuente: FRED (OECD Amplitude Adjusted)</p>
+                    <div id="macroCLIChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: USALOLITOAASTSAM (US), DEULOLITOAASTSAM (DE), CHNLOLITOAASTSAM (China), INDLOLITOAASTSAM (India)</div>
                 </div>
 
                 <!-- Inflación CPI -->
@@ -5377,11 +5377,11 @@
             let macroPeriod = '10Y';
 
             const MACRO_SERIES = {
-                pmi: [
-                    { id: 'NAPMCI',           label: 'EEUU (ISM)',    color: '#2563eb' },
-                    { id: 'EURPMICOMM',       label: 'Eurozona',      color: '#f59e0b' },
-                    { id: 'CHPMIMFG',         label: 'China (Mfg)',   color: '#ef4444' },
-                    { id: 'INPRMANMISMIL',    label: 'India (Mfg)',   color: '#10b981' }
+                cli: [
+                    { id: 'USALOLITOAASTSAM', label: 'EEUU', color: '#2563eb' },
+                    { id: 'DEULOLITOAASTSAM', label: 'Alemania', color: '#f59e0b' },
+                    { id: 'CHNLOLITOAASTSAM', label: 'China', color: '#ef4444' },
+                    { id: 'INDLOLITOAASTSAM', label: 'India', color: '#10b981' }
                 ],
                 cpi: [
                     { id: 'CPIAUCSL',              label: 'EEUU CPI',    color: '#2563eb', yoy: true },
@@ -5456,28 +5456,27 @@
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Descargando...';
 
-                // Collect all unique series IDs
                 const allSeries = Object.values(MACRO_SERIES).flat().map(s => s.id);
                 const uniqueSeries = [...new Set(allSeries)];
 
                 status.textContent = `Descargando ${uniqueSeries.length} series de FRED...`;
                 macroRawData = {};
 
-                const results = await Promise.allSettled(
-                    uniqueSeries.map(id => fetchFREDSeries(id, apiKey).then(data => ({ id, data })))
-                );
-
                 let loaded = 0;
-                results.forEach(r => {
-                    if (r.status === 'fulfilled' && r.value.data.length > 0) {
-                        macroRawData[r.value.id] = r.value.data;
-                        loaded++;
-                    } else if (r.status === 'rejected') {
-                        console.warn('FRED fetch failed:', r.reason);
-                    } else if (r.status === 'fulfilled') {
-                        console.warn('Empty data for series', r.value.id);
+                for (const id of uniqueSeries) {
+                    try {
+                        const data = await fetchFREDSeries(id, apiKey);
+                        if (data && data.length > 0) {
+                            macroRawData[id] = data;
+                            loaded++;
+                            status.textContent = `${loaded}/${uniqueSeries.length} series cargadas...`;
+                        } else {
+                            console.warn('Serie vacía en FRED:', id);
+                        }
+                    } catch (err) {
+                        console.error('Error fetched FRED serie:', id, err.message);
                     }
-                });
+                }
 
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Recargar';
@@ -5496,7 +5495,7 @@
             }
 
             function renderMacroDashboard(period) {
-                renderMacroChart('macroPMIChart', MACRO_SERIES.pmi, period, 'PMI Compuesto', false, { refline: 50 });
+                renderMacroChart('macroCLIChart', MACRO_SERIES.cli, period, 'CLI (OECD)', false, { refline: 100 });
                 renderMacroChart('macroCPIChart', MACRO_SERIES.cpi, period, 'Inflación CPI YoY (%)', true, { refline: 2, yformat: '.1f', ysuffix: '%' });
                 renderMacroChart('macroRatesChart', MACRO_SERIES.rates, period, 'Tipos Oficiales (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
                 renderMacroChart('macro10YChart', MACRO_SERIES.bonds10y, period, 'Bono 10Y (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
