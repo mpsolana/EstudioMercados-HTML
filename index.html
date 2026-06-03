@@ -5001,7 +5001,7 @@
                     <!-- Small vs Large -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-teal-600 pl-3">Small Cap vs Large Cap (Ratio de Valoración Relativa)</h4>
-                        <p class="text-xs text-gray-400 mb-3 pl-3">IWM (Russell 2000) / SPY (S&P 500) normalizado Base 10 · Fuente: Yahoo Finance</p>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">Evolución ratio de precio: IWM (Russell 2000) / SPY (S&P 500) normalizado Base 10 · Fuente: Yahoo Finance</p>
                         <div id="valSmallLargeChart" class="w-full h-[380px]"></div>
                     </div>
                 </div>
@@ -5009,7 +5009,7 @@
                 <!-- EM vs DM -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-cyan-600 pl-3">Mercados Emergentes vs Desarrollados (Ratio de Valoración Relativa)</h4>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">EEM (MSCI EM) / ACWI (MSCI All World) normalizado Base 10 · Fuente: Yahoo Finance</p>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Evolución ratio de precio: EEM (MSCI EM) / ACWI (MSCI All World) normalizado Base 10 · Fuente: Yahoo Finance</p>
                     <div id="valEMDMChart" class="w-full h-[320px]"></div>
                 </div>
 
@@ -5141,41 +5141,37 @@
                 const chartLayout = (title) => ({
                     margin: { t: 20, l: 50, r: 20, b: 40 },
                     xaxis: { showgrid: false },
-                    yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
+                    yaxis: { title: 'Ratio Relativo', gridcolor: '#f3f4f6' },
                     hovermode: 'x unified',
                     legend: { orientation: 'h', y: -0.2 },
                     plot_bgcolor: 'white',
-                    shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 10, y1: 10, line: { color: '#94a3b8', width: 1, dash: 'dot' } }]
+                    shapes: []
                 });
 
                 // HY vs IG chart
-                const HYn = normalizeBase10(HY);
-                const IGn = normalizeBase10(IG);
+                const hy_ig = spreadRatio(HY, IG);
                 Plotly.newPlot('valHYIGChart', [
-                    { x: HYn.map(d => d.date), y: HYn.map(d => d.value), mode: 'lines', name: 'HY EUR (IHYG.L)', line: { color: '#dc2626', width: 2 } },
-                    { x: IGn.map(d => d.date), y: IGn.map(d => d.value), mode: 'lines', name: 'IG EUR (IBCX.DE)', line: { color: '#2563eb', width: 2 } }
-                ], chartLayout('HY vs IG'), { responsive: true });
+                    { x: hy_ig.map(d => d.date), y: hy_ig.map(d => d.value), mode: 'lines', name: 'Ratio HY/IG', line: { color: '#dc2626', width: 2 } }
+                ], chartLayout('Ratio HY vs IG (Evolución Relativa)'), { responsive: true });
 
                 // Crédito vs Govies chart
-                const GOVn = normalizeBase10(GOV);
+                const ig_gov = spreadRatio(IG, GOV);
                 Plotly.newPlot('valCreditGovieChart', [
-                    { x: IGn.map(d => d.date), y: IGn.map(d => d.value), mode: 'lines', name: 'IG EUR (IBCX.DE)', line: { color: '#f97316', width: 2 } },
-                    { x: GOVn.map(d => d.date), y: GOVn.map(d => d.value), mode: 'lines', name: 'Govies EUR Largo (IBGL.L)', line: { color: '#059669', width: 2 } }
-                ], chartLayout('Crédito vs Govies'), { responsive: true });
+                    { x: ig_gov.map(d => d.date), y: ig_gov.map(d => d.value), mode: 'lines', name: 'Ratio IG/Govies Largo', line: { color: '#f97316', width: 2 } }
+                ], chartLayout('Ratio Crédito vs Govies'), { responsive: true });
 
-                // Curva de tipos por tramos
-                const GOVSn = normalizeBase10(GOVS);
-                const GOVMn = normalizeBase10(GOVM);
+                // Curva de tipos por tramos (Spread Largo vs Corto y Medio vs Corto)
+                const largo_corto = spreadRatio(GOV, GOVS);
+                const medio_corto = spreadRatio(GOVM, GOVS);
                 Plotly.newPlot('valCurvaChart', [
-                    { x: GOVSn.map(d => d.date), y: GOVSn.map(d => d.value), mode: 'lines', name: 'Corto (IBGS.L, 1-3Y)', line: { color: '#7c3aed', width: 2 } },
-                    { x: GOVMn.map(d => d.date), y: GOVMn.map(d => d.value), mode: 'lines', name: 'Medio (IBGM.DE, 5-7Y)', line: { color: '#d97706', width: 2 } },
-                    { x: GOVn.map(d => d.date), y: GOVn.map(d => d.value), mode: 'lines', name: 'Largo (IBGL.L, 10Y+)', line: { color: '#0ea5e9', width: 2 } }
+                    { x: largo_corto.map(d => d.date), y: largo_corto.map(d => d.value), mode: 'lines', name: 'Largo / Corto (10Y+ vs 1-3Y)', line: { color: '#0ea5e9', width: 2 } },
+                    { x: medio_corto.map(d => d.date), y: medio_corto.map(d => d.value), mode: 'lines', name: 'Medio / Corto (5-7Y vs 1-3Y)', line: { color: '#d97706', width: 2 } }
                 ], {
-                    ...chartLayout('Curva EUR'),
+                    ...chartLayout('Evolución Curva (Spread)'),
                     annotations: [{
                         xref: 'paper', yref: 'paper', x: 0.01, y: 0.98,
                         xanchor: 'left', yanchor: 'top', showarrow: false,
-                        text: 'Largo > Corto = Curva Normal | Largo < Corto = Curva Invertida',
+                        text: 'Largo / Corto (Yield Spread proxy mediante ratio de precios normalizado)',
                         font: { size: 10, color: '#6b7280' }
                     }]
                 }, { responsive: true });
@@ -5338,7 +5334,7 @@
                 <!-- Inflación CPI -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflación (CPI YoY %) — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Variación anual del Índice de Precios al Consumo · Fuente: FRED</p>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Tasa anual de cambio del Índice de Precios al Consumo (Target 2% marcado) · Fuente: FRED</p>
                     <div id="macroCPIChart" class="w-full h-[380px]"></div>
                     <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: CPIAUCSL (US), CP0000EZ19M086NEST (EZ), CHNCPIALLMINMEI (China), INDCPIALLMINMEI (India)</div>
                 </div>
@@ -5384,7 +5380,7 @@
                     { id: 'INDLOLITOAASTSAM', label: 'India', color: '#10b981' }
                 ],
                 cpi: [
-                    { id: 'CPIAUCSL',              label: 'EEUU CPI',    color: '#2563eb', yoy: true },
+                    { id: 'CPIAUCSL',              label: 'EEUU CPI',    color: '#2563eb', yoy: false },
                     { id: 'CP0000EZ19M086NEST',    label: 'Eurozona HICP', color: '#f59e0b', yoy: false },
                     { id: 'CHNCPIALLMINMEI',       label: 'China CPI',   color: '#ef4444', yoy: false },
                     { id: 'INDCPIALLMINMEI',       label: 'India CPI',   color: '#10b981', yoy: false }
@@ -5463,19 +5459,26 @@
                 macroRawData = {};
 
                 let loaded = 0;
+                let missingSeries = [];
                 for (const id of uniqueSeries) {
                     try {
                         const data = await fetchFREDSeries(id, apiKey);
                         if (data && data.length > 0) {
                             macroRawData[id] = data;
                             loaded++;
-                            status.textContent = `${loaded}/${uniqueSeries.length} series cargadas...`;
+                            status.textContent = `${loaded}/${uniqueSeries.length} series descargadas...`;
                         } else {
                             console.warn('Serie vacía en FRED:', id);
+                            missingSeries.push(id);
                         }
                     } catch (err) {
                         console.error('Error fetched FRED serie:', id, err.message);
+                        missingSeries.push(id);
                     }
+                }
+
+                if (missingSeries.length > 0) {
+                    alert('FRED API no ha devuelto datos para las siguientes series (verifique si existen o si están restringidas por la Fed):\n\n' + missingSeries.join('\n'));
                 }
 
                 btn.disabled = false;
@@ -5496,7 +5499,7 @@
 
             function renderMacroDashboard(period) {
                 renderMacroChart('macroCLIChart', MACRO_SERIES.cli, period, 'CLI (OECD)', false, { refline: 100 });
-                renderMacroChart('macroCPIChart', MACRO_SERIES.cpi, period, 'Inflación CPI YoY (%)', true, { refline: 2, yformat: '.1f', ysuffix: '%' });
+                renderMacroChart('macroCPIChart', MACRO_SERIES.cpi, period, 'Inflación CPI YoY (%)', true, { refline: 2, reflineColor: '#ef4444', reflineDash: 'dash', yborder: false, yformat: '.1f', ysuffix: '%' });
                 renderMacroChart('macroRatesChart', MACRO_SERIES.rates, period, 'Tipos Oficiales (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
                 renderMacroChart('macro10YChart', MACRO_SERIES.bonds10y, period, 'Bono 10Y (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
                 renderMacroChart('macroUnemplChart', MACRO_SERIES.unemp, period, 'Desempleo (%)', false, { refline: null, yformat: '.1f', ysuffix: '%' });
@@ -5505,8 +5508,7 @@
             function renderMacroChart(chartId, seriesDef, period, title, doYoY, opts) {
                 const traces = seriesDef.map(s => {
                     let raw = macroRawData[s.id] || [];
-                    if (doYoY && s.yoy === true) raw = calcYoY(raw);
-                    else if (doYoY && s.yoy === false) raw = raw; // already YoY from FRED
+                    if (doYoY && s.yoy === false) raw = calcYoY(raw); // FRED no es YoY, calculamos
                     const sliced = sliceMacroByPeriod(raw, period);
                     return {
                         x: sliced.map(d => d.date),
@@ -5523,7 +5525,7 @@
                     shapes.push({
                         type: 'line', xref: 'paper', x0: 0, x1: 1,
                         yref: 'y', y0: opts.refline, y1: opts.refline,
-                        line: { color: '#9ca3af', width: 1.5, dash: 'dash' }
+                        line: { color: opts.reflineColor || '#9ca3af', width: 1.5, dash: opts.reflineDash || 'dash' }
                     });
                 }
 
