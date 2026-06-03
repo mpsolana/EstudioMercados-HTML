@@ -5306,7 +5306,7 @@
             <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div class="flex-1">
                     <label class="block text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-key mr-1"></i> FRED API Key <span class="text-gray-400 font-normal">(gratuita en <a href="https://fred.stlouisfed.org" target="_blank" class="underline">fred.stlouisfed.org</a>)</span></label>
-                    <input type="text" id="fredApiKey" placeholder="Introduce tu FRED API Key aquí..."
+                    <input type="text" id="fredApiKey" value="fa2361b9e5921bbf1a213f8b9def386b" placeholder="Introduce tu FRED API Key aquí..."
                         class="w-full p-2 border border-sky-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-sky-400 focus:outline-none" />
                 </div>
                 <div class="flex flex-col gap-2">
@@ -5410,7 +5410,7 @@
             };
 
             async function fetchFREDSeries(seriesId, apiKey) {
-                const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
+                const url = `/api/fred?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error(`FRED API error for ${seriesId}: ${resp.status}`);
                 const json = await resp.json();
