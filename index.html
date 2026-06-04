@@ -5331,6 +5331,14 @@
                     <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: USALOLITOAASTSAM (US), DEULOLITOAASTSAM (DE), CHNLOLITOAASTSAM (China), INDLOLITOAASTSAM (India)</div>
                 </div>
 
+                <!-- PMI Manufacturero -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-indigo-500 pl-3">PMI Manufacturero (OECD/Markit) — EEUU, Eurozona, China, India</h3>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Índice de Gestores de Compras · Zona &gt;50 expansión / &lt;50 contracción (línea punteada) · Fuente: FRED (OECD MEI)</p>
+                    <div id="macroPMIChart" class="w-full h-[380px]"></div>
+                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: USAPMANMISMEI (US), EURPMANMISMEI (EZ), CHNPMANMISMEI (China), INDPMANMISMEI (India) · Fuente: FRED/OECD MEI</div>
+                </div>
+
                 <!-- Inflación CPI -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflación (CPI YoY %) — EEUU, Eurozona, China, India</h3>
@@ -5375,15 +5383,21 @@
             const MACRO_SERIES = {
                 cli: [
                     { id: 'USALOLITOAASTSAM', label: 'EEUU', color: '#2563eb' },
-                    { id: 'DEULOLITOAASTSAM', label: 'Alemania', color: '#f59e0b' },
+                    { id: 'DEULOLITOAASTSAM', label: 'Alemania/EZ', color: '#f59e0b' },
                     { id: 'CHNLOLITOAASTSAM', label: 'China', color: '#ef4444' },
                     { id: 'INDLOLITOAASTSAM', label: 'India', color: '#10b981' }
                 ],
+                pmi: [
+                    { id: 'USAPMANMISMEI',    label: 'EEUU PMI Mfg',   color: '#2563eb' },
+                    { id: 'EURPMANMISMEI',    label: 'EZ PMI Mfg',     color: '#f59e0b' },
+                    { id: 'CHNPMANMISMEI',    label: 'China PMI Mfg',  color: '#ef4444' },
+                    { id: 'INDPMANMISMEI',    label: 'India PMI Mfg',  color: '#10b981' }
+                ],
                 cpi: [
-                    { id: 'CPIAUCSL',              label: 'EEUU CPI',    color: '#2563eb', yoy: false },
-                    { id: 'CP0000EZ19M086NEST',    label: 'Eurozona HICP', color: '#f59e0b', yoy: false },
-                    { id: 'CHNCPIALLMINMEI',       label: 'China CPI',   color: '#ef4444', yoy: false },
-                    { id: 'INDCPIALLMINMEI',       label: 'India CPI',   color: '#10b981', yoy: false }
+                    { id: 'CPIAUCSL',              label: 'EEUU CPI',      color: '#2563eb' },
+                    { id: 'CP0000EZ19M086NEST',    label: 'Eurozona HICP', color: '#f59e0b' },
+                    { id: 'CHNCPIALLMINMEI',       label: 'China CPI',     color: '#ef4444', isYoY: true },
+                    { id: 'INDCPIALLMINMEI',       label: 'India CPI',     color: '#10b981', isYoY: true }
                 ],
                 rates: [
                     { id: 'FEDFUNDS',              label: 'Fed Funds (US)',     color: '#2563eb' },
@@ -5406,10 +5420,12 @@
             };
 
             async function fetchFREDSeries(seriesId, apiKey) {
-                const url = `/api/fred?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
+                // Llamada directa a la API de FRED (soporta CORS para peticiones desde navegador)
+                const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(seriesId)}&api_key=${encodeURIComponent(apiKey)}&file_type=json&sort_order=asc`;
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error(`FRED API error for ${seriesId}: ${resp.status}`);
                 const json = await resp.json();
+                if (json.error_message) throw new Error(json.error_message);
                 if (!json.observations) return [];
                 return json.observations
                     .filter(o => o.value !== '.' && o.value !== '')
@@ -5499,6 +5515,7 @@
 
             function renderMacroDashboard(period) {
                 renderMacroChart('macroCLIChart', MACRO_SERIES.cli, period, 'CLI (OECD)', false, { refline: 100 });
+                renderMacroChart('macroPMIChart', MACRO_SERIES.pmi, period, 'PMI Manufacturero', false, { refline: 50, reflineColor: '#374151', reflineDash: 'dot', yformat: '.1f', ysuffix: '' });
                 renderMacroChart('macroCPIChart', MACRO_SERIES.cpi, period, 'Inflación CPI YoY (%)', true, { refline: 2, reflineColor: '#ef4444', reflineDash: 'dash', yborder: false, yformat: '.1f', ysuffix: '%' });
                 renderMacroChart('macroRatesChart', MACRO_SERIES.rates, period, 'Tipos Oficiales (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
                 renderMacroChart('macro10YChart', MACRO_SERIES.bonds10y, period, 'Bono 10Y (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
@@ -5508,7 +5525,8 @@
             function renderMacroChart(chartId, seriesDef, period, title, doYoY, opts) {
                 const traces = seriesDef.map(s => {
                     let raw = macroRawData[s.id] || [];
-                    if (doYoY && s.yoy === false) raw = calcYoY(raw); // FRED no es YoY, calculamos
+                    // Si doYoY=true y la serie NO viene ya en formato YoY, calculamos
+                    if (doYoY && !s.isYoY) raw = calcYoY(raw);
                     const sliced = sliceMacroByPeriod(raw, period);
                     return {
                         x: sliced.map(d => d.date),
