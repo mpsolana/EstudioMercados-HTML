@@ -5420,8 +5420,8 @@
             };
 
             async function fetchFREDSeries(seriesId, apiKey) {
-                // Llamada directa a la API de FRED (soporta CORS para peticiones desde navegador)
-                const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(seriesId)}&api_key=${encodeURIComponent(apiKey)}&file_type=json&sort_order=asc`;
+                // Volvemos a usar el proxy de Vercel para evitar fallos CORS en producción
+                const url = `/api/fred?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error(`FRED API error for ${seriesId}: ${resp.status}`);
                 const json = await resp.json();
@@ -5471,36 +5471,55 @@
                 const allSeries = Object.values(MACRO_SERIES).flat().map(s => s.id);
                 const uniqueSeries = [...new Set(allSeries)];
 
-                status.textContent = `Descargando ${uniqueSeries.length} series de FRED...`;
-                macroRawData = {};
+                status.innerHTML = `
+                    <div class="mb-2 font-bold text-gray-700">Iniciando descarga de ${uniqueSeries.length} series de FRED...</div>
+                    <div id="macroDownloadLog" class="text-xs text-gray-600 max-h-40 overflow-y-auto space-y-1 p-3 bg-white rounded border border-gray-200 font-mono shadow-inner shadow-gray-100"></div>
+                `;
+                const logDiv = document.getElementById('macroDownloadLog');
 
+                macroRawData = {};
                 let loaded = 0;
                 let missingSeries = [];
+                
                 for (const id of uniqueSeries) {
+                    const logItem = document.createElement('div');
+                    logItem.innerHTML = `<span class="text-blue-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i></span> Descargando ${id}...`;
+                    logDiv.appendChild(logItem);
+                    logDiv.scrollTop = logDiv.scrollHeight;
+
                     try {
                         const data = await fetchFREDSeries(id, apiKey);
                         if (data && data.length > 0) {
                             macroRawData[id] = data;
                             loaded++;
-                            status.textContent = `${loaded}/${uniqueSeries.length} series descargadas...`;
+                            logItem.innerHTML = `<span class="text-green-500"><i class="fa-solid fa-check mr-1"></i></span> Descargando ${id} <span class="font-bold text-green-600 ml-2">✓ OK (${data.length} obs)</span>`;
                         } else {
                             console.warn('Serie vacía en FRED:', id);
                             missingSeries.push(id);
+                            logItem.innerHTML = `<span class="text-orange-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i></span> Descargando ${id} <span class="font-bold text-orange-500 ml-2">⚠ Sin datos</span>`;
                         }
                     } catch (err) {
                         console.error('Error fetched FRED serie:', id, err.message);
                         missingSeries.push(id);
+                        logItem.innerHTML = `<span class="text-red-500"><i class="fa-solid fa-xmark mr-1"></i></span> Descargando ${id} <span class="font-bold text-red-600 ml-2">✗ Error: ${err.message}</span>`;
                     }
                 }
 
                 if (missingSeries.length > 0) {
-                    alert('FRED API no ha devuelto datos para las siguientes series (verifique si existen o si están restringidas por la Fed):\n\n' + missingSeries.join('\n'));
+                    const errSumary = document.createElement('div');
+                    errSumary.className = "mt-2 p-2 bg-red-50 text-red-700 border border-red-200 rounded";
+                    errSumary.innerHTML = `<strong>Aviso:</strong> ${missingSeries.length} series han fallado o devolvieron datos vacíos. Revisa la lista desplegable de arriba.`;
+                    status.appendChild(errSumary);
+                } else {
+                    const okSumary = document.createElement('div');
+                    okSumary.className = "mt-2 text-green-600 font-bold";
+                    okSumary.innerHTML = `<i class="fa-solid fa-circle-check"></i> Todas las series (${loaded}/${uniqueSeries.length}) cargadas correctamente.`;
+                    status.appendChild(okSumary);
                 }
 
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Recargar';
-                status.textContent = `${loaded}/${uniqueSeries.length} series cargadas. Última actualización: ${new Date().toLocaleString('es-ES')}.`;
-
+                
                 renderMacroDashboard(macroPeriod);
             }
 
