@@ -5290,313 +5290,150 @@
 
     <!-- ==================== SECTION: MACRO DASHBOARD ==================== -->
     <div id="section-macro" class="app-section">
-        <div class="container mx-auto p-4 lg:p-6 space-y-8">
-
-            <!-- Header -->
+        <div class="container mx-auto p-4 lg:p-6 space-y-7 bg-slate-50">
             <div class="flex items-center gap-3">
-                <i class="fa-solid fa-earth-europe text-2xl text-sky-600"></i>
-                <h2 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Macro Dashboard</h2>
+                <i class="fa-solid fa-earth-europe text-2xl text-sky-700"></i>
+                <h2 class="text-2xl font-black text-slate-900 uppercase tracking-tight">Macro Dashboard</h2>
             </div>
-
-            <!-- API Key box -->
-            <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div class="bg-white border border-sky-100 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
                 <div class="flex-1">
-                    <label class="block text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-key mr-1"></i> FRED API Key <span class="text-gray-400 font-normal">(gratuita en <a href="https://fred.stlouisfed.org" target="_blank" class="underline">fred.stlouisfed.org</a>)</span></label>
-                    <input type="text" id="fredApiKey" value="fa2361b9e5921bbf1a213f8b9def386b" placeholder="Introduce tu FRED API Key aquí..."
-                        class="w-full p-2 border border-sky-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+                    <div class="text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-database mr-1"></i> FRED macro data</div>
+                    <p class="text-sm text-slate-700 leading-relaxed">Todas las series se consultan exclusivamente en <span class="font-mono">/api/macro</span> via FRED. Las series diarias se agregan a media mensual para alinear frecuencias.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Configura <span class="font-mono font-bold">FRED_API_KEY</span> en Vercel. Universo: EEUU, Eurozona, Alemania, Francia, Italia, Espana y UK.</p>
                 </div>
                 <div class="flex flex-col gap-2">
-                    <button onclick="loadMacroData()" id="macroLoadBtn"
-                        class="px-5 py-2 bg-sky-600 text-white rounded-lg shadow hover:bg-sky-700 font-bold whitespace-nowrap flex items-center gap-2">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> Cargar Datos Macro
-                    </button>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="filterMacro('5Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">5A</button>
-                        <button onclick="filterMacro('10Y',this)" class="px-2 py-0.5 text-xs rounded bg-sky-600 text-white font-bold">10A</button>
-                        <button onclick="filterMacro('20Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">20A</button>
-                        <button onclick="filterMacro('MAX',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">MÁX</button>
-                    </div>
+                    <button onclick="loadMacroData()" id="macroLoadBtn" class="px-5 py-2 bg-sky-700 text-white rounded-lg shadow hover:bg-sky-800 font-bold whitespace-nowrap flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-down"></i> Cargar datos</button>
+                    <div class="flex gap-2 flex-wrap"><button onclick="filterMacro('5Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">5A</button><button onclick="filterMacro('10Y',this)" class="px-2 py-0.5 text-xs rounded bg-sky-700 text-white font-bold">10A</button><button onclick="filterMacro('20Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">20A</button><button onclick="filterMacro('MAX',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">MAX</button></div>
                 </div>
             </div>
-            <p id="macroStatus" class="text-sm text-gray-500 -mt-4"></p>
-
-            <!-- Charts grid -->
+            <p id="macroStatus" class="text-sm text-slate-500 -mt-3"></p>
             <div class="space-y-6">
-
-                <!-- CLI (Indicadores Adelantados) -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-sky-600 pl-3">CLI (Indicador Adelantado OECD) — EEUU, Alemania, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Zona ≥100 expansión / <100 contracción · Fuente: FRED (OECD Amplitude Adjusted)</p>
-                    <div id="macroCLIChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: USALOLITOAASTSAM (US), DEULOLITOAASTSAM (DE), CHNLOLITOAASTSAM (China), INDLOLITOAASTSAM (India)</div>
-                </div>
-
-                <!-- PMI Manufacturero -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-indigo-500 pl-3">PMI Manufacturero (OECD/Markit) — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Índice de Gestores de Compras · Zona &gt;50 expansión / &lt;50 contracción (línea punteada) · Fuente: FRED (OECD MEI)</p>
-                    <div id="macroPMIChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: USAPMANMISMEI (US), EURPMANMISMEI (EZ), CHNPMANMISMEI (China), INDPMANMISMEI (India) · Fuente: FRED/OECD MEI</div>
-                </div>
-
-                <!-- Inflación CPI -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflación (CPI YoY %) — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Tasa anual de cambio del Índice de Precios al Consumo (Target 2% marcado) · Fuente: FRED</p>
-                    <div id="macroCPIChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: CPIAUCSL (US), CP0000EZ19M086NEST (EZ), CHNCPIALLMINMEI (China), INDCPIALLMINMEI (India)</div>
-                </div>
-
-                <!-- Tipos oficiales -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos de Interés Oficiales (%) — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Tipo de referencia de cada banco central · Fuente: FRED</p>
-                    <div id="macroRatesChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: FEDFUNDS (US Fed), ECBDFR (ECB Depo), IRSTCI01CNM156N (China), IRSTCI01INM156N (India)</div>
-                </div>
-
-                <!-- 10Y Bonds -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-green-600 pl-3">Bono Soberano 10 Años (%) — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Rentabilidad del bono gobierno a 10 años · Fuente: FRED</p>
-                    <div id="macro10YChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: DGS10 (US), IRLTLT01EZM156N (EZ), IRLTLT01CNM156N (China), IRLTLT01INM156N (India)</div>
-                </div>
-
-                <!-- Desempleo -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="text-gray-800 font-bold mb-1 border-l-4 border-purple-600 pl-3">Tasa de Desempleo (%) — EEUU, Eurozona, China, India</h3>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">% de la fuerza laboral sin empleo · Fuente: FRED</p>
-                    <div id="macroUnemplChart" class="w-full h-[380px]"></div>
-                    <div class="text-[11px] text-gray-400 mt-2 pl-1">Series: UNRATE (US), LRHUTTTTEZM156S (EZ), LRUN64TTCNM156S (China), LRUN64TTINM156S (India)</div>
-                </div>
-
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-sky-700 pl-3">CLI OECD - EEUU y Europa</h3><p class="text-xs text-slate-400 mb-3 pl-3">Zona &gt;=100 expansion / &lt;100 contraccion. Fuente: FRED/OECD.</p><div id="macroCLIChart" class="w-full h-[380px]"></div><div id="macroCLITable" class="mt-3"></div><div id="macroCLISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-indigo-600 pl-3">ICE BofA High Yield Effective Yield</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU HY y Euro HY. Series diarias FRED/ICE BofA agregadas a media mensual.</p><div id="macroPMIChart" class="w-full h-[380px]"></div><div id="macroPMITable" class="mt-3"></div><div id="macroPMISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-blue-700 pl-3">Economic Policy Uncertainty</h3><p class="text-xs text-slate-400 mb-3 pl-3">Indice mensual para EEUU y Europa. Fuente: FRED/EPU.</p><div id="macroEPUChart" class="w-full h-[380px]"></div><div id="macroEPUTable" class="mt-3"></div><div id="macroEPUSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflacion CPI/HICP YoY</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU CPI y Eurozona HICP, variacion interanual calculada desde indices mensuales. Target 2%.</p><div id="macroCPIChart" class="w-full h-[380px]"></div><div id="macroCPITable" class="mt-3"></div><div id="macroCPISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos oficiales</h3><p class="text-xs text-slate-400 mb-3 pl-3">Fed Funds y ECB Deposit Facility Rate. Fuente: FRED.</p><div id="macroRatesChart" class="w-full h-[380px]"></div><div id="macroRatesTable" class="mt-3"></div><div id="macroRatesSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-green-600 pl-3">Bono soberano 10 anos</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU, Alemania, Francia, Italia, Espana y UK. Fuente: FRED/OECD.</p><div id="macro10YChart" class="w-full h-[380px]"></div><div id="macro10YTable" class="mt-3"></div><div id="macro10YSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-purple-600 pl-3">Tasa de desempleo</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU, Alemania, Francia, Italia, Espana y UK. Fuente: FRED/OECD.</p><div id="macroUnemplChart" class="w-full h-[380px]"></div><div id="macroUnemplTable" class="mt-3"></div><div id="macroUnemplSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-slate-600 pl-3">PIB real indexado</h3><p class="text-xs text-slate-400 mb-3 pl-3">Series trimestrales indexadas a 100 al inicio del periodo seleccionado. Fuente: FRED.</p><div id="macroGDPChart" class="w-full h-[380px]"></div><div id="macroGDPTable" class="mt-3"></div><div id="macroGDPSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-slate-500 pl-3">PIB real YoY</h3><p class="text-xs text-slate-400 mb-3 pl-3">Crecimiento interanual del PIB real trimestral. Fuente: FRED.</p><div id="macroGDPYoYChart" class="w-full h-[380px]"></div><div id="macroGDPYoYTable" class="mt-3"></div><div id="macroGDPYoYSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-sky-500 pl-3">M2 y velocidad del dinero</h3><p class="text-xs text-slate-400 mb-3 pl-3">M2 (eje izquierdo) y velocidad M2V (eje derecho). Fuente: FRED.</p><div id="macroMoneyChart" class="w-full h-[380px]"></div><div id="macroMoneyTable" class="mt-3"></div><div id="macroMoneySource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-rose-600 pl-3">Riesgo de recesion</h3><p class="text-xs text-slate-400 mb-3 pl-3">Pendiente 10Y-2Y (eje izquierdo) y Sahm Rule real-time (eje derecho). Fuente: FRED.</p><div id="macroRecessionChart" class="w-full h-[380px]"></div><div id="macroRecessionTable" class="mt-3"></div><div id="macroRecessionSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
             </div>
-
         </div>
-
         <script>
-            // ---- MACRO DASHBOARD LOGIC ----
-            let macroRawData = {}; // { seriesId: [{date, value}] }
+            let macroRawData = {};
             let macroPeriod = '10Y';
+            const MACRO_GROUPS = [
+                { key: 'cli', chartId: 'macroCLIChart', tableId: 'macroCLITable', sourceId: 'macroCLISource', title: 'CLI OECD', opts: { refline: 100, yformat: '.1f', ysuffix: '', changeMode: 'pct', note: 'El CLI anticipa puntos de giro del ciclo. Por encima de 100 sugiere expansion relativa; por debajo de 100 sugiere enfriamiento.' } },
+                { key: 'pmi', chartId: 'macroPMIChart', tableId: 'macroPMITable', sourceId: 'macroPMISource', title: 'ICE BofA HY Effective Yield', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', note: 'El yield high yield refleja coste de financiacion y prima de riesgo de credito. Subidas suelen indicar tension financiera; bajadas, apetito por riesgo.' } },
+                { key: 'epu', chartId: 'macroEPUChart', tableId: 'macroEPUTable', sourceId: 'macroEPUSource', title: 'Economic Policy Uncertainty', opts: { yformat: '.0f', ysuffix: '', changeMode: 'pct', note: 'El EPU mide incertidumbre de politica economica en prensa. Lecturas altas suelen asociarse a menor visibilidad para inversion y consumo.' } },
+                { key: 'cpi', chartId: 'macroCPIChart', tableId: 'macroCPITable', sourceId: 'macroCPISource', title: 'Inflacion YoY', opts: { refline: 2, reflineColor: '#ef4444', reflineDash: 'dash', yformat: '.1f', ysuffix: '%', changeMode: 'diff', note: 'La inflacion YoY compara precios contra el mismo mes del ano anterior. Frente al 2% ayuda a leer presion sobre bancos centrales.' } },
+                { key: 'rates', chartId: 'macroRatesChart', tableId: 'macroRatesTable', sourceId: 'macroRatesSource', title: 'Tipos oficiales', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', note: 'Los tipos oficiales son el precio base del dinero. Subidas endurecen condiciones financieras; bajadas alivian credito y valoraciones.' } },
+                { key: 'bonds10y', chartId: 'macro10YChart', tableId: 'macro10YTable', sourceId: 'macro10YSource', title: 'Bono 10Y', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', note: 'El 10Y resume expectativas de crecimiento, inflacion y prima temporal. Diferenciales entre paises europeos capturan riesgo soberano relativo.' } },
+                { key: 'unemp', chartId: 'macroUnemplChart', tableId: 'macroUnemplTable', sourceId: 'macroUnemplSource', title: 'Desempleo', opts: { yformat: '.1f', ysuffix: '%', changeMode: 'diff', note: 'El desempleo mide holgura laboral. Repuntes persistentes suelen anticipar desaceleracion de demanda y beneficios.' } },
+                { key: 'gdp', chartId: 'macroGDPChart', tableId: 'macroGDPTable', sourceId: 'macroGDPSource', title: 'PIB real indexado', opts: { yformat: '.1f', ysuffix: '', changeMode: 'pct', note: 'PIB real indexado compara el crecimiento acumulado desde el inicio del periodo seleccionado. Subidas muestran expansion real acumulada; caidas muestran contraccion de actividad.' } },
+                { key: 'gdp_yoy', chartId: 'macroGDPYoYChart', tableId: 'macroGDPYoYTable', sourceId: 'macroGDPYoYSource', title: 'PIB real YoY', opts: { yformat: '.1f', ysuffix: '%', changeMode: 'diff', note: 'PIB real YoY mide el crecimiento real frente al mismo trimestre del ano anterior. Es el pulso macro de crecimiento descontando inflacion.' } },
+                { key: 'money', chartId: 'macroMoneyChart', tableId: 'macroMoneyTable', sourceId: 'macroMoneySource', title: 'M2 y velocidad', opts: { yformat: '.1f', ysuffix: '', changeMode: 'pct', dualAxis: true, y2title: 'Velocidad M2V', note: 'M2 aproxima liquidez monetaria; M2V mide cuantas veces circula el dinero. M2 al alza con velocidad a la baja suele indicar liquidez retenida, no necesariamente actividad.' } },
+                { key: 'recession', chartId: 'macroRecessionChart', tableId: 'macroRecessionTable', sourceId: 'macroRecessionSource', title: 'Riesgo de recesion', opts: { yformat: '.2f', ysuffix: '', changeMode: 'diff', dualAxis: true, y2title: 'Sahm Rule', note: 'T10Y2Y negativo indica curva invertida y tension de ciclo. Sahm Rule cerca o por encima de 0.5 senala deterioro laboral compatible con recesion.' } }
+            ];
 
-            const MACRO_SERIES = {
-                cli: [
-                    { id: 'USALOLITOAASTSAM', label: 'EEUU', color: '#2563eb' },
-                    { id: 'DEULOLITOAASTSAM', label: 'Alemania/EZ', color: '#f59e0b' },
-                    { id: 'CHNLOLITOAASTSAM', label: 'China', color: '#ef4444' },
-                    { id: 'INDLOLITOAASTSAM', label: 'India', color: '#10b981' }
-                ],
-                pmi: [
-                    { id: 'USAPMANMISMEI',    label: 'EEUU PMI Mfg',   color: '#2563eb' },
-                    { id: 'EURPMANMISMEI',    label: 'EZ PMI Mfg',     color: '#f59e0b' },
-                    { id: 'CHNPMANMISMEI',    label: 'China PMI Mfg',  color: '#ef4444' },
-                    { id: 'INDPMANMISMEI',    label: 'India PMI Mfg',  color: '#10b981' }
-                ],
-                cpi: [
-                    { id: 'CPIAUCSL',              label: 'EEUU CPI',      color: '#2563eb' },
-                    { id: 'CP0000EZ19M086NEST',    label: 'Eurozona HICP', color: '#f59e0b' },
-                    { id: 'CHNCPIALLMINMEI',       label: 'China CPI',     color: '#ef4444', isYoY: true },
-                    { id: 'INDCPIALLMINMEI',       label: 'India CPI',     color: '#10b981', isYoY: true }
-                ],
-                rates: [
-                    { id: 'FEDFUNDS',              label: 'Fed Funds (US)',     color: '#2563eb' },
-                    { id: 'ECBDFR',                label: 'ECB Depo Rate',      color: '#f59e0b' },
-                    { id: 'IRSTCI01CNM156N',       label: 'China Policy Rate',  color: '#ef4444' },
-                    { id: 'IRSTCI01INM156N',       label: 'India Policy Rate',  color: '#10b981' }
-                ],
-                bonds10y: [
-                    { id: 'DGS10',                 label: 'US 10Y',      color: '#2563eb' },
-                    { id: 'IRLTLT01EZM156N',       label: 'EZ 10Y',      color: '#f59e0b' },
-                    { id: 'IRLTLT01CNM156N',       label: 'China 10Y',   color: '#ef4444' },
-                    { id: 'IRLTLT01INM156N',       label: 'India 10Y',   color: '#10b981' }
-                ],
-                unemp: [
-                    { id: 'UNRATE',                label: 'EEUU',        color: '#2563eb' },
-                    { id: 'LRHUTTTTEZM156S',       label: 'Eurozona',    color: '#f59e0b' },
-                    { id: 'LRUN64TTCNM156S',       label: 'China',       color: '#ef4444' },
-                    { id: 'LRUN64TTINM156S',       label: 'India',       color: '#10b981' }
-                ]
-            };
-
-            async function fetchFREDSeries(seriesId, apiKey) {
-                // Volvemos a usar el proxy de Vercel para evitar fallos CORS en producción
-                const url = `/api/fred?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
-                const resp = await fetch(url);
-                if (!resp.ok) throw new Error(`FRED API error for ${seriesId}: ${resp.status}`);
+            async function fetchMacroGroup(group, period) {
+                const resp = await fetch(`/api/macro?group=${encodeURIComponent(group)}&period=${encodeURIComponent(period)}`, { cache: 'no-store' });
+                if (!resp.ok) throw new Error(`Macro API error for ${group}: ${resp.status}`);
                 const json = await resp.json();
-                if (json.error_message) throw new Error(json.error_message);
-                if (!json.observations) return [];
-                return json.observations
-                    .filter(o => o.value !== '.' && o.value !== '')
-                    .map(o => ({ date: new Date(o.date), value: parseFloat(o.value) }));
+                if (json.error) throw new Error(json.error);
+                return json;
             }
-
-            function calcYoY(series) {
-                // Returns YoY % change for each point (needs 12 months back)
-                if (series.length < 13) return [];
-                const result = [];
-                for (let i = 12; i < series.length; i++) {
-                    const prev = series[i - 12].value;
-                    if (prev !== 0) result.push({ date: series[i].date, value: ((series[i].value / prev) - 1) * 100 });
-                }
-                return result;
+            async function fetchMacroHealth() {
+                const resp = await fetch('/api/macro/health', { cache: 'no-store' });
+                const json = await resp.json().catch(() => null);
+                if (!json) throw new Error(`Health API error: ${resp.status}`);
+                return json;
             }
-
-            function sliceMacroByPeriod(series, period) {
-                if (!series || series.length === 0) return [];
-                const today = new Date();
-                let target = new Date(today);
-                if (period === '5Y') target.setFullYear(today.getFullYear() - 5);
-                else if (period === '10Y') target.setFullYear(today.getFullYear() - 10);
-                else if (period === '20Y') target.setFullYear(today.getFullYear() - 20);
-                else return series;
-                return series.filter(d => d.date >= target);
-            }
-
             async function loadMacroData() {
-                const apiKey = document.getElementById('fredApiKey').value.trim();
-                if (!apiKey) {
-                    alert('Por favor, introduce tu FRED API Key. Regístrate gratis en https://fred.stlouisfed.org/');
-                    return;
-                }
-                // Save key in localStorage for convenience
-                try { localStorage.setItem('mps_fred_api_key', apiKey); } catch(e) {}
-
                 const btn = document.getElementById('macroLoadBtn');
                 const status = document.getElementById('macroStatus');
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Descargando...';
-
-                const allSeries = Object.values(MACRO_SERIES).flat().map(s => s.id);
-                const uniqueSeries = [...new Set(allSeries)];
-
-                status.innerHTML = `
-                    <div class="mb-2 font-bold text-gray-700">Iniciando descarga de ${uniqueSeries.length} series de FRED...</div>
-                    <div id="macroDownloadLog" class="text-xs text-gray-600 max-h-40 overflow-y-auto space-y-1 p-3 bg-white rounded border border-gray-200 font-mono shadow-inner shadow-gray-100"></div>
-                `;
+                status.innerHTML = `<div class="mb-2 font-bold text-slate-700">Descargando ${MACRO_GROUPS.length} grupos FRED...</div><div id="macroDownloadLog" class="text-xs text-slate-600 max-h-44 overflow-y-auto space-y-1 p-3 bg-white rounded border border-slate-200 font-mono"></div>`;
                 const logDiv = document.getElementById('macroDownloadLog');
-
+                try {
+                    const health = await fetchMacroHealth();
+                    const failed = (health.checks || []).filter(check => !check.ok && !check.optional);
+                    logDiv.innerHTML += failed.length ? `<div class="text-red-600">health ${failed.map(c => `${c.provider}: ${c.message}`).join(' | ')}</div>` : '<div class="text-green-600">health OK</div>';
+                } catch (err) { logDiv.innerHTML += `<div class="text-red-600">health ${err.message}</div>`; }
                 macroRawData = {};
-                let loaded = 0;
-                let missingSeries = [];
-                
-                for (const id of uniqueSeries) {
-                    const logItem = document.createElement('div');
-                    logItem.innerHTML = `<span class="text-blue-500"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i></span> Descargando ${id}...`;
-                    logDiv.appendChild(logItem);
-                    logDiv.scrollTop = logDiv.scrollHeight;
-
+                const missing = [];
+                for (const group of MACRO_GROUPS) {
+                    const row = document.createElement('div');
+                    row.innerHTML = `<span class="text-blue-600">...</span> ${group.key}`;
+                    logDiv.appendChild(row);
                     try {
-                        const data = await fetchFREDSeries(id, apiKey);
-                        if (data && data.length > 0) {
-                            macroRawData[id] = data;
-                            loaded++;
-                            logItem.innerHTML = `<span class="text-green-500"><i class="fa-solid fa-check mr-1"></i></span> Descargando ${id} <span class="font-bold text-green-600 ml-2">✓ OK (${data.length} obs)</span>`;
-                        } else {
-                            console.warn('Serie vacía en FRED:', id);
-                            missingSeries.push(id);
-                            logItem.innerHTML = `<span class="text-orange-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i></span> Descargando ${id} <span class="font-bold text-orange-500 ml-2">⚠ Sin datos</span>`;
-                        }
-                    } catch (err) {
-                        console.error('Error fetched FRED serie:', id, err.message);
-                        missingSeries.push(id);
-                        logItem.innerHTML = `<span class="text-red-500"><i class="fa-solid fa-xmark mr-1"></i></span> Descargando ${id} <span class="font-bold text-red-600 ml-2">✗ Error: ${err.message}</span>`;
-                    }
+                        const payload = await fetchMacroGroup(group.key, macroPeriod);
+                        macroRawData[group.key] = payload;
+                        const usable = (payload.series || []).filter(s => s.observations && s.observations.length > 0);
+                        row.innerHTML = usable.length ? `<span class="text-green-600">OK</span> ${group.key} (${usable.length}/${(payload.series || []).length} series)` : `<span class="text-orange-500">Sin datos</span> ${group.key}`;
+                        if (!usable.length) missing.push(group.key);
+                    } catch (err) { row.innerHTML = `<span class="text-red-600">Error</span> ${group.key}: ${err.message}`; missing.push(group.key); }
                 }
-
-                if (missingSeries.length > 0) {
-                    const errSumary = document.createElement('div');
-                    errSumary.className = "mt-2 p-2 bg-red-50 text-red-700 border border-red-200 rounded";
-                    errSumary.innerHTML = `<strong>Aviso:</strong> ${missingSeries.length} series han fallado o devolvieron datos vacíos. Revisa la lista desplegable de arriba.`;
-                    status.appendChild(errSumary);
-                } else {
-                    const okSumary = document.createElement('div');
-                    okSumary.className = "mt-2 text-green-600 font-bold";
-                    okSumary.innerHTML = `<i class="fa-solid fa-circle-check"></i> Todas las series (${loaded}/${uniqueSeries.length}) cargadas correctamente.`;
-                    status.appendChild(okSumary);
-                }
-
+                status.innerHTML += missing.length ? `<div class="mt-2 p-2 bg-red-50 text-red-700 border border-red-200 rounded"><strong>Aviso:</strong> sin datos en ${missing.join(', ')}.</div>` : '<div class="mt-2 text-green-700 font-bold"><i class="fa-solid fa-circle-check"></i> Todos los grupos cargados.</div>';
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Recargar';
-                
-                renderMacroDashboard(macroPeriod);
+                renderMacroDashboard();
             }
-
             function filterMacro(period, btnEl) {
                 macroPeriod = period;
-                document.querySelectorAll('#section-macro .flex.gap-2.flex-wrap button').forEach(b => {
-                    b.className = 'px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600';
-                });
-                if (btnEl) btnEl.className = 'px-2 py-0.5 text-xs rounded bg-sky-600 text-white font-bold';
-                if (Object.keys(macroRawData).length > 0) renderMacroDashboard(period);
+                document.querySelectorAll('#section-macro .flex.gap-2.flex-wrap button').forEach(b => b.className = 'px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600');
+                if (btnEl) btnEl.className = 'px-2 py-0.5 text-xs rounded bg-sky-700 text-white font-bold';
+                if (Object.keys(macroRawData).length > 0) loadMacroData();
             }
-
-            function renderMacroDashboard(period) {
-                renderMacroChart('macroCLIChart', MACRO_SERIES.cli, period, 'CLI (OECD)', false, { refline: 100 });
-                renderMacroChart('macroPMIChart', MACRO_SERIES.pmi, period, 'PMI Manufacturero', false, { refline: 50, reflineColor: '#374151', reflineDash: 'dot', yformat: '.1f', ysuffix: '' });
-                renderMacroChart('macroCPIChart', MACRO_SERIES.cpi, period, 'Inflación CPI YoY (%)', true, { refline: 2, reflineColor: '#ef4444', reflineDash: 'dash', yborder: false, yformat: '.1f', ysuffix: '%' });
-                renderMacroChart('macroRatesChart', MACRO_SERIES.rates, period, 'Tipos Oficiales (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
-                renderMacroChart('macro10YChart', MACRO_SERIES.bonds10y, period, 'Bono 10Y (%)', false, { refline: null, yformat: '.2f', ysuffix: '%' });
-                renderMacroChart('macroUnemplChart', MACRO_SERIES.unemp, period, 'Desempleo (%)', false, { refline: null, yformat: '.1f', ysuffix: '%' });
-            }
-
-            function renderMacroChart(chartId, seriesDef, period, title, doYoY, opts) {
-                const traces = seriesDef.map(s => {
-                    let raw = macroRawData[s.id] || [];
-                    // Si doYoY=true y la serie NO viene ya en formato YoY, calculamos
-                    if (doYoY && !s.isYoY) raw = calcYoY(raw);
-                    const sliced = sliceMacroByPeriod(raw, period);
-                    return {
-                        x: sliced.map(d => d.date),
-                        y: sliced.map(d => d.value),
-                        mode: 'lines',
-                        name: s.label,
-                        line: { color: s.color, width: 2 },
-                        hovertemplate: `${s.label}: %{y:.2f}${opts.ysuffix || ''}<extra></extra>`
-                    };
+            function renderMacroDashboard() { MACRO_GROUPS.forEach(group => renderMacroChart(group)); }
+            function renderMacroChart(group) {
+                const payload = macroRawData[group.key];
+                const opts = group.opts;
+                const series = payload?.series || [];
+                const lastPoints = [];
+                const traces = series.map(s => {
+                    const points = (s.observations || []).map(d => ({ date: new Date(d.date), value: Number(d.value) })).filter(d => Number.isFinite(d.value));
+                    const last = points[points.length - 1];
+                    if (last) lastPoints.push({ label: s.label, value: last.value, color: s.color, suffix: opts.ysuffix || '', axis: s.axis || 'y' });
+                    return { x: points.map(d => d.date), y: points.map(d => d.value), yaxis: s.axis === 'y2' ? 'y2' : 'y', mode: 'lines', name: s.label, line: { color: s.color || '#475569', width: 2 }, hovertemplate: `${s.label}: %{y:.2f}${opts.ysuffix || ''}<extra></extra>` };
                 }).filter(t => t.x.length > 0);
-
                 const shapes = [];
-                if (opts.refline !== null && opts.refline !== undefined) {
-                    shapes.push({
-                        type: 'line', xref: 'paper', x0: 0, x1: 1,
-                        yref: 'y', y0: opts.refline, y1: opts.refline,
-                        line: { color: opts.reflineColor || '#9ca3af', width: 1.5, dash: opts.reflineDash || 'dash' }
-                    });
-                }
-
-                if (traces.length === 0) {
-                    document.getElementById(chartId).innerHTML = '<div class="text-sm text-gray-400 text-center py-16"><i class="fa-solid fa-circle-exclamation mr-2"></i>Sin datos — carga los datos FRED primero.</div>';
-                    return;
-                }
-
-                Plotly.newPlot(chartId, traces, {
-                    margin: { t: 10, l: 55, r: 20, b: 40 },
-                    xaxis: { showgrid: false },
-                    yaxis: {
-                        gridcolor: '#f3f4f6',
-                        ticksuffix: opts.ysuffix || '',
-                        tickformat: opts.yformat || ''
-                    },
-                    hovermode: 'x unified',
-                    legend: { orientation: 'h', y: -0.2 },
-                    plot_bgcolor: 'white',
-                    shapes
-                }, { responsive: true });
+                if (opts.refline !== null && opts.refline !== undefined) shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: opts.refline, y1: opts.refline, line: { color: opts.reflineColor || '#94a3b8', width: 1.3, dash: opts.reflineDash || 'dash' } });
+                if (!traces.length) { document.getElementById(group.chartId).innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin datos FRED disponibles.</div>'; renderMacroTable(group, series); updateMacroSourceLabel(group, payload); return; }
+                const annotations = buildLastValueAnnotations(lastPoints);
+                const layout = { margin: { t: 12, l: 55, r: 150, b: 42 }, xaxis: { showgrid: false, zeroline: false }, yaxis: { gridcolor: '#e2e8f0', ticksuffix: opts.ysuffix || '', tickformat: opts.yformat || '' }, hovermode: 'x unified', legend: { orientation: 'h', y: -0.22, font: { size: 11 } }, paper_bgcolor: 'white', plot_bgcolor: 'white', shapes, annotations };
+                if (opts.dualAxis) layout.yaxis2 = { title: opts.y2title || '', overlaying: 'y', side: 'right', showgrid: false, zeroline: false };
+                Plotly.newPlot(group.chartId, traces, layout, { responsive: true, displayModeBar: false });
+                renderMacroTable(group, series);
+                updateMacroSourceLabel(group, payload);
             }
-
-            // Restore FRED key from localStorage on load
-            (function() {
-                try {
-                    const saved = localStorage.getItem('mps_fred_api_key');
-                    if (saved) {
-                        const input = document.getElementById('fredApiKey');
-                        if (input) input.value = saved;
-                    }
-                } catch(e) {}
-            })();
+            function buildLastValueAnnotations(points) {
+                const ordered = [...points].sort((a, b) => b.value - a.value);
+                const step = ordered.length > 1 ? 0.82 / (ordered.length - 1) : 0;
+                return ordered.map((p, i) => ({ xref: 'paper', yref: 'paper', x: 1.01, y: ordered.length > 1 ? 0.91 - (i * step) : 0.9, text: `${p.label}: ${formatMacroNumber(p.value)}${p.suffix}`, showarrow: false, xanchor: 'left', align: 'left', font: { size: 10, color: p.color || '#475569' }, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: p.color || '#cbd5e1', borderwidth: 1, borderpad: 2 }));
+            }
+            function renderMacroTable(group, series) {
+                const el = document.getElementById(group.tableId); if (!el) return;
+                const rows = (series || []).filter(s => s.observations && s.observations.length).map(s => {
+                    const obs = s.observations.map(o => ({ date: new Date(o.date), value: Number(o.value) })).filter(o => Number.isFinite(o.value));
+                    const last = obs[obs.length - 1], prev = obs[obs.length - 2];
+                    const ytdBase = [...obs].reverse().find(o => o.date.getFullYear() < last.date.getFullYear()) || obs[0];
+                    const diffMode = group.opts.changeMode === 'diff';
+                    return { label: s.label, color: s.color, date: last.date, value: last.value, mom: changeValue(last, prev, diffMode), ytd: changeValue(last, ytdBase, diffMode), diffMode };
+                });
+                if (!rows.length) { el.innerHTML = ''; return; }
+                el.innerHTML = `<div class="overflow-x-auto"><table class="min-w-full text-xs border border-slate-200 rounded-lg overflow-hidden"><thead class="bg-slate-100 text-slate-600 uppercase"><tr><th class="text-left px-3 py-2">Serie</th><th class="text-right px-3 py-2">Ultimo</th><th class="text-right px-3 py-2">Fecha</th><th class="text-right px-3 py-2">Mes</th><th class="text-right px-3 py-2">YTD</th></tr></thead><tbody>${rows.map(r => `<tr class="border-t border-slate-100"><td class="px-3 py-2 font-semibold" style="color:${r.color}">${r.label}</td><td class="px-3 py-2 text-right text-slate-700">${formatMacroNumber(r.value)}${group.opts.ysuffix || ''}</td><td class="px-3 py-2 text-right text-slate-500">${formatMacroDate(r.date)}</td><td class="px-3 py-2 text-right ${r.mom >= 0 ? 'text-green-700' : 'text-red-700'}">${formatChange(r.mom, r.diffMode)}</td><td class="px-3 py-2 text-right ${r.ytd >= 0 ? 'text-green-700' : 'text-red-700'}">${formatChange(r.ytd, r.diffMode)}</td></tr>`).join('')}</tbody></table></div><div class="mt-3 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3"><strong>Interpretacion:</strong> ${group.opts.note || ''}</div>`;
+            }
+            function changeValue(last, prev, diffMode) { if (!last || !prev || !Number.isFinite(prev.value)) return null; return diffMode ? (last.value - prev.value) : (prev.value !== 0 ? ((last.value / prev.value) - 1) * 100 : null); }
+            function formatChange(value, diffMode) { if (!Number.isFinite(value)) return '-'; return diffMode ? `${value >= 0 ? '+' : ''}${value.toFixed(2)} pp` : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`; }
+            function formatMacroNumber(value) { return Number.isFinite(value) ? value.toFixed(Math.abs(value) >= 100 ? 1 : 2) : '-'; }
+            function formatMacroDate(date) { return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '-'; }
+            function updateMacroSourceLabel(group, payload) { const el = document.getElementById(group.sourceId); if (!el) return; const series = payload?.series || []; const sources = series.filter(s => s.observations && s.observations.length).map(s => `${s.label}: ${s.source}`); const warnings = (payload?.warnings || []).slice(0, 3); el.innerHTML = sources.length ? `Fuentes: ${sources.join(' | ')}${warnings.length ? `<br><span class="text-amber-600">Avisos: ${warnings.join(' | ')}</span>` : ''}` : 'Sin fuentes disponibles.'; }
         </script>
+
     </div>
 
 </body>
