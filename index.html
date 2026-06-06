@@ -4950,12 +4950,16 @@
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-red-500 pl-3">Spread HY vs IG EUR (Evolución Relativa)</h4>
                         <p class="text-xs text-gray-400 mb-3 pl-3">Base 10 normalizado · IHYG.L (HY) vs IBCX.DE (IG) · Fuente: Yahoo Finance</p>
                         <div id="valHYIGChart" class="w-full h-[320px]"></div>
+                        <div id="valHYIGTable" class="mt-3"></div>
+                        <div id="valHYIGNote" class="mt-3"></div>
                     </div>
                     <!-- Crédito vs Govies -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-orange-500 pl-3">Crédito (IG) vs Govies EUR (Evolución Relativa)</h4>
                         <p class="text-xs text-gray-400 mb-3 pl-3">Base 10 normalizado · IBCX.DE (Crédito) vs IBGL.L (Gobierno) · Fuente: Yahoo Finance</p>
                         <div id="valCreditGovieChart" class="w-full h-[320px]"></div>
+                        <div id="valCreditGovieTable" class="mt-3"></div>
+                        <div id="valCreditGovieNote" class="mt-3"></div>
                     </div>
                 </div>
 
@@ -4964,6 +4968,8 @@
                     <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-blue-500 pl-3">Curva de Tipos: Tramos de Duración EUR (Evolución Base 10)</h4>
                     <p class="text-xs text-gray-400 mb-3 pl-3">IBGS.L (corto), IBGM.DE (medio), IBGL.L (largo) · Permite ver la forma de la curva soberana EUR · Fuente: Yahoo Finance</p>
                     <div id="valCurvaChart" class="w-full h-[340px]"></div>
+                    <div id="valCurvaTable" class="mt-3"></div>
+                    <div id="valCurvaNote" class="mt-3"></div>
                 </div>
 
                 <!-- Spread ratio table RF -->
@@ -4997,12 +5003,16 @@
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-emerald-600 pl-3">Sectores MSCI Global vs ACWI (Rendimiento Relativo)</h4>
                         <p class="text-xs text-gray-400 mb-3 pl-3">Ratio precio sector/ACWI normalizado Base 10 · ETFs iShares globales · Fuente: Yahoo Finance</p>
                         <div id="valSectorChart" class="w-full h-[380px]"></div>
+                        <div id="valSectorTable" class="mt-3"></div>
+                        <div id="valSectorNote" class="mt-3"></div>
                     </div>
                     <!-- Small vs Large -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-teal-600 pl-3">Small Cap vs Large Cap (Ratio de Valoración Relativa)</h4>
                         <p class="text-xs text-gray-400 mb-3 pl-3">Evolución ratio de precio: IWM (Russell 2000) / SPY (S&P 500) normalizado Base 10 · Fuente: Yahoo Finance</p>
                         <div id="valSmallLargeChart" class="w-full h-[380px]"></div>
+                        <div id="valSmallLargeTable" class="mt-3"></div>
+                        <div id="valSmallLargeNote" class="mt-3"></div>
                     </div>
                 </div>
 
@@ -5011,6 +5021,46 @@
                     <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-cyan-600 pl-3">Mercados Emergentes vs Desarrollados (Ratio de Valoración Relativa)</h4>
                     <p class="text-xs text-gray-400 mb-3 pl-3">Evolución ratio de precio: EEM (MSCI EM) / ACWI (MSCI All World) normalizado Base 10 · Fuente: Yahoo Finance</p>
                     <div id="valEMDMChart" class="w-full h-[320px]"></div>
+                    <div id="valEMDMTable" class="mt-3"></div>
+                    <div id="valEMDMNote" class="mt-3"></div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-amber-500 pl-3">Oro y Plata vs ACWI</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">GLD/ACWI y SLV/ACWI normalizados Base 10 - Fuente: Yahoo Finance</p>
+                        <div id="valMetalsACWIChart" class="w-full h-[340px]"></div>
+                        <div id="valMetalsACWITable" class="mt-3"></div>
+                        <div id="valMetalsACWINote" class="mt-3"></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-blue-600 pl-3">Growth vs Value</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">IWF/IWD normalizado Base 10 - Fuente: Yahoo Finance</p>
+                        <div id="valGrowthValueChart" class="w-full h-[340px]"></div>
+                        <div id="valGrowthValueTable" class="mt-3"></div>
+                        <div id="valGrowthValueNote" class="mt-3"></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-rose-500 pl-3">Ciclico vs Defensivo</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">RXI/KXI global, consumo discrecional frente a consumo estable - Fuente: Yahoo Finance</p>
+                        <div id="valCycDefChart" class="w-full h-[340px]"></div>
+                        <div id="valCycDefTable" class="mt-3"></div>
+                        <div id="valCycDefNote" class="mt-3"></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-slate-600 pl-3">Market Cap Weight vs Equal Weight</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">SPY/RSP normalizado Base 10 - Fuente: Yahoo Finance</p>
+                        <div id="valCapEqualChart" class="w-full h-[340px]"></div>
+                        <div id="valCapEqualTable" class="mt-3"></div>
+                        <div id="valCapEqualNote" class="mt-3"></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                        <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-sky-600 pl-3">Stocks vs Bonds Global EUR</h4>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">IWDA.L/SGLO.L normalizado Base 10 - Fuente: Yahoo Finance</p>
+                        <div id="valStocksBondsChart" class="w-full h-[340px]"></div>
+                        <div id="valStocksBondsTable" class="mt-3"></div>
+                        <div id="valStocksBondsNote" class="mt-3"></div>
+                    </div>
                 </div>
 
                 <!-- Barras rendimiento relativo sectores YTD -->
@@ -5018,6 +5068,7 @@
                     <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-indigo-600 pl-3">Rendimiento Relativo Sectorial (YTD vs ACWI)</h4>
                     <p class="text-xs text-gray-400 mb-3 pl-3">Diferencia de rentabilidad acumulada YTD entre cada sector y ACWI (puntos porcentuales)</p>
                     <div id="valSectorBarChart" class="w-full h-[360px]"></div>
+                    <div id="valSectorBarNote" class="mt-3"></div>
                 </div>
             </div>
 
@@ -5053,18 +5104,17 @@
                 const status = document.getElementById('valStatus');
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Cargando...';
-                status.textContent = 'Descargando ETFs de Renta Fija y Renta Variable...';
+                status.textContent = 'Descargando historico largo de ETFs de Renta Fija y Renta Variable...';
 
                 const today = new Date().toISOString().split('T')[0];
-                const start10Y = new Date(); start10Y.setFullYear(start10Y.getFullYear() - 10);
-                const startStr = start10Y.toISOString().split('T')[0];
+                const startStr = '1990-01-01';
 
                 try {
                     // RF tickers
                     const rfTickers = VAL_RF_SERIES.map(s => s.ticker);
-                    // RV tickers: sectors + ACWI + IWM + SPY + EEM
-                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(['ACWI', 'IWM', 'SPY', 'EEM']);
-                    const allTickers = [...rfTickers, ...rvTickers];
+                    // RV tickers: sectors + ratios principales + nuevos proxies relativos
+                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(['ACWI', 'IWM', 'SPY', 'EEM', 'GLD', 'SLV', 'IWF', 'IWD', 'RSP', 'IWDA.L', 'SGLO.L']);
+                    const allTickers = [...new Set([...rfTickers, ...rvTickers])];
 
                     const results = await Promise.all(
                         allTickers.map(t => fetchYahooData(t, startStr, today).catch(() => []))
@@ -5126,6 +5176,106 @@
                     .filter(x => x !== null);
             }
 
+            function fullValRatio(tickerA, tickerB) {
+                return spreadRatio(valData[tickerA] || [], valData[tickerB] || []);
+            }
+
+            function periodValRatio(tickerA, tickerB, period) {
+                return spreadRatio(sliceValByPeriod(valData[tickerA] || [], period), sliceValByPeriod(valData[tickerB] || [], period));
+            }
+
+            function ratioReturnFrom(ratio, startDate) {
+                if (!ratio || ratio.length < 2) return null;
+                const start = startDate ? ratio.find(d => d.date >= startDate) : ratio[0];
+                const last = ratio[ratio.length - 1];
+                if (!start || !last || !start.value) return null;
+                return (last.value / start.value) - 1;
+            }
+
+            function ratioReturnStats(ratio) {
+                const now = new Date();
+                const ytdStart = new Date(now.getFullYear(), 0, 1);
+                const yearsAgo = (years) => {
+                    const d = new Date(now);
+                    d.setFullYear(d.getFullYear() - years);
+                    return d;
+                };
+                return {
+                    ytd: ratioReturnFrom(ratio, ytdStart),
+                    oneY: ratioReturnFrom(ratio, yearsAgo(1)),
+                    threeY: ratioReturnFrom(ratio, yearsAgo(3)),
+                    fiveY: ratioReturnFrom(ratio, yearsAgo(5)),
+                    inception: ratioReturnFrom(ratio, null)
+                };
+            }
+
+            function formatValPct(value) {
+                if (value === null || value === undefined || Number.isNaN(value)) return '<span class="text-gray-400">s/d</span>';
+                const pct = value * 100;
+                const color = pct > 0 ? 'text-emerald-600' : pct < 0 ? 'text-red-600' : 'text-gray-600';
+                return `<span class="${color} font-semibold">${pct > 0 ? '+' : ''}${pct.toFixed(2)}%</span>`;
+            }
+
+            function renderRelativeReturnTable(tableId, rows) {
+                const el = document.getElementById(tableId);
+                if (!el) return;
+                const body = rows.map(row => {
+                    const stats = ratioReturnStats(row.ratio || []);
+                    const latest = row.ratio && row.ratio.length ? row.ratio[row.ratio.length - 1] : null;
+                    return `<tr class="hover:bg-slate-50">
+                        <td class="px-3 py-2 text-left font-bold text-slate-800">${row.label}</td>
+                        <td class="px-3 py-2">${latest ? latest.value.toFixed(3) : '<span class="text-gray-400">s/d</span>'}</td>
+                        <td class="px-3 py-2">${latest ? latest.date.toISOString().split('T')[0] : '<span class="text-gray-400">s/d</span>'}</td>
+                        <td class="px-3 py-2">${formatValPct(stats.ytd)}</td>
+                        <td class="px-3 py-2">${formatValPct(stats.oneY)}</td>
+                        <td class="px-3 py-2">${formatValPct(stats.threeY)}</td>
+                        <td class="px-3 py-2">${formatValPct(stats.fiveY)}</td>
+                        <td class="px-3 py-2">${formatValPct(stats.inception)}</td>
+                    </tr>`;
+                }).join('');
+                el.innerHTML = `<div class="overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="min-w-full text-xs text-center text-slate-600">
+                        <thead class="bg-slate-50 border-b border-slate-200 uppercase text-[11px] text-slate-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Ratio</th>
+                                <th class="px-3 py-2">Ultimo</th>
+                                <th class="px-3 py-2">Fecha</th>
+                                <th class="px-3 py-2">YTD</th>
+                                <th class="px-3 py-2">1A</th>
+                                <th class="px-3 py-2">3A</th>
+                                <th class="px-3 py-2">5A</th>
+                                <th class="px-3 py-2">Desde inicio</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">${body || '<tr><td colspan="8" class="px-3 py-3 text-gray-400">Sin datos</td></tr>'}</tbody>
+                    </table>
+                </div>`;
+            }
+
+            function renderValRatioNote(noteId, text) {
+                const el = document.getElementById(noteId);
+                if (!el) return;
+                el.innerHTML = `<div class="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-slate-600"><span class="font-bold text-slate-800">Interpretacion:</span> ${text}</div>`;
+            }
+
+            function drawRelativeRatioChart(chartId, defs, period, layout) {
+                const traces = defs.map(def => {
+                    const ratio = periodValRatio(def.a, def.b, period);
+                    const norm = normalizeBase10(ratio.map(r => ({ date: r.date, price: r.value })));
+                    return {
+                        x: norm.map(d => d.date),
+                        y: norm.map(d => d.value),
+                        mode: 'lines',
+                        name: def.label,
+                        line: { color: def.color, width: def.width || 2 },
+                        fill: def.fill ? 'tozeroy' : undefined,
+                        fillcolor: def.fill || undefined
+                    };
+                }).filter(t => t.x.length > 0);
+                Plotly.newPlot(chartId, traces, layout, { responsive: true });
+                return defs.map(def => ({ label: def.label, ratio: fullValRatio(def.a, def.b) }));
+            }
+
             function renderValoraciones(period) {
                 renderValRF(period);
                 renderValRV(period);
@@ -5154,11 +5304,19 @@
                     { x: hy_ig.map(d => d.date), y: hy_ig.map(d => d.value), mode: 'lines', name: 'Ratio HY/IG', line: { color: '#dc2626', width: 2 } }
                 ], chartLayout('Ratio HY vs IG (Evolución Relativa)'), { responsive: true });
 
+
+                renderRelativeReturnTable('valHYIGTable', [{ label: 'HY EUR / IG EUR', ratio: fullValRatio('IHYG.L', 'IBCX.DE') }]);
+                renderValRatioNote('valHYIGNote', 'El ratio sube cuando el high yield EUR se comporta mejor que el credito investment grade. Lecturas fuertes suelen indicar apetito por riesgo de credito; caidas sugieren preferencia por calidad y menor tolerancia a riesgo.');
+
                 // Crédito vs Govies chart
                 const ig_gov = spreadRatio(IG, GOV);
                 Plotly.newPlot('valCreditGovieChart', [
                     { x: ig_gov.map(d => d.date), y: ig_gov.map(d => d.value), mode: 'lines', name: 'Ratio IG/Govies Largo', line: { color: '#f97316', width: 2 } }
                 ], chartLayout('Ratio Crédito vs Govies'), { responsive: true });
+
+
+                renderRelativeReturnTable('valCreditGovieTable', [{ label: 'IG EUR / Govies EUR largo', ratio: fullValRatio('IBCX.DE', 'IBGL.L') }]);
+                renderValRatioNote('valCreditGovieNote', 'El ratio sube cuando el credito IG bate a la deuda soberana larga. Suele favorecerse en fases de spreads contenidos y carry atractivo; caidas apuntan a busqueda de duracion soberana o ampliacion de credito.');
 
                 // Curva de tipos por tramos (Spread Largo vs Corto y Medio vs Corto)
                 const largo_corto = spreadRatio(GOV, GOVS);
@@ -5175,6 +5333,13 @@
                         font: { size: 10, color: '#6b7280' }
                     }]
                 }, { responsive: true });
+
+
+                renderRelativeReturnTable('valCurvaTable', [
+                    { label: 'Govies largo / Govies corto', ratio: fullValRatio('IBGL.L', 'IBGS.L') },
+                    { label: 'Govies medio / Govies corto', ratio: fullValRatio('IBGM.DE', 'IBGS.L') }
+                ]);
+                renderValRatioNote('valCurvaNote', 'Estos ratios comparan tramos de duracion por precio de ETFs. Si largo/corto sube, la duracion larga esta batiendo a la corta; suele ocurrir cuando bajan rentabilidades largas o el mercado anticipa relajacion monetaria.');
 
                 // RF Table
                 const rfPairs = [
@@ -5208,54 +5373,67 @@
 
             function renderValRV(period) {
                 const ACWI = valData['ACWI'] || [];
-                const IWM = valData['IWM'] || [];
-                const SPY = valData['SPY'] || [];
-                const EEM = valData['EEM'] || [];
 
                 const lineLayout = {
                     margin: { t: 20, l: 50, r: 20, b: 40 },
                     xaxis: { showgrid: false },
                     yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
-                    hovermode: 'x unified', legend: { orientation: 'h', y: -0.2 },
+                    hovermode: 'x unified',
+                    legend: { orientation: 'h', y: -0.22 },
                     plot_bgcolor: 'white',
+                    paper_bgcolor: 'white',
                     shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 10, y1: 10, line: { color: '#94a3b8', width: 1, dash: 'dot' } }]
                 };
 
                 // Sectores vs ACWI (ratio)
-                const colors = ['#6366f1','#22c55e','#3b82f6','#f59e0b','#8b5cf6','#ef4444','#14b8a6','#64748b','#a16207'];
-                const sectorTraces = VAL_RV_SECTORS.map((s, i) => {
-                    const sectData = sliceValByPeriod(valData[s.ticker], period);
-                    const acwiSliced = sliceValByPeriod(ACWI, period);
-                    const ratio = spreadRatio(sectData, acwiSliced);
-                    const norm = normalizeBase10(ratio.map(r => ({ date: r.date, price: r.value })));
-                    return { x: norm.map(d => d.date), y: norm.map(d => d.value), mode: 'lines', name: s.label, line: { color: colors[i % colors.length], width: 1.5 } };
-                }).filter(t => t.x.length > 0);
+                const colors = ['#2563eb','#059669','#0284c7','#d97706','#7c3aed','#dc2626','#0f766e','#64748b','#a16207'];
+                const sectorDefs = VAL_RV_SECTORS.map((s, i) => ({ label: s.label + ' / ACWI', a: s.ticker, b: 'ACWI', color: colors[i % colors.length], width: 1.5 }));
+                const sectorRows = drawRelativeRatioChart('valSectorChart', sectorDefs, period, lineLayout);
+                renderRelativeReturnTable('valSectorTable', sectorRows);
+                renderValRatioNote('valSectorNote', 'Cada linea mide el comportamiento relativo de un sector global frente al ACWI. Una pendiente ascendente significa que ese sector esta batiendo al mercado global; una pendiente descendente indica infrarentabilidad relativa.');
 
-                Plotly.newPlot('valSectorChart', sectorTraces, lineLayout, { responsive: true });
+                const smallLargeRows = drawRelativeRatioChart('valSmallLargeChart', [
+                    { label: 'Small / Large (IWM/SPY)', a: 'IWM', b: 'SPY', color: '#0d9488', fill: 'rgba(13,148,136,0.07)' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valSmallLargeTable', smallLargeRows);
+                renderValRatioNote('valSmallLargeNote', 'El ratio IWM/SPY sube cuando small caps estadounidenses baten a large caps. Suele mejorar con mayor amplitud de mercado, credito mas benigno y expectativas de crecimiento domestico.');
 
-                // Small vs Large
-                const iwmSliced = sliceValByPeriod(IWM, period);
-                const spySliced = sliceValByPeriod(SPY, period);
-                const smallLargeRatio = spreadRatio(iwmSliced, spySliced);
-                const sln = normalizeBase10(smallLargeRatio.map(r => ({ date: r.date, price: r.value })));
-                Plotly.newPlot('valSmallLargeChart', [
-                    { x: sln.map(d => d.date), y: sln.map(d => d.value), mode: 'lines', name: 'Small / Large (IWM/SPY)', line: { color: '#0d9488', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(13,148,136,0.07)' }
-                ], {
-                    ...lineLayout,
-                    annotations: sln.length > 0 ? [{ xref: 'paper', yref: 'paper', x: 0.99, y: 0.98, xanchor: 'right', yanchor: 'top', showarrow: false, text: `Valor actual: ${sln[sln.length-1].value.toFixed(2)}`, font: { size: 11, color: '#0d9488' }, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, borderpad: 4 }] : []
-                }, { responsive: true });
+                const emDmRows = drawRelativeRatioChart('valEMDMChart', [
+                    { label: 'EM / ACWI (EEM/ACWI)', a: 'EEM', b: 'ACWI', color: '#7c3aed', fill: 'rgba(124,58,237,0.07)' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valEMDMTable', emDmRows);
+                renderValRatioNote('valEMDMNote', 'El ratio EEM/ACWI sube cuando emergentes baten al mercado global. Es sensible a dolar, China, materias primas, liquidez global y diferenciales de crecimiento.');
 
-                // EM vs DM
-                const eemSliced = sliceValByPeriod(EEM, period);
-                const acwiSliced2 = sliceValByPeriod(ACWI, period);
-                const emDMRatio = spreadRatio(eemSliced, acwiSliced2);
-                const en = normalizeBase10(emDMRatio.map(r => ({ date: r.date, price: r.value })));
-                Plotly.newPlot('valEMDMChart', [
-                    { x: en.map(d => d.date), y: en.map(d => d.value), mode: 'lines', name: 'EM / Developed (EEM/ACWI)', line: { color: '#7c3aed', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(124,58,237,0.07)' }
-                ], {
-                    ...lineLayout,
-                    annotations: en.length > 0 ? [{ xref: 'paper', yref: 'paper', x: 0.99, y: 0.98, xanchor: 'right', yanchor: 'top', showarrow: false, text: `Valor actual: ${en[en.length-1].value.toFixed(2)}`, font: { size: 11, color: '#7c3aed' }, bgcolor: 'rgba(255,255,255,0.85)', bordercolor: '#d1d5db', borderwidth: 1, borderpad: 4 }] : []
-                }, { responsive: true });
+                const metalsRows = drawRelativeRatioChart('valMetalsACWIChart', [
+                    { label: 'Oro / ACWI (GLD/ACWI)', a: 'GLD', b: 'ACWI', color: '#d97706' },
+                    { label: 'Plata / ACWI (SLV/ACWI)', a: 'SLV', b: 'ACWI', color: '#64748b' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valMetalsACWITable', metalsRows);
+                renderValRatioNote('valMetalsACWINote', 'Estos ratios comparan metales preciosos contra renta variable global. Subidas indican que oro o plata protegen o baten a ACWI; caidas indican liderazgo de renta variable frente a metales.');
+
+                const growthValueRows = drawRelativeRatioChart('valGrowthValueChart', [
+                    { label: 'Growth / Value (IWF/IWD)', a: 'IWF', b: 'IWD', color: '#2563eb', fill: 'rgba(37,99,235,0.06)' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valGrowthValueTable', growthValueRows);
+                renderValRatioNote('valGrowthValueNote', 'El ratio growth/value sube cuando las companias de crecimiento baten a valor. Suele favorecerse con tipos reales moderados, expansion de multiplos y liderazgo tecnologico.');
+
+                const cycDefRows = drawRelativeRatioChart('valCycDefChart', [
+                    { label: 'Ciclico / Defensivo (RXI/KXI)', a: 'RXI', b: 'KXI', color: '#e11d48', fill: 'rgba(225,29,72,0.06)' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valCycDefTable', cycDefRows);
+                renderValRatioNote('valCycDefNote', 'RXI/KXI usa consumo discrecional global frente a consumo estable global como proxy ciclico/defensivo. Una subida apunta a mayor apetito por ciclo; una caida sugiere rotacion defensiva.');
+
+                const capEqualRows = drawRelativeRatioChart('valCapEqualChart', [
+                    { label: 'Market cap / Equal weight (SPY/RSP)', a: 'SPY', b: 'RSP', color: '#334155', fill: 'rgba(51,65,85,0.06)' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valCapEqualTable', capEqualRows);
+                renderValRatioNote('valCapEqualNote', 'SPY/RSP mide si el S&P 500 ponderado por capitalizacion bate a su version equal weight. Si sube, el liderazgo esta concentrado en megacaps; si cae, mejora la amplitud del mercado.');
+
+                const stocksBondsRows = drawRelativeRatioChart('valStocksBondsChart', [
+                    { label: 'Stocks globales / Bonos globales EUR (IWDA.L/SGLO.L)', a: 'IWDA.L', b: 'SGLO.L', color: '#0284c7', fill: 'rgba(2,132,199,0.06)' }
+                ], period, lineLayout);
+                renderRelativeReturnTable('valStocksBondsTable', stocksBondsRows);
+                renderValRatioNote('valStocksBondsNote', 'Este ratio compara renta variable global en EUR frente a bonos soberanos globales EUR hedged. Si sube, las acciones baten a bonos; si cae, domina la proteccion o duracion de renta fija.');
 
                 // YTD bars relative to ACWI
                 const ytdStart = new Date(new Date().getFullYear(), 0, 1);
@@ -5275,15 +5453,17 @@
                     x: barData.map(d => d.label),
                     y: barData.map(d => d.rel),
                     type: 'bar',
-                    marker: { color: barData.map(d => d.rel >= 0 ? '#22c55e' : '#ef4444') },
+                    marker: { color: barData.map(d => d.rel >= 0 ? '#0f766e' : '#dc2626') },
                     text: barData.map(d => (d.rel >= 0 ? '+' : '') + d.rel.toFixed(1) + 'pp'),
                     textposition: 'auto'
                 }], {
-                    yaxis: { title: 'pp vs ACWI', zeroline: true, zerolinecolor: '#374151', zerolinewidth: 2 },
+                    yaxis: { title: 'pp vs ACWI', zeroline: true, zerolinecolor: '#334155', zerolinewidth: 2, gridcolor: '#e2e8f0' },
                     margin: { t: 10, l: 50, r: 20, b: 80 },
                     plot_bgcolor: 'white',
+                    paper_bgcolor: 'white',
                     bargap: 0.3
                 }, { responsive: true });
+                renderValRatioNote('valSectorBarNote', 'La barra muestra la diferencia de rentabilidad YTD de cada sector frente a ACWI en puntos porcentuales. Valores positivos son sobreponderacion relativa ganadora en el ano; negativos indican retraso frente al indice global.');
             }
         </script>
     </div>
@@ -5298,7 +5478,7 @@
             <div class="bg-white border border-sky-100 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
                 <div class="flex-1">
                     <div class="text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-database mr-1"></i> FRED macro data</div>
-                    <p class="text-sm text-slate-700 leading-relaxed">Todas las series se consultan exclusivamente en <span class="font-mono">/api/macro</span> via FRED. Las series diarias se agregan a media mensual para alinear frecuencias.</p>
+                    <p class="text-sm text-slate-700 leading-relaxed">Todas las series se consultan exclusivamente en <span class="font-mono">/api/macro</span> via FRED. Las series diarias usan el ultimo dato disponible de cada mes para alinear frecuencias.</p>
                     <p class="text-[11px] text-slate-500 mt-1">Configura <span class="font-mono font-bold">FRED_API_KEY</span> en Vercel. Universo: EEUU, Eurozona, Alemania, Francia, Italia, Espana y UK.</p>
                 </div>
                 <div class="flex flex-col gap-2">
@@ -5309,7 +5489,7 @@
             <p id="macroStatus" class="text-sm text-slate-500 -mt-3"></p>
             <div class="space-y-6">
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-sky-700 pl-3">CLI OECD - EEUU y Europa</h3><p class="text-xs text-slate-400 mb-3 pl-3">Zona &gt;=100 expansion / &lt;100 contraccion. Fuente: FRED/OECD.</p><div id="macroCLIChart" class="w-full h-[380px]"></div><div id="macroCLITable" class="mt-3"></div><div id="macroCLISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-indigo-600 pl-3">ICE BofA High Yield Effective Yield</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU HY y Euro HY. Series diarias FRED/ICE BofA agregadas a media mensual.</p><div id="macroPMIChart" class="w-full h-[380px]"></div><div id="macroPMITable" class="mt-3"></div><div id="macroPMISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-indigo-600 pl-3">ICE BofA High Yield Effective Yield</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU HY y Euro HY. Series diarias FRED/ICE BofA con ultimo dato disponible de cada mes.</p><div id="macroPMIChart" class="w-full h-[380px]"></div><div id="macroPMITable" class="mt-3"></div><div id="macroPMISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-blue-700 pl-3">Economic Policy Uncertainty</h3><p class="text-xs text-slate-400 mb-3 pl-3">Indice mensual para EEUU y Europa. Fuente: FRED/EPU.</p><div id="macroEPUChart" class="w-full h-[380px]"></div><div id="macroEPUTable" class="mt-3"></div><div id="macroEPUSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflacion CPI/HICP YoY</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU CPI y Eurozona HICP, variacion interanual calculada desde indices mensuales. Target 2%.</p><div id="macroCPIChart" class="w-full h-[380px]"></div><div id="macroCPITable" class="mt-3"></div><div id="macroCPISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos oficiales</h3><p class="text-xs text-slate-400 mb-3 pl-3">Fed Funds y ECB Deposit Facility Rate. Fuente: FRED.</p><div id="macroRatesChart" class="w-full h-[380px]"></div><div id="macroRatesTable" class="mt-3"></div><div id="macroRatesSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
