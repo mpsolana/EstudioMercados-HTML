@@ -5036,7 +5036,7 @@
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-blue-600 pl-3">Growth vs Value</h4>
-                        <p class="text-xs text-gray-400 mb-3 pl-3">IWF/IWD normalizado Base 10 - Fuente: Yahoo Finance</p>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">MSCI World Growth / MSCI World Value normalizado Base 10 - Fuente: Yahoo Finance</p>
                         <div id="valGrowthValueChart" class="w-full h-[340px]"></div>
                         <div id="valGrowthValueTable" class="mt-3"></div>
                         <div id="valGrowthValueNote" class="mt-3"></div>
@@ -5130,7 +5130,7 @@
                     // RF tickers
                     const rfTickers = VAL_RF_SERIES.map(s => s.ticker);
                     // RV tickers: sectors + ratios principales + nuevos proxies relativos
-                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(VAL_RV_REGIONS.map(s => s.ticker), ['ACWI', 'EEM', 'GLD', 'SLV', 'IWF', 'IWD', 'SPY', 'RSP', 'IWDA.L', 'SGLO.L', '0P00012I66.F', 'XDEW.DE']);
+                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(VAL_RV_REGIONS.map(s => s.ticker), ['ACWI', 'EEM', 'GLD', 'SLV', 'IWDA.L', 'SGLO.L', '0P00012I66.F', 'XDEW.DE', '^105867-USD-STRD', 'IWVL.L']);
                     const allTickers = [...new Set([...rfTickers, ...rvTickers])];
 
                     const results = await Promise.all(
@@ -5233,16 +5233,54 @@
                 return `<span class="${color} font-semibold">${pct > 0 ? '+' : ''}${pct.toFixed(2)}%</span>`;
             }
 
+            function ratioZStats(ratio, years = 5) {
+                if (!ratio || ratio.length < 30) return null;
+                const last = ratio[ratio.length - 1];
+                const cutoff = new Date(last.date);
+                cutoff.setFullYear(cutoff.getFullYear() - years);
+                const values = ratio.filter(d => d.date >= cutoff && Number.isFinite(d.value)).map(d => d.value);
+                if (values.length < 30) return null;
+                const mean = values.reduce((acc, v) => acc + v, 0) / values.length;
+                const variance = values.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / values.length;
+                const sigma = Math.sqrt(variance);
+                const z = sigma ? (last.value - mean) / sigma : 0;
+                return { mean, z, years };
+            }
+
+            function formatValNumber(value, digits = 3) {
+                if (value === null || value === undefined || Number.isNaN(value)) return '<span class="text-gray-400">s/d</span>';
+                return value.toFixed(digits);
+            }
+
+            function formatValZ(value) {
+                if (value === null || value === undefined || Number.isNaN(value)) return '<span class="text-gray-400">s/d</span>';
+                const color = value > 1 ? 'text-emerald-700' : value < -1 ? 'text-red-700' : 'text-slate-700';
+                return `<span class="${color} font-bold">${value > 0 ? '+' : ''}${value.toFixed(2)}</span>`;
+            }
+
+            function zScoreReading(value) {
+                if (value === null || value === undefined || Number.isNaN(value)) return '<span class="text-gray-400">s/d</span>';
+                if (value >= 1.5) return '<span class="text-emerald-700 font-semibold">Caro relativo</span>';
+                if (value <= -1.5) return '<span class="text-red-700 font-semibold">Barato relativo</span>';
+                if (value >= 0.75) return '<span class="text-emerald-600">Sobre media</span>';
+                if (value <= -0.75) return '<span class="text-red-600">Bajo media</span>';
+                return '<span class="text-slate-600">Cerca media</span>';
+            }
+
             function renderRelativeReturnTable(tableId, rows) {
                 const el = document.getElementById(tableId);
                 if (!el) return;
                 const body = rows.map(row => {
                     const stats = ratioReturnStats(row.ratio || []);
+                    const zStats = ratioZStats(row.ratio || [], row.zYears || 5);
                     const latest = row.ratio && row.ratio.length ? row.ratio[row.ratio.length - 1] : null;
                     return `<tr class="hover:bg-slate-50">
                         <td class="px-3 py-2 text-left font-bold text-slate-800">${row.label}</td>
                         <td class="px-3 py-2">${latest ? latest.value.toFixed(3) : '<span class="text-gray-400">s/d</span>'}</td>
                         <td class="px-3 py-2">${latest ? latest.date.toISOString().split('T')[0] : '<span class="text-gray-400">s/d</span>'}</td>
+                        <td class="px-3 py-2">${formatValNumber(zStats?.mean)}</td>
+                        <td class="px-3 py-2">${formatValZ(zStats?.z)}</td>
+                        <td class="px-3 py-2">${zScoreReading(zStats?.z)}</td>
                         <td class="px-3 py-2">${formatValPct(stats.ytd)}</td>
                         <td class="px-3 py-2">${formatValPct(stats.oneY)}</td>
                         <td class="px-3 py-2">${formatValPct(stats.threeY)}</td>
@@ -5257,16 +5295,20 @@
                                 <th class="px-3 py-2 text-left"><button onclick="sortHtmlTable('${tableId}Table',0,'text')" class="font-bold">Ratio</button></th>
                                 <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',1,'number')" class="font-bold">Ultimo</button></th>
                                 <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',2,'date')" class="font-bold">Fecha</button></th>
-                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',3,'number')" class="font-bold">YTD</button></th>
-                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',4,'number')" class="font-bold">1A</button></th>
-                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',5,'number')" class="font-bold">3A</button></th>
-                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',6,'number')" class="font-bold">5A</button></th>
-                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',7,'number')" class="font-bold">Desde inicio</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',3,'number')" class="font-bold">Media 5A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',4,'number')" class="font-bold">Z 5A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',5,'text')" class="font-bold">Lectura</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',6,'number')" class="font-bold">YTD</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',7,'number')" class="font-bold">1A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',8,'number')" class="font-bold">3A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',9,'number')" class="font-bold">5A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',10,'number')" class="font-bold">Desde inicio</button></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 bg-white">${body || '<tr><td colspan="8" class="px-3 py-3 text-gray-400">Sin datos</td></tr>'}</tbody>
+                        <tbody class="divide-y divide-slate-100 bg-white">${body || '<tr><td colspan="11" class="px-3 py-3 text-gray-400">Sin datos</td></tr>'}</tbody>
                     </table>
-                </div>`;
+                </div>
+                <div class="mt-1 text-[11px] text-slate-400">Media y Z-score calculados frente a la media historica de los ultimos 5 anos de cada ratio.</div>`;
             }
 
             function sortHtmlTable(tableId, colIndex, type = 'text') {
@@ -5477,10 +5519,10 @@
                 renderValRatioNote('valMetalsACWINote', 'Estos ratios comparan metales preciosos contra renta variable global. Subidas indican que oro o plata protegen o baten a ACWI; caidas indican liderazgo de renta variable frente a metales.');
 
                 const growthValueRows = drawRelativeRatioChart('valGrowthValueChart', [
-                    { label: 'Growth / Value (IWF/IWD)', a: 'IWF', b: 'IWD', color: '#2563eb', fill: 'rgba(37,99,235,0.06)' }
+                    { label: 'Growth global / Value global', a: '^105867-USD-STRD', b: 'IWVL.L', color: '#2563eb', fill: 'rgba(37,99,235,0.06)' }
                 ], period, lineLayout);
                 renderRelativeReturnTable('valGrowthValueTable', growthValueRows);
-                renderValRatioNote('valGrowthValueNote', 'El ratio growth/value sube cuando las companias de crecimiento baten a valor. Suele favorecerse con tipos reales moderados, expansion de multiplos y liderazgo tecnologico.');
+                renderValRatioNote('valGrowthValueNote', 'El ratio usa proxys globales MSCI World Growth frente a MSCI World Value. Sube cuando crecimiento bate a valor; suele favorecerse con tipos reales moderados, expansion de multiplos y liderazgo tecnologico.');
 
                 const cycDefRows = drawRelativeRatioChart('valCycDefChart', [
                     { label: 'Ciclico / Defensivo (RXI/KXI)', a: 'RXI', b: 'KXI', color: '#e11d48', fill: 'rgba(225,29,72,0.06)' }
@@ -5532,12 +5574,27 @@
                 </div>
             </div>
             <p id="macroStatus" class="text-sm text-slate-500 -mt-3"></p>
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                        <h3 class="text-slate-900 font-bold border-l-4 border-sky-700 pl-3">Calendario macro 2026</h3>
+                        <p class="text-xs text-slate-400 pl-3 mt-1">Fechas de decisiones Fed/BCE y publicaciones de inflacion EEUU/Eurozona.</p>
+                    </div>
+                    <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-500">
+                        <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-600"></span>Fed</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>BCE</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span>Inflacion</span>
+                    </div>
+                </div>
+                <div id="macroCalendarGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+                <p class="text-[11px] text-slate-400 mt-2">Calendario orientativo basado en calendarios oficiales publicados; las fechas pueden ajustarse por festivos o revisiones de las agencias.</p>
+            </div>
             <div class="space-y-6">
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-sky-700 pl-3">CLI OECD - EEUU y Europa</h3><p class="text-xs text-slate-400 mb-3 pl-3">Zona &gt;=100 expansion / &lt;100 contraccion. Fuente: FRED/OECD.</p><div id="macroCLIChart" class="w-full h-[380px]"></div><div id="macroCLITable" class="mt-3"></div><div id="macroCLISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-indigo-600 pl-3">ICE BofA High Yield Effective Yield</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU HY y Euro HY. Series diarias FRED/ICE BofA con ultimo dato disponible de cada mes.</p><div id="macroPMIChart" class="w-full h-[380px]"></div><div id="macroPMITable" class="mt-3"></div><div id="macroPMISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-blue-700 pl-3">Economic Policy Uncertainty</h3><p class="text-xs text-slate-400 mb-3 pl-3">Indice mensual para EEUU y Europa. Fuente: FRED/EPU.</p><div id="macroEPUChart" class="w-full h-[380px]"></div><div id="macroEPUTable" class="mt-3"></div><div id="macroEPUSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflacion CPI/HICP YoY</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU desde BLS CPI-U y Eurozona desde Eurostat HICP anual. Target 2%.</p><div id="macroCPIChart" class="w-full h-[380px]"></div><div id="macroCPITable" class="mt-3"></div><div id="macroCPISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos oficiales</h3><p class="text-xs text-slate-400 mb-3 pl-3">Fed upper target bound y tipos oficiales ECB desde ECB Data Portal.</p><div id="macroRatesChart" class="w-full h-[380px]"></div><div id="macroRatesTable" class="mt-3"></div><div id="macroRatesSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos oficiales</h3><p class="text-xs text-slate-400 mb-3 pl-3">Fed upper target bound y ECB Deposit Facility Rate. Linea escalonada por fechas de decision.</p><div id="macroRatesChart" class="w-full h-[380px]"></div><div id="macroRatesTable" class="mt-3"></div><div id="macroRatesSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-green-600 pl-3">Bono soberano 10 anos</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU, Alemania, Francia, Italia, Espana y UK. Fuente: FRED/OECD.</p><div id="macro10YChart" class="w-full h-[380px]"></div><div id="macro10YTable" class="mt-3"></div><div id="macro10YSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-purple-600 pl-3">Tasa de desempleo</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU, Alemania, Francia, Italia, Espana y UK. Fuente: FRED/OECD.</p><div id="macroUnemplChart" class="w-full h-[380px]"></div><div id="macroUnemplTable" class="mt-3"></div><div id="macroUnemplSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-slate-600 pl-3">PIB real indexado</h3><p class="text-xs text-slate-400 mb-3 pl-3">Series trimestrales indexadas a 100 al inicio del periodo seleccionado. Fuente: FRED.</p><div id="macroGDPChart" class="w-full h-[380px]"></div><div id="macroGDPTable" class="mt-3"></div><div id="macroGDPSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
@@ -5549,12 +5606,58 @@
         <script>
             let macroRawData = {};
             let macroPeriod = '10Y';
+            const MACRO_EVENTS_2026 = [
+                { date: '2026-01-13', type: 'inflation', label: 'US CPI dic' },
+                { date: '2026-01-28', type: 'fed', label: 'Fed decision' },
+                { date: '2026-01-29', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-02-03', type: 'inflation', label: 'Euro HICP flash ene' },
+                { date: '2026-02-13', type: 'inflation', label: 'US CPI ene' },
+                { date: '2026-02-24', type: 'inflation', label: 'Euro HICP final ene' },
+                { date: '2026-03-03', type: 'inflation', label: 'Euro HICP flash feb' },
+                { date: '2026-03-11', type: 'inflation', label: 'US CPI feb' },
+                { date: '2026-03-12', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-03-18', type: 'fed', label: 'Fed decision' },
+                { date: '2026-03-18', type: 'inflation', label: 'Euro HICP final feb' },
+                { date: '2026-04-02', type: 'inflation', label: 'Euro HICP flash mar' },
+                { date: '2026-04-10', type: 'inflation', label: 'US CPI mar' },
+                { date: '2026-04-17', type: 'inflation', label: 'Euro HICP final mar' },
+                { date: '2026-04-29', type: 'fed', label: 'Fed decision' },
+                { date: '2026-04-30', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-05-04', type: 'inflation', label: 'Euro HICP flash abr' },
+                { date: '2026-05-12', type: 'inflation', label: 'US CPI abr' },
+                { date: '2026-05-20', type: 'inflation', label: 'Euro HICP final abr' },
+                { date: '2026-06-02', type: 'inflation', label: 'Euro HICP flash may' },
+                { date: '2026-06-10', type: 'inflation', label: 'US CPI may' },
+                { date: '2026-06-11', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-06-16', type: 'inflation', label: 'Euro HICP final may' },
+                { date: '2026-06-17', type: 'fed', label: 'Fed decision' },
+                { date: '2026-07-14', type: 'inflation', label: 'US CPI jun' },
+                { date: '2026-07-17', type: 'inflation', label: 'Euro HICP final jun' },
+                { date: '2026-07-23', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-07-29', type: 'fed', label: 'Fed decision' },
+                { date: '2026-08-12', type: 'inflation', label: 'US CPI jul' },
+                { date: '2026-08-19', type: 'inflation', label: 'Euro HICP final jul' },
+                { date: '2026-09-10', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-09-11', type: 'inflation', label: 'US CPI ago' },
+                { date: '2026-09-16', type: 'fed', label: 'Fed decision' },
+                { date: '2026-09-17', type: 'inflation', label: 'Euro HICP final ago' },
+                { date: '2026-10-14', type: 'inflation', label: 'US CPI sep' },
+                { date: '2026-10-16', type: 'inflation', label: 'Euro HICP final sep' },
+                { date: '2026-10-28', type: 'fed', label: 'Fed decision' },
+                { date: '2026-10-29', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-11-10', type: 'inflation', label: 'US CPI oct' },
+                { date: '2026-11-18', type: 'inflation', label: 'Euro HICP final oct' },
+                { date: '2026-12-09', type: 'fed', label: 'Fed decision' },
+                { date: '2026-12-10', type: 'inflation', label: 'US CPI nov' },
+                { date: '2026-12-17', type: 'ecb', label: 'BCE decision' },
+                { date: '2026-12-18', type: 'inflation', label: 'Euro HICP final nov' }
+            ];
             const MACRO_GROUPS = [
                 { key: 'cli', chartId: 'macroCLIChart', tableId: 'macroCLITable', sourceId: 'macroCLISource', title: 'CLI OECD', opts: { refline: 100, yformat: '.1f', ysuffix: '', changeMode: 'pct', note: 'El CLI anticipa puntos de giro del ciclo. Por encima de 100 sugiere expansion relativa; por debajo de 100 sugiere enfriamiento.' } },
                 { key: 'pmi', chartId: 'macroPMIChart', tableId: 'macroPMITable', sourceId: 'macroPMISource', title: 'ICE BofA HY Effective Yield', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', note: 'El yield high yield refleja coste de financiacion y prima de riesgo de credito. Subidas suelen indicar tension financiera; bajadas, apetito por riesgo.' } },
                 { key: 'epu', chartId: 'macroEPUChart', tableId: 'macroEPUTable', sourceId: 'macroEPUSource', title: 'Economic Policy Uncertainty', opts: { yformat: '.0f', ysuffix: '', changeMode: 'pct', note: 'El EPU mide incertidumbre de politica economica en prensa. Lecturas altas suelen asociarse a menor visibilidad para inversion y consumo.' } },
                 { key: 'cpi', chartId: 'macroCPIChart', tableId: 'macroCPITable', sourceId: 'macroCPISource', title: 'Inflacion YoY', opts: { refline: 2, reflineColor: '#ef4444', reflineDash: 'dash', yformat: '.1f', ysuffix: '%', changeMode: 'diff', note: 'La inflacion YoY compara precios contra el mismo mes del ano anterior. Frente al 2% ayuda a leer presion sobre bancos centrales.' } },
-                { key: 'rates', chartId: 'macroRatesChart', tableId: 'macroRatesTable', sourceId: 'macroRatesSource', title: 'Tipos oficiales', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', note: 'Los tipos oficiales son el precio base del dinero. Subidas endurecen condiciones financieras; bajadas alivian credito y valoraciones.' } },
+                { key: 'rates', chartId: 'macroRatesChart', tableId: 'macroRatesTable', sourceId: 'macroRatesSource', title: 'Tipos oficiales', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', lineShape: 'hv', note: 'Los tipos oficiales son el precio base del dinero. La serie se muestra escalonada porque cambia en fechas discretas de decision.' } },
                 { key: 'bonds10y', chartId: 'macro10YChart', tableId: 'macro10YTable', sourceId: 'macro10YSource', title: 'Bono 10Y', opts: { yformat: '.2f', ysuffix: '%', changeMode: 'diff', note: 'El 10Y resume expectativas de crecimiento, inflacion y prima temporal. Diferenciales entre paises europeos capturan riesgo soberano relativo.' } },
                 { key: 'unemp', chartId: 'macroUnemplChart', tableId: 'macroUnemplTable', sourceId: 'macroUnemplSource', title: 'Desempleo', opts: { yformat: '.1f', ysuffix: '%', changeMode: 'diff', note: 'El desempleo mide holgura laboral. Repuntes persistentes suelen anticipar desaceleracion de demanda y beneficios.' } },
                 { key: 'gdp', chartId: 'macroGDPChart', tableId: 'macroGDPTable', sourceId: 'macroGDPSource', title: 'PIB real indexado', opts: { yformat: '.1f', ysuffix: '', changeMode: 'pct', note: 'PIB real indexado compara el crecimiento acumulado desde el inicio del periodo seleccionado. Subidas muestran expansion real acumulada; caidas muestran contraccion de actividad.' } },
@@ -5613,7 +5716,26 @@
                 if (btnEl) btnEl.className = 'px-2 py-0.5 text-xs rounded bg-sky-700 text-white font-bold';
                 if (Object.keys(macroRawData).length > 0) loadMacroData();
             }
-            function renderMacroDashboard() { MACRO_GROUPS.forEach(group => renderMacroChart(group)); }
+            function renderMacroDashboard() { renderMacroCalendar(); MACRO_GROUPS.forEach(group => renderMacroChart(group)); }
+            function renderMacroCalendar() {
+                const grid = document.getElementById('macroCalendarGrid');
+                if (!grid) return;
+                const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                const color = {
+                    fed: 'bg-blue-50 text-blue-700 border-blue-200',
+                    ecb: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                    inflation: 'bg-orange-50 text-orange-700 border-orange-200'
+                };
+                grid.innerHTML = monthNames.map((name, index) => {
+                    const month = String(index + 1).padStart(2, '0');
+                    const events = MACRO_EVENTS_2026.filter(e => e.date.slice(5, 7) === month).sort((a, b) => a.date.localeCompare(b.date));
+                    const eventHtml = events.map(e => `<div class="flex items-center gap-2 rounded border px-2 py-1 ${color[e.type] || 'bg-slate-50 text-slate-600 border-slate-200'}"><span class="font-bold tabular-nums">${e.date.slice(8, 10)}</span><span class="truncate">${e.label}</span></div>`).join('');
+                    return `<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 min-h-[130px]">
+                        <div class="text-xs font-black uppercase tracking-wide text-slate-700 mb-2">${name} 2026</div>
+                        <div class="space-y-1 text-[11px]">${eventHtml || '<span class="text-slate-400">Sin eventos clave</span>'}</div>
+                    </div>`;
+                }).join('');
+            }
             function renderMacroChart(group) {
                 const payload = macroRawData[group.key];
                 const opts = group.opts;
@@ -5623,7 +5745,7 @@
                     const points = (s.observations || []).map(d => ({ date: new Date(d.date), value: Number(d.value) })).filter(d => Number.isFinite(d.value));
                     const last = points[points.length - 1];
                     if (last) lastPoints.push({ label: s.label, value: last.value, color: s.color, suffix: opts.ysuffix || '', axis: s.axis || 'y' });
-                    return { x: points.map(d => d.date), y: points.map(d => d.value), yaxis: s.axis === 'y2' ? 'y2' : 'y', mode: 'lines', name: s.label, line: { color: s.color || '#475569', width: 2 }, hovertemplate: `${s.label}: %{y:.2f}${opts.ysuffix || ''}<extra></extra>` };
+                    return { x: points.map(d => d.date), y: points.map(d => d.value), yaxis: s.axis === 'y2' ? 'y2' : 'y', mode: 'lines', name: s.label, line: { color: s.color || '#475569', width: 2, shape: opts.lineShape || 'linear' }, hovertemplate: `${s.label}: %{y:.2f}${opts.ysuffix || ''}<extra></extra>` };
                 }).filter(t => t.x.length > 0);
                 const shapes = [];
                 if (opts.refline !== null && opts.refline !== undefined) shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: opts.refline, y1: opts.refline, line: { color: opts.reflineColor || '#94a3b8', width: 1.3, dash: opts.reflineDash || 'dash' } });
@@ -5658,6 +5780,7 @@
             function formatMacroNumber(value) { return Number.isFinite(value) ? value.toFixed(Math.abs(value) >= 100 ? 1 : 2) : '-'; }
             function formatMacroDate(date) { return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '-'; }
             function updateMacroSourceLabel(group, payload) { const el = document.getElementById(group.sourceId); if (!el) return; const series = payload?.series || []; const sources = series.filter(s => s.observations && s.observations.length).map(s => `${s.label}: ${s.source}`); const warnings = (payload?.warnings || []).slice(0, 3); el.innerHTML = sources.length ? `Fuentes: ${sources.join(' | ')}${warnings.length ? `<br><span class="text-amber-600">Avisos: ${warnings.join(' | ')}</span>` : ''}` : 'Sin fuentes disponibles.'; }
+            renderMacroCalendar();
         </script>
 
     </div>

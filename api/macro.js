@@ -55,8 +55,7 @@ const SERIES_CATALOG = {
     ],
     rates: [
         series('DFEDTARU', 'Fed upper bound', 'us', 'rates', fred('DFEDTARU', 'FRED/Federal Reserve target upper bound', { aggregate: 'monthlyLast' })),
-        series('ECB_DFR', 'ECB Deposit Rate', 'euro', 'rates', ecbRate('DFR', 'ECB Data Portal deposit facility', { aggregate: 'monthlyLast' })),
-        series('ECB_MRR', 'ECB Main Refinancing', 'euro', 'rates', ecbRate('MRR_FR', 'ECB Data Portal main refinancing fixed rate', { aggregate: 'monthlyLast' }))
+        series('ECB_DFR', 'ECB Deposit Rate', 'euro', 'rates', ecbRate('DFR', 'ECB Data Portal deposit facility', { aggregate: 'monthlyLast' }))
     ],
     bonds10y: [
         series('DGS10', 'EEUU 10Y', 'us', 'bonds10y', fred('DGS10', 'FRED/Treasury', { aggregate: 'monthlyLast' })),
@@ -166,7 +165,7 @@ async function loadSeries(def, meta, period) {
         const raw = await fetchProvider(def.provider, period);
         let clean = normalizeObservations(raw);
         if (def.provider.aggregate === 'monthlyLast') clean = aggregateMonthlyLast(clean);
-        if (def.provider.transform === 'yoy') clean = transformYoY(clean);
+        if (def.provider.transform === 'yoy') clean = transformYoYByMonth(clean);
         if (def.provider.transform === 'yoyQuarterly') clean = transformYoY(clean, 4);
 
         let sliced = sliceByPeriod(clean, period);
@@ -244,23 +243,30 @@ async function fetchFred(seriesId) {
 async function fetchBls(seriesId, period) {
     const currentYear = new Date().getUTCFullYear();
     const yearsBack = period === '5Y' ? 7 : period === '10Y' ? 12 : 20;
-    const startyear = String(Math.max(2000, currentYear - yearsBack));
-    const endyear = String(currentYear);
-    const response = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ seriesid: [seriesId], startyear, endyear })
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const json = await response.json();
-    if (json.status !== 'REQUEST_SUCCEEDED') throw new Error((json.message || []).join('; ') || 'BLS request failed');
-    const rows = json.Results?.series?.[0]?.data || [];
-    return rows
+    const startYear = Math.max(2000, currentYear - yearsBack);
+    const chunks = [];
+    for (let year = startYear; year <= currentYear; year += 10) {
+        chunks.push([year, Math.min(currentYear, year + 9)]);
+    }
+    const responses = await Promise.all(chunks.map(async ([start, end]) => {
+        const response = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ seriesid: [seriesId], startyear: String(start), endyear: String(end) })
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const json = await response.json();
+        if (json.status !== 'REQUEST_SUCCEEDED') throw new Error((json.message || []).join('; ') || 'BLS request failed');
+        return json.Results?.series?.[0]?.data || [];
+    }));
+    const byDate = new Map();
+    responses.flat()
         .filter(row => /^M\d{2}$/.test(row.period) && row.value !== '-' && row.value !== '')
-        .map(row => ({
+        .forEach(row => byDate.set(`${row.year}-${row.period.slice(1)}-01`, {
             date: `${row.year}-${row.period.slice(1)}-01`,
             value: Number(row.value)
-        }))
+        }));
+    return [...byDate.values()]
         .filter(row => Number.isFinite(row.value))
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
@@ -352,6 +358,20 @@ function transformYoY(series, lag = 12) {
         if (prev !== 0) yoy.push({ date: series[i].date, value: ((series[i].value / prev) - 1) * 100 });
     }
     return yoy;
+}
+
+function transformYoYByMonth(series) {
+    const byMonth = new Map(series.map(point => [monthKey(point.date), point.value]));
+    return series.map(point => {
+        const prior = new Date(Date.UTC(point.date.getUTCFullYear() - 1, point.date.getUTCMonth(), 1));
+        const prev = byMonth.get(monthKey(prior));
+        if (!prev || prev === 0) return null;
+        return { date: point.date, value: ((point.value / prev) - 1) * 100 };
+    }).filter(Boolean);
+}
+
+function monthKey(date) {
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function indexFirst(series) {
