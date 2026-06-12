@@ -1,5 +1,5 @@
 // api/macro.js
-// Vercel Serverless Function - FRED-only macro data layer.
+// Vercel Serverless Function - macro data layer with official primary sources.
 
 const CACHE = globalThis.__mpsMacroCache || new Map();
 globalThis.__mpsMacroCache = CACHE;
@@ -50,12 +50,13 @@ const SERIES_CATALOG = {
         series('EUEPUINDXM', 'Europa EPU', 'euro', 'epu', fred('EUEPUINDXM', 'FRED/EPU'))
     ],
     cpi: [
-        series('CPIAUCSL', 'EEUU CPI YoY', 'us', 'cpi', fred('CPIAUCSL', 'FRED/BLS', { transform: 'yoy' })),
-        series('CP0000EZ19M086NEST', 'Eurozona HICP YoY', 'euro', 'cpi', fred('CP0000EZ19M086NEST', 'FRED/Eurostat', { transform: 'yoy' }))
+        series('BLS_CUUR0000SA0_YOY', 'EEUU CPI YoY', 'us', 'cpi', bls('CUUR0000SA0', 'BLS CPI-U All items', { transform: 'yoy' })),
+        series('EUROSTAT_EA20_HICP_YOY', 'Eurozona HICP YoY', 'euro', 'cpi', eurostatHicp('Eurostat HICP all-items YoY'))
     ],
     rates: [
-        series('FEDFUNDS', 'Fed Funds', 'us', 'rates', fred('FEDFUNDS', 'FRED/Federal Reserve')),
-        series('ECBDFR', 'ECB Deposit Rate', 'euro', 'rates', fred('ECBDFR', 'FRED/ECB'))
+        series('DFEDTARU', 'Fed upper bound', 'us', 'rates', fred('DFEDTARU', 'FRED/Federal Reserve target upper bound', { aggregate: 'monthlyLast' })),
+        series('ECB_DFR', 'ECB Deposit Rate', 'euro', 'rates', ecbRate('DFR', 'ECB Data Portal deposit facility', { aggregate: 'monthlyLast' })),
+        series('ECB_MRR', 'ECB Main Refinancing', 'euro', 'rates', ecbRate('MRR_FR', 'ECB Data Portal main refinancing fixed rate', { aggregate: 'monthlyLast' }))
     ],
     bonds10y: [
         series('DGS10', 'EEUU 10Y', 'us', 'bonds10y', fred('DGS10', 'FRED/Treasury', { aggregate: 'monthlyLast' })),
@@ -109,6 +110,18 @@ function fred(seriesId, source, options = {}) {
     return { type: 'fred', seriesId, source, ...options };
 }
 
+function bls(seriesId, source, options = {}) {
+    return { type: 'bls', seriesId, source, ...options };
+}
+
+function eurostatHicp(source, options = {}) {
+    return { type: 'eurostatHicp', source, ...options };
+}
+
+function ecbRate(rateId, source, options = {}) {
+    return { type: 'ecbRate', rateId, source, frequency: 'daily', ...options };
+}
+
 export default async function handler(req, res) {
     setCors(res);
     if (req.method === 'OPTIONS') return res.status(200).end();
@@ -150,7 +163,7 @@ async function loadSeries(def, meta, period) {
 
     const warnings = [];
     try {
-        const raw = await fetchFred(def.provider.seriesId);
+        const raw = await fetchProvider(def.provider, period);
         let clean = normalizeObservations(raw);
         if (def.provider.aggregate === 'monthlyLast') clean = aggregateMonthlyLast(clean);
         if (def.provider.transform === 'yoy') clean = transformYoY(clean);
@@ -192,11 +205,19 @@ async function loadSeries(def, meta, period) {
             fallbackRank: null,
             color: def.color,
             observations: [],
-            warnings: [`${def.label}: ${def.provider.seriesId} fallo (${error.message})`]
+            warnings: [`${def.label}: ${(def.provider.seriesId || def.provider.rateId || def.provider.type)} fallo (${error.message})`]
         };
         CACHE.set(cacheKey, { expiresAt: Date.now() + 15 * 60 * 1000, value });
         return value;
     }
+}
+
+async function fetchProvider(provider, period) {
+    if (provider.type === 'fred') return fetchFred(provider.seriesId);
+    if (provider.type === 'bls') return fetchBls(provider.seriesId, period);
+    if (provider.type === 'eurostatHicp') return fetchEurostatHicp();
+    if (provider.type === 'ecbRate') return fetchEcbRate(provider.rateId);
+    throw new Error(`Proveedor no soportado: ${provider.type}`);
 }
 
 async function fetchFred(seriesId) {
@@ -218,6 +239,93 @@ async function fetchFred(seriesId) {
         .filter(o => o.value !== '.' && o.value !== '')
         .map(o => ({ date: o.date, value: Number(o.value) }))
         .filter(o => Number.isFinite(o.value));
+}
+
+async function fetchBls(seriesId, period) {
+    const currentYear = new Date().getUTCFullYear();
+    const yearsBack = period === '5Y' ? 7 : period === '10Y' ? 12 : 20;
+    const startyear = String(Math.max(2000, currentYear - yearsBack));
+    const endyear = String(currentYear);
+    const response = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ seriesid: [seriesId], startyear, endyear })
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+    if (json.status !== 'REQUEST_SUCCEEDED') throw new Error((json.message || []).join('; ') || 'BLS request failed');
+    const rows = json.Results?.series?.[0]?.data || [];
+    return rows
+        .filter(row => /^M\d{2}$/.test(row.period) && row.value !== '-' && row.value !== '')
+        .map(row => ({
+            date: `${row.year}-${row.period.slice(1)}-01`,
+            value: Number(row.value)
+        }))
+        .filter(row => Number.isFinite(row.value))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
+async function fetchEurostatHicp() {
+    const url = new URL('https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_minr');
+    url.searchParams.set('format', 'JSON');
+    url.searchParams.set('lang', 'en');
+    url.searchParams.set('unit', 'RCH_A');
+    url.searchParams.set('coicop18', 'TOTAL');
+    url.searchParams.set('geo', 'EA20');
+    url.searchParams.set('lastTimePeriod', '360');
+
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+    return jsonStatTimeSeries(json).map(point => ({ date: `${point.date}-01`, value: point.value }));
+}
+
+async function fetchEcbRate(rateId) {
+    const url = `https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.${encodeURIComponent(rateId)}.LEV?format=csvdata&lastNObservations=6000`;
+    const response = await fetch(url, { headers: { Accept: 'text/csv' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const csv = await response.text();
+    const lines = csv.trim().split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return [];
+    const header = parseCsvLine(lines[0]);
+    const dateIdx = header.indexOf('TIME_PERIOD');
+    const valueIdx = header.indexOf('OBS_VALUE');
+    if (dateIdx < 0 || valueIdx < 0) throw new Error('ECB CSV sin TIME_PERIOD/OBS_VALUE');
+    return lines.slice(1).map(line => {
+        const cols = parseCsvLine(line);
+        return { date: cols[dateIdx], value: Number(cols[valueIdx]) };
+    }).filter(row => row.date && Number.isFinite(row.value));
+}
+
+function jsonStatTimeSeries(json) {
+    const timeIndex = json.dimension?.time?.category?.index || {};
+    const values = json.value || {};
+    const times = Object.entries(timeIndex).sort((a, b) => a[1] - b[1]);
+    return times.map(([date, idx]) => ({ date, value: Number(values[String(idx)]) })).filter(point => Number.isFinite(point.value));
+}
+
+function parseCsvLine(line) {
+    const cols = [];
+    let current = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+            if (quoted && line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                quoted = !quoted;
+            }
+        } else if (ch === ',' && !quoted) {
+            cols.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    cols.push(current);
+    return cols;
 }
 
 function normalizeObservations(observations) {

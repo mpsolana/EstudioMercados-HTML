@@ -134,8 +134,14 @@
     <!-- Top-Level Navigation -->
     <div class="bg-slate-800 shadow-md sticky top-[64px] z-40">
         <div class="container mx-auto flex overflow-x-auto scrollbar-hide">
-            <button onclick="switchSection('mercados')" id="section-btn-mercados" class="top-nav-btn active">
+                        <button onclick="switchSection('mercados')" id="section-btn-mercados" class="top-nav-btn active">
                 <i class="fa-solid fa-globe mr-2"></i>Mercados
+            </button>
+            <button onclick="switchSection('valoraciones')" id="section-btn-valoraciones" class="top-nav-btn">
+                <i class="fa-solid fa-scale-balanced mr-2"></i>Valoraciones Relativas
+            </button>
+            <button onclick="switchSection('macro')" id="section-btn-macro" class="top-nav-btn">
+                <i class="fa-solid fa-earth-europe mr-2"></i>Macro Dashboard
             </button>
             <button onclick="switchSection('individual')" id="section-btn-individual" class="top-nav-btn">
                 <i class="fa-solid fa-chart-column mr-2"></i>Análisis Individual
@@ -145,12 +151,6 @@
             </button>
             <button onclick="switchSection('ayuda')" id="section-btn-ayuda" class="top-nav-btn">
                 <i class="fa-solid fa-circle-question mr-2"></i>Ayuda
-            </button>
-            <button onclick="switchSection('valoraciones')" id="section-btn-valoraciones" class="top-nav-btn">
-                <i class="fa-solid fa-scale-balanced mr-2"></i>Valoraciones Relativas
-            </button>
-            <button onclick="switchSection('macro')" id="section-btn-macro" class="top-nav-btn">
-                <i class="fa-solid fa-earth-europe mr-2"></i>Macro Dashboard
             </button>
         </div>
     </div>
@@ -4966,7 +4966,7 @@
                 <!-- Curva por tramos -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-blue-500 pl-3">Curva de Tipos: Tramos de Duración EUR (Evolución Base 10)</h4>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">IBGS.L (corto), IBGM.DE (medio), IBGL.L (largo) · Permite ver la forma de la curva soberana EUR · Fuente: Yahoo Finance</p>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">IBGS.L (corto), IBGM.L (medio), IBGL.L (largo) · Permite ver la forma de la curva soberana EUR · Fuente: Yahoo Finance</p>
                     <div id="valCurvaChart" class="w-full h-[340px]"></div>
                     <div id="valCurvaTable" class="mt-3"></div>
                     <div id="valCurvaNote" class="mt-3"></div>
@@ -4975,14 +4975,15 @@
                 <!-- Spread ratio table RF -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
                     <h4 class="text-gray-800 font-bold mb-3 border-l-4 border-violet-500 pl-3">Tabla Resumen: Ratios de Spread (último vs histórico)</h4>
-                    <table class="min-w-full text-xs text-center text-gray-600">
+                    <table id="valRFTable" class="min-w-full text-xs text-center text-gray-600">
                         <thead class="bg-gray-50 border-b">
                             <tr>
-                                <th class="px-4 py-2 text-left font-bold">Par</th>
-                                <th class="px-3 py-2">Ratio actual</th>
-                                <th class="px-3 py-2">Máximo histórico</th>
-                                <th class="px-3 py-2">Mínimo histórico</th>
-                                <th class="px-3 py-2">Percentil actual</th>
+                                <th class="px-4 py-2 text-left font-bold"><button onclick="sortHtmlTable('valRFTable',0,'text')" class="font-bold">Par</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('valRFTable',1,'number')" class="font-bold">Ratio actual</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('valRFTable',2,'number')" class="font-bold">Media</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('valRFTable',3,'number')" class="font-bold">Z-score</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('valRFTable',4,'number')" class="font-bold">Percentil</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('valRFTable',5,'text')" class="font-bold">Lectura</button></th>
                             </tr>
                         </thead>
                         <tbody id="valRFTableBody" class="divide-y divide-gray-100"></tbody>
@@ -5049,7 +5050,7 @@
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-slate-600 pl-3">Market Cap Weight vs Equal Weight</h4>
-                        <p class="text-xs text-gray-400 mb-3 pl-3">SPY/RSP normalizado Base 10 - Fuente: Yahoo Finance</p>
+                        <p class="text-xs text-gray-400 mb-3 pl-3">IWDA.L/XDEW.DE normalizado Base 10 - Fuente: Yahoo Finance</p>
                         <div id="valCapEqualChart" class="w-full h-[340px]"></div>
                         <div id="valCapEqualTable" class="mt-3"></div>
                         <div id="valCapEqualNote" class="mt-3"></div>
@@ -5063,12 +5064,13 @@
                     </div>
                 </div>
 
-                <!-- Barras rendimiento relativo sectores YTD -->
+                <!-- Regional vs ACWI -->
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-indigo-600 pl-3">Rendimiento Relativo Sectorial (YTD vs ACWI)</h4>
-                    <p class="text-xs text-gray-400 mb-3 pl-3">Diferencia de rentabilidad acumulada YTD entre cada sector y ACWI (puntos porcentuales)</p>
-                    <div id="valSectorBarChart" class="w-full h-[360px]"></div>
-                    <div id="valSectorBarNote" class="mt-3"></div>
+                    <h4 class="text-gray-800 font-bold mb-1 border-l-4 border-indigo-600 pl-3">Comportamiento regional vs ACWI</h4>
+                    <p class="text-xs text-gray-400 mb-3 pl-3">Indices regionales y de pais contra ACWI normalizados Base 10 - Fuente: Yahoo Finance</p>
+                    <div id="valRegionalChart" class="w-full h-[380px]"></div>
+                    <div id="valRegionalTable" class="mt-3"></div>
+                    <div id="valRegionalNote" class="mt-3"></div>
                 </div>
             </div>
 
@@ -5084,7 +5086,7 @@
                 { key: 'IG', ticker: 'IBCX.DE', label: 'IG EUR', color: '#2563eb' },
                 { key: 'GOV', ticker: 'IBGL.L', label: 'Govies EUR (Largo)', color: '#059669' },
                 { key: 'GOVS', ticker: 'IBGS.L', label: 'Govies EUR (Corto)', color: '#7c3aed' },
-                { key: 'GOVM', ticker: 'IBGM.DE', label: 'Govies EUR (Medio)', color: '#d97706' }
+                { key: 'GOVM', ticker: 'IBGM.L', label: 'Govies EUR (Medio)', color: '#d97706' }
             ];
 
             const VAL_RV_SECTORS = [
@@ -5097,6 +5099,21 @@
                 { ticker: 'KXI', label: 'Consumo Est.', color: '#14b8a6' },
                 { ticker: 'EXI', label: 'Industriales', color: '#64748b' },
                 { ticker: 'MXI', label: 'Materiales', color: '#a16207' }
+            ];
+
+            const VAL_RV_REGIONS = [
+                { ticker: '^GSPC', label: 'EEUU S&P 500', color: '#2563eb' },
+                { ticker: '^STOXX50E', label: 'Euro Stoxx 50', color: '#0f766e' },
+                { ticker: '^IBEX', label: 'Espana IBEX 35', color: '#f59e0b' },
+                { ticker: '^GDAXI', label: 'Alemania DAX', color: '#64748b' },
+                { ticker: '^FCHI', label: 'Francia CAC 40', color: '#1d4ed8' },
+                { ticker: 'FTSEMIB.MI', label: 'Italia FTSE MIB', color: '#ef4444' },
+                { ticker: '^FTSE', label: 'UK FTSE 100', color: '#7c3aed' },
+                { ticker: '^N225', label: 'Japon Nikkei 225', color: '#dc2626' },
+                { ticker: '^HSI', label: 'Hong Kong Hang Seng', color: '#14b8a6' },
+                { ticker: '^NSEI', label: 'India Nifty 50', color: '#a16207' },
+                { ticker: '000001.SS', label: 'China Shanghai Comp', color: '#475569' },
+                { ticker: '^BVSP', label: 'Brasil Bovespa', color: '#16a34a' }
             ];
 
             async function loadValoracionesData() {
@@ -5113,7 +5130,7 @@
                     // RF tickers
                     const rfTickers = VAL_RF_SERIES.map(s => s.ticker);
                     // RV tickers: sectors + ratios principales + nuevos proxies relativos
-                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(['ACWI', 'IWM', 'SPY', 'EEM', 'GLD', 'SLV', 'IWF', 'IWD', 'RSP', 'IWDA.L', 'SGLO.L']);
+                    const rvTickers = VAL_RV_SECTORS.map(s => s.ticker).concat(VAL_RV_REGIONS.map(s => s.ticker), ['ACWI', 'EEM', 'GLD', 'SLV', 'IWF', 'IWD', 'SPY', 'RSP', 'IWDA.L', 'SGLO.L', '0P00012I66.F', 'XDEW.DE']);
                     const allTickers = [...new Set([...rfTickers, ...rvTickers])];
 
                     const results = await Promise.all(
@@ -5234,17 +5251,17 @@
                     </tr>`;
                 }).join('');
                 el.innerHTML = `<div class="overflow-x-auto rounded-lg border border-slate-200">
-                    <table class="min-w-full text-xs text-center text-slate-600">
+                    <table id="${tableId}Table" class="min-w-full text-xs text-center text-slate-600">
                         <thead class="bg-slate-50 border-b border-slate-200 uppercase text-[11px] text-slate-500">
                             <tr>
-                                <th class="px-3 py-2 text-left">Ratio</th>
-                                <th class="px-3 py-2">Ultimo</th>
-                                <th class="px-3 py-2">Fecha</th>
-                                <th class="px-3 py-2">YTD</th>
-                                <th class="px-3 py-2">1A</th>
-                                <th class="px-3 py-2">3A</th>
-                                <th class="px-3 py-2">5A</th>
-                                <th class="px-3 py-2">Desde inicio</th>
+                                <th class="px-3 py-2 text-left"><button onclick="sortHtmlTable('${tableId}Table',0,'text')" class="font-bold">Ratio</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',1,'number')" class="font-bold">Ultimo</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',2,'date')" class="font-bold">Fecha</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',3,'number')" class="font-bold">YTD</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',4,'number')" class="font-bold">1A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',5,'number')" class="font-bold">3A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',6,'number')" class="font-bold">5A</button></th>
+                                <th class="px-3 py-2"><button onclick="sortHtmlTable('${tableId}Table',7,'number')" class="font-bold">Desde inicio</button></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 bg-white">${body || '<tr><td colspan="8" class="px-3 py-3 text-gray-400">Sin datos</td></tr>'}</tbody>
@@ -5252,10 +5269,52 @@
                 </div>`;
             }
 
+            function sortHtmlTable(tableId, colIndex, type = 'text') {
+                const table = document.getElementById(tableId);
+                const tbody = table?.querySelector('tbody');
+                if (!tbody) return;
+                const key = `${tableId}:${colIndex}`;
+                window.__tableSortState = window.__tableSortState || {};
+                const dir = window.__tableSortState[key] === 'desc' ? 'asc' : 'desc';
+                window.__tableSortState[key] = dir;
+                const parse = (text) => {
+                    const clean = text.replace(/[+,%pp]/g, '').replace(/\s+/g, ' ').trim();
+                    if (type === 'number') {
+                        const n = Number(clean.replace(',', '.'));
+                        return Number.isFinite(n) ? n : (dir === 'desc' ? -Infinity : Infinity);
+                    }
+                    if (type === 'date') {
+                        const t = Date.parse(clean);
+                        return Number.isFinite(t) ? t : (dir === 'desc' ? -Infinity : Infinity);
+                    }
+                    return clean.toLowerCase();
+                };
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                rows.sort((a, b) => {
+                    const av = parse(a.children[colIndex]?.textContent || '');
+                    const bv = parse(b.children[colIndex]?.textContent || '');
+                    if (av < bv) return dir === 'desc' ? 1 : -1;
+                    if (av > bv) return dir === 'desc' ? -1 : 1;
+                    return 0;
+                });
+                rows.forEach(row => tbody.appendChild(row));
+            }
+
             function renderValRatioNote(noteId, text) {
                 const el = document.getElementById(noteId);
                 if (!el) return;
                 el.innerHTML = `<div class="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-slate-600"><span class="font-bold text-slate-800">Interpretacion:</span> ${text}</div>`;
+            }
+
+            function valuationZScoreComment(label, ratio) {
+                const vals = (ratio || []).map(r => r.value).filter(Number.isFinite);
+                if (vals.length < 20) return `${label}: sin historia suficiente para z-score.`;
+                const last = vals[vals.length - 1];
+                const avg = vals.reduce((sum, v) => sum + v, 0) / vals.length;
+                const sd = Math.sqrt(vals.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / vals.length);
+                const z = sd > 0 ? (last - avg) / sd : 0;
+                const tag = z >= 1 ? 'caro vs su media historica' : z <= -1 ? 'barato vs su media historica' : 'cerca de su media historica';
+                return `${label}: ${tag} (${z >= 0 ? '+' : ''}${z.toFixed(2)} sigma).`;
             }
 
             function drawRelativeRatioChart(chartId, defs, period, layout) {
@@ -5286,7 +5345,7 @@
                 const IG = sliceValByPeriod(valData['IBCX.DE'], period);
                 const GOV = sliceValByPeriod(valData['IBGL.L'], period);
                 const GOVS = sliceValByPeriod(valData['IBGS.L'], period);
-                const GOVM = sliceValByPeriod(valData['IBGM.DE'], period);
+                const GOVM = sliceValByPeriod(valData['IBGM.L'], period);
 
                 const chartLayout = (title) => ({
                     margin: { t: 20, l: 50, r: 20, b: 40 },
@@ -5306,7 +5365,7 @@
 
 
                 renderRelativeReturnTable('valHYIGTable', [{ label: 'HY EUR / IG EUR', ratio: fullValRatio('IHYG.L', 'IBCX.DE') }]);
-                renderValRatioNote('valHYIGNote', 'El ratio sube cuando el high yield EUR se comporta mejor que el credito investment grade. Lecturas fuertes suelen indicar apetito por riesgo de credito; caidas sugieren preferencia por calidad y menor tolerancia a riesgo.');
+                renderValRatioNote('valHYIGNote', `El ratio sube cuando el high yield EUR se comporta mejor que el credito investment grade. Lecturas fuertes suelen indicar apetito por riesgo de credito; caidas sugieren preferencia por calidad y menor tolerancia a riesgo. ${valuationZScoreComment('HY/IG', fullValRatio('IHYG.L', 'IBCX.DE'))}`);
 
                 // Crédito vs Govies chart
                 const ig_gov = spreadRatio(IG, GOV);
@@ -5316,7 +5375,7 @@
 
 
                 renderRelativeReturnTable('valCreditGovieTable', [{ label: 'IG EUR / Govies EUR largo', ratio: fullValRatio('IBCX.DE', 'IBGL.L') }]);
-                renderValRatioNote('valCreditGovieNote', 'El ratio sube cuando el credito IG bate a la deuda soberana larga. Suele favorecerse en fases de spreads contenidos y carry atractivo; caidas apuntan a busqueda de duracion soberana o ampliacion de credito.');
+                renderValRatioNote('valCreditGovieNote', `El ratio sube cuando el credito IG bate a la deuda soberana larga. Suele favorecerse en fases de spreads contenidos y carry atractivo; caidas apuntan a busqueda de duracion soberana o ampliacion de credito. ${valuationZScoreComment('IG/Govies', fullValRatio('IBCX.DE', 'IBGL.L'))}`);
 
                 // Curva de tipos por tramos (Spread Largo vs Corto y Medio vs Corto)
                 const largo_corto = spreadRatio(GOV, GOVS);
@@ -5337,16 +5396,16 @@
 
                 renderRelativeReturnTable('valCurvaTable', [
                     { label: 'Govies largo / Govies corto', ratio: fullValRatio('IBGL.L', 'IBGS.L') },
-                    { label: 'Govies medio / Govies corto', ratio: fullValRatio('IBGM.DE', 'IBGS.L') }
+                    { label: 'Govies medio / Govies corto', ratio: fullValRatio('IBGM.L', 'IBGS.L') }
                 ]);
-                renderValRatioNote('valCurvaNote', 'Estos ratios comparan tramos de duracion por precio de ETFs. Si largo/corto sube, la duracion larga esta batiendo a la corta; suele ocurrir cuando bajan rentabilidades largas o el mercado anticipa relajacion monetaria.');
+                renderValRatioNote('valCurvaNote', `Estos ratios comparan tramos de duracion por precio de ETFs. Si largo/corto sube, la duracion larga esta batiendo a la corta; suele ocurrir cuando bajan rentabilidades largas o el mercado anticipa relajacion monetaria. ${valuationZScoreComment('Largo/Corto', fullValRatio('IBGL.L', 'IBGS.L'))} ${valuationZScoreComment('Medio/Corto', fullValRatio('IBGM.L', 'IBGS.L'))}`);
 
                 // RF Table
                 const rfPairs = [
                     { label: 'HY / IG EUR', nameA: 'IHYG.L', nameB: 'IBCX.DE' },
                     { label: 'IG Crédito / Govies EUR', nameA: 'IBCX.DE', nameB: 'IBGL.L' },
                     { label: 'Corto / Largo EUR (Curva)', nameA: 'IBGS.L', nameB: 'IBGL.L' },
-                    { label: 'Medio / Largo EUR', nameA: 'IBGM.DE', nameB: 'IBGL.L' }
+                    { label: 'Medio / Largo EUR', nameA: 'IBGM.L', nameB: 'IBGL.L' }
                 ];
 
                 const tbody = document.getElementById('valRFTableBody');
@@ -5359,14 +5418,20 @@
                     const lastVal = vals[vals.length - 1];
                     const maxVal = Math.max(...vals);
                     const minVal = Math.min(...vals);
+                    const avgVal = vals.reduce((sum, v) => sum + v, 0) / vals.length;
+                    const stdev = Math.sqrt(vals.reduce((sum, v) => sum + Math.pow(v - avgVal, 2), 0) / vals.length);
+                    const zScore = stdev > 0 ? (lastVal - avgVal) / stdev : 0;
                     const pct = vals.length > 1 ? ((lastVal - minVal) / (maxVal - minVal) * 100) : 50;
                     const pctColor = pct > 70 ? 'text-red-600 font-bold' : pct < 30 ? 'text-green-600 font-bold' : 'text-gray-700';
+                    const reading = zScore >= 1 ? 'Caro vs historia' : zScore <= -1 ? 'Barato vs historia' : 'Neutro';
+                    const readingColor = zScore >= 1 ? 'text-red-600' : zScore <= -1 ? 'text-emerald-700' : 'text-slate-600';
                     return `<tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-left font-bold text-gray-800">${pair.label}</td>
                         <td class="px-3 py-2">${lastVal.toFixed(3)}</td>
-                        <td class="px-3 py-2 text-red-500">${maxVal.toFixed(3)}</td>
-                        <td class="px-3 py-2 text-green-600">${minVal.toFixed(3)}</td>
+                        <td class="px-3 py-2 text-slate-600">${avgVal.toFixed(3)}</td>
+                        <td class="px-3 py-2 ${readingColor} font-bold">${zScore >= 0 ? '+' : ''}${zScore.toFixed(2)}</td>
                         <td class="px-3 py-2 ${pctColor}">${pct.toFixed(0)}%</td>
+                        <td class="px-3 py-2 ${readingColor} font-semibold">${reading}</td>
                     </tr>`;
                 }).join('');
             }
@@ -5393,10 +5458,10 @@
                 renderValRatioNote('valSectorNote', 'Cada linea mide el comportamiento relativo de un sector global frente al ACWI. Una pendiente ascendente significa que ese sector esta batiendo al mercado global; una pendiente descendente indica infrarentabilidad relativa.');
 
                 const smallLargeRows = drawRelativeRatioChart('valSmallLargeChart', [
-                    { label: 'Small / Large (IWM/SPY)', a: 'IWM', b: 'SPY', color: '#0d9488', fill: 'rgba(13,148,136,0.07)' }
+                    { label: 'Small global / Large global', a: '0P00012I66.F', b: 'IWDA.L', color: '#0d9488', fill: 'rgba(13,148,136,0.07)' }
                 ], period, lineLayout);
                 renderRelativeReturnTable('valSmallLargeTable', smallLargeRows);
-                renderValRatioNote('valSmallLargeNote', 'El ratio IWM/SPY sube cuando small caps estadounidenses baten a large caps. Suele mejorar con mayor amplitud de mercado, credito mas benigno y expectativas de crecimiento domestico.');
+                renderValRatioNote('valSmallLargeNote', 'El ratio compara small caps globales frente a large caps globales. Si sube, mejora la amplitud fuera de mega caps; si cae, el liderazgo se concentra en grandes companias.');
 
                 const emDmRows = drawRelativeRatioChart('valEMDMChart', [
                     { label: 'EM / ACWI (EEM/ACWI)', a: 'EEM', b: 'ACWI', color: '#7c3aed', fill: 'rgba(124,58,237,0.07)' }
@@ -5424,10 +5489,10 @@
                 renderValRatioNote('valCycDefNote', 'RXI/KXI usa consumo discrecional global frente a consumo estable global como proxy ciclico/defensivo. Una subida apunta a mayor apetito por ciclo; una caida sugiere rotacion defensiva.');
 
                 const capEqualRows = drawRelativeRatioChart('valCapEqualChart', [
-                    { label: 'Market cap / Equal weight (SPY/RSP)', a: 'SPY', b: 'RSP', color: '#334155', fill: 'rgba(51,65,85,0.06)' }
+                    { label: 'Market cap global / Equal weight global', a: 'IWDA.L', b: 'XDEW.DE', color: '#334155', fill: 'rgba(51,65,85,0.06)' }
                 ], period, lineLayout);
                 renderRelativeReturnTable('valCapEqualTable', capEqualRows);
-                renderValRatioNote('valCapEqualNote', 'SPY/RSP mide si el S&P 500 ponderado por capitalizacion bate a su version equal weight. Si sube, el liderazgo esta concentrado en megacaps; si cae, mejora la amplitud del mercado.');
+                renderValRatioNote('valCapEqualNote', 'IWDA.L/XDEW.DE aproxima market-cap global frente a equal-weight global. Si sube, el liderazgo esta concentrado en grandes companias; si cae, mejora la amplitud del mercado.');
 
                 const stocksBondsRows = drawRelativeRatioChart('valStocksBondsChart', [
                     { label: 'Stocks globales / Bonos globales EUR (IWDA.L/SGLO.L)', a: 'IWDA.L', b: 'SGLO.L', color: '#0284c7', fill: 'rgba(2,132,199,0.06)' }
@@ -5435,35 +5500,15 @@
                 renderRelativeReturnTable('valStocksBondsTable', stocksBondsRows);
                 renderValRatioNote('valStocksBondsNote', 'Este ratio compara renta variable global en EUR frente a bonos soberanos globales EUR hedged. Si sube, las acciones baten a bonos; si cae, domina la proteccion o duracion de renta fija.');
 
-                // YTD bars relative to ACWI
-                const ytdStart = new Date(new Date().getFullYear(), 0, 1);
-                const getYTDRet = (ticker) => {
-                    const d = valData[ticker] || [];
-                    const ytdD = d.filter(x => x.date >= ytdStart);
-                    if (ytdD.length < 2) return null;
-                    return (ytdD[ytdD.length-1].price / ytdD[0].price) - 1;
-                };
-                const acwiYTD = getYTDRet('ACWI');
-                const barData = VAL_RV_SECTORS.map(s => ({
-                    label: s.label,
-                    rel: acwiYTD !== null && getYTDRet(s.ticker) !== null ? (getYTDRet(s.ticker) - acwiYTD) * 100 : null
-                })).filter(d => d.rel !== null).sort((a, b) => b.rel - a.rel);
-
-                Plotly.newPlot('valSectorBarChart', [{
-                    x: barData.map(d => d.label),
-                    y: barData.map(d => d.rel),
-                    type: 'bar',
-                    marker: { color: barData.map(d => d.rel >= 0 ? '#0f766e' : '#dc2626') },
-                    text: barData.map(d => (d.rel >= 0 ? '+' : '') + d.rel.toFixed(1) + 'pp'),
-                    textposition: 'auto'
-                }], {
-                    yaxis: { title: 'pp vs ACWI', zeroline: true, zerolinecolor: '#334155', zerolinewidth: 2, gridcolor: '#e2e8f0' },
-                    margin: { t: 10, l: 50, r: 20, b: 80 },
-                    plot_bgcolor: 'white',
-                    paper_bgcolor: 'white',
-                    bargap: 0.3
-                }, { responsive: true });
-                renderValRatioNote('valSectorBarNote', 'La barra muestra la diferencia de rentabilidad YTD de cada sector frente a ACWI en puntos porcentuales. Valores positivos son sobreponderacion relativa ganadora en el ano; negativos indican retraso frente al indice global.');
+                const regionalRows = drawRelativeRatioChart('valRegionalChart', VAL_RV_REGIONS.map(region => ({
+                    label: region.label + ' / ACWI',
+                    a: region.ticker,
+                    b: 'ACWI',
+                    color: region.color,
+                    width: 1.7
+                })), period, lineLayout);
+                renderRelativeReturnTable('valRegionalTable', regionalRows);
+                renderValRatioNote('valRegionalNote', 'Cada linea compara un indice regional o nacional contra ACWI. Una subida indica que esa region bate al mercado global; una caida indica peor comportamiento relativo. Ten en cuenta que algunos indices estan en divisa local.');
             }
         </script>
     </div>
@@ -5477,9 +5522,9 @@
             </div>
             <div class="bg-white border border-sky-100 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
                 <div class="flex-1">
-                    <div class="text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-database mr-1"></i> FRED macro data</div>
-                    <p class="text-sm text-slate-700 leading-relaxed">Todas las series se consultan exclusivamente en <span class="font-mono">/api/macro</span> via FRED. Las series diarias usan el ultimo dato disponible de cada mes para alinear frecuencias.</p>
-                    <p class="text-[11px] text-slate-500 mt-1">Configura <span class="font-mono font-bold">FRED_API_KEY</span> en Vercel. Universo: EEUU, Eurozona, Alemania, Francia, Italia, Espana y UK.</p>
+                    <div class="text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-database mr-1"></i> Macro data oficial</div>
+                    <p class="text-sm text-slate-700 leading-relaxed">El navegador consulta <span class="font-mono">/api/macro</span>. Vercel combina FRED, BLS, Eurostat y ECB Data Portal segun indicador; las series diarias usan el ultimo dato disponible de cada mes.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Configura <span class="font-mono font-bold">FRED_API_KEY</span> en Vercel para series FRED. BLS, Eurostat y ECB no requieren clave.</p>
                 </div>
                 <div class="flex flex-col gap-2">
                     <button onclick="loadMacroData()" id="macroLoadBtn" class="px-5 py-2 bg-sky-700 text-white rounded-lg shadow hover:bg-sky-800 font-bold whitespace-nowrap flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-down"></i> Cargar datos</button>
@@ -5491,8 +5536,8 @@
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-sky-700 pl-3">CLI OECD - EEUU y Europa</h3><p class="text-xs text-slate-400 mb-3 pl-3">Zona &gt;=100 expansion / &lt;100 contraccion. Fuente: FRED/OECD.</p><div id="macroCLIChart" class="w-full h-[380px]"></div><div id="macroCLITable" class="mt-3"></div><div id="macroCLISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-indigo-600 pl-3">ICE BofA High Yield Effective Yield</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU HY y Euro HY. Series diarias FRED/ICE BofA con ultimo dato disponible de cada mes.</p><div id="macroPMIChart" class="w-full h-[380px]"></div><div id="macroPMITable" class="mt-3"></div><div id="macroPMISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-blue-700 pl-3">Economic Policy Uncertainty</h3><p class="text-xs text-slate-400 mb-3 pl-3">Indice mensual para EEUU y Europa. Fuente: FRED/EPU.</p><div id="macroEPUChart" class="w-full h-[380px]"></div><div id="macroEPUTable" class="mt-3"></div><div id="macroEPUSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflacion CPI/HICP YoY</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU CPI y Eurozona HICP, variacion interanual calculada desde indices mensuales. Target 2%.</p><div id="macroCPIChart" class="w-full h-[380px]"></div><div id="macroCPITable" class="mt-3"></div><div id="macroCPISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
-                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos oficiales</h3><p class="text-xs text-slate-400 mb-3 pl-3">Fed Funds y ECB Deposit Facility Rate. Fuente: FRED.</p><div id="macroRatesChart" class="w-full h-[380px]"></div><div id="macroRatesTable" class="mt-3"></div><div id="macroRatesSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-orange-500 pl-3">Inflacion CPI/HICP YoY</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU desde BLS CPI-U y Eurozona desde Eurostat HICP anual. Target 2%.</p><div id="macroCPIChart" class="w-full h-[380px]"></div><div id="macroCPITable" class="mt-3"></div><div id="macroCPISource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-red-500 pl-3">Tipos oficiales</h3><p class="text-xs text-slate-400 mb-3 pl-3">Fed upper target bound y tipos oficiales ECB desde ECB Data Portal.</p><div id="macroRatesChart" class="w-full h-[380px]"></div><div id="macroRatesTable" class="mt-3"></div><div id="macroRatesSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-green-600 pl-3">Bono soberano 10 anos</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU, Alemania, Francia, Italia, Espana y UK. Fuente: FRED/OECD.</p><div id="macro10YChart" class="w-full h-[380px]"></div><div id="macro10YTable" class="mt-3"></div><div id="macro10YSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-purple-600 pl-3">Tasa de desempleo</h3><p class="text-xs text-slate-400 mb-3 pl-3">EEUU, Alemania, Francia, Italia, Espana y UK. Fuente: FRED/OECD.</p><div id="macroUnemplChart" class="w-full h-[380px]"></div><div id="macroUnemplTable" class="mt-3"></div><div id="macroUnemplSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><h3 class="text-slate-900 font-bold mb-1 border-l-4 border-slate-600 pl-3">PIB real indexado</h3><p class="text-xs text-slate-400 mb-3 pl-3">Series trimestrales indexadas a 100 al inicio del periodo seleccionado. Fuente: FRED.</p><div id="macroGDPChart" class="w-full h-[380px]"></div><div id="macroGDPTable" class="mt-3"></div><div id="macroGDPSource" class="text-[11px] text-slate-400 mt-2 pl-1">Fuente pendiente.</div></div>
@@ -5605,7 +5650,8 @@
                     return { label: s.label, color: s.color, date: last.date, value: last.value, mom: changeValue(last, prev, diffMode), ytd: changeValue(last, ytdBase, diffMode), diffMode };
                 });
                 if (!rows.length) { el.innerHTML = ''; return; }
-                el.innerHTML = `<div class="overflow-x-auto"><table class="min-w-full text-xs border border-slate-200 rounded-lg overflow-hidden"><thead class="bg-slate-100 text-slate-600 uppercase"><tr><th class="text-left px-3 py-2">Serie</th><th class="text-right px-3 py-2">Ultimo</th><th class="text-right px-3 py-2">Fecha</th><th class="text-right px-3 py-2">Mes</th><th class="text-right px-3 py-2">YTD</th></tr></thead><tbody>${rows.map(r => `<tr class="border-t border-slate-100"><td class="px-3 py-2 font-semibold" style="color:${r.color}">${r.label}</td><td class="px-3 py-2 text-right text-slate-700">${formatMacroNumber(r.value)}${group.opts.ysuffix || ''}</td><td class="px-3 py-2 text-right text-slate-500">${formatMacroDate(r.date)}</td><td class="px-3 py-2 text-right ${r.mom >= 0 ? 'text-green-700' : 'text-red-700'}">${formatChange(r.mom, r.diffMode)}</td><td class="px-3 py-2 text-right ${r.ytd >= 0 ? 'text-green-700' : 'text-red-700'}">${formatChange(r.ytd, r.diffMode)}</td></tr>`).join('')}</tbody></table></div><div class="mt-3 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3"><strong>Interpretacion:</strong> ${group.opts.note || ''}</div>`;
+                const tableDomId = `${group.tableId}Table`;
+                el.innerHTML = `<div class="overflow-x-auto"><table id="${tableDomId}" class="min-w-full text-xs border border-slate-200 rounded-lg overflow-hidden"><thead class="bg-slate-100 text-slate-600 uppercase"><tr><th class="text-left px-3 py-2"><button onclick="sortHtmlTable('${tableDomId}',0,'text')" class="font-bold">Serie</button></th><th class="text-right px-3 py-2"><button onclick="sortHtmlTable('${tableDomId}',1,'number')" class="font-bold">Ultimo</button></th><th class="text-right px-3 py-2"><button onclick="sortHtmlTable('${tableDomId}',2,'date')" class="font-bold">Fecha</button></th><th class="text-right px-3 py-2"><button onclick="sortHtmlTable('${tableDomId}',3,'number')" class="font-bold">Mes</button></th><th class="text-right px-3 py-2"><button onclick="sortHtmlTable('${tableDomId}',4,'number')" class="font-bold">YTD</button></th></tr></thead><tbody>${rows.map(r => `<tr class="border-t border-slate-100"><td class="px-3 py-2 font-semibold" style="color:${r.color}">${r.label}</td><td class="px-3 py-2 text-right text-slate-700">${formatMacroNumber(r.value)}${group.opts.ysuffix || ''}</td><td class="px-3 py-2 text-right text-slate-500">${formatMacroDate(r.date)}</td><td class="px-3 py-2 text-right ${r.mom >= 0 ? 'text-green-700' : 'text-red-700'}">${formatChange(r.mom, r.diffMode)}</td><td class="px-3 py-2 text-right ${r.ytd >= 0 ? 'text-green-700' : 'text-red-700'}">${formatChange(r.ytd, r.diffMode)}</td></tr>`).join('')}</tbody></table></div><div class="mt-3 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3"><strong>Interpretacion:</strong> ${group.opts.note || ''}</div>`;
             }
             function changeValue(last, prev, diffMode) { if (!last || !prev || !Number.isFinite(prev.value)) return null; return diffMode ? (last.value - prev.value) : (prev.value !== 0 ? ((last.value / prev.value) - 1) * 100 : null); }
             function formatChange(value, diffMode) { if (!Number.isFinite(value)) return '-'; return diffMode ? `${value >= 0 ? '+' : ''}${value.toFixed(2)} pp` : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`; }

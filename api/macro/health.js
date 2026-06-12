@@ -11,7 +11,9 @@ export default async function handler(req, res) {
 
     const checks = await Promise.all([
         checkFred(),
-        checkWorldBank()
+        checkBls(),
+        checkEurostat(),
+        checkEcb()
     ]);
 
     const ok = checks.every(c => c.ok || c.optional);
@@ -35,7 +37,7 @@ async function checkFred() {
 
     try {
         const url = new URL('https://api.stlouisfed.org/fred/series/observations');
-        url.searchParams.set('series_id', 'FEDFUNDS');
+        url.searchParams.set('series_id', 'DFEDTARU');
         url.searchParams.set('api_key', apiKey);
         url.searchParams.set('file_type', 'json');
         url.searchParams.set('sort_order', 'desc');
@@ -53,18 +55,52 @@ async function checkFred() {
     }
 }
 
-async function checkWorldBank() {
+async function checkBls() {
     try {
-        const response = await fetch('https://api.worldbank.org/v2/country/US/indicator/FP.CPI.TOTL.ZG?format=json&per_page=1', {
-            headers: { Accept: 'application/json' }
+        const response = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ seriesid: ['CUUR0000SA0'], startyear: '2025', endyear: String(new Date().getUTCFullYear()) })
         });
         return {
-            provider: 'World Bank',
+            provider: 'BLS',
             ok: response.ok,
-            optional: true,
+            optional: false,
             message: response.ok ? 'OK' : `HTTP ${response.status}`
         };
     } catch (error) {
-        return { provider: 'World Bank', ok: false, optional: true, message: error.message };
+        return { provider: 'BLS', ok: false, optional: false, message: error.message };
+    }
+}
+
+async function checkEurostat() {
+    try {
+        const response = await fetch('https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_minr?format=JSON&lang=en&unit=RCH_A&coicop18=TOTAL&geo=EA20&lastTimePeriod=1', {
+            headers: { Accept: 'application/json' }
+        });
+        return {
+            provider: 'Eurostat',
+            ok: response.ok,
+            optional: false,
+            message: response.ok ? 'OK' : `HTTP ${response.status}`
+        };
+    } catch (error) {
+        return { provider: 'Eurostat', ok: false, optional: false, message: error.message };
+    }
+}
+
+async function checkEcb() {
+    try {
+        const response = await fetch('https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.DFR.LEV?format=csvdata&lastNObservations=1', {
+            headers: { Accept: 'text/csv' }
+        });
+        return {
+            provider: 'ECB',
+            ok: response.ok,
+            optional: false,
+            message: response.ok ? 'OK' : `HTTP ${response.status}`
+        };
+    } catch (error) {
+        return { provider: 'ECB', ok: false, optional: false, message: error.message };
     }
 }
