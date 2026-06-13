@@ -618,6 +618,14 @@
                     </div>
                 </div>
 
+                <div class="mt-6 flex flex-wrap gap-2 border-b border-slate-200">
+                    <button id="portfolioSubtab-main" onclick="showPortfolioSubtab('main')"
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-blue-700 border-b-2 border-blue-700">Cartera y anÃ¡lisis</button>
+                    <button id="portfolioSubtab-assets" onclick="showPortfolioSubtab('assets')"
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">DistribuciÃ³n de activos</button>
+                </div>
+
+                <div id="portfolioSubtabContent-main" class="portfolio-subtab-content">
                 <div class="mt-6">
                     <div id="portfolioChart" class="w-full h-[520px] bg-white border border-gray-100 rounded-lg"></div>
                 </div>
@@ -660,6 +668,81 @@
                     </div>
                     <div id="portfolioReportPreview" class="p-5 text-sm text-slate-500">
                         Carga una cartera y pulsa Generar para crear el informe descargable.
+                    </div>
+                </div>
+                </div>
+
+                <div id="portfolioSubtabContent-assets" class="portfolio-subtab-content hidden mt-6 space-y-4">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">DistribuciÃ³n de activos</h3>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Optimiza pesos sobre rentabilidades mensuales histÃ³ricas. Por defecto usa las clases de activo cargadas en Mercados; tambiÃ©n puedes subir un Excel/CSV con columnas date + activos.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="loadAssetAllocationFromMarkets('assets')" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-database mr-1"></i>Usar activos</button>
+                                <button onclick="loadAssetAllocationFromMarkets('indices')" class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800"><i class="fa-solid fa-chart-line mr-1"></i>Usar Ã­ndices</button>
+                                <label class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                                    <i class="fa-solid fa-file-excel mr-1"></i>Subir Excel/CSV
+                                    <input id="assetAllocationFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importAssetAllocationFile(this.files[0])">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                            <div class="lg:col-span-5">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="font-bold text-sm text-slate-700">Pesos</h4>
+                                    <div class="flex gap-2">
+                                        <button onclick="equalizeAssetAllocationWeights()" class="px-2 py-1 bg-slate-100 rounded text-xs font-bold hover:bg-slate-200">Equal weight</button>
+                                        <button onclick="normalizeAssetAllocationWeights()" class="px-2 py-1 bg-yellow-100 rounded text-xs font-bold hover:bg-yellow-200">Normalizar</button>
+                                    </div>
+                                </div>
+                                <div id="assetAllocationWeights" class="space-y-2 max-h-[520px] overflow-y-auto pr-1"></div>
+                                <div class="mt-3 text-xs text-slate-500">
+                                    Suma pesos: <span id="assetAllocationWeightSum" class="font-bold">0%</span>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-7 space-y-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                        <label class="text-[11px] uppercase font-bold text-slate-500">Probabilidad rent. inferior a</label>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <input id="assetAllocationThreshold" type="number" value="0" step="0.5" oninput="updateAssetAllocationAnalysis()" class="w-24 p-2 border border-slate-300 rounded text-sm text-right">
+                                            <span class="text-sm text-slate-500">%</span>
+                                        </div>
+                                    </div>
+                                    <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                        <div class="text-[11px] uppercase font-bold text-slate-500">Fuente</div>
+                                        <div id="assetAllocationSource" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
+                                    </div>
+                                    <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                        <div class="text-[11px] uppercase font-bold text-slate-500">HistÃ³rico comÃºn</div>
+                                        <div id="assetAllocationHistory" class="text-sm font-bold text-slate-800 mt-2">-</div>
+                                    </div>
+                                </div>
+                                <div id="assetAllocationScenarioChart" class="w-full h-[360px] border border-slate-100 rounded"></div>
+                                <div id="assetAllocationCumulativeChart" class="w-full h-[300px] border border-slate-100 rounded"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-indigo-500 pl-3">Escenarios por plazo</h4>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm text-slate-600">
+                                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">Plazo</th>
+                                        <th class="px-3 py-2 text-right">Media</th>
+                                        <th class="px-3 py-2 text-right">MÃ¡ximo</th>
+                                        <th class="px-3 py-2 text-right">MÃ­nimo</th>
+                                        <th class="px-3 py-2 text-right">Prob. &lt; umbral</th>
+                                        <th class="px-3 py-2 text-right">Muestras</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="assetAllocationStatsBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-3">Para 1 aÃ±o o mÃ¡s se muestra rentabilidad anualizada, siguiendo la lÃ³gica del Excel de ejemplo. El cÃ¡lculo usa ventanas mÃ³viles mensuales y los pesos normalizados.</p>
                     </div>
                 </div>
             </div>
@@ -715,6 +798,22 @@
             let portfolioReportHtml = '';
             let portfolioImportMode = 'manual';
             let portfolioAnalysisPromise = null;
+            let assetAllocationState = null;
+
+            function showPortfolioSubtab(tabName) {
+                document.querySelectorAll('.portfolio-subtab-content').forEach(el => el.classList.add('hidden'));
+                document.getElementById(`portfolioSubtabContent-${tabName}`)?.classList.remove('hidden');
+                document.querySelectorAll('.portfolio-subtab-btn').forEach(btn => {
+                    btn.classList.remove('text-blue-700', 'border-blue-700');
+                    btn.classList.add('text-slate-500', 'border-transparent');
+                });
+                const active = document.getElementById(`portfolioSubtab-${tabName}`);
+                if (active) {
+                    active.classList.remove('text-slate-500', 'border-transparent');
+                    active.classList.add('text-blue-700', 'border-blue-700');
+                }
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+            }
 
             function downloadPortfolioTemplate(modeArg) {
                 const mode = modeArg || document.getElementById('portfolioExcelMode')?.value || 'backtest';
@@ -1003,6 +1102,219 @@
 
             function escapeHtml(value) {
                 return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
+            }
+
+            async function loadAssetAllocationFromMarkets(kind = 'assets') {
+                document.getElementById('assetAllocationSource').innerText = 'Cargando Mercados...';
+                const list = kind === 'indices' ? marketIndices : assetClasses;
+                const dataDict = kind === 'indices' ? globalIndicesData : globalAssetsData;
+                const hasData = list.some(a => (dataDict[a.s] || []).length > 24);
+                if (!hasData) await loadMarketsData();
+                const series = {};
+                const labels = {};
+                list.forEach(a => {
+                    const monthly = monthlyReturnsFromPrices(dataDict[a.s] || []);
+                    if (monthly.length >= 12) {
+                        series[a.s] = monthly;
+                        labels[a.s] = a.n;
+                    }
+                });
+                setupAssetAllocationState(series, labels, kind === 'indices' ? 'Indices de Mercados' : 'Activos de Mercados');
+            }
+
+            async function importAssetAllocationFile(file) {
+                if (!file) return;
+                if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
+                const workbook = await readWorkbook(file);
+                let best = { sheetName: workbook.SheetNames[0], series: {}, count: 0 };
+                workbook.SheetNames.forEach(sheetName => {
+                    const series = assetAllocationSeriesFromRows(sheetRows(workbook, sheetName));
+                    const count = Object.keys(series).length;
+                    if (count > best.count) best = { sheetName, series, count };
+                });
+                const series = best.series;
+                const labels = Object.fromEntries(Object.keys(series).map(k => [k, k]));
+                setupAssetAllocationState(series, labels, `Excel/CSV: ${file.name} (${best.sheetName})`);
+                document.getElementById('assetAllocationFileInput').value = '';
+            }
+
+            function assetAllocationSeriesFromRows(rows) {
+                const valueMap = {};
+                rows.forEach(row => {
+                    const date = parseFlexibleAllocationDate(firstValue(row, ['date', 'fecha']) || Object.values(row)[0]);
+                    if (!date) return;
+                    const dateKey = date.toISOString().slice(0, 7);
+                    Object.keys(row).forEach(key => {
+                        if (['date', 'fecha'].includes(key.toLowerCase())) return;
+                        const value = parseNumber(row[key]);
+                        if (!Number.isFinite(value)) return;
+                        if (!valueMap[key]) valueMap[key] = [];
+                        valueMap[key].push({ date, dateKey, value });
+                    });
+                });
+                const series = {};
+                Object.entries(valueMap).forEach(([name, values]) => {
+                    values.sort((a, b) => a.date - b.date);
+                    if (values.length < 2) return;
+                    const absMedian = median(values.map(v => Math.abs(v.value)));
+                    if (absMedian > 1.5) {
+                        series[name] = [];
+                        for (let i = 1; i < values.length; i++) {
+                            if (values[i - 1].value > 0) series[name].push({ date: values[i].date, dateKey: values[i].dateKey, ret: values[i].value / values[i - 1].value - 1 });
+                        }
+                    } else {
+                        series[name] = values.map(v => ({ date: v.date, dateKey: v.dateKey, ret: Math.abs(v.value) > 1 ? v.value / 100 : v.value }));
+                    }
+                });
+                return series;
+            }
+
+            function setupAssetAllocationState(series, labels, sourceLabel) {
+                const keys = Object.keys(series).filter(k => series[k]?.length >= 12);
+                if (!keys.length) return alert('No encuentro series mensuales suficientes. Usa columnas date + activos con rentabilidades o precios.');
+                const aligned = alignAssetAllocationReturns(keys, series);
+                if (aligned.dates.length < 12) return alert('Las series no tienen historico comun suficiente.');
+                const equal = 1 / keys.length;
+                assetAllocationState = { keys, labels, sourceLabel, dates: aligned.dates, returns: aligned.returns, weights: Object.fromEntries(keys.map(k => [k, equal])) };
+                renderAssetAllocationWeights();
+                updateAssetAllocationAnalysis();
+            }
+
+            function monthlyReturnsFromPrices(data) {
+                if (!data || data.length < 2) return [];
+                const monthEnd = new Map();
+                data.forEach(d => monthEnd.set(d.date.toISOString().slice(0, 7), d));
+                const rows = Array.from(monthEnd.values()).sort((a, b) => a.date - b.date);
+                const out = [];
+                for (let i = 1; i < rows.length; i++) {
+                    if (rows[i - 1].price > 0) out.push({ date: rows[i].date, dateKey: rows[i].date.toISOString().slice(0, 7), ret: rows[i].price / rows[i - 1].price - 1 });
+                }
+                return out;
+            }
+
+            function alignAssetAllocationReturns(keys, series) {
+                const maps = {};
+                keys.forEach(k => maps[k] = new Map(series[k].map(p => [p.dateKey, p.ret])));
+                const dates = series[keys[0]].map(p => p.dateKey).filter(d => keys.every(k => maps[k].has(d)));
+                const returns = {};
+                keys.forEach(k => returns[k] = dates.map(d => maps[k].get(d)));
+                return { dates, returns };
+            }
+
+            function renderAssetAllocationWeights() {
+                if (!assetAllocationState) return;
+                const wrap = document.getElementById('assetAllocationWeights');
+                wrap.innerHTML = assetAllocationState.keys.map((key, idx) => {
+                    const label = assetAllocationState.labels[key] || key;
+                    const weight = (assetAllocationState.weights[key] || 0) * 100;
+                    return `<div class="rounded border border-slate-200 p-2 bg-slate-50">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <div class="text-xs font-bold text-slate-700 truncate" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+                            <input data-aa-weight="${idx}" type="number" min="0" max="100" step="0.5" value="${weight.toFixed(1)}" oninput="setAssetAllocationWeight(${idx}, this.value, 'number')" class="w-20 p-1 border border-slate-300 rounded text-xs text-right bg-white">
+                        </div>
+                        <input data-aa-slider="${idx}" type="range" min="0" max="100" step="0.5" value="${weight.toFixed(1)}" oninput="setAssetAllocationWeight(${idx}, this.value, 'slider')" class="w-full">
+                    </div>`;
+                }).join('');
+            }
+
+            function setAssetAllocationWeight(index, value, source) {
+                if (!assetAllocationState) return;
+                const key = assetAllocationState.keys[index];
+                const pct = Math.max(0, Number(value) || 0);
+                assetAllocationState.weights[key] = pct / 100;
+                const otherSelector = source === 'slider' ? `[data-aa-weight="${index}"]` : `[data-aa-slider="${index}"]`;
+                const other = document.querySelector(otherSelector);
+                if (other) other.value = pct.toFixed(1);
+                updateAssetAllocationAnalysis();
+            }
+
+            function normalizeAssetAllocationWeights() {
+                if (!assetAllocationState) return;
+                const sum = assetAllocationState.keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
+                if (!sum) return equalizeAssetAllocationWeights();
+                assetAllocationState.keys.forEach(k => assetAllocationState.weights[k] /= sum);
+                renderAssetAllocationWeights();
+                updateAssetAllocationAnalysis();
+            }
+
+            function equalizeAssetAllocationWeights() {
+                if (!assetAllocationState) return;
+                const equal = 1 / assetAllocationState.keys.length;
+                assetAllocationState.keys.forEach(k => assetAllocationState.weights[k] = equal);
+                renderAssetAllocationWeights();
+                updateAssetAllocationAnalysis();
+            }
+
+            function updateAssetAllocationAnalysis() {
+                if (!assetAllocationState) return;
+                const keys = assetAllocationState.keys;
+                const rawSum = keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
+                const weights = Object.fromEntries(keys.map(k => [k, rawSum ? (assetAllocationState.weights[k] || 0) / rawSum : 1 / keys.length]));
+                const portfolioReturns = assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * (assetAllocationState.returns[k][i] || 0), 0));
+                const threshold = (parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0) || 0) / 100;
+                const horizons = [{ label: '1 mes', months: 1 }, { label: '3 meses', months: 3 }, { label: '1 aÃ±o', months: 12 }, { label: '3 aÃ±os', months: 36 }, { label: '5 aÃ±os', months: 60 }, { label: '10 aÃ±os', months: 120 }, { label: '15 aÃ±os', months: 180 }];
+                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold)).filter(Boolean);
+                document.getElementById('assetAllocationWeightSum').innerText = fmtPct(rawSum);
+                document.getElementById('assetAllocationSource').innerText = assetAllocationState.sourceLabel;
+                document.getElementById('assetAllocationHistory').innerText = `${assetAllocationState.dates[0]} / ${assetAllocationState.dates[assetAllocationState.dates.length - 1]}`;
+                renderAssetAllocationStats(rows);
+                renderAssetAllocationCharts(rows, portfolioReturns);
+            }
+
+            function calculateAssetAllocationHorizon(returns, months, label, threshold) {
+                if (returns.length < months) return null;
+                const samples = [];
+                for (let i = months - 1; i < returns.length; i++) {
+                    let growth = 1;
+                    for (let j = i - months + 1; j <= i; j++) growth *= (1 + returns[j]);
+                    const total = growth - 1;
+                    samples.push(months >= 12 ? Math.pow(1 + total, 12 / months) - 1 : total);
+                }
+                return { label, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), probBelow: samples.filter(v => v < threshold).length / samples.length, count: samples.length };
+            }
+
+            function renderAssetAllocationStats(rows) {
+                document.getElementById('assetAllocationStatsBody').innerHTML = rows.map(r => `<tr>
+                    <td class="px-3 py-2 font-bold">${r.label}</td>
+                    <td class="px-3 py-2 text-right ${r.mean >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(r.mean)}</td>
+                    <td class="px-3 py-2 text-right text-green-700">${fmtPct(r.max)}</td>
+                    <td class="px-3 py-2 text-right text-red-600">${fmtPct(r.min)}</td>
+                    <td class="px-3 py-2 text-right font-bold">${fmtPct(r.probBelow)}</td>
+                    <td class="px-3 py-2 text-right text-slate-400">${r.count}</td>
+                </tr>`).join('');
+            }
+
+            function renderAssetAllocationCharts(rows, portfolioReturns) {
+                Plotly.newPlot('assetAllocationScenarioChart', [
+                    { x: rows.map(r => r.label), y: rows.map(r => r.min), type: 'bar', name: 'Min', marker: { color: '#dc2626' }, text: rows.map(r => fmtPct(r.min)), textposition: 'auto' },
+                    { x: rows.map(r => r.label), y: rows.map(r => r.mean), type: 'bar', name: 'Media', marker: { color: '#2563eb' }, text: rows.map(r => fmtPct(r.mean)), textposition: 'auto' },
+                    { x: rows.map(r => r.label), y: rows.map(r => r.max), type: 'bar', name: 'Max', marker: { color: '#047857' }, text: rows.map(r => fmtPct(r.max)), textposition: 'auto' }
+                ], { title: 'Expected return histÃ³rico por plazo', yaxis: { tickformat: '.1%' }, barmode: 'group', margin: { t: 40, l: 50, r: 20, b: 40 }, legend: { orientation: 'h' } }, { responsive: true });
+                const values = [100];
+                portfolioReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
+                const dates = ['Inicio'].concat(assetAllocationState.dates);
+                Plotly.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'EvoluciÃ³n mensual de la asignaciÃ³n', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
+            }
+
+            function parseFlexibleAllocationDate(value) {
+                const direct = parseExcelDate(value);
+                if (direct) return direct;
+                const text = String(value || '').trim();
+                const m = text.match(/^([A-Za-z]{3})\\s*(\\d{2,4})$/);
+                if (!m) return null;
+                const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+                const month = months[m[1].toLowerCase()];
+                if (month === undefined) return null;
+                let year = Number(m[2]);
+                if (year < 100) year += year >= 70 ? 1900 : 2000;
+                return new Date(Date.UTC(year, month, 1));
+            }
+
+            function median(values) {
+                const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+                if (!sorted.length) return 0;
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
             }
 
             // Fetch prices, align, compute portfolio cumulative series and composition chart only
