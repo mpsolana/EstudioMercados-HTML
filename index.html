@@ -533,18 +533,28 @@
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                            <div class="md:col-span-4">
+                            <div class="md:col-span-3">
                                 <label class="text-[11px] uppercase font-bold text-slate-500">Modalidad</label>
                                 <select id="portfolioExcelMode" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
                                     <option value="backtest">Backtesting teorico: tickers/pesos</option>
                                     <option value="real">Evolucion real: fecha/valor</option>
                                 </select>
                             </div>
-                            <div class="md:col-span-5">
+                            <div class="md:col-span-3">
+                                <label class="text-[11px] uppercase font-bold text-slate-500">Frecuencia datos</label>
+                                <select id="portfolioDataFrequency" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
+                                    <option value="auto">Auto detectar</option>
+                                    <option value="D">Diaria</option>
+                                    <option value="M">Mensual</option>
+                                    <option value="Q">Trimestral</option>
+                                    <option value="A">Anual</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-4">
                                 <label class="text-[11px] uppercase font-bold text-slate-500">Archivo .xlsx/.csv</label>
                                 <input id="portfolioExcelInput" type="file" accept=".xlsx,.xls,.csv" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
                             </div>
-                            <div class="md:col-span-3">
+                            <div class="md:col-span-2">
                                 <button onclick="importPortfolioExcel()" class="w-full px-4 py-2 bg-slate-700 text-white rounded font-bold hover:bg-slate-800"><i class="fa-solid fa-upload mr-1"></i>Cargar Excel</button>
                             </div>
                         </div>
@@ -620,9 +630,9 @@
 
                 <div class="mt-6 flex flex-wrap gap-2 border-b border-slate-200">
                     <button id="portfolioSubtab-main" onclick="showPortfolioSubtab('main')"
-                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-blue-700 border-b-2 border-blue-700">Cartera y anÃ¡lisis</button>
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-blue-700 border-b-2 border-blue-700">Cartera y análisis</button>
                     <button id="portfolioSubtab-assets" onclick="showPortfolioSubtab('assets')"
-                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">DistribuciÃ³n de activos</button>
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Distribución de activos</button>
                 </div>
 
                 <div id="portfolioSubtabContent-main" class="portfolio-subtab-content">
@@ -676,12 +686,12 @@
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                         <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
                             <div>
-                                <h3 class="font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">DistribuciÃ³n de activos</h3>
-                                <p class="text-xs text-slate-500 mt-1 pl-3">Optimiza pesos sobre rentabilidades mensuales histÃ³ricas. Por defecto usa las clases de activo cargadas en Mercados; tambiÃ©n puedes subir un Excel/CSV con columnas date + activos.</p>
+                                <h3 class="font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">Distribución de activos</h3>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Optimiza pesos sobre rentabilidades mensuales históricas. Por defecto usa las clases de activo cargadas en Mercados; también puedes subir un Excel/CSV con columnas date + activos.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 <button onclick="loadAssetAllocationFromMarkets('assets')" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-database mr-1"></i>Usar activos</button>
-                                <button onclick="loadAssetAllocationFromMarkets('indices')" class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800"><i class="fa-solid fa-chart-line mr-1"></i>Usar Ã­ndices</button>
+                                <button onclick="loadAssetAllocationFromMarkets('indices')" class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800"><i class="fa-solid fa-chart-line mr-1"></i>Usar índices</button>
                                 <label class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
                                     <i class="fa-solid fa-file-excel mr-1"></i>Subir Excel/CSV
                                     <input id="assetAllocationFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importAssetAllocationFile(this.files[0])">
@@ -716,7 +726,7 @@
                                         <div id="assetAllocationSource" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
                                     </div>
                                     <div class="rounded border border-slate-200 bg-slate-50 p-3">
-                                        <div class="text-[11px] uppercase font-bold text-slate-500">HistÃ³rico comÃºn</div>
+                                        <div class="text-[11px] uppercase font-bold text-slate-500">Histórico común</div>
                                         <div id="assetAllocationHistory" class="text-sm font-bold text-slate-800 mt-2">-</div>
                                     </div>
                                 </div>
@@ -733,8 +743,8 @@
                                     <tr>
                                         <th class="px-3 py-2 text-left">Plazo</th>
                                         <th class="px-3 py-2 text-right">Media</th>
-                                        <th class="px-3 py-2 text-right">MÃ¡ximo</th>
-                                        <th class="px-3 py-2 text-right">MÃ­nimo</th>
+                                        <th class="px-3 py-2 text-right">Máximo</th>
+                                        <th class="px-3 py-2 text-right">Mínimo</th>
                                         <th class="px-3 py-2 text-right">Prob. &lt; umbral</th>
                                         <th class="px-3 py-2 text-right">Muestras</th>
                                     </tr>
@@ -742,7 +752,7 @@
                                 <tbody id="assetAllocationStatsBody" class="divide-y divide-slate-100"></tbody>
                             </table>
                         </div>
-                        <p class="text-xs text-slate-400 mt-3">Para 1 aÃ±o o mÃ¡s se muestra rentabilidad anualizada, siguiendo la lÃ³gica del Excel de ejemplo. El cÃ¡lculo usa ventanas mÃ³viles mensuales y los pesos normalizados.</p>
+                        <p class="text-xs text-slate-400 mt-3">Para 1 año o más se muestra rentabilidad anualizada, siguiendo la lógica del Excel de ejemplo. El cálculo usa ventanas móviles mensuales y los pesos normalizados.</p>
                     </div>
                 </div>
             </div>
@@ -798,6 +808,38 @@
             let portfolioReportHtml = '';
             let portfolioImportMode = 'manual';
             let portfolioAnalysisPromise = null;
+
+            function selectedPortfolioFrequency(data) {
+                const selected = document.getElementById('portfolioDataFrequency')?.value || 'auto';
+                return selected === 'auto' ? inferDataFrequency(data) : selected;
+            }
+
+            function inferDataFrequency(data) {
+                if (!Array.isArray(data) || data.length < 3) return 'D';
+                const gaps = [];
+                for (let i = 1; i < data.length; i++) {
+                    const gap = (data[i].date - data[i - 1].date) / 86400000;
+                    if (Number.isFinite(gap) && gap > 0) gaps.push(gap);
+                }
+                if (!gaps.length) return 'D';
+                gaps.sort((a, b) => a - b);
+                const medianGap = gaps[Math.floor(gaps.length / 2)];
+                if (medianGap >= 250) return 'A';
+                if (medianGap >= 70) return 'Q';
+                if (medianGap >= 18) return 'M';
+                return 'D';
+            }
+
+            function periodsPerYear(freq) {
+                if (freq === 'A') return 1;
+                if (freq === 'Q') return 4;
+                if (freq === 'M') return 12;
+                return 252;
+            }
+
+            function frequencyLabel(freq) {
+                return ({ D: 'Diaria', M: 'Mensual', Q: 'Trimestral', A: 'Anual' })[freq] || 'Diaria';
+            }
             let assetAllocationState = null;
 
             function showPortfolioSubtab(tabName) {
@@ -968,19 +1010,20 @@
             }
 
             function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode }) {
+                const frequency = selectedPortfolioFrequency(portfolioData);
                 const portfolioReturns = priceReturns(portfolioData);
                 const firstPrice = portfolioData[0].price;
                 const lastPrice = portfolioData[portfolioData.length - 1].price;
                 const daysElapsed = (portfolioData[portfolioData.length - 1].date - portfolioData[0].date) / 86400000;
                 const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
-                const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(252);
+                const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(periodsPerYear(frequency));
                 const ddData = calculateDrawdownData(portfolioData);
-                loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns };
+                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns };
                 portfolioImportMode = mode;
                 Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d => d.date), y: portfolioData.map(d => d.price), mode: 'lines', name: mode === 'real' ? 'Cartera real' : 'Backtest', line: { color: '#2563eb', width: 2 } }], { title: mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)', margin: { t: 40, l: 60, r: 20, b: 40 }, yaxis: { title: 'Patrimonio' } }, { responsive: true });
                 try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
                 try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
-                document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
+                document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — Frecuencia: ${frequencyLabel(frequency)}. CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
                 document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                 document.getElementById('analyzePortfolioBtn').disabled = false;
                 document.getElementById('portfolioReportStatus').innerText = 'Calculando analisis completo...';
@@ -1252,7 +1295,7 @@
                 const weights = Object.fromEntries(keys.map(k => [k, rawSum ? (assetAllocationState.weights[k] || 0) / rawSum : 1 / keys.length]));
                 const portfolioReturns = assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * (assetAllocationState.returns[k][i] || 0), 0));
                 const threshold = (parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0) || 0) / 100;
-                const horizons = [{ label: '1 mes', months: 1 }, { label: '3 meses', months: 3 }, { label: '1 aÃ±o', months: 12 }, { label: '3 aÃ±os', months: 36 }, { label: '5 aÃ±os', months: 60 }, { label: '10 aÃ±os', months: 120 }, { label: '15 aÃ±os', months: 180 }];
+                const horizons = [{ label: '1 mes', months: 1 }, { label: '3 meses', months: 3 }, { label: '1 año', months: 12 }, { label: '3 años', months: 36 }, { label: '5 años', months: 60 }, { label: '10 años', months: 120 }, { label: '15 años', months: 180 }];
                 const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold)).filter(Boolean);
                 document.getElementById('assetAllocationWeightSum').innerText = fmtPct(rawSum);
                 document.getElementById('assetAllocationSource').innerText = assetAllocationState.sourceLabel;
@@ -1289,11 +1332,11 @@
                     { x: rows.map(r => r.label), y: rows.map(r => r.min), type: 'bar', name: 'Min', marker: { color: '#dc2626' }, text: rows.map(r => fmtPct(r.min)), textposition: 'auto' },
                     { x: rows.map(r => r.label), y: rows.map(r => r.mean), type: 'bar', name: 'Media', marker: { color: '#2563eb' }, text: rows.map(r => fmtPct(r.mean)), textposition: 'auto' },
                     { x: rows.map(r => r.label), y: rows.map(r => r.max), type: 'bar', name: 'Max', marker: { color: '#047857' }, text: rows.map(r => fmtPct(r.max)), textposition: 'auto' }
-                ], { title: 'Expected return histÃ³rico por plazo', yaxis: { tickformat: '.1%' }, barmode: 'group', margin: { t: 40, l: 50, r: 20, b: 40 }, legend: { orientation: 'h' } }, { responsive: true });
+                ], { title: 'Expected return histórico por plazo', yaxis: { tickformat: '.1%' }, barmode: 'group', margin: { t: 40, l: 50, r: 20, b: 40 }, legend: { orientation: 'h' } }, { responsive: true });
                 const values = [100];
                 portfolioReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const dates = ['Inicio'].concat(assetAllocationState.dates);
-                Plotly.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'EvoluciÃ³n mensual de la asignaciÃ³n', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
+                Plotly.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'Evolución mensual de la asignación', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
             }
 
             function parseFlexibleAllocationDate(value) {
@@ -1354,6 +1397,7 @@
                         document.getElementById('portfolioNotice').innerText = `Error descargando: ${failed.join(', ')}. Se eliminarán del cálculo.`;
                         // remove failed from entries
                         for (const f of failed) { const idx = entries.findIndex(x => x.ticker === f); if (idx >= 0) entries.splice(idx, 1); }
+                        normalizeEntryWeights(entries);
                     }
                     if (Object.keys(seriesMap).length === 0) { document.getElementById('portfolioNotice').innerText = 'No hay datos válidos.'; return; }
 
@@ -1414,7 +1458,8 @@
                             cov[i][j] = covarianceSample(returns[tickers[i]], returns[tickers[j]]);
                         }
                     }
-                    const wVec = entries.map(e => e.weight);
+                    const weightByTicker = Object.fromEntries(entries.map(e => [e.ticker, e.weight || 0]));
+                    const wVec = tickers.map(t => weightByTicker[t] || 0);
                     const wCol = math.matrix(wVec);
                     const covMat = math.matrix(cov);
                     // math.multiply may return a number, a Matrix-like object or nested arrays depending on mathjs build.
@@ -1435,7 +1480,8 @@
                     } else {
                         portVarDaily = Number(portVarResult) || 0;
                     }
-                    const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(252);
+                    const frequency = selectedPortfolioFrequency(portfolioData);
+                    const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(periodsPerYear(frequency));
 
                     // Render portfolio cumulative chart
                     Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d => d.date), y: portfolioData.map(d => d.price), mode: 'lines', name: 'Patrimonio', line: { color: '#2563eb', width: 2 } }], { title: 'Evolución Cartera (Backtest)', margin: { t: 40, l: 60, r: 20, b: 40 }, yaxis: { title: 'Patrimonio' } }, { responsive: true });
@@ -1444,13 +1490,13 @@
                     const corrTickers = tickers.slice();
                     const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
-                    loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns };
+                    loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns };
 
                     // Render composition pie and initial correlation matrix (default frequency selector)
                     try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
                     try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
 
-                    document.getElementById('portfolioNotice').innerText = `Cartera cargada — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}.`;
+                    document.getElementById('portfolioNotice').innerText = `Cartera cargada — Frecuencia: ${frequencyLabel(frequency)}. CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}.`;
                     document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                     document.getElementById('analyzePortfolioBtn').disabled = false;
                     document.getElementById('portfolioReportStatus').innerText = 'Calculando analisis completo...';
@@ -1478,6 +1524,7 @@
                     // Use the existing global holder so runAnalysis can pick it up when asked to use loaded data
                     currentData = loadedPortfolio.portfolioData.map(d => ({ date: d.date, price: d.price }));
                     currentTicker = 'CARTERA';
+                    currentDataFrequency = loadedPortfolio.frequency || inferDataFrequency(currentData);
 
                     // Use the same async pipeline as runAnalysis but instruct it to use existing currentData
                     await runAnalysis(true);
@@ -1499,9 +1546,10 @@
                 const p = loadedPortfolio;
                 const data = p.portfolioData;
                 const dd = calculateDrawdownData(data);
-                const metrics = calculateGeneralMetrics(data);
+                const frequency = p.frequency || inferDataFrequency(data);
+                const metrics = calculateGeneralMetrics(data, frequency);
                 const episodes = calculateEpisodes(data, dd.cumulativeMax);
-                const rollingRowsData = calculateRollingStats(data).filter(r => Number.isFinite(r.meanTot) && Number.isFinite(r.minTot) && Number.isFinite(r.maxTot));
+                const rollingRowsData = calculateRollingStats(data, frequency).filter(r => Number.isFinite(r.meanTot) && Number.isFinite(r.minTot) && Number.isFinite(r.maxTot));
                 const seasonality = buildPortfolioSeasonalityRows(data);
                 const sensitivityRowsData = buildPortfolioSensitivityRows(data);
                 const start = data[0].date;
@@ -1514,12 +1562,13 @@
                     ['Periodo', `${fmtDate(start)} - ${fmtDate(end)}`],
                     ['Modalidad', p.mode === 'real' ? 'Evolucion real de cartera' : 'Backtesting teorico'],
                     ['Fuente', escapeHtml(p.sourceLabel || 'Manual/Yahoo')],
+                    ['Frecuencia', frequencyLabel(frequency)],
                     ['Rentabilidad total', fmtPct(metrics.totalRet)],
                     ['CAGR', fmtPct(p.cagr)],
                     ['Volatilidad anualizada', fmtPct(p.portVolAnn)],
-                    ['Rentabilidad media diaria', fmtPct(metrics.meanRet)],
-                    ['Volatilidad diaria', fmtPct(metrics.sigma)],
-                    ['VaR 95% diario', fmtPct(metrics.var95)],
+                    [`Rentabilidad media ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.meanRet)],
+                    [`Volatilidad ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.sigma)],
+                    [`VaR 95% ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.var95)],
                     ['Max drawdown', fmtPct(dd.maxDD)],
                     ['Sharpe aprox. rf=0', sharpe === null ? '-' : sharpe.toFixed(2)],
                     ['Dias positivos', positiveDays === null ? '-' : fmtPct(positiveDays)],
@@ -1762,14 +1811,14 @@
                 const baseReturns = loadedPortfolio.returns; // object: ticker -> daily returns
                 const tickers = loadedPortfolio.corrTickers;
                 const agg = {};
-                // aggregate returns into non-overlapping windows of size windowDays (simple period returns: sum of daily returns)
+                // aggregate returns into non-overlapping windows by compounding returns, not summing them.
                 tickers.forEach(t => {
                     const r = baseReturns[t] || [];
                     const arr = [];
                     for (let i = 0; i < r.length; i += windowDays) {
-                        let sum = 0, count = 0;
-                        for (let j = i; j < Math.min(i + windowDays, r.length); j++) { sum += r[j]; count++; }
-                        if (count > 0) arr.push(sum);
+                        let growth = 1, count = 0;
+                        for (let j = i; j < Math.min(i + windowDays, r.length); j++) { growth *= (1 + r[j]); count++; }
+                        if (count > 0) arr.push(growth - 1);
                     }
                     agg[t] = arr;
                 });
@@ -1800,8 +1849,7 @@
             }
 
             function renderPortfolioCorrMatrix(labels, z, freqLabel) {
-                // Use the same color scale as the main correlation matrix: blue (-1) to white (+1)
-                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#1e3a8a'], [1, 'white']], zmin: -1, zmax: 1, text: z.map(row => row.map(val => val.toFixed(2))), hoverinfo: 'x+y+z', texttemplate: '%{text}' }];
+                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#2563eb'], [0.5, '#f8fafc'], [1, '#dc2626']], zmin: -1, zmax: 1, zmid: 0, text: z.map(row => row.map(val => val.toFixed(2))), hoverinfo: 'x+y+z', texttemplate: '%{text}' }];
                 const layout = { title: `Matriz de Correlación (Cartera) - ${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''}`, margin: { t: 40, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
                 Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
             }
@@ -3033,6 +3081,7 @@
             const horizonsRolling = { '3 meses': 63, '12 meses': 252, '5 años': 1260, '10 años': 2520, '15 años': 3780 };
             const seriesHorizons = { '1 Año': 252, '5 Años': 5 * 252, '15 Años': 15 * 252 };
             let currentData = [];
+            let currentDataFrequency = 'D';
             let globalATHResults = null;
             let globalDipResults = null;
             let globalCorrData = null;
@@ -3355,6 +3404,7 @@
 
                     currentData = rawData;
                     currentTicker = ticker;
+                    currentDataFrequency = useLoaded && ticker === 'CARTERA' ? (loadedPortfolio?.frequency || inferDataFrequency(rawData)) : 'D';
                     globalVixData = vixData;
                     globalOilData = oilData;
                     globalRatesData = ratesData;
@@ -3362,17 +3412,17 @@
                     updateStatus(`Calculando indicadores para ${rawData.length} registros...`);
 
 
-                    const stats = calculateRollingStats(rawData);
-                    const timeSeries = calculateTimeSeries(rawData);
+                    const stats = calculateRollingStats(rawData, currentDataFrequency);
+                    const timeSeries = calculateTimeSeries(rawData, currentDataFrequency);
                     const ddData = calculateDrawdownData(rawData);
                     const episodes = calculateEpisodes(rawData, ddData.cumulativeMax);
-                    const yearlyStats = calculateYearlyStats(rawData);
+                    const yearlyStats = calculateYearlyStats(rawData, currentDataFrequency);
                     const techData = calculateTechnicalIndicators(rawData);
                     globalTechData = techData;
                     const seasonData = calculateSeasonality(rawData);
                     const annualDist = calculateAnnualDistribution(rawData);
                     const athData = calculateATHAnalysis(rawData);
-                    const generalData = calculateGeneralMetrics(rawData);
+                    const generalData = calculateGeneralMetrics(rawData, currentDataFrequency);
                     const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
                     const bestDaysData = calculateBestDaysAnalysis(rawData);
                     const oilAnalysisData = calculateOilAnalysis(rawData, oilData);
@@ -4701,7 +4751,7 @@
                 }, { responsive: true });
             }
 
-            function calculateGeneralMetrics(data) {
+            function calculateGeneralMetrics(data, freq = currentDataFrequency) {
                 const prices = data.map(d => d.price), dates = data.map(d => d.date);
                 const returns = [], returnsDates = [];
                 for (let i = 1; i < prices.length; i++) { returns.push((prices[i] / prices[i - 1]) - 1); returnsDates.push(dates[i]); }
@@ -4718,11 +4768,11 @@
                     else if (returns[i] < 0) { if (currNeg === 0) negStart = returnsDates[i]; currNeg++; currPos = 0; if (currNeg > bestNegStreakInfo.len) bestNegStreakInfo = { len: currNeg, start: negStart, end: returnsDates[i] }; }
                     else { currPos = 0; currNeg = 0; }
                 }
-                return { returns, returnsDates, maReturns, meanRet, sigma, var95, initialValue, finalValue, totalRet: (prices[prices.length - 1] / prices[0]) - 1, cagr, volAnn: sigma * Math.sqrt(252), bestDay, worstDay, bestDayDate: returnsDates[returns.indexOf(bestDay)], worstDayDate: returnsDates[returns.indexOf(worstDay)], bestPosStreakInfo, bestNegStreakInfo };
+                return { returns, returnsDates, maReturns, meanRet, sigma, var95, initialValue, finalValue, totalRet: (prices[prices.length - 1] / prices[0]) - 1, cagr, volAnn: sigma * Math.sqrt(periodsPerYear(freq)), bestDay, worstDay, bestDayDate: returnsDates[returns.indexOf(bestDay)], worstDayDate: returnsDates[returns.indexOf(worstDay)], bestPosStreakInfo, bestNegStreakInfo };
             }
             function renderGeneralMetrics(d, ticker) {
                 const tbody = document.getElementById('metricsTableBody');
-                tbody.innerHTML = [["Valor Inicial", `€${fmtNum(d.initialValue)}`], ["Valor Final", `€${fmtNum(d.finalValue)}`], ["Rentabilidad Total", fmtPct(d.totalRet)], ["CAGR (Anual)", fmtPct(d.cagr)], ["Volatilidad (Anual)", fmtPct(d.volAnn)], ["Mejor Día", `${fmtPct(d.bestDay)} (${fmtDate(d.bestDayDate)})`], ["Peor Día", `${fmtPct(d.worstDay)} (${fmtDate(d.worstDayDate)})`], ["Racha Positiva Max", `${d.bestPosStreakInfo.len} días (${fmtDate(d.bestPosStreakInfo.start)} - ${fmtDate(d.bestPosStreakInfo.end)})`], ["Racha Negativa Max", `${d.bestNegStreakInfo.len} días (${fmtDate(d.bestNegStreakInfo.start)} - ${fmtDate(d.bestNegStreakInfo.end)})`]].map((r, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors"><td class="px-4 py-3 font-medium">${r[0]}</td><td class="px-4 py-3 text-right text-gray-700">${r[1]}</td></tr>`).join('');
+                tbody.innerHTML = [["Frecuencia usada", frequencyLabel(currentDataFrequency)], ["Valor Inicial", `€${fmtNum(d.initialValue)}`], ["Valor Final", `€${fmtNum(d.finalValue)}`], ["Rentabilidad Total", fmtPct(d.totalRet)], ["CAGR (Anual)", fmtPct(d.cagr)], ["Volatilidad (Anual)", fmtPct(d.volAnn)], ["Mejor Periodo", `${fmtPct(d.bestDay)} (${fmtDate(d.bestDayDate)})`], ["Peor Periodo", `${fmtPct(d.worstDay)} (${fmtDate(d.worstDayDate)})`], ["Racha Positiva Max", `${d.bestPosStreakInfo.len} periodos (${fmtDate(d.bestPosStreakInfo.start)} - ${fmtDate(d.bestPosStreakInfo.end)})`], ["Racha Negativa Max", `${d.bestNegStreakInfo.len} periodos (${fmtDate(d.bestNegStreakInfo.start)} - ${fmtDate(d.bestNegStreakInfo.end)})`]].map((r, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors"><td class="px-4 py-3 font-medium">${r[0]}</td><td class="px-4 py-3 text-right text-gray-700">${r[1]}</td></tr>`).join('');
                 const dates = d.returnsDates.map(x => x.toISOString().split('T')[0]);
                 const m = d.meanRet, s = d.sigma;
 
@@ -5117,35 +5167,59 @@
                 renderTechnicalChart(slicedRawData, slicedTechData, currentTicker);
             }
 
-            // Updated calculateRollingStats to support Min/Max Annualized
-            function calculateRollingStats(d) {
-                return Object.entries(horizonsRolling).map(([k, v]) => {
+            function getRollingHorizons(freq) {
+                const perYear = periodsPerYear(freq);
+                if (freq === 'M') return { '3 meses': 3, '6 meses': 6, '1 año': 12, '3 años': 36, '5 años': 60, '10 años': 120, '15 años': 180 };
+                if (freq === 'Q') return { '1 año': 4, '3 años': 12, '5 años': 20, '10 años': 40, '15 años': 60 };
+                if (freq === 'A') return { '3 años': 3, '5 años': 5, '10 años': 10, '15 años': 15 };
+                return horizonsRolling;
+            }
+
+            function getSeriesHorizons(freq) {
+                if (freq === 'M') return { '1 Año': 12, '5 Años': 60, '15 Años': 180 };
+                if (freq === 'Q') return { '1 Año': 4, '5 Años': 20, '15 Años': 60 };
+                if (freq === 'A') return { '1 Año': 1, '5 Años': 5, '15 Años': 15 };
+                return seriesHorizons;
+            }
+
+            function calculateRollingStats(d, freq = currentDataFrequency) {
+                const perYear = periodsPerYear(freq);
+                return Object.entries(getRollingHorizons(freq)).map(([k, v]) => {
                     const r = [];
-                    for (let i = 0; i < d.length - v; i++) r.push(d[i + v].price / d[i].price - 1);
-
-                    const minTot = Math.min(...r);
-                    const maxTot = Math.max(...r);
+                    const annualized = [];
+                    for (let i = 0; i < d.length - v; i++) {
+                        const total = d[i + v].price / d[i].price - 1;
+                        r.push(total);
+                        annualized.push(Math.pow(1 + total, perYear / v) - 1);
+                    }
+                    const minTot = r.length ? Math.min(...r) : 0;
+                    const maxTot = r.length ? Math.max(...r) : 0;
                     const meanTot = getMean(r);
-
-                    // Calculate Annualized Min/Max
-                    const factor = 252 / v;
-                    const minAnn = Math.pow(1 + minTot, factor) - 1;
-                    const maxAnn = Math.pow(1 + maxTot, factor) - 1;
-                    const meanAnn = Math.pow(1 + meanTot, factor) - 1;
-
                     return {
                         horizon: k,
-                        meanTot: meanTot,
-                        meanAnn: meanAnn,
-                        minTot: minTot,
-                        maxTot: maxTot,
-                        minAnn: minAnn,
-                        maxAnn: maxAnn
+                        meanTot,
+                        meanAnn: getMean(annualized),
+                        minTot,
+                        maxTot,
+                        minAnn: annualized.length ? Math.min(...annualized) : 0,
+                        maxAnn: annualized.length ? Math.max(...annualized) : 0
                     };
                 });
             }
 
-            function calculateTimeSeries(d) { const r = {}; for (const [k, v] of Object.entries(seriesHorizons)) { const x = [], y = []; for (let i = v; i < d.length; i++) { x.push(d[i].date); y.push(Math.pow(d[i].price / d[i - v].price, 252 / v) - 1); } r[k] = { x, y }; } return r; }
+            function calculateTimeSeries(d, freq = currentDataFrequency) {
+                const r = {};
+                const perYear = periodsPerYear(freq);
+                for (const [k, v] of Object.entries(getSeriesHorizons(freq))) {
+                    const x = [], y = [];
+                    for (let i = v; i < d.length; i++) {
+                        x.push(d[i].date);
+                        y.push(Math.pow(d[i].price / d[i - v].price, perYear / v) - 1);
+                    }
+                    r[k] = { x, y };
+                }
+                return r;
+            }
             function calculateDrawdownData(d) { let max = -Infinity, dd = [], cMax = [], mDD = 0, mDate = d[0].date; d.forEach(i => { if (i.price > max) max = i.price; cMax.push(max); const v = i.price / max - 1; dd.push(v); if (v < mDD) { mDD = v; mDate = i.date; } }); return { drawdowns: dd, cumulativeMax: cMax, maxDD: mDD, maxDDDate: mDate, dates: d.map(i => i.date) }; }
             function calculateEpisodes(d, cm) {
                 const e = [];
@@ -5174,12 +5248,43 @@
                 }
                 return e.sort((a, b) => a.drawdown - b.drawdown).slice(0, 10);
             }
-            function calculateYearlyStats(d) { const r = []; for (let i = 0; i < d.length; i += 252) { const sub = d.slice(i, i + 252); if (sub.length < 2) continue; const ret = sub[sub.length - 1].price / sub[0].price - 1; const vol = getStdDev(sub.map((v, k) => k ? v.price / sub[k - 1].price - 1 : 0).slice(1)) * Math.sqrt(252); r.push({ range: `${fmtDate(sub[0].date)} - ${fmtDate(sub[sub.length - 1].date)}`, return: ret, volatility: vol }); } return r; }
+            function calculateYearlyStats(d, freq = currentDataFrequency) {
+                const groups = new Map();
+                d.forEach(row => {
+                    const year = row.date.getFullYear();
+                    if (!groups.has(year)) groups.set(year, []);
+                    groups.get(year).push(row);
+                });
+                const r = [];
+                for (const [year, sub] of groups.entries()) {
+                    if (sub.length < 2) continue;
+                    const ret = sub[sub.length - 1].price / sub[0].price - 1;
+                    const returns = sub.map((v, k) => k ? v.price / sub[k - 1].price - 1 : null).slice(1);
+                    const vol = getStdDev(returns) * Math.sqrt(periodsPerYear(freq));
+                    r.push({ range: String(year), return: ret, volatility: vol });
+                }
+                return r;
+            }
 
-            function getMean(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
-            function getStdDev(a) { const m = getMean(a); return Math.sqrt(a.reduce((x, y) => x + Math.pow(y - m, 2), 0) / (a.length - 1)); }
-            function getPercentile(a, p) { const s = [...a].sort((x, y) => x - y); const i = (p / 100) * (s.length - 1); return s[Math.floor(i)]; }
-            function fmtPct(n) { return (n * 100).toFixed(2) + '%'; }
+            function getMean(a) {
+                const vals = (a || []).filter(Number.isFinite);
+                return vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : 0;
+            }
+            function getStdDev(a) {
+                const vals = (a || []).filter(Number.isFinite);
+                if (vals.length < 2) return 0;
+                const m = getMean(vals);
+                return Math.sqrt(vals.reduce((x, y) => x + Math.pow(y - m, 2), 0) / (vals.length - 1));
+            }
+            function getPercentile(a, p) {
+                const s = (a || []).filter(Number.isFinite).sort((x, y) => x - y);
+                if (!s.length) return 0;
+                const i = (p / 100) * (s.length - 1);
+                const lo = Math.floor(i), hi = Math.ceil(i);
+                if (lo === hi) return s[lo];
+                return s[lo] + (s[hi] - s[lo]) * (i - lo);
+            }
+            function fmtPct(n) { return Number.isFinite(n) ? (n * 100).toFixed(2) + '%' : '-'; }
             function fmtNum(n) { return n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
             function fmtDate(d) { return d.toISOString().split('T')[0]; }
 
