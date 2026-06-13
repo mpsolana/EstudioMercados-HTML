@@ -714,6 +714,7 @@
             let loadedPortfolio = null; // { entries, commonDates, portfolioData, stats }
             let portfolioReportHtml = '';
             let portfolioImportMode = 'manual';
+            let portfolioAnalysisPromise = null;
 
             function downloadPortfolioTemplate(modeArg) {
                 const mode = modeArg || document.getElementById('portfolioExcelMode')?.value || 'backtest';
@@ -883,7 +884,19 @@
                 document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
                 document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                 document.getElementById('analyzePortfolioBtn').disabled = false;
-                document.getElementById('portfolioReportStatus').innerText = 'Lista para informe';
+                document.getElementById('portfolioReportStatus').innerText = 'Calculando analisis completo...';
+                triggerPortfolioAutoAnalysis();
+            }
+
+            function triggerPortfolioAutoAnalysis() {
+                if (!loadedPortfolio?.portfolioData?.length) return;
+                loadedPortfolio.analysisReady = false;
+                portfolioAnalysisPromise = new Promise(resolve => window.setTimeout(resolve, 0))
+                    .then(() => analyzeLoadedPortfolio(true))
+                    .catch(e => {
+                        console.error('portfolio auto analysis failed', e);
+                        document.getElementById('portfolioReportStatus').innerText = 'Informe con analisis parcial';
+                    });
             }
 
             function findSheet(workbook, names) {
@@ -1117,8 +1130,9 @@
 
                     // Save returns, covariance and ticker list for later use (composition + correlation)
                     const corrTickers = tickers.slice();
+                    const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
-                    loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, cov, corrTickers };
+                    loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns };
 
                     // Render composition pie and initial correlation matrix (default frequency selector)
                     try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
@@ -1127,6 +1141,8 @@
                     document.getElementById('portfolioNotice').innerText = `Cartera cargada — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}.`;
                     document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                     document.getElementById('analyzePortfolioBtn').disabled = false;
+                    document.getElementById('portfolioReportStatus').innerText = 'Calculando analisis completo...';
+                    triggerPortfolioAutoAnalysis();
 
                 } catch (err) {
                     console.error('loadPortfolioSeries error:', err);
@@ -1136,7 +1152,7 @@
             }
 
             // Run full analysis using previously loaded portfolio series
-            async function analyzeLoadedPortfolio() {
+            async function analyzeLoadedPortfolio(silent = false) {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData) return alert('Primero carga la cartera.');
                 try {
                     // Prepare inputs so runAnalysis can reuse the exact same pipeline as Análisis Individual
@@ -1153,6 +1169,9 @@
 
                     // Use the same async pipeline as runAnalysis but instruct it to use existing currentData
                     await runAnalysis(true);
+                    loadedPortfolio.analysisReady = true;
+                    portfolioAnalysisPromise = null;
+                    document.getElementById('portfolioReportStatus').innerText = 'Analisis completo listo';
 
                     document.getElementById('portfolioNotice').innerText = `Análisis completado — CAGR: ${fmtPct(loadedPortfolio.cagr)}, Volatilidad (ann): ${fmtPct(loadedPortfolio.portVolAnn)}`;
                 } catch (e) {
@@ -1161,8 +1180,10 @@
                 }
             }
 
-            function generatePortfolioReport() {
+            async function generatePortfolioReport() {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData?.length) return alert('Primero carga una cartera.');
+                if (portfolioAnalysisPromise) await portfolioAnalysisPromise;
+                if (!loadedPortfolio.analysisReady) await analyzeLoadedPortfolio(true);
                 const p = loadedPortfolio;
                 const data = p.portfolioData;
                 const dd = calculateDrawdownData(data);
@@ -1201,6 +1222,7 @@
                 const sensitivityRows = sensitivityRowsData.length ? sensitivityRowsData.map(r => `<tr><td>${r.factor}</td><td class="num">${r.points}</td><td class="num">${r.correlation.toFixed(2)}</td><td class="num">${r.beta.toFixed(2)}</td><td>${escapeHtml(r.reading)}</td></tr>`).join('') : '<tr><td colspan="5">Sin datos auxiliares cargados. Pulsa Ejecutar Analisis Cartera para enriquecer sensibilidad a VIX, petroleo y tipos.</td></tr>';
                 const bestSeason = seasonality.reduce((a, b) => b.avg > a.avg ? b : a, seasonality[0]);
                 const worstSeason = seasonality.reduce((a, b) => b.avg < a.avg ? b : a, seasonality[0]);
+                const visualSections = await buildPortfolioReportVisualSections();
                 portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe cartera</title>${portfolioReportStyles()}</head><body>
                     <section class="report">
                         <header class="cover">
@@ -1226,6 +1248,7 @@
                             <div class="block"><h2>Metricas principales</h2><table>${metricRows}</table></div>
                             <div class="block"><h2>Composicion</h2><table>${compositionRows || '<tr><td>Sin composicion</td><td></td></tr>'}</table></div>
                         </section>
+                        ${visualSections}
                         <section class="block">
                             <h2>Drawdowns historicos</h2>
                             <p>Los drawdowns muestran las mayores caidas desde maximos y el tiempo bajo el agua. Es la medida mas directa de dolor para el cliente.</p>
@@ -1256,6 +1279,50 @@
                 </body></html>`;
                 document.getElementById('portfolioReportPreview').innerHTML = portfolioReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || portfolioReportHtml;
                 document.getElementById('portfolioReportStatus').innerText = 'Informe generado';
+            }
+
+            async function buildPortfolioReportVisualSections() {
+                const sections = [
+                    { title: 'Cartera cargada', note: 'Evolucion reconstruida, composicion y matriz de correlaciones calculadas al cargar la cartera.', charts: [['portfolioChart', 'Evolucion de cartera'], ['portfolioCompositionChart', 'Composicion'], ['portfolioCorrMatrixChart', 'Matriz de correlaciones']] },
+                    { title: 'Analisis general', note: 'Graficas y tablas de la pestana Analisis Individual aplicadas a la serie CARTERA.', charts: [['technicalChart', 'Precio, medias moviles y RSI'], ['returnsChart', 'Retornos y bandas sigma'], ['returnsHistogram', 'Distribucion de rentabilidades'], ['bestDaysBarChart', 'Impacto de perder mejores dias'], ['bestDaysLocationChart', 'Localizacion de mejores dias']], tables: [['metricsTableBody', 'Metricas principales'], ['sigmaEventsTableBody', 'Eventos extremos'], ['top10TableBody', 'Top mejores dias']] },
+                    { title: 'Drawdowns y caidas', note: 'Profundidad, duracion y comportamiento posterior a caidas historicas.', charts: [['drawdownChart', 'Curva submarina'], ['ddSpaghettiChart', 'Episodios comparables'], ['dipChart', 'Buy the dip']], tables: [['drawdownTableBody', 'Top episodios drawdown'], ['dipStatsTableBody', 'Estadisticas buy the dip'], ['drawdownDurationTableBody', 'Duracion de drawdowns']] },
+                    { title: 'Rentabilidades moviles y anuales', note: 'Consistencia historica por ventanas, anos naturales y distribucion anual.', charts: [['barChart', 'Ventanas anualizadas'], ['lineChart', 'Rentabilidad anualizada movil'], ['annualDistChart', 'Rentabilidad anual'], ['annualDistHistChart', 'Distribucion anual'], ['monthlyHeatmapChart', 'Mapa mensual']], tables: [['annualTableBody', 'Resumen por anos']] },
+                    { title: 'Estacionalidad', note: 'Patrones medios por semana, mes, trimestre, dia del ano y deciles estacionales.', charts: [['weeklyChart', 'Estacionalidad semanal'], ['monthlyChart', 'Estacionalidad mensual'], ['quarterlyChart', 'Estacionalidad trimestral'], ['seasonalityYoYChart', 'Evolucion anual estacional'], ['seasonalityDecilesChart', 'Deciles estacionales']] },
+                    { title: 'Sensibilidades', note: 'Lectura frente a factores de mercado cargados por el analisis individual.', charts: [['vixPriceChart', 'VIX'], ['vixBarChart', 'Retornos tras VIX alto'], ['vixScatterChart', 'VIX vs retorno futuro'], ['oilPriceChart', 'Petroleo'], ['oilBarChart', 'Retornos en episodios de petroleo'], ['ratesPriceChart', 'Tipos'], ['ratesHeatmapChart', 'Tipos y retorno futuro'], ['ratesBarChart', 'Regimenes de tipos'], ['ratesScatterChart', 'Scatter tipos']], tables: [['vixStatsTableBody', 'Estadisticas VIX'], ['vixPeaksTableBody', 'Picos VIX'], ['oilStatsTableBody', 'Estadisticas petroleo'], ['ratesStatsTableBody', 'Estadisticas tipos'], ['ratesMatrixTableBody', 'Matriz tipos/retornos']] }
+                ];
+                const html = [];
+                for (const section of sections) {
+                    const chartBlocks = [];
+                    for (const [id, title] of section.charts || []) {
+                        const img = await capturePlotlyReportImage(id);
+                        if (img) chartBlocks.push(`<figure><figcaption>${escapeHtml(title)}</figcaption><img src="${img}" alt="${escapeHtml(title)}"></figure>`);
+                    }
+                    const tableBlocks = (section.tables || []).map(([id, title]) => cloneReportTable(id, title)).filter(Boolean);
+                    if (!chartBlocks.length && !tableBlocks.length) continue;
+                    html.push(`<section class="block report-visuals"><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.note)}</p><div class="chart-grid">${chartBlocks.join('')}</div>${tableBlocks.join('')}</section>`);
+                }
+                return html.join('');
+            }
+
+            async function capturePlotlyReportImage(id) {
+                const el = document.getElementById(id);
+                if (!el || !window.Plotly || !el.data) return '';
+                try {
+                    return await Plotly.toImage(el, { format: 'png', width: 980, height: 520, scale: 1.5 });
+                } catch (e) {
+                    console.warn('report chart capture failed', id, e);
+                    return '';
+                }
+            }
+
+            function cloneReportTable(bodyId, title) {
+                const body = document.getElementById(bodyId);
+                if (!body || !body.children.length) return '';
+                const table = body.closest('table');
+                if (!table) return '';
+                const clone = table.cloneNode(true);
+                clone.querySelectorAll('button, select, input, script').forEach(el => el.remove());
+                return `<div class="table-block"><h3>${escapeHtml(title)}</h3>${clone.outerHTML}</div>`;
             }
 
             function safeFmtDate(d) {
@@ -1334,12 +1401,12 @@
 
             function portfolioReportStyles() {
                 return `<style>
-                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}.report{max-width:980px;margin:0 auto;background:white;padding:36px}.cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:24px;margin-bottom:24px}.eyebrow{text-transform:uppercase;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.08em}h1{font-size:30px;margin:6px 0;color:#0f172a}h2{font-size:16px;margin:0 0 12px;color:#0f172a}.stamp{font-size:12px;font-weight:700;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px}.summary span{display:block;font-size:11px;color:#64748b;text-transform:uppercase}.summary strong{display:block;font-size:22px;margin-top:4px}.block{border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px;break-inside:avoid}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#e2e8f0;color:#334155;text-align:left;text-transform:uppercase;font-size:10px;letter-spacing:.04em;padding:8px}td{border-bottom:1px solid #e2e8f0;padding:8px;vertical-align:top}.num{text-align:right;font-weight:700}.good{color:#047857}.bad{color:#dc2626}p{line-height:1.55;color:#334155}footer{font-size:11px;color:#64748b;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px}@media print{body{background:white}.report{padding:0}.summary{grid-template-columns:repeat(4,1fr)}.block{page-break-inside:avoid}}
+                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}.report{max-width:980px;margin:0 auto;background:white;padding:36px}.cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:24px;margin-bottom:24px}.eyebrow{text-transform:uppercase;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.08em}h1{font-size:30px;margin:6px 0;color:#0f172a}h2{font-size:16px;margin:0 0 12px;color:#0f172a}h3{font-size:13px;margin:14px 0 8px;color:#334155}.stamp{font-size:12px;font-weight:700;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px}.summary span{display:block;font-size:11px;color:#64748b;text-transform:uppercase}.summary strong{display:block;font-size:22px;margin-top:4px}.block{border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px;break-inside:avoid}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.chart-grid{display:grid;grid-template-columns:1fr;gap:14px}figure{margin:0;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;break-inside:avoid}figcaption{font-size:11px;text-transform:uppercase;font-weight:700;color:#475569;margin-bottom:8px}figure img{display:block;width:100%;height:auto;background:white;border-radius:4px}.table-block{margin-top:14px;break-inside:avoid}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#e2e8f0;color:#334155;text-align:left;text-transform:uppercase;font-size:10px;letter-spacing:.04em;padding:8px}td{border-bottom:1px solid #e2e8f0;padding:8px;vertical-align:top}.num{text-align:right;font-weight:700}.good{color:#047857}.bad{color:#dc2626}p{line-height:1.55;color:#334155}footer{font-size:11px;color:#64748b;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px}@media print{body{background:white}.report{padding:0}.summary{grid-template-columns:repeat(4,1fr)}.block,figure,.table-block{page-break-inside:avoid}}
                 </style>`;
             }
 
-            function downloadPortfolioReportPdf() {
-                if (!portfolioReportHtml) generatePortfolioReport();
+            async function downloadPortfolioReportPdf() {
+                if (!portfolioReportHtml) await generatePortfolioReport();
                 if (!portfolioReportHtml) return;
                 const el = document.createElement('div');
                 el.innerHTML = portfolioReportHtml;
@@ -1347,8 +1414,8 @@
                 html2pdf().set({ margin: 8, filename: 'informe_cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
             }
 
-            function downloadPortfolioReportWord() {
-                if (!portfolioReportHtml) generatePortfolioReport();
+            async function downloadPortfolioReportWord() {
+                if (!portfolioReportHtml) await generatePortfolioReport();
                 if (!portfolioReportHtml) return;
                 if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(portfolioReportHtml), 'informe_cartera.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
                 return downloadBlob(portfolioReportHtml, 'informe_cartera.html', 'text/html;charset=utf-8');
