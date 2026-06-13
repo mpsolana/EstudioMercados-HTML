@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Math.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <!-- Portfolio import/export helpers -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js"></script>
     <!-- KaTeX for rendering math in the portfolio methodology note -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
@@ -516,6 +520,46 @@
                             class="font-bold">Ejecutar Análisis Cartera</span>.</div>
                 </div>
 
+                <div class="mb-5 grid grid-cols-1 xl:grid-cols-3 gap-4">
+                    <div class="xl:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div class="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                                <h3 class="font-bold text-slate-800 border-l-4 border-slate-700 pl-3">Carga Excel de cartera</h3>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Dos modalidades: backtesting teorico con precios historicos y pesos, o evolucion real con valor liquidativo/patrimonio de la cartera.</p>
+                            </div>
+                            <button onclick="downloadPortfolioTemplate()" class="px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-file-excel mr-1"></i>Plantilla CSV</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div class="md:col-span-4">
+                                <label class="text-[11px] uppercase font-bold text-slate-500">Modalidad</label>
+                                <select id="portfolioExcelMode" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
+                                    <option value="backtest">Backtesting teorico: tickers/pesos</option>
+                                    <option value="real">Evolucion real: fecha/valor</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-5">
+                                <label class="text-[11px] uppercase font-bold text-slate-500">Archivo .xlsx/.csv</label>
+                                <input id="portfolioExcelInput" type="file" accept=".xlsx,.xls,.csv" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
+                            </div>
+                            <div class="md:col-span-3">
+                                <button onclick="importPortfolioExcel()" class="w-full px-4 py-2 bg-slate-700 text-white rounded font-bold hover:bg-slate-800"><i class="fa-solid fa-upload mr-1"></i>Cargar Excel</button>
+                            </div>
+                        </div>
+                        <div id="portfolioImportHelp" class="mt-3 text-[11px] text-slate-500 leading-relaxed">
+                            Backtest: hoja <b>weights</b> con columnas <b>ticker, weight</b>. Opcional hoja <b>prices</b> con <b>date</b> y una columna por ticker para usar historicos propios en vez de Yahoo. Real: hoja <b>portfolio</b> con <b>date, value</b>.
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                        <h3 class="font-bold text-slate-800 border-l-4 border-blue-700 pl-3 mb-2">Informe cliente</h3>
+                        <p class="text-xs text-slate-600 mb-3">Genera un informe ejecutivo con composicion, rentabilidad, riesgo, drawdown y lectura profesional.</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="generatePortfolioReport()" class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800"><i class="fa-solid fa-file-lines mr-1"></i>Generar</button>
+                            <button onclick="downloadPortfolioReportPdf()" class="px-3 py-2 bg-white border border-blue-200 text-blue-800 rounded text-xs font-bold hover:bg-blue-100"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
+                            <button onclick="downloadPortfolioReportWord()" class="px-3 py-2 bg-white border border-blue-200 text-blue-800 rounded text-xs font-bold hover:bg-blue-100"><i class="fa-solid fa-file-word mr-1"></i>Word</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="portfolioBuilder" class="space-y-3">
                     <div class="grid grid-cols-12 gap-2 items-center portfolio-row">
                         <div class="col-span-5">
@@ -606,6 +650,15 @@
                     periodo analizado queda acotado por el activo con menos historial (se informará la fecha de inicio
                     usada).
                 </div>
+                <div class="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-slate-900 text-white flex items-center justify-between">
+                        <h3 class="font-bold"><i class="fa-solid fa-file-signature mr-2"></i>Informe profesional de cartera</h3>
+                        <span id="portfolioReportStatus" class="text-xs text-slate-300">Pendiente de generar</span>
+                    </div>
+                    <div id="portfolioReportPreview" class="p-5 text-sm text-slate-500">
+                        Carga una cartera y pulsa Generar para crear el informe descargable.
+                    </div>
+                </div>
             </div>
         </div>
         <script>
@@ -656,6 +709,234 @@
 
             // Globals to hold loaded portfolio series
             let loadedPortfolio = null; // { entries, commonDates, portfolioData, stats }
+            let portfolioReportHtml = '';
+            let portfolioImportMode = 'manual';
+
+            function downloadPortfolioTemplate() {
+                const mode = document.getElementById('portfolioExcelMode')?.value || 'backtest';
+                const csv = mode === 'real'
+                    ? 'date,value\n2021-01-31,100000\n2021-02-28,101250\n2021-03-31,100850\n'
+                    : 'ticker,weight\nSPY,0.60\nTLT,0.40\n\n# Opcional en XLSX: hoja prices con columnas date, SPY, TLT\n';
+                downloadBlob(csv, `plantilla_cartera_${mode}.csv`, 'text/csv;charset=utf-8');
+            }
+
+            async function importPortfolioExcel() {
+                const input = document.getElementById('portfolioExcelInput');
+                const file = input?.files?.[0];
+                const mode = document.getElementById('portfolioExcelMode')?.value || 'backtest';
+                if (!file) return alert('Selecciona un archivo Excel o CSV.');
+                if (!window.XLSX) return alert('No se ha cargado la libreria XLSX. Revisa la conexion y recarga la pagina.');
+                document.getElementById('portfolioNotice').innerText = 'Leyendo archivo de cartera...';
+                const workbook = await readWorkbook(file);
+                if (mode === 'real') return importRealPortfolioWorkbook(workbook, file.name);
+                return importBacktestPortfolioWorkbook(workbook, file.name);
+            }
+
+            function readWorkbook(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try { resolve(XLSX.read(e.target.result, { type: 'array', cellDates: true })); }
+                        catch (err) { reject(err); }
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            async function importBacktestPortfolioWorkbook(workbook, fileName) {
+                const weightsSheet = findSheet(workbook, ['weights', 'pesos', 'cartera']) || workbook.SheetNames[0];
+                const weightsRows = sheetRows(workbook, weightsSheet);
+                const entries = weightsRows.map(row => ({
+                    ticker: String(firstValue(row, ['ticker', 'symbol', 'isin', 'activo']) || '').toUpperCase().trim(),
+                    weight: parseNumber(firstValue(row, ['weight', 'peso', 'allocation', 'target']))
+                })).filter(e => e.ticker && Number.isFinite(e.weight));
+                if (!entries.length) return alert('No encuentro pesos validos. Usa columnas ticker y weight.');
+                normalizeEntryWeights(entries);
+                setPortfolioRows(entries);
+
+                const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
+                if (pricesSheet) {
+                    const seriesMap = priceSheetToSeriesMap(workbook, pricesSheet, entries);
+                    if (Object.keys(seriesMap).length >= entries.length) {
+                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`);
+                        return;
+                    }
+                }
+                document.getElementById('portfolioNotice').innerText = 'Pesos importados. Descargando historicos desde Yahoo...';
+                await loadPortfolioSeries();
+                if (loadedPortfolio) {
+                    loadedPortfolio.sourceLabel = `Excel pesos + Yahoo: ${fileName}`;
+                    loadedPortfolio.mode = 'backtest';
+                }
+            }
+
+            function importRealPortfolioWorkbook(workbook, fileName) {
+                const sheetName = findSheet(workbook, ['portfolio', 'real', 'evolucion', 'nav', 'patrimonio']) || workbook.SheetNames[0];
+                const rows = sheetRows(workbook, sheetName);
+                const portfolioData = rows.map(row => ({
+                    date: parseExcelDate(firstValue(row, ['date', 'fecha'])),
+                    price: parseNumber(firstValue(row, ['value', 'valor', 'nav', 'patrimonio', 'cartera']))
+                })).filter(d => d.date && Number.isFinite(d.price) && d.price > 0).sort((a, b) => a.date - b.date);
+                if (portfolioData.length < 2) return alert('No encuentro evolucion real valida. Usa columnas date y value.');
+                finalizeImportedPortfolio({
+                    entries: [{ ticker: 'CARTERA REAL', weight: 1 }],
+                    commonDates: portfolioData.map(d => d.date.toISOString().slice(0, 10)),
+                    portfolioData,
+                    returns: { 'CARTERA REAL': priceReturns(portfolioData) },
+                    corrTickers: ['CARTERA REAL'],
+                    sourceLabel: `Excel evolucion real: ${fileName}`,
+                    mode: 'real'
+                });
+            }
+
+            function computeImportedBacktestPortfolio(entries, seriesMap, sourceLabel) {
+                const validTickers = entries.map(e => e.ticker).filter(t => seriesMap[t]?.length);
+                const maps = {};
+                validTickers.forEach(t => { maps[t] = new Map(seriesMap[t].map(d => [d.date.toISOString().slice(0, 10), d.price])); });
+                const baseTicker = validTickers.sort((a, b) => seriesMap[b].length - seriesMap[a].length)[0];
+                const commonDates = seriesMap[baseTicker].map(d => d.date.toISOString().slice(0, 10)).filter(ds => validTickers.every(t => maps[t].has(ds)));
+                if (commonDates.length < 2) return alert('El historico Excel no tiene fechas comunes suficientes.');
+                const returns = {};
+                validTickers.forEach(t => {
+                    const prices = commonDates.map(ds => maps[t].get(ds));
+                    returns[t] = [];
+                    for (let i = 1; i < prices.length; i++) returns[t].push((prices[i] / prices[i - 1]) - 1);
+                });
+                const portReturns = [];
+                for (let i = 0; i < commonDates.length - 1; i++) {
+                    portReturns.push(entries.reduce((acc, e) => acc + (e.weight || 0) * (returns[e.ticker]?.[i] || 0), 0));
+                }
+                const values = [1000];
+                portReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
+                const portfolioData = commonDates.map((date, i) => ({ date: new Date(date), price: values[i] }));
+                finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers: validTickers, sourceLabel, mode: 'backtest' });
+            }
+
+            function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode }) {
+                const portfolioReturns = priceReturns(portfolioData);
+                const firstPrice = portfolioData[0].price;
+                const lastPrice = portfolioData[portfolioData.length - 1].price;
+                const daysElapsed = (portfolioData[portfolioData.length - 1].date - portfolioData[0].date) / 86400000;
+                const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
+                const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(252);
+                const ddData = calculateDrawdownData(portfolioData);
+                loadedPortfolio = { entries, commonDates, portfolioData, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns };
+                portfolioImportMode = mode;
+                Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d => d.date), y: portfolioData.map(d => d.price), mode: 'lines', name: mode === 'real' ? 'Cartera real' : 'Backtest', line: { color: '#2563eb', width: 2 } }], { title: mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)', margin: { t: 40, l: 60, r: 20, b: 40 }, yaxis: { title: 'Patrimonio' } }, { responsive: true });
+                try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
+                try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
+                document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
+                document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
+                document.getElementById('analyzePortfolioBtn').disabled = false;
+                document.getElementById('portfolioReportStatus').innerText = 'Lista para informe';
+            }
+
+            function findSheet(workbook, names) {
+                const lower = workbook.SheetNames.map(name => ({ name, key: name.toLowerCase() }));
+                const found = lower.find(s => names.some(n => s.key.includes(n)));
+                return found?.name || null;
+            }
+
+            function sheetRows(workbook, sheetName) {
+                const sheet = workbook.Sheets[sheetName];
+                if (!sheet) return [];
+                return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false }).map(row => {
+                    const normalized = {};
+                    Object.keys(row).forEach(key => normalized[String(key).trim().toLowerCase()] = row[key]);
+                    return normalized;
+                });
+            }
+
+            function firstValue(row, keys) {
+                for (const key of keys) {
+                    const normalizedKey = key.toLowerCase();
+                    if (row[normalizedKey] !== undefined && row[normalizedKey] !== null && row[normalizedKey] !== '') return row[normalizedKey];
+                }
+                return null;
+            }
+
+            function parseNumber(value) {
+                if (typeof value === 'number') return value;
+                if (value === null || value === undefined) return NaN;
+                let clean = String(value).replace('%', '').trim();
+                clean = clean.includes(',') ? clean.replace(/\./g, '').replace(',', '.') : clean;
+                const n = Number(clean);
+                if (!Number.isFinite(n)) return NaN;
+                return String(value).includes('%') ? n / 100 : n;
+            }
+
+            function parseExcelDate(value) {
+                if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+                if (typeof value === 'number') {
+                    const parsed = XLSX.SSF.parse_date_code(value);
+                    if (parsed) return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+                }
+                if (!value) return null;
+                const date = new Date(value);
+                return Number.isNaN(date.getTime()) ? null : date;
+            }
+
+            function normalizeEntryWeights(entries) {
+                let total = entries.reduce((acc, e) => acc + (Number(e.weight) || 0), 0);
+                if (!total) total = entries.length;
+                entries.forEach(e => e.weight = total ? (Number(e.weight) || 0) / total : 1 / entries.length);
+            }
+
+            function setPortfolioRows(entries) {
+                const container = document.getElementById('portfolioBuilder');
+                container.querySelectorAll('.portfolio-row').forEach(row => row.remove());
+                entries.forEach(e => {
+                    const row = document.createElement('div');
+                    row.className = 'grid grid-cols-12 gap-2 items-center portfolio-row';
+                    row.innerHTML = `
+                        <div class="col-span-5"><input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" value="${escapeHtml(e.ticker)}"></div>
+                        <div class="col-span-4"><input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" value="${Number(e.weight).toFixed(6)}"></div>
+                        <div class="col-span-2 text-sm text-gray-500">Peso absoluto</div>
+                        <div class="col-span-1 text-right"><button onclick="removePortfolioRow(this)" class="text-red-500 hover:text-red-700">Eliminar</button></div>`;
+                    container.insertBefore(row, container.querySelector('.flex.gap-2'));
+                });
+            }
+
+            function priceSheetToSeriesMap(workbook, sheetName, entries) {
+                const rows = sheetRows(workbook, sheetName);
+                const tickers = entries.map(e => e.ticker);
+                const seriesMap = {};
+                tickers.forEach(t => seriesMap[t] = []);
+                rows.forEach(row => {
+                    const date = parseExcelDate(firstValue(row, ['date', 'fecha']));
+                    if (!date) return;
+                    tickers.forEach(ticker => {
+                        const key = Object.keys(row).find(k => k.toUpperCase() === ticker.toUpperCase());
+                        const price = parseNumber(key ? row[key] : null);
+                        if (Number.isFinite(price) && price > 0) seriesMap[ticker].push({ date, price });
+                    });
+                });
+                Object.keys(seriesMap).forEach(t => seriesMap[t].sort((a, b) => a.date - b.date));
+                return seriesMap;
+            }
+
+            function priceReturns(series) {
+                const returns = [];
+                for (let i = 1; i < series.length; i++) returns.push((series[i].price / series[i - 1].price) - 1);
+                return returns;
+            }
+
+            function downloadBlob(content, filename, type) {
+                const blob = content instanceof Blob ? content : new Blob([content], { type });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            }
+
+            function escapeHtml(value) {
+                return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
+            }
 
             // Fetch prices, align, compute portfolio cumulative series and composition chart only
             async function loadPortfolioSeries() {
@@ -824,6 +1105,96 @@
                     console.error('Error integrando análisis cartera:', e);
                     document.getElementById('portfolioNotice').innerText = 'Error al generar análisis detallado.';
                 }
+            }
+
+            function generatePortfolioReport() {
+                if (!loadedPortfolio || !loadedPortfolio.portfolioData?.length) return alert('Primero carga una cartera.');
+                const p = loadedPortfolio;
+                const data = p.portfolioData;
+                const dd = calculateDrawdownData(data);
+                const metrics = calculateGeneralMetrics(data);
+                const start = data[0].date;
+                const end = data[data.length - 1].date;
+                const sharpe = p.portVolAnn ? p.cagr / p.portVolAnn : null;
+                const positiveDays = p.portfolioReturns?.length ? p.portfolioReturns.filter(r => r > 0).length / p.portfolioReturns.length : null;
+                const reading = portfolioExecutiveReading(p.cagr, p.portVolAnn, dd.maxDD, sharpe);
+                const compositionRows = (p.entries || []).map(e => `<tr><td>${escapeHtml(e.ticker)}</td><td class="num">${fmtPct(e.weight)}</td></tr>`).join('');
+                const metricRows = [
+                    ['Periodo', `${fmtDate(start)} - ${fmtDate(end)}`],
+                    ['Modalidad', p.mode === 'real' ? 'Evolucion real de cartera' : 'Backtesting teorico'],
+                    ['Fuente', escapeHtml(p.sourceLabel || 'Manual/Yahoo')],
+                    ['Rentabilidad total', fmtPct(metrics.totalRet)],
+                    ['CAGR', fmtPct(p.cagr)],
+                    ['Volatilidad anualizada', fmtPct(p.portVolAnn)],
+                    ['Max drawdown', fmtPct(dd.maxDD)],
+                    ['Sharpe aprox. rf=0', sharpe === null ? '-' : sharpe.toFixed(2)],
+                    ['Dias positivos', positiveDays === null ? '-' : fmtPct(positiveDays)],
+                    ['Mejor dia', `${fmtPct(metrics.bestDay)} (${fmtDate(metrics.bestDayDate)})`],
+                    ['Peor dia', `${fmtPct(metrics.worstDay)} (${fmtDate(metrics.worstDayDate)})`]
+                ].map(row => `<tr><td>${row[0]}</td><td class="num">${row[1]}</td></tr>`).join('');
+                portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe cartera</title>${portfolioReportStyles()}</head><body>
+                    <section class="report">
+                        <header class="cover">
+                            <div>
+                                <div class="eyebrow">Informe profesional de cartera</div>
+                                <h1>${p.mode === 'real' ? 'Evolucion real de cartera' : 'Backtesting de cartera'}</h1>
+                                <p>${fmtDate(start)} - ${fmtDate(end)}</p>
+                            </div>
+                            <div class="stamp">MPS MarketAnalyzer</div>
+                        </header>
+                        <section class="summary">
+                            <div><span>Rentabilidad total</span><strong>${fmtPct(metrics.totalRet)}</strong></div>
+                            <div><span>CAGR</span><strong>${fmtPct(p.cagr)}</strong></div>
+                            <div><span>Volatilidad</span><strong>${fmtPct(p.portVolAnn)}</strong></div>
+                            <div><span>Max drawdown</span><strong>${fmtPct(dd.maxDD)}</strong></div>
+                        </section>
+                        <section class="block">
+                            <h2>Resumen ejecutivo</h2>
+                            <p>${reading}</p>
+                        </section>
+                        <section class="grid2">
+                            <div class="block"><h2>Metricas principales</h2><table>${metricRows}</table></div>
+                            <div class="block"><h2>Composicion</h2><table>${compositionRows || '<tr><td>Sin composicion</td><td></td></tr>'}</table></div>
+                        </section>
+                        <section class="block">
+                            <h2>Interpretacion para cliente</h2>
+                            <p>El analisis combina rentabilidad acumulada, crecimiento anualizado, volatilidad y drawdown maximo para evaluar si el riesgo asumido esta siendo compensado. El drawdown mide la peor perdida desde maximos y es clave para valorar tolerancia del cliente y capacidad de permanencia.</p>
+                            <p>${p.mode === 'real' ? 'La modalidad real refleja la evolucion observada de la cartera aportada en el Excel, por lo que incorpora movimientos, comisiones o cambios ya contenidos en el valor importado.' : 'La modalidad backtest reconstruye la cartera con pesos normalizados y series historicas. Es util para estudiar comportamiento teorico, pero no sustituye una contabilidad real con operaciones y flujos.'}</p>
+                        </section>
+                        <footer>Generado el ${new Date().toLocaleString('es-ES')}.</footer>
+                    </section>
+                </body></html>`;
+                document.getElementById('portfolioReportPreview').innerHTML = portfolioReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || portfolioReportHtml;
+                document.getElementById('portfolioReportStatus').innerText = 'Informe generado';
+            }
+
+            function portfolioExecutiveReading(cagr, vol, maxDD, sharpe) {
+                const risk = maxDD < -0.25 ? 'El drawdown historico es elevado y exige una tolerancia a perdidas relevante.' : maxDD < -0.12 ? 'El drawdown historico es moderado y conviene vigilar la concentracion de riesgo.' : 'El drawdown historico ha sido contenido en el periodo analizado.';
+                const efficiency = sharpe !== null && sharpe > 0.8 ? 'La relacion rentabilidad/riesgo ha sido atractiva.' : sharpe !== null && sharpe > 0.3 ? 'La relacion rentabilidad/riesgo ha sido razonable, aunque mejorable.' : 'La compensacion por unidad de riesgo ha sido limitada.';
+                const growth = cagr > 0.06 ? 'La cartera ha generado crecimiento anualizado robusto.' : cagr > 0 ? 'La cartera ha generado crecimiento positivo, pero sin gran margen frente al riesgo.' : 'La cartera no ha generado crecimiento positivo en el periodo analizado.';
+                return `${growth} ${efficiency} ${risk}`;
+            }
+
+            function portfolioReportStyles() {
+                return `<style>
+                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}.report{max-width:980px;margin:0 auto;background:white;padding:36px}.cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:24px;margin-bottom:24px}.eyebrow{text-transform:uppercase;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.08em}h1{font-size:30px;margin:6px 0;color:#0f172a}h2{font-size:16px;margin:0 0 12px;color:#0f172a}.stamp{font-size:12px;font-weight:700;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px}.summary span{display:block;font-size:11px;color:#64748b;text-transform:uppercase}.summary strong{display:block;font-size:22px;margin-top:4px}.block{border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}table{width:100%;border-collapse:collapse;font-size:12px}td{border-bottom:1px solid #e2e8f0;padding:8px}.num{text-align:right;font-weight:700}p{line-height:1.55;color:#334155}footer{font-size:11px;color:#64748b;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px}@media print{body{background:white}.report{padding:0}.summary{grid-template-columns:repeat(4,1fr)}}
+                </style>`;
+            }
+
+            function downloadPortfolioReportPdf() {
+                if (!portfolioReportHtml) generatePortfolioReport();
+                if (!portfolioReportHtml) return;
+                const el = document.createElement('div');
+                el.innerHTML = portfolioReportHtml;
+                if (!window.html2pdf) return downloadBlob(portfolioReportHtml, 'informe_cartera.html', 'text/html;charset=utf-8');
+                html2pdf().set({ margin: 8, filename: 'informe_cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
+            }
+
+            function downloadPortfolioReportWord() {
+                if (!portfolioReportHtml) generatePortfolioReport();
+                if (!portfolioReportHtml) return;
+                if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(portfolioReportHtml), 'informe_cartera.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                return downloadBlob(portfolioReportHtml, 'informe_cartera.html', 'text/html;charset=utf-8');
             }
 
             // Small helper: sample covariance
