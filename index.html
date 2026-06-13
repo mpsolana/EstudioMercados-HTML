@@ -527,7 +527,10 @@
                                 <h3 class="font-bold text-slate-800 border-l-4 border-slate-700 pl-3">Carga Excel de cartera</h3>
                                 <p class="text-xs text-slate-500 mt-1 pl-3">Dos modalidades: backtesting teorico con precios historicos y pesos, o evolucion real con valor liquidativo/patrimonio de la cartera.</p>
                             </div>
-                            <button onclick="downloadPortfolioTemplate()" class="px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-file-excel mr-1"></i>Plantilla CSV</button>
+                            <div class="flex flex-wrap gap-2 justify-end">
+                                <button onclick="downloadPortfolioTemplate('backtest')" class="px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-file-excel mr-1"></i>Plantilla Backtest</button>
+                                <button onclick="downloadPortfolioTemplate('real')" class="px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-file-excel mr-1"></i>Plantilla Real</button>
+                            </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                             <div class="md:col-span-4">
@@ -712,12 +715,63 @@
             let portfolioReportHtml = '';
             let portfolioImportMode = 'manual';
 
-            function downloadPortfolioTemplate() {
-                const mode = document.getElementById('portfolioExcelMode')?.value || 'backtest';
-                const csv = mode === 'real'
-                    ? 'date,value\n2021-01-31,100000\n2021-02-28,101250\n2021-03-31,100850\n'
-                    : 'ticker,weight\nSPY,0.60\nTLT,0.40\n\n# Opcional en XLSX: hoja prices con columnas date, SPY, TLT\n';
-                downloadBlob(csv, `plantilla_cartera_${mode}.csv`, 'text/csv;charset=utf-8');
+            function downloadPortfolioTemplate(modeArg) {
+                const mode = modeArg || document.getElementById('portfolioExcelMode')?.value || 'backtest';
+                if (!window.XLSX) {
+                    const csv = mode === 'real'
+                        ? 'date,value,cash_flow,notes\n2021-01-31,100000,100000,Aportacion inicial\n2021-02-28,101250,0,\n2021-03-31,100850,0,\n'
+                        : 'ticker,weight,name,asset_class,currency,notes\nSPY,0.45,S&P 500 ETF,Renta variable,USD,\nIWDA.L,0.25,MSCI World UCITS,Renta variable,EUR,\nTLT,0.20,Treasury 20+ ETF,Renta fija,USD,\nGLD,0.10,Gold ETF,Alternativo,USD,\n';
+                    return downloadBlob(csv, `plantilla_cartera_${mode}.csv`, 'text/csv;charset=utf-8');
+                }
+
+                const wb = XLSX.utils.book_new();
+                if (mode === 'real') {
+                    const portfolio = [
+                        ['date', 'value', 'cash_flow', 'notes'],
+                        ['2021-01-31', 100000, 100000, 'Aportacion inicial'],
+                        ['2021-02-28', 101250, 0, 'Valor real de cartera al cierre de mes'],
+                        ['2021-03-31', 100850, 0, ''],
+                        ['2021-04-30', 103100, 0, '']
+                    ];
+                    const instructions = [
+                        ['Campo', 'Uso'],
+                        ['date', 'Fecha de valoracion. Usa formato YYYY-MM-DD.'],
+                        ['value', 'Valor real de la cartera o patrimonio total en esa fecha.'],
+                        ['cash_flow', 'Opcional. Aportaciones positivas y retiradas negativas. Actualmente se conserva como referencia.'],
+                        ['notes', 'Opcional. Comentarios internos.']
+                    ];
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(portfolio), 'portfolio');
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instructions), 'instructions');
+                    XLSX.writeFile(wb, 'plantilla_cartera_real.xlsx');
+                    return;
+                }
+
+                const weights = [
+                    ['ticker', 'weight', 'name', 'asset_class', 'currency', 'notes'],
+                    ['SPY', 0.45, 'S&P 500 ETF', 'Renta variable', 'USD', 'Yahoo/FRED compatible si no aportas precios propios'],
+                    ['IWDA.L', 0.25, 'MSCI World UCITS', 'Renta variable global', 'EUR', 'Ejemplo UCITS global'],
+                    ['TLT', 0.20, 'Treasury 20+ ETF', 'Renta fija', 'USD', ''],
+                    ['GLD', 0.10, 'Gold ETF', 'Alternativo', 'USD', '']
+                ];
+                const prices = [
+                    ['date', 'SPY', 'IWDA.L', 'TLT', 'GLD'],
+                    ['2021-01-31', 370.07, 58.82, 148.47, 172.61],
+                    ['2021-02-28', 380.36, 60.26, 140.03, 161.89],
+                    ['2021-03-31', 396.33, 62.35, 136.72, 159.96],
+                    ['2021-04-30', 417.30, 65.18, 139.85, 165.66]
+                ];
+                const instructions = [
+                    ['Campo/Hoja', 'Uso'],
+                    ['weights.ticker', 'Ticker de Yahoo o identificador del activo.'],
+                    ['weights.weight', 'Peso objetivo. Puede sumar 1, 100 o cualquier escala; se normaliza automaticamente.'],
+                    ['prices', 'Opcional. Si existe, la app usa estos precios en vez de descargar Yahoo.'],
+                    ['prices.date', 'Fecha de cierre del precio. Usa formato YYYY-MM-DD.'],
+                    ['prices.<ticker>', 'Una columna por ticker con el precio/NAV del activo.']
+                ];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(weights), 'weights');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prices), 'prices');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instructions), 'instructions');
+                XLSX.writeFile(wb, 'plantilla_backtesting_cartera.xlsx');
             }
 
             async function importPortfolioExcel() {
@@ -1113,6 +1167,10 @@
                 const data = p.portfolioData;
                 const dd = calculateDrawdownData(data);
                 const metrics = calculateGeneralMetrics(data);
+                const episodes = calculateEpisodes(data, dd.cumulativeMax);
+                const rollingRowsData = calculateRollingStats(data).filter(r => Number.isFinite(r.meanTot) && Number.isFinite(r.minTot) && Number.isFinite(r.maxTot));
+                const seasonality = buildPortfolioSeasonalityRows(data);
+                const sensitivityRowsData = buildPortfolioSensitivityRows(data);
                 const start = data[0].date;
                 const end = data[data.length - 1].date;
                 const sharpe = p.portVolAnn ? p.cagr / p.portVolAnn : null;
@@ -1126,12 +1184,23 @@
                     ['Rentabilidad total', fmtPct(metrics.totalRet)],
                     ['CAGR', fmtPct(p.cagr)],
                     ['Volatilidad anualizada', fmtPct(p.portVolAnn)],
+                    ['Rentabilidad media diaria', fmtPct(metrics.meanRet)],
+                    ['Volatilidad diaria', fmtPct(metrics.sigma)],
+                    ['VaR 95% diario', fmtPct(metrics.var95)],
                     ['Max drawdown', fmtPct(dd.maxDD)],
                     ['Sharpe aprox. rf=0', sharpe === null ? '-' : sharpe.toFixed(2)],
                     ['Dias positivos', positiveDays === null ? '-' : fmtPct(positiveDays)],
                     ['Mejor dia', `${fmtPct(metrics.bestDay)} (${fmtDate(metrics.bestDayDate)})`],
-                    ['Peor dia', `${fmtPct(metrics.worstDay)} (${fmtDate(metrics.worstDayDate)})`]
+                    ['Peor dia', `${fmtPct(metrics.worstDay)} (${fmtDate(metrics.worstDayDate)})`],
+                    ['Racha positiva max.', `${metrics.bestPosStreakInfo.len || 0} dias (${safeFmtDate(metrics.bestPosStreakInfo.start)} - ${safeFmtDate(metrics.bestPosStreakInfo.end)})`],
+                    ['Racha negativa max.', `${metrics.bestNegStreakInfo.len || 0} dias (${safeFmtDate(metrics.bestNegStreakInfo.start)} - ${safeFmtDate(metrics.bestNegStreakInfo.end)})`]
                 ].map(row => `<tr><td>${row[0]}</td><td class="num">${row[1]}</td></tr>`).join('');
+                const episodeRows = episodes.length ? episodes.slice(0, 7).map(e => `<tr><td>${fmtDate(e.start)}</td><td>${fmtDate(e.end)}</td><td>${e.recovery ? fmtDate(e.recovery) : 'No recuperado'}</td><td class="num">${fmtPct(e.drawdown)}</td><td class="num">${Math.round(e.underwater)} dias</td></tr>`).join('') : '<tr><td colspan="5">Sin episodios relevantes de drawdown.</td></tr>';
+                const rollingRows = rollingRowsData.length ? rollingRowsData.map(r => `<tr><td>${r.horizon}</td><td class="num">${fmtPct(r.meanTot)}</td><td class="num">${fmtPct(r.meanAnn)}</td><td class="num bad">${fmtPct(r.minTot)}</td><td class="num good">${fmtPct(r.maxTot)}</td></tr>`).join('') : '<tr><td colspan="5">Historico insuficiente para calcular ventanas moviles.</td></tr>';
+                const seasonalityRows = seasonality.map(r => `<tr><td>${r.month}</td><td class="num ${r.avg >= 0 ? 'good' : 'bad'}">${fmtPct(r.avg)}</td><td class="num">${r.samples}</td><td class="num good">${fmtPct(r.best)}</td><td class="num bad">${fmtPct(r.worst)}</td></tr>`).join('');
+                const sensitivityRows = sensitivityRowsData.length ? sensitivityRowsData.map(r => `<tr><td>${r.factor}</td><td class="num">${r.points}</td><td class="num">${r.correlation.toFixed(2)}</td><td class="num">${r.beta.toFixed(2)}</td><td>${escapeHtml(r.reading)}</td></tr>`).join('') : '<tr><td colspan="5">Sin datos auxiliares cargados. Pulsa Ejecutar Analisis Cartera para enriquecer sensibilidad a VIX, petroleo y tipos.</td></tr>';
+                const bestSeason = seasonality.reduce((a, b) => b.avg > a.avg ? b : a, seasonality[0]);
+                const worstSeason = seasonality.reduce((a, b) => b.avg < a.avg ? b : a, seasonality[0]);
                 portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe cartera</title>${portfolioReportStyles()}</head><body>
                     <section class="report">
                         <header class="cover">
@@ -1151,10 +1220,31 @@
                         <section class="block">
                             <h2>Resumen ejecutivo</h2>
                             <p>${reading}</p>
+                            <p>El periodo analizado cubre ${data.length} observaciones entre ${fmtDate(start)} y ${fmtDate(end)}. La lectura combina rentabilidad, riesgo realizado, profundidad de las caidas, recuperacion y estabilidad del comportamiento por calendario.</p>
                         </section>
                         <section class="grid2">
                             <div class="block"><h2>Metricas principales</h2><table>${metricRows}</table></div>
                             <div class="block"><h2>Composicion</h2><table>${compositionRows || '<tr><td>Sin composicion</td><td></td></tr>'}</table></div>
+                        </section>
+                        <section class="block">
+                            <h2>Drawdowns historicos</h2>
+                            <p>Los drawdowns muestran las mayores caidas desde maximos y el tiempo bajo el agua. Es la medida mas directa de dolor para el cliente.</p>
+                            <table><thead><tr><th>Inicio</th><th>Valle</th><th>Recuperacion</th><th>Caida</th><th>Tiempo bajo agua</th></tr></thead><tbody>${episodeRows}</tbody></table>
+                        </section>
+                        <section class="block">
+                            <h2>Rentabilidades moviles</h2>
+                            <p>Resumen de ventanas historicas: rentabilidad media, media anualizada, peor ventana y mejor ventana. Ayuda a separar resultado puntual de consistencia temporal.</p>
+                            <table><thead><tr><th>Ventana</th><th>Media total</th><th>Media anual</th><th>Peor</th><th>Mejor</th></tr></thead><tbody>${rollingRows}</tbody></table>
+                        </section>
+                        <section class="block">
+                            <h2>Estacionalidad</h2>
+                            <p>Rentabilidad media por mes natural. Mejor mes historico: <b>${escapeHtml(bestSeason?.month || '-')}</b>. Peor mes historico: <b>${escapeHtml(worstSeason?.month || '-')}</b>.</p>
+                            <table><thead><tr><th>Mes</th><th>Media</th><th>Muestras</th><th>Mejor</th><th>Peor</th></tr></thead><tbody>${seasonalityRows}</tbody></table>
+                        </section>
+                        <section class="block">
+                            <h2>Sensibilidades</h2>
+                            <p>Correlacion y beta diaria frente a factores de mercado disponibles. Beta positiva significa que la cartera tiende a moverse en el mismo sentido que el factor; beta negativa, en sentido contrario.</p>
+                            <table><thead><tr><th>Factor</th><th>Obs.</th><th>Corr.</th><th>Beta</th><th>Lectura</th></tr></thead><tbody>${sensitivityRows}</tbody></table>
                         </section>
                         <section class="block">
                             <h2>Interpretacion para cliente</h2>
@@ -1168,6 +1258,73 @@
                 document.getElementById('portfolioReportStatus').innerText = 'Informe generado';
             }
 
+            function safeFmtDate(d) {
+                return d instanceof Date && !isNaN(d) ? fmtDate(d) : '-';
+            }
+
+            function buildPortfolioSeasonalityRows(data) {
+                const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                const buckets = Array.from({ length: 12 }, () => []);
+                const monthEnds = new Map();
+                data.forEach(d => monthEnds.set(`${d.date.getFullYear()}-${d.date.getMonth()}`, d));
+                const keys = Array.from(monthEnds.keys()).sort((a, b) => {
+                    const [ay, am] = a.split('-').map(Number), [by, bm] = b.split('-').map(Number);
+                    return ay === by ? am - bm : ay - by;
+                });
+                for (let i = 1; i < keys.length; i++) {
+                    const curr = monthEnds.get(keys[i]);
+                    const prev = monthEnds.get(keys[i - 1]);
+                    if (curr && prev && prev.price > 0) buckets[curr.date.getMonth()].push(curr.price / prev.price - 1);
+                }
+                return buckets.map((values, idx) => ({
+                    month: monthNames[idx],
+                    avg: values.length ? getMean(values) : 0,
+                    best: values.length ? Math.max(...values) : 0,
+                    worst: values.length ? Math.min(...values) : 0,
+                    samples: values.length
+                }));
+            }
+
+            function buildPortfolioSensitivityRows(data) {
+                const rows = [];
+                [
+                    ['VIX', globalVixData, 'riesgo/volatilidad implicita'],
+                    ['Petroleo', globalOilData, 'energia'],
+                    ['Tipos 10Y EEUU', globalRatesData, 'tipos de interes']
+                ].forEach(([factor, factorData, description]) => {
+                    const row = calculatePortfolioFactorSensitivity(data, factorData, factor, description);
+                    if (row) rows.push(row);
+                });
+                return rows;
+            }
+
+            function calculatePortfolioFactorSensitivity(data, factorData, factor, description) {
+                if (!factorData || factorData.length < 20) return null;
+                const factorMap = new Map(factorData.map(d => [d.date.toISOString().split('T')[0], d.price]));
+                const assetReturns = [];
+                const factorReturns = [];
+                for (let i = 1; i < data.length; i++) {
+                    const currDate = data[i].date.toISOString().split('T')[0];
+                    const prevDate = data[i - 1].date.toISOString().split('T')[0];
+                    if (!factorMap.has(currDate) || !factorMap.has(prevDate)) continue;
+                    const prevFactor = factorMap.get(prevDate);
+                    if (!prevFactor) continue;
+                    assetReturns.push(data[i].price / data[i - 1].price - 1);
+                    factorReturns.push(factorMap.get(currDate) / prevFactor - 1);
+                }
+                if (assetReturns.length < 20 || getStdDev(factorReturns) === 0) return null;
+                const corr = getCorrelation(assetReturns, factorReturns);
+                const beta = covarianceSample(assetReturns, factorReturns) / covarianceSample(factorReturns, factorReturns);
+                const direction = corr > 0.25 ? 'sensibilidad positiva' : corr < -0.25 ? 'sensibilidad negativa' : 'sensibilidad baja';
+                return {
+                    factor,
+                    points: assetReturns.length,
+                    correlation: corr,
+                    beta,
+                    reading: `${direction} frente a ${description}`
+                };
+            }
+
             function portfolioExecutiveReading(cagr, vol, maxDD, sharpe) {
                 const risk = maxDD < -0.25 ? 'El drawdown historico es elevado y exige una tolerancia a perdidas relevante.' : maxDD < -0.12 ? 'El drawdown historico es moderado y conviene vigilar la concentracion de riesgo.' : 'El drawdown historico ha sido contenido en el periodo analizado.';
                 const efficiency = sharpe !== null && sharpe > 0.8 ? 'La relacion rentabilidad/riesgo ha sido atractiva.' : sharpe !== null && sharpe > 0.3 ? 'La relacion rentabilidad/riesgo ha sido razonable, aunque mejorable.' : 'La compensacion por unidad de riesgo ha sido limitada.';
@@ -1177,7 +1334,7 @@
 
             function portfolioReportStyles() {
                 return `<style>
-                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}.report{max-width:980px;margin:0 auto;background:white;padding:36px}.cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:24px;margin-bottom:24px}.eyebrow{text-transform:uppercase;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.08em}h1{font-size:30px;margin:6px 0;color:#0f172a}h2{font-size:16px;margin:0 0 12px;color:#0f172a}.stamp{font-size:12px;font-weight:700;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px}.summary span{display:block;font-size:11px;color:#64748b;text-transform:uppercase}.summary strong{display:block;font-size:22px;margin-top:4px}.block{border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}table{width:100%;border-collapse:collapse;font-size:12px}td{border-bottom:1px solid #e2e8f0;padding:8px}.num{text-align:right;font-weight:700}p{line-height:1.55;color:#334155}footer{font-size:11px;color:#64748b;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px}@media print{body{background:white}.report{padding:0}.summary{grid-template-columns:repeat(4,1fr)}}
+                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}.report{max-width:980px;margin:0 auto;background:white;padding:36px}.cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:24px;margin-bottom:24px}.eyebrow{text-transform:uppercase;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.08em}h1{font-size:30px;margin:6px 0;color:#0f172a}h2{font-size:16px;margin:0 0 12px;color:#0f172a}.stamp{font-size:12px;font-weight:700;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px}.summary span{display:block;font-size:11px;color:#64748b;text-transform:uppercase}.summary strong{display:block;font-size:22px;margin-top:4px}.block{border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px;break-inside:avoid}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#e2e8f0;color:#334155;text-align:left;text-transform:uppercase;font-size:10px;letter-spacing:.04em;padding:8px}td{border-bottom:1px solid #e2e8f0;padding:8px;vertical-align:top}.num{text-align:right;font-weight:700}.good{color:#047857}.bad{color:#dc2626}p{line-height:1.55;color:#334155}footer{font-size:11px;color:#64748b;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px}@media print{body{background:white}.report{padding:0}.summary{grid-template-columns:repeat(4,1fr)}.block{page-break-inside:avoid}}
                 </style>`;
             }
 
