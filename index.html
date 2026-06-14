@@ -662,6 +662,14 @@
                     </div>
                 </div>
 
+                <div class="mt-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-bold border-l-4 border-indigo-600 pl-3">Rolling Correlation (Dinámica)</h4>
+                        <div id="portfolioRollingCorrNote" class="text-xs text-slate-500"></div>
+                    </div>
+                    <div id="portfolioRollingCorrChart" class="w-full h-[420px]"></div>
+                </div>
+
                 <div class="mt-4 text-xs text-gray-500">
                     <strong>Nota (metodología):</strong> Para construir la serie de la cartera se calculan los retornos
                     simples diarios de cada activo $r_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1$, la rentabilidad diaria de la
@@ -888,6 +896,12 @@
                     if (dd < mdd) mdd = dd;
                 }
                 return mdd;
+            }
+
+            function adjustAnnualizedReturnForHorizon(annualizedReturn, months) {
+                if (!Number.isFinite(annualizedReturn)) return 0;
+                if (months >= 12) return annualizedReturn;
+                return Math.pow(1 + annualizedReturn, months / 12) - 1;
             }
             let assetAllocationState = null;
 
@@ -1381,7 +1395,8 @@
                     let growth = 1;
                     for (let j = i - months + 1; j <= i; j++) growth *= (1 + returns[j]);
                     const total = growth - 1;
-                    samples.push(months >= 12 ? Math.pow(1 + total, 12 / months) - 1 : total);
+                    const annualized = Math.pow(1 + total, 12 / months) - 1;
+                    samples.push(adjustAnnualizedReturnForHorizon(annualized, months));
                     drawdowns.push(rollingWindowMaxDrawdownFromReturns(returns, i - months + 1, months));
                 }
                 return { label, months, annualized: months >= 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probBelow: samples.filter(v => v < threshold).length / samples.length, count: samples.length };
@@ -1424,12 +1439,12 @@
                 const traceMean = { x, y: rows.map(r => r.mean), type: 'scatter', mode: 'markers+text', name: 'Media', marker: { color: '#000080', size: 16, symbol: 'line-ew', line: { color: '#000080', width: 5 } }, text: rows.map(r => fmtPct(r.mean)), textposition: 'middle right', textfont: { color: '#000080', size: 12, family: 'Arial Black' }, hovertemplate: '%{x}<br>Media: %{y:.1%}<extra></extra>' };
                 const traceMax = { x, y: rows.map(r => r.max), type: 'scatter', mode: 'text', name: 'Máximo', text: rows.map(r => fmtPct(r.max)), textposition: 'top center', textfont: { color: '#008000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
                 const traceMin = { x, y: rows.map(r => r.min), type: 'scatter', mode: 'text', name: 'Mínimo', text: rows.map(r => fmtPct(r.min)), textposition: 'bottom center', textfont: { color: '#ff0000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
-                const traceDD = { x, y: rows.map(r => r.maxDrawdown), type: 'scatter', mode: 'markers+text', name: 'Maximum drawdown', marker: { color: '#dc2626', size: 7, symbol: 'circle' }, text: rows.map(r => fmtPct(r.maxDrawdown)), textposition: 'bottom right', textfont: { color: '#dc2626', size: 10 }, hovertemplate: '%{x}<br>Maximum drawdown: %{y:.1%}<extra></extra>' };
+                const traceDD = { x, y: rows.map(r => r.maxDrawdown), type: 'scatter', mode: 'markers', name: 'Maximum drawdown', marker: { color: '#dc2626', size: 8, symbol: 'circle', line: { color: '#991b1b', width: 1 } }, hovertemplate: '%{x}<br>Maximum drawdown: %{y:.1%}<extra></extra>' };
                 Plotly.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin, traceDD], {
                     title: 'Rango de rentabilidades según el plazo de la inversión',
                     yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad' },
                     xaxis: { title: 'Plazo de la inversión' },
-                    margin: { t: 45, l: 60, r: 20, b: 55 },
+                    margin: { t: 45, l: 60, r: 20, b: 75 },
                     legend: { orientation: 'h', y: -0.2 },
                     plot_bgcolor: '#ffffff',
                     paper_bgcolor: '#ffffff'
@@ -1907,54 +1922,99 @@
             function updatePortfolioCorr() {
                 if (!loadedPortfolio || !loadedPortfolio.returns) return;
                 const freq = document.getElementById('portfolioCorrFreq')?.value || 'M';
-                const freqMap = { 'D': 1, 'M': 21, '6M': 126, 'A': 252 };
-                const windowDays = freqMap[freq] || 21;
-                const baseReturns = loadedPortfolio.returns; // object: ticker -> daily returns
-                const tickers = loadedPortfolio.corrTickers;
-                const agg = {};
-                // aggregate returns into non-overlapping windows by compounding returns, not summing them.
-                tickers.forEach(t => {
-                    const r = baseReturns[t] || [];
-                    const arr = [];
-                    for (let i = 0; i < r.length; i += windowDays) {
-                        let growth = 1, count = 0;
-                        for (let j = i; j < Math.min(i + windowDays, r.length); j++) { growth *= (1 + r[j]); count++; }
-                        if (count > 0) arr.push(growth - 1);
-                    }
-                    agg[t] = arr;
-                });
-
-                // build correlation matrix (align by minimum length)
-                const minLen = Math.min(...tickers.map(t => (agg[t] || []).length));
+                const windowSize = portfolioCorrelationWindowSize(freq);
+                const baseReturns = loadedPortfolio.returns;
+                const tickers = (loadedPortfolio.corrTickers || []).filter(t => (baseReturns[t] || []).length >= windowSize + 2);
+                const rollingReturns = {};
+                tickers.forEach(t => rollingReturns[t] = rollingCompoundedReturns(baseReturns[t] || [], windowSize));
+                const minLen = tickers.length ? Math.min(...tickers.map(t => (rollingReturns[t] || []).length)) : 0;
                 const trimmed = {};
-                tickers.forEach(t => { trimmed[t] = (agg[t] || []).slice(0, minLen); });
+                tickers.forEach(t => { trimmed[t] = (rollingReturns[t] || []).slice(-minLen); });
 
                 const z = [];
                 for (let i = 0; i < tickers.length; i++) {
                     const row = [];
                     for (let j = 0; j < tickers.length; j++) {
                         if (i === j) {
-                            row.push(1.0000);
+                            row.push(1);
                         } else {
                             const a = trimmed[tickers[i]] || [];
                             const b = trimmed[tickers[j]] || [];
-                            // Reusing getCorrelation function which explicitly computes Pearson correctly to [-1, 1] range.
-                            const corrValue = getCorrelation(a, b);
-                            row.push(Number(corrValue.toFixed(4)));
+                            const corrValue = a.length >= 3 && b.length >= 3 ? getCorrelation(a, b) : null;
+                            row.push(Number.isFinite(corrValue) ? Number(corrValue.toFixed(4)) : null);
                         }
                     }
                     z.push(row);
                 }
 
-                renderPortfolioCorrMatrix(tickers, z, freq);
+                renderPortfolioCorrMatrix(tickers, z, freq, windowSize, minLen);
+                renderPortfolioRollingCorrelation(tickers, baseReturns, windowSize);
             }
 
-            function renderPortfolioCorrMatrix(labels, z, freqLabel) {
-                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#2563eb'], [0.5, '#f8fafc'], [1, '#dc2626']], zmin: -1, zmax: 1, zmid: 0, text: z.map(row => row.map(val => val.toFixed(2))), hoverinfo: 'x+y+z', texttemplate: '%{text}' }];
-                const layout = { title: `Matriz de Correlación (Cartera) - ${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''}`, margin: { t: 40, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
+            function portfolioCorrelationWindowSize(freq) {
+                const baseFreq = loadedPortfolio?.frequency || 'D';
+                if (freq === 'D') return 1;
+                const months = ({ M: 1, '6M': 6, A: 12 })[freq] || 1;
+                return periodsForMonths(months, baseFreq);
+            }
+
+            function rollingCompoundedReturns(returns, windowSize) {
+                const out = [];
+                if (!returns?.length || windowSize < 1) return out;
+                for (let i = windowSize - 1; i < returns.length; i++) {
+                    let growth = 1;
+                    for (let j = i - windowSize + 1; j <= i; j++) growth *= (1 + returns[j]);
+                    out.push(growth - 1);
+                }
+                return out;
+            }
+
+            function renderPortfolioCorrMatrix(labels, z, freqLabel, windowSize, sampleSize) {
+                const text = z.map(row => row.map(val => Number.isFinite(val) ? val.toFixed(2) : '-'));
+                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#0f172a'], [0.5, '#94a3b8'], [1, '#ffffff']], zmin: -1, zmax: 1, text, hoverinfo: 'x+y+z', texttemplate: '%{text}', textfont: { color: '#111827', size: 11 } }];
+                const layout = { title: `Matriz de Correlación (Cartera) - ${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''} · ventana ${windowSize} periodo(s), muestra ${sampleSize}`, margin: { t: 55, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
                 Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
             }
 
+            function renderPortfolioRollingCorrelation(tickers, baseReturns, windowSize) {
+                const chart = document.getElementById('portfolioRollingCorrChart');
+                const note = document.getElementById('portfolioRollingCorrNote');
+                const rollingWindow = Math.max(2, windowSize);
+                if (!chart || tickers.length < 2) {
+                    if (chart) chart.innerHTML = '<div class="text-sm text-gray-500 text-center mt-20">Se necesitan al menos dos activos con datos suficientes.</div>';
+                    return;
+                }
+                const traces = [];
+                const dateAxis = loadedPortfolio.commonDates || [];
+                const allByIndex = new Map();
+                const maxPairs = 45;
+                let pairCount = 0;
+                for (let i = 0; i < tickers.length; i++) {
+                    for (let j = i + 1; j < tickers.length; j++) {
+                        if (pairCount >= maxPairs) break;
+                        const a = baseReturns[tickers[i]] || [];
+                        const b = baseReturns[tickers[j]] || [];
+                        const len = Math.min(a.length, b.length);
+                        const x = [], y = [];
+                        for (let k = rollingWindow; k <= len; k++) {
+                            const corr = getCorrelation(a.slice(k - rollingWindow, k), b.slice(k - rollingWindow, k));
+                            if (!Number.isFinite(corr)) continue;
+                            x.push(dateAxis[k] || k);
+                            y.push(corr);
+                            const key = dateAxis[k] || k;
+                            if (!allByIndex.has(key)) allByIndex.set(key, []);
+                            allByIndex.get(key).push(corr);
+                        }
+                        traces.push({ x, y, mode: 'lines', name: `${tickers[i]} / ${tickers[j]}`, line: { width: 1, color: '#94a3b8' }, opacity: 0.35, hovertemplate: '%{y:.2f}<extra>%{fullData.name}</extra>' });
+                        pairCount++;
+                    }
+                }
+                const avgX = [...allByIndex.keys()];
+                const avgY = avgX.map(k => getMean(allByIndex.get(k)));
+                traces.unshift({ x: avgX, y: avgY, mode: 'lines', name: 'Media pares', line: { width: 3, color: '#1d4ed8' }, hovertemplate: 'Media: %{y:.2f}<extra></extra>' });
+                Plotly.newPlot(chart, traces, { title: `Rolling correlation de activos (${rollingWindow} periodo(s))`, yaxis: { range: [-1, 1], title: 'Correlación' }, xaxis: { title: 'Fecha' }, margin: { t: 45, l: 55, r: 20, b: 45 }, showlegend: true, legend: { orientation: 'h', y: -0.25 } }, { responsive: true });
+                if (note) note.textContent = `${pairCount} pares calculados; línea azul = media de pares.`;
+            }
             // --- FORECAST / MONTECARLO SIMULATIONS ---
             async function runForecastSimulations() {
                 const sims = Math.max(100, parseInt(document.getElementById('mcSims').value) || 10000);
@@ -2106,9 +2166,9 @@
                 const rows = Object.keys(perfMetrics).map(key => {
                     const arr = perfMetrics[key].slice().sort((a, b) => a - b);
                     const vals = [0.10, 0.25, 0.5, 0.75, 0.90].map(p => formatMetric(quantile(arr, p), key));
-                    return `<tr><td class="px-3 py-2 font-bold">${key}</td>${vals.map(v => `<td class="px-3 py-2 text-right font-mono">${v}</td>`).join('')}</tr>`;
+                    return `<tr><td class="px-3 py-2 font-bold align-top break-words">${key}</td>${vals.map(v => `<td class="px-3 py-2 text-right font-mono align-top break-words">${v}</td>`).join('')}</tr>`;
                 }).join('');
-                document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${header}</thead><tbody>${rows}</tbody></table>`;
+                document.getElementById('forecastPerfTable').innerHTML = `<table class="min-w-[760px] w-full table-fixed text-xs text-left text-gray-600"><thead class="text-[11px] text-gray-700 bg-gray-50">${header}</thead><tbody>${rows}</tbody></table>`;
 
                 // Expected annual return percentiles for multiple horizons (use user-selected mcYears)
                 const horizons = Array.from(new Set([1, Math.min(mcYears, 3), Math.min(mcYears, 5), mcYears]));
@@ -2116,9 +2176,9 @@
                     const sampleArr = longTermSamples[h];
                     if (!sampleArr || sampleArr.length === 0) return '';
                     const arr = sampleArr.map(b => Math.pow(b / lastMonetaryDisplay, 1 / h) - 1).sort((a, b) => a - b);
-                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h > 1 ? 's' : ''}</td>${[0.1, 0.25, 0.5, 0.75, 0.9].map(p => `<td class="px-3 py-2 text-right">${fmtPct(quantile(arr, p))}</td>`).join('')}</tr>`;
+                    return `<tr><td class="px-3 py-2 font-bold">${h} Year${h > 1 ? 's' : ''}</td>${[0.1, 0.25, 0.5, 0.75, 0.9].map(p => `<td class="px-3 py-2 text-right whitespace-nowrap">${fmtPct(quantile(arr, p))}</td>`).join('')}</tr>`;
                 }).filter(r => r !== '').join('');
-                document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10th</th><th>25th</th><th>50th</th><th>75th</th><th>90th</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
+                document.getElementById('forecastExpectedTable').innerHTML = `<table class="min-w-[620px] w-full table-fixed text-xs text-left text-gray-600"><thead class="text-[11px] text-gray-700 bg-gray-50"><tr><th>Horizon</th><th>10th</th><th>25th</th><th>50th</th><th>75th</th><th>90th</th></tr></thead><tbody>${expectedRows}</tbody></table>`;
 
                 // Probabilities table: Prob(ret >= x%) for selected horizons using simulations
                 const thresholds = [0.00, 0.025, 0.05, 0.075, 0.10, 0.125];
@@ -2127,10 +2187,10 @@
                     const sampleArr = longTermSamples[h];
                     if (!sampleArr || sampleArr.length === 0) return '';
                     const arr = sampleArr.map(b => Math.pow(b / lastMonetaryDisplay, 1 / h) - 1);
-                    const cells = thresholds.map(t => `<td class="px-3 py-2 text-right">${fmtPct(arr.filter(a => a >= t).length / arr.length)}</td>`).join('');
+                    const cells = thresholds.map(t => `<td class="px-3 py-2 text-right whitespace-nowrap">${fmtPct(arr.filter(a => a >= t).length / arr.length)}</td>`).join('');
                     return `<tr><td class="px-3 py-2 font-bold">${h}y</td>${cells}</tr>`;
                 }).filter(r => r !== '').join('');
-                document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 bg-gray-50">${probHeader}</thead><tbody>${probRows}</tbody></table>`;
+                document.getElementById('forecastProbTable').innerHTML = `<table class="min-w-[780px] w-full table-fixed text-xs text-left text-gray-600"><thead class="text-[11px] text-gray-700 bg-gray-50">${probHeader}</thead><tbody>${probRows}</tbody></table>`;
 
                 const yearsX = Array.from({ length: longTermYears + 1 }, (_, i) => i);
                 const ltPercentiles = [0.10, 0.25, 0.5, 0.75, 0.90];
@@ -3159,16 +3219,16 @@
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div class="bg-white p-3 rounded border">
                                         <h4 class="font-bold mb-2">Performance Summary</h4>
-                                        <div id="forecastPerfTable" class="text-sm"></div>
+                                        <div id="forecastPerfTable" class="text-sm overflow-x-auto pb-2"></div>
                                     </div>
                                     <div class="bg-white p-3 rounded border">
                                         <h4 class="font-bold mb-2">Expected Annual Return (percentiles)</h4>
-                                        <div id="forecastExpectedTable" class="text-sm"></div>
+                                        <div id="forecastExpectedTable" class="text-sm overflow-x-auto pb-2"></div>
                                     </div>
                                 </div>
                                 <div class="bg-white p-3 rounded border">
                                     <h4 class="font-bold mb-2">Probabilidades Anuales (umbrales)</h4>
-                                    <div id="forecastProbTable" class="text-sm"></div>
+                                    <div id="forecastProbTable" class="text-sm overflow-x-auto pb-2"></div>
                                 </div>
                             </div>
                         </div>
@@ -5295,7 +5355,8 @@
                     for (let i = 0; i < d.length - v; i++) {
                         const total = d[i + v].price / d[i].price - 1;
                         r.push(total);
-                        annualized.push(Math.pow(1 + total, perYear / v) - 1);
+                        const ann = Math.pow(1 + total, perYear / v) - 1;
+                        annualized.push(v < perYear ? adjustAnnualizedReturnForHorizon(ann, (v / perYear) * 12) : ann);
                     }
                     const minTot = r.length ? Math.min(...r) : 0;
                     const maxTot = r.length ? Math.max(...r) : 0;
