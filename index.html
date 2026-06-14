@@ -1439,8 +1439,7 @@
                 const traceMean = { x, y: rows.map(r => r.mean), type: 'scatter', mode: 'markers+text', name: 'Media', marker: { color: '#000080', size: 16, symbol: 'line-ew', line: { color: '#000080', width: 5 } }, text: rows.map(r => fmtPct(r.mean)), textposition: 'middle right', textfont: { color: '#000080', size: 12, family: 'Arial Black' }, hovertemplate: '%{x}<br>Media: %{y:.1%}<extra></extra>' };
                 const traceMax = { x, y: rows.map(r => r.max), type: 'scatter', mode: 'text', name: 'Máximo', text: rows.map(r => fmtPct(r.max)), textposition: 'top center', textfont: { color: '#008000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
                 const traceMin = { x, y: rows.map(r => r.min), type: 'scatter', mode: 'text', name: 'Mínimo', text: rows.map(r => fmtPct(r.min)), textposition: 'bottom center', textfont: { color: '#ff0000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
-                const traceDD = { x, y: rows.map(r => r.maxDrawdown), type: 'scatter', mode: 'markers', name: 'Maximum drawdown', marker: { color: '#dc2626', size: 8, symbol: 'circle', line: { color: '#991b1b', width: 1 } }, hovertemplate: '%{x}<br>Maximum drawdown: %{y:.1%}<extra></extra>' };
-                Plotly.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin, traceDD], {
+                Plotly.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin], {
                     title: 'Rango de rentabilidades según el plazo de la inversión',
                     yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad' },
                     xaxis: { title: 'Plazo de la inversión' },
@@ -3581,7 +3580,7 @@
                     const yearlyStats = calculateYearlyStats(rawData, currentDataFrequency);
                     const techData = calculateTechnicalIndicators(rawData);
                     globalTechData = techData;
-                    const seasonData = calculateSeasonality(rawData);
+                    const seasonData = calculateSeasonality(rawData, currentDataFrequency);
                     const annualDist = calculateAnnualDistribution(rawData);
                     const athData = calculateATHAnalysis(rawData);
                     const generalData = calculateGeneralMetrics(rawData, currentDataFrequency);
@@ -4037,8 +4036,16 @@
             }
 
             function renderSeasonalityDeciles(data, ticker) {
+                const freq = currentDataFrequency || inferDataFrequency(data);
+                if (freq !== 'D') {
+                    renderUnavailableChartMessage('seasonalityDecilesChart', `Deciles estacionales no disponibles con frecuencia ${frequencyLabel(freq).toLowerCase()}. Este bloque normaliza el año por sesiones diarias; carga una serie diaria para activarlo.`);
+                    return;
+                }
                 const deciles = calculateSeasonalityDeciles(data);
-                if (!deciles) return;
+                if (!deciles) {
+                    renderUnavailableChartMessage('seasonalityDecilesChart', 'No hay suficientes años de datos diarios para construir deciles estacionales robustos.');
+                    return;
+                }
                 const { x, p10, p25, p50, p75, p90, current } = deciles;
 
                 // Banda 10-90 (más clara)
@@ -4156,22 +4163,45 @@
             function renderMonthlyHeatmap(data) {
                 if (!data || data.length === 0) return;
 
-                // Group data by year and month, take first and last price per month
-                const monthlyMap = new Map(); // key: "YYYY-MM" -> {first, last}
-                data.forEach(d => {
-                    const y = d.date.getFullYear();
-                    const m = d.date.getMonth(); // 0-11
-                    const key = `${y}-${m}`;
-                    if (!monthlyMap.has(key)) {
-                        monthlyMap.set(key, { year: y, month: m, first: d.price, last: d.price });
-                    } else {
-                        monthlyMap.get(key).last = d.price;
+                const sortedData = [...data].sort((a, b) => a.date - b.date);
+                const inferredFreq = currentDataFrequency || inferDataFrequency(sortedData);
+                const monthlyMap = new Map(); // key: "YYYY-MM" -> {first, last, retPct}
+
+                if (inferredFreq === 'M' || inferredFreq === 'Q' || inferredFreq === 'A') {
+                    // With monthly/quarterly uploads, each bucket can contain a single point.
+                    // Use the previous observation as the base so the heatmap shows real period returns.
+                    for (let i = 1; i < sortedData.length; i++) {
+                        const d = sortedData[i];
+                        const prev = sortedData[i - 1];
+                        if (!prev?.price || !d?.price) continue;
+                        const y = d.date.getFullYear();
+                        const m = d.date.getMonth();
+                        const key = `${y}-${m}`;
+                        monthlyMap.set(key, {
+                            year: y,
+                            month: m,
+                            first: prev.price,
+                            last: d.price,
+                            retPct: ((d.price / prev.price) - 1) * 100
+                        });
                     }
-                });
+                } else {
+                    // Daily data: group by month and take first and last price inside the month.
+                    sortedData.forEach(d => {
+                        const y = d.date.getFullYear();
+                        const m = d.date.getMonth(); // 0-11
+                        const key = `${y}-${m}`;
+                        if (!monthlyMap.has(key)) {
+                            monthlyMap.set(key, { year: y, month: m, first: d.price, last: d.price });
+                        } else {
+                            monthlyMap.get(key).last = d.price;
+                        }
+                    });
+                }
 
                 // Get annual returns from year-end prices
                 const yearPrices = {};
-                data.forEach(d => {
+                sortedData.forEach(d => {
                     const y = d.date.getFullYear();
                     if (!yearPrices[y]) yearPrices[y] = { first: d.price, last: d.price };
                     yearPrices[y].last = d.price;
@@ -4201,7 +4231,7 @@
                         const key = `${year}-${m}`;
                         const entry = monthlyMap.get(key);
                         if (entry && entry.first !== 0) {
-                            const ret = ((entry.last / entry.first) - 1) * 100;
+                            const ret = Number.isFinite(entry.retPct) ? entry.retPct : ((entry.last / entry.first) - 1) * 100;
                             rowZ.push(ret);
                             rowText.push(ret >= 0 ? `+${ret.toFixed(1)}` : ret.toFixed(1));
                             totalMonths++;
@@ -4528,8 +4558,12 @@
                 const oilX = oilRaw.map(d => d.date), oilY = oilRaw.map(d => d.price);
                 Plotly.newPlot('oilPriceChart', [{ x: oilX, y: oilY, type: 'scatter', mode: 'lines', line: { color: 'black', width: 1.5 }, name: 'Petróleo (CL=F)' }, { x: [oilX[0], oilX[oilX.length - 1]], y: [100, 100], type: 'scatter', mode: 'lines', line: { color: 'red', dash: 'dash', width: 2 }, name: 'Umbral 100' }], { title: 'Evolución Petróleo (CL=F)', yaxis: { title: 'Precio (USD)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
                 const tbody = document.getElementById('oilStatsTableBody');
-                const order = ['1 semana', '1 mes', '6 meses', '12 meses', '36 meses'];
-                const sortedStats = stats.sort((a, b) => order.indexOf(a.horizon) - order.indexOf(b.horizon));
+                const order = ['1 semana', '1 mes', '6 meses', '12 meses', '36 meses', '60 meses'];
+                const orderIndex = (label) => {
+                    const idx = order.indexOf(label);
+                    return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+                };
+                const sortedStats = [...stats].sort((a, b) => orderIndex(a.horizon) - orderIndex(b.horizon));
                 tbody.innerHTML = sortedStats.map(r => `<tr class="border-b hover:bg-gray-50"><td class="px-4 py-3 font-medium">${r.horizon}</td><td class="px-4 py-3 text-center text-gray-500">${r.events}</td><td class="px-4 py-3 text-right font-bold">${fmtPct(r.mean)}</td><td class="px-4 py-3 text-right">${fmtPct(r.median)}</td><td class="px-4 py-3 text-right text-red-500">${fmtPct(r.min)}</td><td class="px-4 py-3 text-right text-green-600">${fmtPct(r.max)}</td><td class="px-4 py-3 text-right">${r.positives}</td><td class="px-4 py-3 text-right font-bold text-blue-600">${fmtPct(r.winRate)}</td></tr>`).join('');
 
                 // Oil Bar Chart (Updated Style)
@@ -5229,19 +5263,45 @@
                 }, { responsive: true });
             }
 
-            function calculateSeasonality(data) {
-                function rr(fn) { const g = {}; data.forEach(d => g[fn(d.date)] = d.price); const k = Object.keys(g).sort(); const r = []; for (let i = 1; i < k.length; i++) r.push({ k: k[i], v: (g[k[i]] / g[k[i - 1]]) - 1 }); return r; }
-                const wR = rr(d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + 4 - (x.getDay() || 7)); return `${x.getFullYear()}-W${Math.ceil((((x - new Date(x.getFullYear(), 0, 1)) / 86400000) + 1) / 7)}`; });
-                const wA = new Array(54).fill(0).map(() => []); wR.forEach(i => { const w = parseInt(i.k.split('-W')[1]); if (w) wA[w].push(i.v) });
+            function calculateSeasonality(data, freq = currentDataFrequency) {
+                const effectiveFreq = freq || inferDataFrequency(data);
+                function rr(fn) {
+                    const grouped = new Map();
+                    data.forEach(d => {
+                        const key = fn(d.date);
+                        grouped.set(key, { k: key, date: d.date, price: d.price });
+                    });
+                    const points = Array.from(grouped.values()).sort((a, b) => a.date - b.date);
+                    const returns = [];
+                    for (let i = 1; i < points.length; i++) {
+                        if (points[i - 1].price) returns.push({ k: points[i].k, v: (points[i].price / points[i - 1].price) - 1 });
+                    }
+                    return returns;
+                }
+                let weekly = null;
+                if (effectiveFreq === 'D') {
+                    const wR = rr(d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + 4 - (x.getDay() || 7)); return `${x.getFullYear()}-W${Math.ceil((((x - new Date(x.getFullYear(), 0, 1)) / 86400000) + 1) / 7)}`; });
+                    const wA = new Array(54).fill(0).map(() => []); wR.forEach(i => { const w = parseInt(i.k.split('-W')[1]); if (w) wA[w].push(i.v) });
+                    weekly = wA.map(a => a.length ? getMean(a) : null);
+                }
                 const mR = rr(d => `${d.getFullYear()}-${d.getMonth()}`); const mA = new Array(12).fill(0).map(() => []); mR.forEach(i => mA[parseInt(i.k.split('-')[1])].push(i.v));
                 const qR = rr(d => `${d.getFullYear()}-${Math.floor(d.getMonth() / 3) + 1}`); const qA = new Array(5).fill(0).map(() => []); qR.forEach(i => qA[parseInt(i.k.split('-')[1])].push(i.v));
-                return { weekly: wA.map(a => a.length ? getMean(a) : null), monthly: mA.map(a => a.length ? getMean(a) : 0), quarterly: qA.map(a => a.length ? getMean(a) : null) };
+                return { frequency: effectiveFreq, weekly, monthly: mA.map(a => a.length ? getMean(a) : 0), quarterly: qA.map(a => a.length ? getMean(a) : null) };
             }
             function getWeekNumber(d) { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d - yearStart) / 86400000) + 1) / 7); }
+            function renderUnavailableChartMessage(elementId, message) {
+                const el = document.getElementById(elementId);
+                if (!el) return;
+                el.innerHTML = `<div class="h-full min-h-[220px] flex items-center justify-center rounded border border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-600">${message}</div>`;
+            }
             function renderSeasonalityCharts(d, t) {
                 const n = new Date(); const cm = n.getMonth(); const cq = Math.floor(cm / 3) + 1; const cw = getWeekNumber(n);
-                const wColors = Array.from({ length: 53 }, (_, i) => (i + 1) === cw ? 'black' : '#3b82f6');
-                Plotly.newPlot('weeklyChart', [{ x: Array.from({ length: 53 }, (_, i) => i + 1), y: d.weekly.slice(1), text: d.weekly.slice(1).map(v => fmtPct(v)), textposition: 'outside', type: 'bar', marker: { color: wColors } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
+                if (d.weekly) {
+                    const wColors = Array.from({ length: 53 }, (_, i) => (i + 1) === cw ? 'black' : '#3b82f6');
+                    Plotly.newPlot('weeklyChart', [{ x: Array.from({ length: 53 }, (_, i) => i + 1), y: d.weekly.slice(1), text: d.weekly.slice(1).map(v => fmtPct(v)), textposition: 'outside', type: 'bar', marker: { color: wColors } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
+                } else {
+                    renderUnavailableChartMessage('weeklyChart', `Estacionalidad semanal no disponible con frecuencia ${frequencyLabel(d.frequency).toLowerCase()}. Carga una serie diaria para analizar patrones por semana.`);
+                }
                 Plotly.newPlot('monthlyChart', [{ x: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], y: d.monthly, text: d.monthly.map(v => fmtPct(v)), textposition: 'auto', type: 'bar', marker: { color: d.monthly.map((_, i) => i === cm ? 'black' : '#3b82f6') } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
                 Plotly.newPlot('quarterlyChart', [{ x: ['Q1', 'Q2', 'Q3', 'Q4'], y: d.quarterly.slice(1), text: d.quarterly.slice(1).map(v => fmtPct(v)), textposition: 'auto', type: 'bar', marker: { color: [1, 2, 3, 4].map(i => i === cq ? 'black' : '#3b82f6') } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
             }
