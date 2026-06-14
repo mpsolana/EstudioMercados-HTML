@@ -690,7 +690,7 @@
                 </div>
                 <div class="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="px-5 py-3 bg-slate-900 text-white flex items-center justify-between">
-                        <h3 class="font-bold"><i class="fa-solid fa-file-signature mr-2"></i>Informe profesional de cartera</h3>
+                        <h3 class="font-bold"><i class="fa-solid fa-file-signature mr-2"></i>Informe Cartera</h3>
                         <span id="portfolioReportStatus" class="text-xs text-slate-300">Pendiente de generar</span>
                     </div>
                     <div id="portfolioReportPreview" class="p-5 text-sm text-slate-500">
@@ -855,15 +855,23 @@
             function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
                 const x = portfolioData.map(d => d.date);
                 const y = portfolioData.map(d => d.price);
+                const rsi = calculateRSI(y, 14);
                 const traces = [
                     { x, y, mode: 'lines', name: mode === 'real' ? 'Cartera real' : 'Backtest', line: { color: '#2563eb', width: 2.2 } },
-                    { x, y: movingAverageValues(y, 50), mode: 'lines', name: 'Media móvil 50', line: { color: '#f59e0b', width: 1.8 } }
+                    { x, y: movingAverageValues(y, 50), mode: 'lines', name: 'Media móvil 50', line: { color: '#f59e0b', width: 1.8 } },
+                    { x, y: movingAverageValues(y, 200), mode: 'lines', name: 'Media móvil 200', line: { color: '#0f172a', width: 1.8 } },
+                    { x, y: rsi, yaxis: 'y2', mode: 'lines', name: 'RSI 14', line: { color: '#7c3aed', width: 1.7 } }
                 ];
                 Plotly.newPlot('portfolioChart', traces, {
                     title: mode === 'real' ? 'Evolución real de la cartera' : 'Evolución cartera (Backtest)',
                     margin: { t: 40, l: 60, r: 20, b: 40 },
-                    yaxis: { title: 'Patrimonio' },
-                    legend: { orientation: 'h', y: -0.15 }
+                    yaxis: { title: 'Patrimonio', domain: [0.33, 1] },
+                    yaxis2: { title: 'RSI', domain: [0, 0.22], range: [0, 100] },
+                    legend: { orientation: 'h', y: -0.18 },
+                    shapes: [
+                        { type: 'line', x0: x[0], x1: x[x.length - 1], y0: 70, y1: 70, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } },
+                        { type: 'line', x0: x[0], x1: x[x.length - 1], y0: 30, y1: 30, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } }
+                    ]
                 }, { responsive: true });
             }
 
@@ -1770,15 +1778,15 @@
                     setPortfolioReportProgress(62, 'Capturando gráficos y tablas...');
                     const visualSections = await buildPortfolioReportVisualSections();
                     setPortfolioReportProgress(88, 'Maquetando informe PDF...');
-                    portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe cartera</title>${portfolioReportStyles()}</head><body>
+                    portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe Cartera</title>${portfolioReportStyles()}</head><body>
                     <section class="report">
                         <header class="cover">
                             <div>
-                                <div class="eyebrow">Informe profesional de cartera</div>
+                                <div class="eyebrow">Informe Cartera</div>
                                 <h1>${p.mode === 'real' ? 'Evolución real de cartera' : 'Backtesting de cartera'}</h1>
                                 <p>${fmtDate(start)} - ${fmtDate(end)}</p>
                             </div>
-                            <div class="stamp">MPS MarketAnalyzer</div>
+                            <div class="stamp">Analyzer</div>
                         </header>
                         <section class="summary">
                             <div><span>Rentabilidad total</span><strong>${fmtPct(metrics.totalRet)}</strong></div>
@@ -1796,7 +1804,7 @@
                             <h2>Métricas principales de la cartera</h2>
                             <p class="indented">Resumen cuantitativo del periodo analizado. Estas métricas permiten contrastar crecimiento, riesgo realizado, peor pérdida histórica y consistencia temporal antes de entrar en el detalle gráfico.</p>
                             <table class="kv-table">${metricRows}</table>
-                            <p class="analysis-note"><b>Comentario analítico:</b> ${reading}</p>
+                            <p class="analysis-note"><b>Descripción:</b> ${reading}</p>
                             <p class="method-note"><b>Metodología:</b> rentabilidad total por capitalización simple, CAGR anualizado por días naturales, volatilidad anualizada según frecuencia detectada y drawdown calculado como caída desde máximos acumulados.</p>
                         </section>
                         ${visualSections}
@@ -1805,7 +1813,7 @@
                             <p>El análisis combina rentabilidad acumulada, crecimiento anualizado, volatilidad y drawdown máximo para evaluar si el riesgo asumido está siendo compensado. El drawdown mide la peor pérdida desde máximos y es clave para valorar tolerancia del cliente y capacidad de permanencia.</p>
                             <p>${p.mode === 'real' ? 'La modalidad real refleja la evolución observada de la cartera aportada en el Excel, por lo que incorpora movimientos, comisiones o cambios ya contenidos en el valor importado.' : 'La modalidad backtest reconstruye la cartera con pesos normalizados y series históricas. Es útil para estudiar comportamiento teórico, pero no sustituye una contabilidad real con operaciones y flujos.'}</p>
                         </section>
-                        <footer>Generado el ${new Date().toLocaleString('es-ES')}.</footer>
+                        <footer>Analyzer · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
                     </section>
                 </body></html>`;
                     document.getElementById('portfolioReportPreview').innerHTML = portfolioReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || portfolioReportHtml;
@@ -1824,6 +1832,11 @@
                 if (simsInput) simsInput.value = '10000';
                 if (capitalInput) capitalInput.value = '1000';
                 if (yearsInput) yearsInput.value = '15';
+                if (loadedPortfolio?.portfolioData?.length) {
+                    currentData = loadedPortfolio.portfolioData.map(d => ({ date: d.date, price: d.price }));
+                    currentTicker = 'CARTERA';
+                    currentDataFrequency = loadedPortfolio.frequency || inferDataFrequency(currentData);
+                }
                 await waitForUiFrame();
                 await runForecastSimulations();
                 await waitForUiFrame();
@@ -1861,29 +1874,54 @@
                     {
                         title: 'Resumen cartera y composición',
                         note: 'Evolución patrimonial, pesos de cartera y correlaciones anuales entre activos.',
-                        method: 'La evolución se calcula capitalizando los retornos de la cartera. La media móvil usa 50 observaciones. La correlación se recalcula con ventanas anuales para reducir ruido de corto plazo.',
-                        charts: [['portfolioChart', 'Evolución de cartera y media móvil 50'], ['portfolioCompositionChart', 'Composición de la cartera'], ['portfolioCorrMatrixChart', 'Matriz de correlaciones anuales'], ['portfolioRollingCorrChart', 'Rolling correlation de activos']]
+                        method: 'La evolución se calcula capitalizando los retornos de la cartera. Las medias móviles usan 50 y 200 observaciones; el RSI usa 14 periodos. La correlación se recalcula con ventanas anuales para reducir ruido de corto plazo.',
+                        items: [
+                            { type: 'chart', id: 'portfolioChart', title: 'Evolución de cartera, medias móviles y RSI' },
+                            { type: 'chart', id: 'portfolioCompositionChart', title: 'Composición de la cartera' },
+                            { type: 'chart', id: 'portfolioCorrMatrixChart', title: 'Matriz de correlaciones anuales' },
+                            { type: 'chart', id: 'portfolioRollingCorrChart', title: 'Rolling correlation de activos' }
+                        ]
                     },
                     {
                         title: 'Rentabilidades históricas y esperadas',
                         note: 'Rango histórico por plazo, escenarios de distribución de activos, rentabilidades móviles y distribución anual.',
                         method: 'Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de pérdida del 0%. Para plazos de un año o más se expresa la rentabilidad anualizada.',
-                        charts: [['assetAllocationScenarioChart', 'Rango max/media/min por plazo'], ['assetAllocationCumulativeChart', 'Evolución mensual de la asignación'], ['barChart', 'Rangos de rentabilidad móvil'], ['lineChart', 'Rentabilidad anualizada móvil'], ['returnsChart', 'Retornos y bandas sigma'], ['returnsHistogram', 'Distribución de rentabilidades'], ['annualDistChart', 'Rentabilidad anual y caídas intra-año'], ['monthlyHeatmapChart', 'Mapa de calor mensual']],
-                        tables: [['assetAllocationStatsBody', 'Escenarios por plazo'], ['sigmaEventsTableBody', 'Eventos extremos sigma'], ['annualTableBody', 'Resumen por años']]
+                        items: [
+                            { type: 'chart', id: 'assetAllocationScenarioChart', title: 'Rango max/media/min por plazo' },
+                            { type: 'table', id: 'assetAllocationStatsBody', title: 'Escenarios por plazo' },
+                            { type: 'chart', id: 'barChart', title: 'Rangos de rentabilidad móvil' },
+                            { type: 'chart', id: 'lineChart', title: 'Rentabilidad anualizada móvil' },
+                            { type: 'chart', id: 'returnsChart', title: 'Retornos y bandas sigma' },
+                            { type: 'table', id: 'sigmaEventsTableBody', title: 'Eventos extremos sigma' },
+                            { type: 'chart', id: 'returnsHistogram', title: 'Distribución de rentabilidades' },
+                            { type: 'chart', id: 'annualDistChart', title: 'Rentabilidad anual y caídas intra-año' },
+                            { type: 'chart', id: 'monthlyHeatmapChart', title: 'Mapa de calor mensual' },
+                            { type: 'table', id: 'annualTableBody', title: 'Resumen por años' }
+                        ]
                     },
                     {
                         title: 'Drawdowns',
                         note: 'Profundidad, duración y recuperación de las caídas históricas de la cartera.',
                         method: 'El drawdown se mide como pérdida porcentual desde el máximo acumulado previo. La recuperación se identifica cuando la serie vuelve a superar el máximo anterior.',
-                        charts: [['drawdownChart', 'Curva submarina'], ['ddSpaghettiChart', 'Episodios de drawdown comparables']],
-                        tables: [['drawdownTableBody', 'Top episodios drawdown'], ['drawdownDurationTableBody', 'Duración de drawdowns']]
+                        items: [
+                            { type: 'chart', id: 'drawdownChart', title: 'Curva submarina' },
+                            { type: 'table', id: 'drawdownTableBody', title: 'Top episodios drawdown' },
+                            { type: 'chart', id: 'ddSpaghettiChart', title: 'Episodios de drawdown comparables' },
+                            { type: 'table', id: 'drawdownDurationTableBody', title: 'Duración de drawdowns' }
+                        ]
                     },
                     {
                         title: 'Forecast Monte Carlo',
                         note: 'Simulación específica del informe: 10.000 simulaciones, horizonte de 15 años y capital inicial de 1.000 EUR/u.m.',
                         method: 'Modelo geométrico sobre log-retornos históricos de la cartera. Los resultados se presentan como percentiles, probabilidades de superar umbrales y distribución de máximo drawdown simulado.',
-                        charts: [['forecastBalanceChart', 'Backtest y percentiles a 12 meses'], ['forecastLongTermChart', 'Evolución a largo plazo por percentiles'], ['forecastDrawdownHist', 'Histograma de máximo drawdown simulado']],
-                        tables: [['forecastPerfTable', 'Performance Summary'], ['forecastExpectedTable', 'Expected Annual Return'], ['forecastProbTable', 'Probabilidades anuales']]
+                        items: [
+                            { type: 'chart', id: 'forecastBalanceChart', title: 'Backtest y percentiles a 12 meses' },
+                            { type: 'chart', id: 'forecastLongTermChart', title: 'Evolución a largo plazo por percentiles' },
+                            { type: 'chart', id: 'forecastDrawdownHist', title: 'Histograma de máximo drawdown simulado' },
+                            { type: 'table', id: 'forecastPerfTable', title: 'Performance Summary' },
+                            { type: 'table', id: 'forecastExpectedTable', title: 'Expected Annual Return' },
+                            { type: 'table', id: 'forecastProbTable', title: 'Probabilidades anuales' }
+                        ]
                     }
                 ];
                 const html = [];
@@ -1891,28 +1929,29 @@
                     const section = sections[sectionIndex];
                     setPortfolioReportProgress(62 + Math.round((sectionIndex / Math.max(1, sections.length)) * 24), `Capturando ${section.title}...`);
                     await waitForUiFrame();
-                    const chartBlocks = [];
-                    for (const [id, title] of section.charts || []) {
-                        const img = await capturePlotlyReportImage(id);
-                        if (img) {
-                            chartBlocks.push(`<figure><figcaption>${escapeHtml(title)}</figcaption><img src="${img}" alt="${escapeHtml(title)}"><p class="analysis-note"><b>Comentario analítico:</b> ${escapeHtml(reportInsightForItem(id, title))}</p><p class="method-note"><b>Metodología:</b> ${escapeHtml(reportMethodForItem(id, title))}</p></figure>`);
+                    const itemBlocks = [];
+                    for (const item of section.items || []) {
+                        if (item.type === 'chart') {
+                            const img = await capturePlotlyReportImage(item.id);
+                            if (img) itemBlocks.push(`<figure><figcaption>${escapeHtml(item.title)}</figcaption><img src="${img}" alt="${escapeHtml(item.title)}"><p class="analysis-note"><b>Descripción:</b> ${escapeHtml(reportInsightForItem(item.id, item.title))}</p><p class="method-note"><b>Metodología:</b> ${escapeHtml(reportMethodForItem(item.id, item.title))}</p></figure>`);
+                        } else if (item.type === 'table') {
+                            const table = cloneReportTable(item.id, item.title);
+                            if (table) itemBlocks.push(table);
                         }
                     }
-                    const tableBlocks = (section.tables || []).map(([id, title]) => cloneReportTable(id, title)).filter(Boolean);
-                    if (!chartBlocks.length && !tableBlocks.length) continue;
-                    html.push(`<section class="block report-visuals"><h2>${escapeHtml(section.title)}</h2><p class="indented">${escapeHtml(section.note)}</p><p class="method-note section-method"><b>Metodología del epígrafe:</b> ${escapeHtml(section.method || '')}</p><div class="chart-grid">${chartBlocks.join('')}</div>${tableBlocks.join('')}</section>`);
+                    if (!itemBlocks.length) continue;
+                    html.push(`<section class="block report-visuals"><h2>${escapeHtml(section.title)}</h2><p class="indented">${escapeHtml(section.note)}</p><p class="method-note section-method"><b>Metodología del epígrafe:</b> ${escapeHtml(section.method || '')}</p><div class="chart-grid">${itemBlocks.join('')}</div></section>`);
                 }
                 return html.join('');
             }
 
             function reportInsightForItem(id, title) {
                 const map = {
-                    portfolioChart: 'Permite evaluar si el crecimiento de la cartera es estable o depende de episodios concretos; la media móvil ayuda a distinguir tendencia de ruido.',
+                    portfolioChart: 'Permite evaluar si el crecimiento de la cartera es estable o depende de episodios concretos; las medias móviles ayudan a distinguir tendencia primaria/secundaria y el RSI aporta lectura de momento.',
                     portfolioCompositionChart: 'Muestra la concentración inicial del riesgo por activo. Pesos muy elevados en pocos activos aumentan dependencia específica.',
                     portfolioCorrMatrixChart: 'Correlaciones altas reducen la diversificación efectiva; correlaciones bajas o negativas mejoran la estabilidad de la cartera.',
                     portfolioRollingCorrChart: 'La correlación media entre activos no es constante. Subidas fuertes suelen indicar que la diversificación se deteriora en estrés.',
                     assetAllocationScenarioChart: 'Resume el rango histórico de resultados por plazo. Cuanto más alto sea el mínimo histórico, mayor robustez temporal muestra la asignación.',
-                    assetAllocationCumulativeChart: 'Contrasta la progresión compuesta de la asignación con los episodios de caída y recuperación.',
                     barChart: 'Compara ventanas de inversión y ayuda a estimar qué plazos han compensado mejor el riesgo asumido.',
                     lineChart: 'Detecta cambios de régimen en la rentabilidad anualizada móvil.',
                     returnsChart: 'Las bandas sigma sitúan los movimientos extremos frente al comportamiento medio de la serie.',
@@ -1937,7 +1976,8 @@
             }
 
             function reportMethodForItem(id, title) {
-                if (id.startsWith('forecast')) return 'Monte Carlo con log-retornos históricos, 10.000 simulaciones, horizonte de 15 años y capital inicial 1.000.';
+                if (id === 'portfolioChart') return 'Serie de cartera capitalizada, medias móviles simples de 50 y 200 observaciones, y RSI de 14 periodos en panel secundario.';
+                if (id.startsWith('forecast')) return 'Monte Carlo con log-retornos históricos de la cartera cargada, 10.000 simulaciones, horizonte de 15 años y capital inicial 1.000.';
                 if (id === 'assetAllocationStatsBody') return 'Ventanas móviles por plazo sobre retornos de los activos de cartera, pesos normalizados y umbral de rentabilidad inferior fijado al 0%.';
                 if (id === 'annualTableBody') return 'Agregación por años naturales a partir de la serie de cartera cargada.';
                 if (id === 'sigmaEventsTableBody') return 'Eventos detectados cuando el retorno queda fuera de las bandas de tres desviaciones típicas.';
@@ -1972,7 +2012,7 @@
                     el.removeAttribute('class');
                     el.removeAttribute('style');
                 });
-                return `<div class="table-block"><h3>${escapeHtml(title)}</h3>${clone.outerHTML}<p class="analysis-note"><b>Comentario analítico:</b> ${escapeHtml(reportInsightForItem(bodyId, title))}</p><p class="method-note"><b>Metodología:</b> ${escapeHtml(reportMethodForItem(bodyId, title))}</p></div>`;
+                return `<div class="table-block"><h3>${escapeHtml(title)}</h3>${clone.outerHTML}<p class="analysis-note"><b>Descripción:</b> ${escapeHtml(reportInsightForItem(bodyId, title))}</p><p class="method-note"><b>Metodología:</b> ${escapeHtml(reportMethodForItem(bodyId, title))}</p></div>`;
             }
 
             function safeFmtDate(d) {
@@ -2053,37 +2093,39 @@
                 return `<style>
                     @page{size:A4;margin:10mm}
                     *{box-sizing:border-box}
-                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}
-                    .report{width:190mm;max-width:190mm;margin:0 auto;background:white;padding:18mm 14mm}
-                    .cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:18px;margin-bottom:18px}
-                    .eyebrow{text-transform:uppercase;font-size:10px;font-weight:800;color:#64748b;letter-spacing:.08em}
-                    h1{font-size:28px;margin:6px 0;color:#0f172a;line-height:1.12}
-                    h2{font-size:17px;margin:0 0 12px;color:#0f172a;border-left:4px solid #1d4ed8;padding-left:10px;font-weight:800}
-                    h3{font-size:12px;margin:12px 0 8px;color:#1e293b;font-weight:800}
-                    .stamp{font-size:11px;font-weight:800;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px;white-space:nowrap}
+                    body{font-family:Arial,Helvetica,sans-serif;color:#172033;background:#eef2f7;margin:0}
+                    .report{width:190mm;max-width:190mm;margin:0 auto;background:white;padding:0 14mm 16mm;border-top:7px solid #0b1f3a}
+                    .cover{display:flex;justify-content:space-between;align-items:flex-start;background:#0b1f3a;color:white;margin:0 -14mm 18px;padding:18mm 14mm 14mm;border-bottom:4px solid #b78b20}
+                    .eyebrow{text-transform:uppercase;font-size:10px;font-weight:800;color:#d8b44a;letter-spacing:.11em}
+                    h1{font-size:29px;margin:7px 0 4px;color:white;line-height:1.1}
+                    .cover p{color:#dbe5f2;font-size:11px;margin-top:8px;text-indent:0}
+                    h2{font-size:16px;margin:0 0 12px;color:#0b1f3a;border-left:4px solid #b78b20;padding-left:10px;font-weight:800;letter-spacing:.01em}
+                    h3{font-size:12px;margin:12px 0 8px;color:#0b1f3a;font-weight:800}
+                    .stamp{font-size:11px;font-weight:800;color:#0b1f3a;background:#fff;border:1px solid #d8b44a;border-radius:2px;padding:8px 10px;white-space:nowrap}
                     .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-                    .summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:12px;min-width:0}
-                    .summary span{display:block;font-size:9px;color:#64748b;text-transform:uppercase;font-weight:800}
-                    .summary strong{display:block;font-size:18px;margin-top:4px;line-height:1.15}
-                    .block{border:1px solid #dbe4ef;border-radius:8px;padding:14px;margin-bottom:14px;break-inside:avoid-page;background:#fff}
+                    .summary div{background:#f7f9fc;border:1px solid #d9e1ec;border-top:3px solid #b78b20;border-radius:2px;padding:12px;min-width:0}
+                    .summary span{display:block;font-size:9px;color:#5d6b80;text-transform:uppercase;font-weight:800}
+                    .summary strong{display:block;font-size:18px;margin-top:4px;line-height:1.15;color:#0b1f3a}
+                    .block{border:1px solid #d9e1ec;border-radius:2px;padding:14px;margin-bottom:14px;break-inside:avoid-page;background:#fff}
                     .chart-grid{display:grid;grid-template-columns:1fr;gap:12px}
-                    figure{margin:0;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;break-inside:avoid-page}
-                    figcaption{font-size:10px;text-transform:uppercase;font-weight:800;color:#334155;margin-bottom:8px;letter-spacing:.03em}
-                    figure img{display:block;width:100%;max-height:132mm;object-fit:contain;background:white;border-radius:4px;border:1px solid #eef2f7}
-                    .table-block{margin-top:12px;break-inside:avoid-page;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff}
+                    figure{margin:0;border:1px solid #d9e1ec;border-radius:2px;padding:10px;background:#fbfcfe;break-inside:avoid-page}
+                    figcaption{font-size:10px;text-transform:uppercase;font-weight:800;color:#0b1f3a;margin-bottom:8px;letter-spacing:.05em;border-bottom:1px solid #d9e1ec;padding-bottom:5px}
+                    figure img{display:block;width:100%;max-height:132mm;object-fit:contain;background:white;border-radius:1px;border:1px solid #edf1f7}
+                    .table-block{margin-top:12px;break-inside:avoid-page;border:1px solid #d9e1ec;border-radius:2px;padding:10px;background:#fff}
                     table{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed}
-                    th{background:#eaf0f7;color:#334155;text-align:left;text-transform:uppercase;font-size:8.5px;letter-spacing:.03em;padding:6px;font-weight:800;word-break:break-word}
+                    th{background:#0b1f3a;color:#ffffff;text-align:left;text-transform:uppercase;font-size:8.5px;letter-spacing:.03em;padding:6px;font-weight:800;word-break:break-word;border-right:1px solid #263b59}
                     td{border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+                    tbody tr:nth-child(even) td{background:#f7f9fc}
                     tr:last-child td{border-bottom:0}
                     .kv-table td:first-child{width:42%;color:#475569;font-weight:700}
                     .num{text-align:right;font-weight:800}
                     .good{color:#047857}.bad{color:#dc2626}
                     p{line-height:1.55;color:#334155;margin:7px 0;font-size:11px}
                     .indented{text-indent:14px;text-align:justify}
-                    .analysis-note{background:#eff6ff;border-left:3px solid #2563eb;padding:7px 9px;margin-top:8px;border-radius:4px;color:#1e3a8a;text-indent:0}
-                    .method-note{background:#f8fafc;border-left:3px solid #94a3b8;padding:7px 9px;margin-top:6px;border-radius:4px;color:#475569;text-indent:0;font-size:10px}
+                    .analysis-note{background:#f8fafc;border-left:3px solid #b78b20;padding:7px 9px;margin-top:8px;border-radius:1px;color:#172033;text-indent:0}
+                    .method-note{background:#f7f9fc;border-left:3px solid #64748b;padding:7px 9px;margin-top:6px;border-radius:1px;color:#475569;text-indent:0;font-size:10px}
                     .section-method{margin-bottom:12px}
-                    footer{font-size:10px;color:#64748b;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:10px}
+                    footer{font-size:10px;color:#64748b;margin-top:20px;border-top:2px solid #0b1f3a;padding-top:10px}
                     @media print{body{background:white}.report{padding:0;width:auto;max-width:none}.block,figure,.table-block{page-break-inside:avoid}.summary{grid-template-columns:repeat(4,1fr)}}
                 </style>`;
             }
@@ -2095,16 +2137,16 @@
                 await waitForUiFrame();
                 const el = document.createElement('div');
                 el.innerHTML = portfolioReportHtml;
-                if (!window.html2pdf) return downloadBlob(portfolioReportHtml, 'informe_cartera.html', 'text/html;charset=utf-8');
-                await html2pdf().set({ margin: 8, filename: 'informe_cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
+                if (!window.html2pdf) return downloadBlob(portfolioReportHtml, 'Informe_Cartera.html', 'text/html;charset=utf-8');
+                await html2pdf().set({ margin: 8, filename: 'Informe_Cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
                 setPortfolioReportProgress(100, 'PDF generado');
             }
 
             async function downloadPortfolioReportWord() {
                 if (!portfolioReportHtml) await generatePortfolioReport();
                 if (!portfolioReportHtml) return;
-                if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(portfolioReportHtml), 'informe_cartera.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                return downloadBlob(portfolioReportHtml, 'informe_cartera.html', 'text/html;charset=utf-8');
+                if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(portfolioReportHtml), 'Informe_Cartera.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                return downloadBlob(portfolioReportHtml, 'Informe_Cartera.html', 'text/html;charset=utf-8');
             }
 
             // Small helper: sample covariance
