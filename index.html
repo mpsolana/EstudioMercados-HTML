@@ -570,6 +570,15 @@
                             <button onclick="downloadPortfolioReportPdf()" class="px-3 py-2 bg-white border border-blue-200 text-blue-800 rounded text-xs font-bold hover:bg-blue-100"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
                             <button onclick="downloadPortfolioReportWord()" class="px-3 py-2 bg-white border border-blue-200 text-blue-800 rounded text-xs font-bold hover:bg-blue-100"><i class="fa-solid fa-file-word mr-1"></i>Word</button>
                         </div>
+                        <div id="portfolioReportProgressWrap" class="hidden mt-3">
+                            <div class="flex items-center justify-between text-[11px] font-bold text-blue-900 mb-1">
+                                <span id="portfolioReportProgressLabel">Preparando informe...</span>
+                                <span id="portfolioReportProgressPct">0%</span>
+                            </div>
+                            <div class="h-2 w-full rounded-full bg-blue-100 overflow-hidden">
+                                <div id="portfolioReportProgressBar" class="h-full bg-blue-700 transition-all duration-300" style="width:0%"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -816,6 +825,24 @@
             let portfolioReportHtml = '';
             let portfolioImportMode = 'manual';
             let portfolioAnalysisPromise = null;
+
+            function setPortfolioReportProgress(percent, label) {
+                const wrap = document.getElementById('portfolioReportProgressWrap');
+                const bar = document.getElementById('portfolioReportProgressBar');
+                const pct = document.getElementById('portfolioReportProgressPct');
+                const text = document.getElementById('portfolioReportProgressLabel');
+                const status = document.getElementById('portfolioReportStatus');
+                const value = Math.max(0, Math.min(100, Math.round(percent || 0)));
+                if (wrap) wrap.classList.remove('hidden');
+                if (bar) bar.style.width = `${value}%`;
+                if (pct) pct.innerText = `${value}%`;
+                if (text && label) text.innerText = label;
+                if (status && label) status.innerText = label;
+            }
+
+            function waitForUiFrame() {
+                return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+            }
 
             function selectedPortfolioFrequency(data) {
                 const selected = document.getElementById('portfolioDataFrequency')?.value || 'auto';
@@ -1656,55 +1683,70 @@
 
             async function generatePortfolioReport() {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData?.length) return alert('Primero carga una cartera.');
-                if (portfolioAnalysisPromise) await portfolioAnalysisPromise;
-                if (!loadedPortfolio.analysisReady) await analyzeLoadedPortfolio(true);
-                const p = loadedPortfolio;
-                const data = p.portfolioData;
-                const dd = calculateDrawdownData(data);
-                const frequency = p.frequency || inferDataFrequency(data);
-                const metrics = calculateGeneralMetrics(data, frequency);
-                const episodes = calculateEpisodes(data, dd.cumulativeMax);
-                const rollingRowsData = calculateRollingStats(data, frequency).filter(r => Number.isFinite(r.meanTot) && Number.isFinite(r.minTot) && Number.isFinite(r.maxTot));
-                const seasonality = buildPortfolioSeasonalityRows(data);
-                const sensitivityRowsData = buildPortfolioSensitivityRows(data);
-                const start = data[0].date;
-                const end = data[data.length - 1].date;
-                const sharpe = p.portVolAnn ? p.cagr / p.portVolAnn : null;
-                const positiveDays = p.portfolioReturns?.length ? p.portfolioReturns.filter(r => r > 0).length / p.portfolioReturns.length : null;
-                const reading = portfolioExecutiveReading(p.cagr, p.portVolAnn, dd.maxDD, sharpe);
-                const compositionRows = (p.entries || []).map(e => `<tr><td>${escapeHtml(e.ticker)}</td><td class="num">${fmtPct(e.weight)}</td></tr>`).join('');
-                const metricRows = [
-                    ['Periodo', `${fmtDate(start)} - ${fmtDate(end)}`],
-                    ['Modalidad', p.mode === 'real' ? 'Evolucion real de cartera' : 'Backtesting teorico'],
-                    ['Fuente', escapeHtml(p.sourceLabel || 'Manual/Yahoo')],
-                    ['Frecuencia', frequencyLabel(frequency)],
-                    ['Rentabilidad total', fmtPct(metrics.totalRet)],
-                    ['CAGR', fmtPct(p.cagr)],
-                    ['Volatilidad anualizada', fmtPct(p.portVolAnn)],
-                    [`Rentabilidad media ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.meanRet)],
-                    [`Volatilidad ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.sigma)],
-                    [`VaR 95% ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.var95)],
-                    ['Max drawdown', fmtPct(dd.maxDD)],
-                    ['Sharpe aprox. rf=0', sharpe === null ? '-' : sharpe.toFixed(2)],
-                    ['Dias positivos', positiveDays === null ? '-' : fmtPct(positiveDays)],
-                    ['Mejor dia', `${fmtPct(metrics.bestDay)} (${fmtDate(metrics.bestDayDate)})`],
-                    ['Peor dia', `${fmtPct(metrics.worstDay)} (${fmtDate(metrics.worstDayDate)})`],
-                    ['Racha positiva max.', `${metrics.bestPosStreakInfo.len || 0} dias (${safeFmtDate(metrics.bestPosStreakInfo.start)} - ${safeFmtDate(metrics.bestPosStreakInfo.end)})`],
-                    ['Racha negativa max.', `${metrics.bestNegStreakInfo.len || 0} dias (${safeFmtDate(metrics.bestNegStreakInfo.start)} - ${safeFmtDate(metrics.bestNegStreakInfo.end)})`]
-                ].map(row => `<tr><td>${row[0]}</td><td class="num">${row[1]}</td></tr>`).join('');
-                const episodeRows = episodes.length ? episodes.slice(0, 7).map(e => `<tr><td>${fmtDate(e.start)}</td><td>${fmtDate(e.end)}</td><td>${e.recovery ? fmtDate(e.recovery) : 'No recuperado'}</td><td class="num">${fmtPct(e.drawdown)}</td><td class="num">${Math.round(e.underwater)} dias</td></tr>`).join('') : '<tr><td colspan="5">Sin episodios relevantes de drawdown.</td></tr>';
-                const rollingRows = rollingRowsData.length ? rollingRowsData.map(r => `<tr><td>${r.horizon}</td><td class="num">${fmtPct(r.meanTot)}</td><td class="num">${fmtPct(r.meanAnn)}</td><td class="num bad">${fmtPct(r.minTot)}</td><td class="num good">${fmtPct(r.maxTot)}</td></tr>`).join('') : '<tr><td colspan="5">Historico insuficiente para calcular ventanas moviles.</td></tr>';
-                const seasonalityRows = seasonality.map(r => `<tr><td>${r.month}</td><td class="num ${r.avg >= 0 ? 'good' : 'bad'}">${fmtPct(r.avg)}</td><td class="num">${r.samples}</td><td class="num good">${fmtPct(r.best)}</td><td class="num bad">${fmtPct(r.worst)}</td></tr>`).join('');
-                const sensitivityRows = sensitivityRowsData.length ? sensitivityRowsData.map(r => `<tr><td>${r.factor}</td><td class="num">${r.points}</td><td class="num">${r.correlation.toFixed(2)}</td><td class="num">${r.beta.toFixed(2)}</td><td>${escapeHtml(r.reading)}</td></tr>`).join('') : '<tr><td colspan="5">Sin datos auxiliares cargados. Pulsa Ejecutar Analisis Cartera para enriquecer sensibilidad a VIX, petroleo y tipos.</td></tr>';
-                const bestSeason = seasonality.reduce((a, b) => b.avg > a.avg ? b : a, seasonality[0]);
-                const worstSeason = seasonality.reduce((a, b) => b.avg < a.avg ? b : a, seasonality[0]);
-                const visualSections = await buildPortfolioReportVisualSections();
-                portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe cartera</title>${portfolioReportStyles()}</head><body>
+                try {
+                    setPortfolioReportProgress(3, 'Preparando informe ejecutivo...');
+                    await waitForUiFrame();
+                    if (portfolioAnalysisPromise) {
+                        setPortfolioReportProgress(8, 'Esperando análisis de cartera...');
+                        await portfolioAnalysisPromise;
+                    }
+                    if (!loadedPortfolio.analysisReady) {
+                        setPortfolioReportProgress(15, 'Ejecutando análisis completo de cartera...');
+                        await analyzeLoadedPortfolio(true);
+                    }
+                    setPortfolioReportProgress(35, 'Ejecutando forecast: 10.000 simulaciones, 15 años, 1.000 EUR...');
+                    await runPortfolioReportForecastScenario();
+                    setPortfolioReportProgress(55, 'Preparando métricas y epígrafes...');
+                    await waitForUiFrame();
+                    const p = loadedPortfolio;
+                    const data = p.portfolioData;
+                    const dd = calculateDrawdownData(data);
+                    const frequency = p.frequency || inferDataFrequency(data);
+                    const metrics = calculateGeneralMetrics(data, frequency);
+                    const episodes = calculateEpisodes(data, dd.cumulativeMax);
+                    const rollingRowsData = calculateRollingStats(data, frequency).filter(r => Number.isFinite(r.meanTot) && Number.isFinite(r.minTot) && Number.isFinite(r.maxTot));
+                    const seasonality = buildPortfolioSeasonalityRows(data);
+                    const sensitivityRowsData = buildPortfolioSensitivityRows(data);
+                    const start = data[0].date;
+                    const end = data[data.length - 1].date;
+                    const sharpe = p.portVolAnn ? p.cagr / p.portVolAnn : null;
+                    const positiveDays = p.portfolioReturns?.length ? p.portfolioReturns.filter(r => r > 0).length / p.portfolioReturns.length : null;
+                    const reading = portfolioExecutiveReading(p.cagr, p.portVolAnn, dd.maxDD, sharpe);
+                    const compositionRows = (p.entries || []).map(e => `<tr><td>${escapeHtml(e.ticker)}</td><td class="num">${fmtPct(e.weight)}</td></tr>`).join('');
+                    const metricRows = [
+                        ['Periodo', `${fmtDate(start)} - ${fmtDate(end)}`],
+                        ['Modalidad', p.mode === 'real' ? 'Evolución real de cartera' : 'Backtesting teórico'],
+                        ['Fuente', escapeHtml(p.sourceLabel || 'Manual/Yahoo')],
+                        ['Frecuencia', frequencyLabel(frequency)],
+                        ['Rentabilidad total', fmtPct(metrics.totalRet)],
+                        ['CAGR', fmtPct(p.cagr)],
+                        ['Volatilidad anualizada', fmtPct(p.portVolAnn)],
+                        [`Rentabilidad media ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.meanRet)],
+                        [`Volatilidad ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.sigma)],
+                        [`VaR 95% ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.var95)],
+                        ['Max drawdown', fmtPct(dd.maxDD)],
+                        ['Sharpe aprox. rf=0', sharpe === null ? '-' : sharpe.toFixed(2)],
+                        ['Periodos positivos', positiveDays === null ? '-' : fmtPct(positiveDays)],
+                        ['Mejor periodo', `${fmtPct(metrics.bestDay)} (${fmtDate(metrics.bestDayDate)})`],
+                        ['Peor periodo', `${fmtPct(metrics.worstDay)} (${fmtDate(metrics.worstDayDate)})`],
+                        ['Racha positiva max.', `${metrics.bestPosStreakInfo.len || 0} periodos (${safeFmtDate(metrics.bestPosStreakInfo.start)} - ${safeFmtDate(metrics.bestPosStreakInfo.end)})`],
+                        ['Racha negativa max.', `${metrics.bestNegStreakInfo.len || 0} periodos (${safeFmtDate(metrics.bestNegStreakInfo.start)} - ${safeFmtDate(metrics.bestNegStreakInfo.end)})`]
+                    ].map(row => `<tr><td>${row[0]}</td><td class="num">${row[1]}</td></tr>`).join('');
+                    const episodeRows = episodes.length ? episodes.slice(0, 10).map(e => `<tr><td>${fmtDate(e.start)}</td><td>${fmtDate(e.end)}</td><td>${e.recovery ? fmtDate(e.recovery) : 'No recuperado'}</td><td class="num">${fmtPct(e.drawdown)}</td><td class="num">${Math.round(e.underwater)} periodos</td></tr>`).join('') : '<tr><td colspan="5">Sin episodios relevantes de drawdown.</td></tr>';
+                    const rollingRows = rollingRowsData.length ? rollingRowsData.map(r => `<tr><td>${r.horizon}</td><td class="num">${fmtPct(r.meanTot)}</td><td class="num">${fmtPct(r.meanAnn)}</td><td class="num bad">${fmtPct(r.minTot)}</td><td class="num good">${fmtPct(r.maxTot)}</td></tr>`).join('') : '<tr><td colspan="5">Histórico insuficiente para calcular ventanas móviles.</td></tr>';
+                    const seasonalityRows = seasonality.map(r => `<tr><td>${r.month}</td><td class="num ${r.avg >= 0 ? 'good' : 'bad'}">${fmtPct(r.avg)}</td><td class="num">${r.samples}</td><td class="num good">${fmtPct(r.best)}</td><td class="num bad">${fmtPct(r.worst)}</td></tr>`).join('');
+                    const sensitivityRows = sensitivityRowsData.length ? sensitivityRowsData.map(r => `<tr><td>${r.factor}</td><td class="num">${r.points}</td><td class="num">${r.correlation.toFixed(2)}</td><td class="num">${r.beta.toFixed(2)}</td><td>${escapeHtml(r.reading)}</td></tr>`).join('') : '<tr><td colspan="5">Sin datos auxiliares cargados. Pulsa Ejecutar Análisis Cartera para enriquecer sensibilidad a VIX, petróleo y tipos.</td></tr>';
+                    const bestSeason = seasonality.reduce((a, b) => b.avg > a.avg ? b : a, seasonality[0]);
+                    const worstSeason = seasonality.reduce((a, b) => b.avg < a.avg ? b : a, seasonality[0]);
+                    setPortfolioReportProgress(62, 'Capturando gráficos y tablas...');
+                    const visualSections = await buildPortfolioReportVisualSections();
+                    setPortfolioReportProgress(88, 'Maquetando informe PDF...');
+                    portfolioReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe cartera</title>${portfolioReportStyles()}</head><body>
                     <section class="report">
                         <header class="cover">
                             <div>
                                 <div class="eyebrow">Informe profesional de cartera</div>
-                                <h1>${p.mode === 'real' ? 'Evolucion real de cartera' : 'Backtesting de cartera'}</h1>
+                                <h1>${p.mode === 'real' ? 'Evolución real de cartera' : 'Backtesting de cartera'}</h1>
                                 <p>${fmtDate(start)} - ${fmtDate(end)}</p>
                             </div>
                             <div class="stamp">MPS MarketAnalyzer</div>
@@ -1718,7 +1760,8 @@
                         <section class="block">
                             <h2>Resumen ejecutivo</h2>
                             <p>${reading}</p>
-                            <p>El periodo analizado cubre ${data.length} observaciones entre ${fmtDate(start)} y ${fmtDate(end)}. La lectura combina rentabilidad, riesgo realizado, profundidad de las caidas, recuperacion y estabilidad del comportamiento por calendario.</p>
+                            <p>El periodo analizado cubre ${data.length} observaciones entre ${fmtDate(start)} y ${fmtDate(end)}. La lectura combina rentabilidad, riesgo realizado, profundidad de las caídas, recuperación, estabilidad temporal y escenarios prospectivos Monte Carlo.</p>
+                            <p><b>Forecast del informe:</b> 10.000 simulaciones, horizonte de 15 años y capital inicial de 1.000 EUR/u.m. Las simulaciones usan log-retornos históricos de la cartera y se muestran como percentiles, probabilidades y distribución de drawdown.</p>
                         </section>
                         <section class="grid2">
                             <div class="block"><h2>Metricas principales</h2><table>${metricRows}</table></div>
@@ -1727,47 +1770,69 @@
                         ${visualSections}
                         <section class="block">
                             <h2>Drawdowns historicos</h2>
-                            <p>Los drawdowns muestran las mayores caidas desde maximos y el tiempo bajo el agua. Es la medida mas directa de dolor para el cliente.</p>
-                            <table><thead><tr><th>Inicio</th><th>Valle</th><th>Recuperacion</th><th>Caida</th><th>Tiempo bajo agua</th></tr></thead><tbody>${episodeRows}</tbody></table>
+                            <p>Los drawdowns muestran las mayores caídas desde máximos y el tiempo bajo el agua. Es la medida más directa de dolor para el cliente.</p>
+                            <table><thead><tr><th>Inicio</th><th>Valle</th><th>Recuperación</th><th>Caída</th><th>Tiempo bajo agua</th></tr></thead><tbody>${episodeRows}</tbody></table>
                         </section>
                         <section class="block">
-                            <h2>Rentabilidades moviles</h2>
-                            <p>Resumen de ventanas historicas: rentabilidad media, media anualizada, peor ventana y mejor ventana. Ayuda a separar resultado puntual de consistencia temporal.</p>
+                            <h2>Rentabilidades móviles</h2>
+                            <p>Resumen de ventanas históricas: rentabilidad media, media anualizada, peor ventana y mejor ventana. Ayuda a separar resultado puntual de consistencia temporal.</p>
                             <table><thead><tr><th>Ventana</th><th>Media total</th><th>Media anual</th><th>Peor</th><th>Mejor</th></tr></thead><tbody>${rollingRows}</tbody></table>
                         </section>
                         <section class="block">
                             <h2>Estacionalidad</h2>
-                            <p>Rentabilidad media por mes natural. Mejor mes historico: <b>${escapeHtml(bestSeason?.month || '-')}</b>. Peor mes historico: <b>${escapeHtml(worstSeason?.month || '-')}</b>.</p>
+                            <p>Rentabilidad media por mes natural. Mejor mes histórico: <b>${escapeHtml(bestSeason?.month || '-')}</b>. Peor mes histórico: <b>${escapeHtml(worstSeason?.month || '-')}</b>.</p>
                             <table><thead><tr><th>Mes</th><th>Media</th><th>Muestras</th><th>Mejor</th><th>Peor</th></tr></thead><tbody>${seasonalityRows}</tbody></table>
                         </section>
                         <section class="block">
                             <h2>Sensibilidades</h2>
-                            <p>Correlacion y beta diaria frente a factores de mercado disponibles. Beta positiva significa que la cartera tiende a moverse en el mismo sentido que el factor; beta negativa, en sentido contrario.</p>
+                            <p>Correlación y beta frente a factores de mercado disponibles. Beta positiva significa que la cartera tiende a moverse en el mismo sentido que el factor; beta negativa, en sentido contrario.</p>
                             <table><thead><tr><th>Factor</th><th>Obs.</th><th>Corr.</th><th>Beta</th><th>Lectura</th></tr></thead><tbody>${sensitivityRows}</tbody></table>
                         </section>
                         <section class="block">
                             <h2>Interpretacion para cliente</h2>
-                            <p>El analisis combina rentabilidad acumulada, crecimiento anualizado, volatilidad y drawdown maximo para evaluar si el riesgo asumido esta siendo compensado. El drawdown mide la peor perdida desde maximos y es clave para valorar tolerancia del cliente y capacidad de permanencia.</p>
-                            <p>${p.mode === 'real' ? 'La modalidad real refleja la evolucion observada de la cartera aportada en el Excel, por lo que incorpora movimientos, comisiones o cambios ya contenidos en el valor importado.' : 'La modalidad backtest reconstruye la cartera con pesos normalizados y series historicas. Es util para estudiar comportamiento teorico, pero no sustituye una contabilidad real con operaciones y flujos.'}</p>
+                            <p>El análisis combina rentabilidad acumulada, crecimiento anualizado, volatilidad y drawdown máximo para evaluar si el riesgo asumido está siendo compensado. El drawdown mide la peor pérdida desde máximos y es clave para valorar tolerancia del cliente y capacidad de permanencia.</p>
+                            <p>${p.mode === 'real' ? 'La modalidad real refleja la evolución observada de la cartera aportada en el Excel, por lo que incorpora movimientos, comisiones o cambios ya contenidos en el valor importado.' : 'La modalidad backtest reconstruye la cartera con pesos normalizados y series históricas. Es útil para estudiar comportamiento teórico, pero no sustituye una contabilidad real con operaciones y flujos.'}</p>
                         </section>
                         <footer>Generado el ${new Date().toLocaleString('es-ES')}.</footer>
                     </section>
                 </body></html>`;
-                document.getElementById('portfolioReportPreview').innerHTML = portfolioReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || portfolioReportHtml;
-                document.getElementById('portfolioReportStatus').innerText = 'Informe generado';
+                    document.getElementById('portfolioReportPreview').innerHTML = portfolioReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || portfolioReportHtml;
+                    setPortfolioReportProgress(100, 'Informe generado');
+                } catch (e) {
+                    console.error('generatePortfolioReport error:', e);
+                    setPortfolioReportProgress(100, 'Error generando informe');
+                    alert(`Error generando informe: ${e.message || e}`);
+                }
+            }
+
+            async function runPortfolioReportForecastScenario() {
+                const simsInput = document.getElementById('mcSims');
+                const capitalInput = document.getElementById('mcCapital');
+                const yearsInput = document.getElementById('mcYears');
+                if (simsInput) simsInput.value = '10000';
+                if (capitalInput) capitalInput.value = '1000';
+                if (yearsInput) yearsInput.value = '15';
+                await waitForUiFrame();
+                await runForecastSimulations();
+                await waitForUiFrame();
             }
 
             async function buildPortfolioReportVisualSections() {
                 const sections = [
-                    { title: 'Cartera cargada', note: 'Evolucion reconstruida, composicion y matriz de correlaciones calculadas al cargar la cartera.', charts: [['portfolioChart', 'Evolucion de cartera'], ['portfolioCompositionChart', 'Composicion'], ['portfolioCorrMatrixChart', 'Matriz de correlaciones']] },
-                    { title: 'Analisis general', note: 'Graficas y tablas de la pestana Analisis Individual aplicadas a la serie CARTERA.', charts: [['technicalChart', 'Precio, medias moviles y RSI'], ['returnsChart', 'Retornos y bandas sigma'], ['returnsHistogram', 'Distribucion de rentabilidades'], ['bestDaysBarChart', 'Impacto de perder mejores dias'], ['bestDaysLocationChart', 'Localizacion de mejores dias']], tables: [['metricsTableBody', 'Metricas principales'], ['sigmaEventsTableBody', 'Eventos extremos'], ['top10TableBody', 'Top mejores dias']] },
-                    { title: 'Drawdowns y caidas', note: 'Profundidad, duracion y comportamiento posterior a caidas historicas.', charts: [['drawdownChart', 'Curva submarina'], ['ddSpaghettiChart', 'Episodios comparables'], ['dipChart', 'Buy the dip']], tables: [['drawdownTableBody', 'Top episodios drawdown'], ['dipStatsTableBody', 'Estadisticas buy the dip'], ['drawdownDurationTableBody', 'Duracion de drawdowns']] },
-                    { title: 'Rentabilidades moviles y anuales', note: 'Consistencia historica por ventanas, anos naturales y distribucion anual.', charts: [['barChart', 'Ventanas anualizadas'], ['lineChart', 'Rentabilidad anualizada movil'], ['annualDistChart', 'Rentabilidad anual'], ['annualDistHistChart', 'Distribucion anual'], ['monthlyHeatmapChart', 'Mapa mensual']], tables: [['annualTableBody', 'Resumen por anos']] },
-                    { title: 'Estacionalidad', note: 'Patrones medios por semana, mes, trimestre, dia del ano y deciles estacionales.', charts: [['weeklyChart', 'Estacionalidad semanal'], ['monthlyChart', 'Estacionalidad mensual'], ['quarterlyChart', 'Estacionalidad trimestral'], ['seasonalityYoYChart', 'Evolucion anual estacional'], ['seasonalityDecilesChart', 'Deciles estacionales']] },
-                    { title: 'Sensibilidades', note: 'Lectura frente a factores de mercado cargados por el analisis individual.', charts: [['vixPriceChart', 'VIX'], ['vixBarChart', 'Retornos tras VIX alto'], ['vixScatterChart', 'VIX vs retorno futuro'], ['oilPriceChart', 'Petroleo'], ['oilBarChart', 'Retornos en episodios de petroleo'], ['ratesPriceChart', 'Tipos'], ['ratesHeatmapChart', 'Tipos y retorno futuro'], ['ratesBarChart', 'Regimenes de tipos'], ['ratesScatterChart', 'Scatter tipos']], tables: [['vixStatsTableBody', 'Estadisticas VIX'], ['vixPeaksTableBody', 'Picos VIX'], ['oilStatsTableBody', 'Estadisticas petroleo'], ['ratesStatsTableBody', 'Estadisticas tipos'], ['ratesMatrixTableBody', 'Matriz tipos/retornos']] }
+                    { title: 'Cartera cargada', note: 'Evolución reconstruida, composición, matriz de correlaciones y correlación dinámica calculadas al cargar la cartera.', charts: [['portfolioChart', 'Evolución de cartera'], ['portfolioCompositionChart', 'Composición'], ['portfolioCorrMatrixChart', 'Matriz de correlaciones'], ['portfolioRollingCorrChart', 'Rolling correlation de activos']] },
+                    { title: 'Distribución de activos', note: 'Rango histórico por plazo de inversión, evolución acumulada y tabla de escenarios con media, máximos, mínimos, drawdown y probabilidad bajo umbral.', charts: [['assetAllocationScenarioChart', 'Rango de rentabilidades por plazo'], ['assetAllocationCumulativeChart', 'Evolución de la asignación']], tables: [['assetAllocationStatsBody', 'Escenarios por plazo']] },
+                    { title: 'Análisis general', note: 'Gráficas y tablas de la pestaña Análisis Individual aplicadas a la serie CARTERA.', charts: [['technicalChart', 'Precio, medias móviles y RSI'], ['returnsChart', 'Retornos y bandas sigma'], ['returnsHistogram', 'Distribución de rentabilidades'], ['bestDaysBarChart', 'Impacto de perder mejores días'], ['bestDaysLocationChart', 'Localización de mejores días']], tables: [['metricsTableBody', 'Métricas principales'], ['sigmaEventsTableBody', 'Eventos extremos'], ['top10TableBody', 'Top mejores días']] },
+                    { title: 'Drawdowns y caídas', note: 'Profundidad, duración y comportamiento posterior a caídas históricas.', charts: [['drawdownChart', 'Curva submarina'], ['ddSpaghettiChart', 'Episodios comparables'], ['dipChart', 'Buy the dip']], tables: [['drawdownTableBody', 'Top episodios drawdown'], ['dipStatsTableBody', 'Estadísticas buy the dip'], ['drawdownDurationTableBody', 'Duración de drawdowns']] },
+                    { title: 'Rentabilidades móviles y anuales', note: 'Consistencia histórica por ventanas, años naturales y distribución anual.', charts: [['barChart', 'Ventanas anualizadas'], ['lineChart', 'Rentabilidad anualizada móvil'], ['annualDistChart', 'Rentabilidad anual'], ['annualDistHistChart', 'Distribución anual'], ['monthlyHeatmapChart', 'Mapa mensual']], tables: [['annualTableBody', 'Resumen por años']] },
+                    { title: 'Estacionalidad', note: 'Patrones medios por semana, mes, trimestre, día del año y deciles estacionales cuando la frecuencia de datos lo permite.', charts: [['weeklyChart', 'Estacionalidad semanal'], ['monthlyChart', 'Estacionalidad mensual'], ['quarterlyChart', 'Estacionalidad trimestral'], ['seasonalityYoYChart', 'Evolución anual estacional'], ['seasonalityDecilesChart', 'Deciles estacionales']] },
+                    { title: 'Sensibilidades', note: 'Lectura frente a factores de mercado cargados por el análisis individual.', charts: [['vixPriceChart', 'VIX'], ['vixBarChart', 'Retornos tras VIX alto'], ['vixScatterChart', 'VIX vs retorno futuro'], ['oilPriceChart', 'Petróleo'], ['oilBarChart', 'Retornos en episodios de petróleo'], ['ratesPriceChart', 'Tipos'], ['ratesHeatmapChart', 'Tipos y retorno futuro'], ['ratesBarChart', 'Regímenes de tipos'], ['ratesScatterChart', 'Scatter tipos']], tables: [['vixStatsTableBody', 'Estadísticas VIX'], ['vixPeaksTableBody', 'Picos VIX'], ['oilStatsTableBody', 'Estadísticas petróleo'], ['ratesStatsTableBody', 'Estadísticas tipos'], ['ratesMatrixTableBody', 'Matriz tipos/retornos']] },
+                    { title: 'Forecast Monte Carlo', note: 'Simulación específica del informe: 10.000 simulaciones, horizonte de 15 años y capital inicial de 1.000 EUR/u.m. Incluye todas las gráficas y tablas de la pestaña Forecast.', charts: [['forecastBalanceChart', 'Backtest y percentiles a 12 meses'], ['forecastLongTermChart', 'Evolución a largo plazo por percentiles'], ['forecastDrawdownHist', 'Histograma de máximo drawdown simulado']], tables: [['forecastPerfTable', 'Performance Summary'], ['forecastExpectedTable', 'Expected Annual Return'], ['forecastProbTable', 'Probabilidades anuales']] }
                 ];
                 const html = [];
-                for (const section of sections) {
+                for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
+                    const section = sections[sectionIndex];
+                    setPortfolioReportProgress(62 + Math.round((sectionIndex / Math.max(1, sections.length)) * 24), `Capturando ${section.title}...`);
+                    await waitForUiFrame();
                     const chartBlocks = [];
                     for (const [id, title] of section.charts || []) {
                         const img = await capturePlotlyReportImage(id);
@@ -1794,7 +1859,7 @@
             function cloneReportTable(bodyId, title) {
                 const body = document.getElementById(bodyId);
                 if (!body || !body.children.length) return '';
-                const table = body.closest('table');
+                const table = body.matches('table') ? body : (body.closest('table') || body.querySelector('table'));
                 if (!table) return '';
                 const clone = table.cloneNode(true);
                 clone.querySelectorAll('button, select, input, script').forEach(el => el.remove());
@@ -1884,10 +1949,13 @@
             async function downloadPortfolioReportPdf() {
                 if (!portfolioReportHtml) await generatePortfolioReport();
                 if (!portfolioReportHtml) return;
+                setPortfolioReportProgress(92, 'Exportando PDF...');
+                await waitForUiFrame();
                 const el = document.createElement('div');
                 el.innerHTML = portfolioReportHtml;
                 if (!window.html2pdf) return downloadBlob(portfolioReportHtml, 'informe_cartera.html', 'text/html;charset=utf-8');
-                html2pdf().set({ margin: 8, filename: 'informe_cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
+                await html2pdf().set({ margin: 8, filename: 'informe_cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
+                setPortfolioReportProgress(100, 'PDF generado');
             }
 
             async function downloadPortfolioReportWord() {
