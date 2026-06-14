@@ -840,6 +840,55 @@
             function frequencyLabel(freq) {
                 return ({ D: 'Diaria', M: 'Mensual', Q: 'Trimestral', A: 'Anual' })[freq] || 'Diaria';
             }
+
+            function periodsForMonths(months, freq = currentDataFrequency) {
+                const perYear = periodsPerYear(freq);
+                return Math.max(1, Math.round((months / 12) * perYear));
+            }
+
+            function horizonDefinitions(freq = currentDataFrequency, includeWeek = false) {
+                const defs = includeWeek && freq === 'D' ? [{ label: '1 semana', periods: 5, months: 0.25 }] : [];
+                return defs.concat([
+                    { label: '1 mes', periods: periodsForMonths(1, freq), months: 1 },
+                    { label: '6 meses', periods: periodsForMonths(6, freq), months: 6 },
+                    { label: '12 meses', periods: periodsForMonths(12, freq), months: 12 },
+                    { label: '36 meses', periods: periodsForMonths(36, freq), months: 36 },
+                    { label: '60 meses', periods: periodsForMonths(60, freq), months: 60 }
+                ]);
+            }
+
+            function indexMonthsAhead(data, idx, months) {
+                if (!data?.length || idx < 0 || idx >= data.length) return -1;
+                const target = new Date(data[idx].date);
+                target.setMonth(target.getMonth() + months);
+                for (let i = idx + 1; i < data.length; i++) {
+                    if (data[i].date >= target) return i;
+                }
+                return -1;
+            }
+
+            function getAlignedValueOnOrBefore(series, date) {
+                if (!series?.length) return null;
+                let lo = 0, hi = series.length - 1, ans = -1;
+                const target = date.getTime();
+                while (lo <= hi) {
+                    const mid = Math.floor((lo + hi) / 2);
+                    if (series[mid].date.getTime() <= target) { ans = mid; lo = mid + 1; }
+                    else hi = mid - 1;
+                }
+                return ans >= 0 ? series[ans].price : null;
+            }
+
+            function rollingWindowMaxDrawdownFromReturns(returns, start, length) {
+                let value = 1, peak = 1, mdd = 0;
+                for (let i = start; i < start + length && i < returns.length; i++) {
+                    value *= (1 + returns[i]);
+                    if (value > peak) peak = value;
+                    const dd = value / peak - 1;
+                    if (dd < mdd) mdd = dd;
+                }
+                return mdd;
+            }
             let assetAllocationState = null;
 
             function showPortfolioSubtab(tabName) {
@@ -1263,12 +1312,32 @@
             function setAssetAllocationWeight(index, value, source) {
                 if (!assetAllocationState) return;
                 const key = assetAllocationState.keys[index];
-                const pct = Math.max(0, Number(value) || 0);
-                assetAllocationState.weights[key] = pct / 100;
-                const otherSelector = source === 'slider' ? `[data-aa-weight="${index}"]` : `[data-aa-slider="${index}"]`;
-                const other = document.querySelector(otherSelector);
-                if (other) other.value = pct.toFixed(1);
+                const pct = Math.min(100, Math.max(0, Number(value) || 0));
+                const newWeight = pct / 100;
+                const otherKeys = assetAllocationState.keys.filter(k => k !== key);
+                const otherTotal = otherKeys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
+                assetAllocationState.weights[key] = newWeight;
+                if (otherKeys.length) {
+                    const remaining = Math.max(0, 1 - newWeight);
+                    if (otherTotal > 0) {
+                        otherKeys.forEach(k => assetAllocationState.weights[k] = remaining * (assetAllocationState.weights[k] || 0) / otherTotal);
+                    } else {
+                        otherKeys.forEach(k => assetAllocationState.weights[k] = remaining / otherKeys.length);
+                    }
+                }
+                syncAssetAllocationWeightControls();
                 updateAssetAllocationAnalysis();
+            }
+
+            function syncAssetAllocationWeightControls() {
+                if (!assetAllocationState) return;
+                assetAllocationState.keys.forEach((k, idx) => {
+                    const pct = ((assetAllocationState.weights[k] || 0) * 100).toFixed(1);
+                    const input = document.querySelector(`[data-aa-weight="${idx}"]`);
+                    const slider = document.querySelector(`[data-aa-slider="${idx}"]`);
+                    if (input) input.value = pct;
+                    if (slider) slider.value = pct;
+                });
             }
 
             function normalizeAssetAllocationWeights() {
@@ -1307,32 +1376,64 @@
             function calculateAssetAllocationHorizon(returns, months, label, threshold) {
                 if (returns.length < months) return null;
                 const samples = [];
+                const drawdowns = [];
                 for (let i = months - 1; i < returns.length; i++) {
                     let growth = 1;
                     for (let j = i - months + 1; j <= i; j++) growth *= (1 + returns[j]);
                     const total = growth - 1;
                     samples.push(months >= 12 ? Math.pow(1 + total, 12 / months) - 1 : total);
+                    drawdowns.push(rollingWindowMaxDrawdownFromReturns(returns, i - months + 1, months));
                 }
-                return { label, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), probBelow: samples.filter(v => v < threshold).length / samples.length, count: samples.length };
+                return { label, months, annualized: months >= 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probBelow: samples.filter(v => v < threshold).length / samples.length, count: samples.length };
             }
 
             function renderAssetAllocationStats(rows) {
-                document.getElementById('assetAllocationStatsBody').innerHTML = rows.map(r => `<tr>
-                    <td class="px-3 py-2 font-bold">${r.label}</td>
-                    <td class="px-3 py-2 text-right ${r.mean >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(r.mean)}</td>
-                    <td class="px-3 py-2 text-right text-green-700">${fmtPct(r.max)}</td>
-                    <td class="px-3 py-2 text-right text-red-600">${fmtPct(r.min)}</td>
-                    <td class="px-3 py-2 text-right font-bold">${fmtPct(r.probBelow)}</td>
-                    <td class="px-3 py-2 text-right text-slate-400">${r.count}</td>
+                const tbody = document.getElementById('assetAllocationStatsBody');
+                const thead = tbody?.closest('table')?.querySelector('thead');
+                if (thead) {
+                    thead.innerHTML = `<tr><th class="px-3 py-2 text-left"></th>${rows.map(r => `<th class="px-3 py-2 text-right">${r.label}</th>`).join('')}</tr>`;
+                }
+                const metricRows = [
+                    { label: 'Rentabilidad media', key: 'mean', cls: 'text-blue-900' },
+                    { label: 'Máximo', key: 'max', cls: 'text-green-700' },
+                    { label: 'Mínimo', key: 'min', cls: 'text-red-600' },
+                    { label: 'Maximum drawdown', key: 'maxDrawdown', cls: 'text-red-700' },
+                    { label: 'Probabilidad rentabilidad < umbral', key: 'probBelow', cls: 'text-blue-900' },
+                    { label: 'Muestras', key: 'count', cls: 'text-slate-500', raw: true }
+                ];
+                tbody.innerHTML = metricRows.map(row => `<tr>
+                    <td class="px-3 py-2 font-bold text-blue-950">${row.label}</td>
+                    ${rows.map(r => `<td class="px-3 py-2 text-right ${row.cls}">${row.raw ? r[row.key] : fmtPct(r[row.key])}</td>`).join('')}
                 </tr>`).join('');
             }
 
             function renderAssetAllocationCharts(rows, portfolioReturns) {
-                Plotly.newPlot('assetAllocationScenarioChart', [
-                    { x: rows.map(r => r.label), y: rows.map(r => r.min), type: 'bar', name: 'Min', marker: { color: '#dc2626' }, text: rows.map(r => fmtPct(r.min)), textposition: 'auto' },
-                    { x: rows.map(r => r.label), y: rows.map(r => r.mean), type: 'bar', name: 'Media', marker: { color: '#2563eb' }, text: rows.map(r => fmtPct(r.mean)), textposition: 'auto' },
-                    { x: rows.map(r => r.label), y: rows.map(r => r.max), type: 'bar', name: 'Max', marker: { color: '#047857' }, text: rows.map(r => fmtPct(r.max)), textposition: 'auto' }
-                ], { title: 'Expected return histórico por plazo', yaxis: { tickformat: '.1%' }, barmode: 'group', margin: { t: 40, l: 50, r: 20, b: 40 }, legend: { orientation: 'h' } }, { responsive: true });
+                const x = rows.map(r => r.label);
+                const traceRange = {
+                    x,
+                    y: rows.map(r => r.min),
+                    type: 'bar',
+                    name: 'Rango min-max',
+                    marker: { color: 'rgba(249,115,22,0.58)', line: { color: 'rgba(249,115,22,0.85)', width: 1 } },
+                    base: rows.map(r => r.min),
+                    width: 0.42,
+                    hovertemplate: '%{x}<br>Mínimo: %{base:.1%}<br>Máximo: %{customdata:.1%}<extra></extra>',
+                    customdata: rows.map(r => r.max)
+                };
+                traceRange.y = rows.map(r => r.max - r.min);
+                const traceMean = { x, y: rows.map(r => r.mean), type: 'scatter', mode: 'markers+text', name: 'Media', marker: { color: '#000080', size: 16, symbol: 'line-ew', line: { color: '#000080', width: 5 } }, text: rows.map(r => fmtPct(r.mean)), textposition: 'middle right', textfont: { color: '#000080', size: 12, family: 'Arial Black' }, hovertemplate: '%{x}<br>Media: %{y:.1%}<extra></extra>' };
+                const traceMax = { x, y: rows.map(r => r.max), type: 'scatter', mode: 'text', name: 'Máximo', text: rows.map(r => fmtPct(r.max)), textposition: 'top center', textfont: { color: '#008000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
+                const traceMin = { x, y: rows.map(r => r.min), type: 'scatter', mode: 'text', name: 'Mínimo', text: rows.map(r => fmtPct(r.min)), textposition: 'bottom center', textfont: { color: '#ff0000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
+                const traceDD = { x, y: rows.map(r => r.maxDrawdown), type: 'scatter', mode: 'markers+text', name: 'Maximum drawdown', marker: { color: '#dc2626', size: 7, symbol: 'circle' }, text: rows.map(r => fmtPct(r.maxDrawdown)), textposition: 'bottom right', textfont: { color: '#dc2626', size: 10 }, hovertemplate: '%{x}<br>Maximum drawdown: %{y:.1%}<extra></extra>' };
+                Plotly.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin, traceDD], {
+                    title: 'Rango de rentabilidades según el plazo de la inversión',
+                    yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad' },
+                    xaxis: { title: 'Plazo de la inversión' },
+                    margin: { t: 45, l: 60, r: 20, b: 55 },
+                    legend: { orientation: 'h', y: -0.2 },
+                    plot_bgcolor: '#ffffff',
+                    paper_bgcolor: '#ffffff'
+                }, { responsive: true });
                 const values = [100];
                 portfolioReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const dates = ['Inicio'].concat(assetAllocationState.dates);
@@ -1876,10 +1977,11 @@
                 for (let i = 1; i < nFull; i++) { if (fullPrices[i - 1] && fullPrices[i]) fullLogRets.push(Math.log(fullPrices[i] / fullPrices[i - 1])); }
                 const meanLogFull = getMean(fullLogRets);
                 const stdLogFull = Math.sqrt(getMean(fullLogRets.map(x => Math.pow(x - meanLogFull, 2))));
+                const freq = currentDataFrequency || inferDataFrequency(currentData);
+                const stepsPerYear = periodsPerYear(freq);
 
                 // Backtest window: last 3 years of data
-                const tradingDays = 252;
-                const backtestDays = Math.min(nFull, backtestYears * tradingDays);
+                const backtestDays = Math.min(nFull, backtestYears * stepsPerYear);
                 const startIdx = nFull - backtestDays;
                 const windowPrices = fullPrices.slice(startIdx);
                 const windowDates = fullDates.slice(startIdx);
@@ -1908,8 +2010,7 @@
                 const histBalancesDisplay = eurFactor ? histBalances.map(v => v / eurFactor) : histBalances.slice();
 
                 // Short-term (1y forward) and Long-term (daily) simulations setup
-                const dt = 1 / tradingDays;
-                const monthlyCheckpoint = Math.round(tradingDays / 12);
+                const monthlyCheckpointSteps = Array.from({ length: 13 }, (_, m) => m === 0 ? 0 : Math.max(1, Math.round((m / 12) * stepsPerYear)));
 
                 const lastIndexValue = indexBase10[indexBase10.length - 1];
                 const lastMonetary = capital * (lastIndexValue / 10);
@@ -1923,10 +2024,10 @@
 
                 // 3) True Max Drawdown over the backtest duration
                 const histDays = nFull;
-                const histYears = histDays / tradingDays;
+                const histYears = histDays / stepsPerYear;
                 const maxDrawdowns = new Array(sims);
 
-                const maxSimDays = Math.max(histDays, longTermYears * tradingDays);
+                const maxSimDays = Math.max(histDays, longTermYears * stepsPerYear);
 
                 for (let s = 0; s < sims; s++) {
                     let S = 1.0;
@@ -1937,7 +2038,7 @@
 
                     for (let t = 1; t <= maxSimDays; t++) {
                         const z = randn_bm();
-                        // Daily GBM matching full backtest stats
+                        // Periodic lognormal simulation matching the observed data frequency
                         const r = meanLogFull + stdLogFull * z;
                         S = S * Math.exp(r);
 
@@ -1949,14 +2050,15 @@
                         }
 
                         // Monthly saves for 1st graphic (only up to 1 year = 252 days)
-                        if (t <= tradingDays && t % monthlyCheckpoint === 0) {
-                            const monthIdx = Math.round(t / monthlyCheckpoint);
-                            monthlySamples[monthIdx].push(lastMonetaryDisplay * S);
+                        if (t <= stepsPerYear) {
+                            monthlyCheckpointSteps.forEach((step, monthIdx) => {
+                                if (monthIdx > 0 && step === t) monthlySamples[monthIdx].push(lastMonetaryDisplay * S);
+                            });
                         }
 
                         // Annual saves for long term tables and chart
-                        if (t % tradingDays === 0) {
-                            const y = Math.round(t / tradingDays);
+                        if (t % stepsPerYear === 0) {
+                            const y = Math.round(t / stepsPerYear);
                             if (y <= longTermYears) {
                                 longTermSamples[y].push(lastMonetaryDisplay * S);
                             }
@@ -2044,8 +2146,8 @@
                 const lastFullPrice = fullPrices[fullPrices.length - 1];
                 const daysElapsed = (fullDates[fullDates.length - 1] - fullDates[0]) / 86400000;
                 const cagrFull = Math.pow(lastFullPrice / firstFullPrice, 365.25 / daysElapsed) - 1;
-                const volAnnFull = stdLogFull * Math.sqrt(tradingDays);
-                const histMetricsHtml = `<div>Hist. CAGR: <strong>${fmtPct(cagrFull)}</strong> — Vol ann: <strong>${fmtPct(volAnnFull)}</strong> — Data points: ${nFull}</div>`;
+                const volAnnFull = stdLogFull * Math.sqrt(stepsPerYear);
+                const histMetricsHtml = `<div>Hist. CAGR: <strong>${fmtPct(cagrFull)}</strong> — Vol ann: <strong>${fmtPct(volAnnFull)}</strong> — Frecuencia: <strong>${frequencyLabel(freq)}</strong> — Data points: ${nFull}</div>`;
                 document.getElementById('forecastStatus').innerHTML = `Simulaciones completadas. ${histMetricsHtml}`;
             }
 
@@ -4240,26 +4342,24 @@
             // --- VIX ANALYSIS ---
             function calculateVixAnalysis(assetData, vixData, threshold = 20) {
                 if (!vixData || vixData.length === 0) return null;
-                const vixMap = new Map(); vixData.forEach(d => vixMap.set(d.date.toISOString().split('T')[0], d.price));
-                const merged = []; assetData.forEach(d => { const dStr = d.date.toISOString().split('T')[0]; if (vixMap.has(dStr)) { merged.push({ date: d.date, assetPrice: d.price, vixPrice: vixMap.get(dStr) }); } });
+                const merged = assetData.map(d => ({ date: d.date, assetPrice: d.price, vixPrice: getAlignedValueOnOrBefore(vixData, d.date) })).filter(d => Number.isFinite(d.vixPrice));
 
                 const events = []; let lastEventDate = null;
                 const getDaysDiff = (d1, d2) => (d1 - d2) / (1000 * 60 * 60 * 24);
                 for (let i = 0; i < merged.length; i++) { if (merged[i].vixPrice > threshold) { if (lastEventDate === null || getDaysDiff(merged[i].date, lastEventDate) > 1) { events.push(i); lastEventDate = merged[i].date; } } }
 
-                // Added '36 meses'
-                const horizons = { '1 mes': 21, '6 meses': 126, '12 meses': 252, '36 meses': 756, '60 meses': 1260 };
+                const horizons = horizonDefinitions(currentDataFrequency);
                 const results = [], histogramData = [];
-                for (const [label, days] of Object.entries(horizons)) {
+                for (const { label, periods } of horizons) {
                     const returns = [];
-                    events.forEach(idx => { if (idx + days < merged.length && idx + 1 < merged.length) { returns.push((merged[idx + days].assetPrice / merged[idx + 1].assetPrice) - 1); } });
+                    events.forEach(idx => { if (idx + periods < merged.length && idx + 1 < merged.length) { returns.push((merged[idx + periods].assetPrice / merged[idx + 1].assetPrice) - 1); } });
                     if (label === '12 meses') histogramData.push(...returns);
                     if (returns.length > 0) { const pos = returns.filter(r => r > 0).length; results.push({ horizon: label, events: returns.length, mean: getMean(returns), median: getPercentile(returns, 50), min: Math.min(...returns), max: Math.max(...returns), positives: pos, winRate: pos / returns.length }); } else { results.push({ horizon: label, events: 0, mean: 0, median: 0, min: 0, max: 0, positives: 0, winRate: 0 }); }
                 }
-                const scatterPoints = []; const horizon12m = 252;
+                const scatterPoints = []; const horizon12m = periodsForMonths(12, currentDataFrequency);
                 for (let i = 0; i < merged.length - horizon12m; i++) { scatterPoints.push({ vix: merged[i].vixPrice, ret: (merged[i + horizon12m].assetPrice / merged[i + 1].assetPrice) - 1 }); }
                 const peaks = [];
-                for (let i = 1; i < merged.length - 1; i++) { if (merged[i].vixPrice > merged[i - 1].vixPrice && merged[i].vixPrice > merged[i + 1].vixPrice) { const getRet = (days) => (i + days < merged.length) ? (merged[i + days].assetPrice / merged[i + 1].assetPrice) - 1 : null; peaks.push({ date: merged[i].date, vix: merged[i].vixPrice, ret1y: getRet(252), ret3y: getRet(756), ret5y: getRet(1260) }); } }
+                for (let i = 1; i < merged.length - 1; i++) { if (merged[i].vixPrice > merged[i - 1].vixPrice && merged[i].vixPrice > merged[i + 1].vixPrice) { const getRet = (periods) => (i + periods < merged.length) ? (merged[i + periods].assetPrice / merged[i + 1].assetPrice) - 1 : null; peaks.push({ date: merged[i].date, vix: merged[i].vixPrice, ret1y: getRet(periodsForMonths(12, currentDataFrequency)), ret3y: getRet(periodsForMonths(36, currentDataFrequency)), ret5y: getRet(periodsForMonths(60, currentDataFrequency)) }); } }
                 return { stats: results, hist12M: histogramData, scatter: scatterPoints, topPeaks: peaks.sort((a, b) => b.vix - a.vix).slice(0, 10) };
             }
             function renderVixAnalysis(data, vixRaw, threshold) {
@@ -4320,18 +4420,21 @@
 
                 // VIX Scatter with Regression Stats (Modified)
                 const xs = scatter.map(p => p.vix), ys = scatter.map(p => p.ret * 100);
-                const reg = calculateRegressionStats(xs, ys);
-
-                const minX = Math.min(...xs), maxX = Math.max(...xs);
-                Plotly.newPlot('vixScatterChart', [
-                    { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#3b82f6', size: 3, opacity: 0.4 }, name: 'Datos' },
-                    { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: `Regresión` }
-                ], {
-                    title: ` y=${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)} | R²=${reg.r2.toFixed(3)}`,
-                    xaxis: { title: 'Valor VIX' },
-                    yaxis: { title: 'Retorno Futuro (%)' },
-                    margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true
-                }, { responsive: true });
+                if (xs.length > 2) {
+                    const reg = calculateRegressionStats(xs, ys);
+                    const minX = Math.min(...xs), maxX = Math.max(...xs);
+                    Plotly.newPlot('vixScatterChart', [
+                        { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#3b82f6', size: 3, opacity: 0.4 }, name: 'Datos' },
+                        { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: `Regresión` }
+                    ], {
+                        title: ` y=${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)} | R²=${reg.r2.toFixed(3)}`,
+                        xaxis: { title: 'Valor VIX' },
+                        yaxis: { title: 'Retorno Futuro (%)' },
+                        margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true
+                    }, { responsive: true });
+                } else {
+                    document.getElementById('vixScatterChart').innerHTML = '<div class="text-sm text-gray-500 text-center mt-20">Faltan datos para regresión</div>';
+                }
 
                 const peaksBody = document.getElementById('vixPeaksTableBody');
                 peaksBody.innerHTML = topPeaks.map(p => `<tr class="border-b hover:bg-red-50"><td class="px-4 py-2 font-mono text-sm text-gray-600">${fmtDate(p.date)}</td><td class="px-4 py-2 text-right font-bold text-red-600">${p.vix.toFixed(2)}</td><td class="px-4 py-2 text-right ${p.ret1y > 0 ? 'text-green-600' : 'text-red-600'}">${p.ret1y ? fmtPct(p.ret1y) : '-'}</td><td class="px-4 py-2 text-right ${p.ret3y > 0 ? 'text-green-600' : 'text-red-600'}">${p.ret3y ? fmtPct(p.ret3y) : '-'}</td><td class="px-4 py-2 text-right ${p.ret5y > 0 ? 'text-green-600' : 'text-red-600'}">${p.ret5y ? fmtPct(p.ret5y) : '-'}</td></tr>`).join('');
@@ -4339,8 +4442,7 @@
 
             function calculateOilAnalysis(assetData, oilData) {
                 if (!oilData || oilData.length === 0) return null;
-                const oilMap = new Map(); oilData.forEach(d => { oilMap.set(d.date.toISOString().split('T')[0], d.price); });
-                const merged = []; assetData.forEach(d => { const dStr = d.date.toISOString().split('T')[0]; if (oilMap.has(dStr)) { merged.push({ date: d.date, assetPrice: d.price, oilPrice: oilMap.get(dStr) }); } });
+                const merged = assetData.map(d => ({ date: d.date, assetPrice: d.price, oilPrice: getAlignedValueOnOrBefore(oilData, d.date) })).filter(d => Number.isFinite(d.oilPrice));
                 const threshold = 100, events = []; let lastEventDate = null;
                 const getDaysDiff = (d1, d2) => (d1 - d2) / (1000 * 60 * 60 * 24);
                 for (let i = 0; i < merged.length; i++) {
@@ -4350,12 +4452,11 @@
                         if (isNewEvent) { events.push(i); lastEventDate = merged[i].date; }
                     }
                 }
-                // Added '36 meses'
-                const horizons = { '1 semana': 5, '1 mes': 21, '6 meses': 126, '12 meses': 252, '36 meses': 756 };
+                const horizons = horizonDefinitions(currentDataFrequency, true);
                 const results = [], histogramData = [];
-                for (const [label, days] of Object.entries(horizons)) {
+                for (const { label, periods } of horizons) {
                     const returns = [];
-                    events.forEach(idx => { if (idx + days < merged.length && idx + 1 < merged.length) { returns.push((merged[idx + days].assetPrice / merged[idx + 1].assetPrice) - 1); } });
+                    events.forEach(idx => { if (idx + periods < merged.length && idx + 1 < merged.length) { returns.push((merged[idx + periods].assetPrice / merged[idx + 1].assetPrice) - 1); } });
                     if (label === '6 meses') { histogramData.push(...returns); }
                     if (returns.length > 0) { const pos = returns.filter(r => r > 0).length; results.push({ horizon: label, events: returns.length, mean: getMean(returns), median: getPercentile(returns, 50), min: Math.min(...returns), max: Math.max(...returns), positives: pos, winRate: pos / returns.length }); } else { results.push({ horizon: label, events: 0, mean: 0, median: 0, min: 0, max: 0, positives: 0, winRate: 0 }); }
                 }
@@ -4415,24 +4516,29 @@
 
             function calculateRatesAnalysis(assetData, ratesData) {
                 if (!ratesData || ratesData.length === 0) return null;
-                const ratesMap = new Map();
-                let smoothedRatesPrices = [];
+                const ratePoints = [];
                 for (let i = 0; i < ratesData.length; i++) {
                     let sum = 0, count = 0;
                     for (let j = Math.max(0, i - 199); j <= i; j++) { sum += ratesData[j].price; count++; }
                     const ma = sum / count;
-                    smoothedRatesPrices.push(ma);
-                    ratesMap.set(ratesData[i].date.toISOString().split('T')[0], { price: ratesData[i].price, ma: ma });
+                    ratePoints.push({ date: ratesData[i].date, price: ratesData[i].price, ma });
                 }
 
-                const merged = [];
-                assetData.forEach(d => {
-                    const dStr = d.date.toISOString().split('T')[0];
-                    if (ratesMap.has(dStr)) {
-                        const rateInfo = ratesMap.get(dStr);
-                        merged.push({ date: d.date, assetPrice: d.price, ratePrice: rateInfo.price, rateMA: rateInfo.ma });
+                const getRateInfo = (date) => {
+                    let lo = 0, hi = ratePoints.length - 1, ans = -1;
+                    const target = date.getTime();
+                    while (lo <= hi) {
+                        const mid = Math.floor((lo + hi) / 2);
+                        if (ratePoints[mid].date.getTime() <= target) { ans = mid; lo = mid + 1; }
+                        else hi = mid - 1;
                     }
-                });
+                    return ans >= 0 ? ratePoints[ans] : null;
+                };
+
+                const merged = assetData.map(d => {
+                    const rateInfo = getRateInfo(d.date);
+                    return rateInfo ? { date: d.date, assetPrice: d.price, ratePrice: rateInfo.price, rateMA: rateInfo.ma } : null;
+                }).filter(Boolean);
 
                 if (merged.length < 2) return null;
 
@@ -4447,7 +4553,7 @@
                     let growth = 1;
                     rets.forEach(r => growth *= (1 + r));
                     if (growth <= 0) return 0;
-                    return Math.pow(growth, 252 / rets.length) - 1;
+                    return Math.pow(growth, periodsPerYear(currentDataFrequency) / rets.length) - 1;
                 };
 
                 const stats = [
@@ -4455,14 +4561,14 @@
                         regime: "Tipos Subiendo (> Media 200)",
                         days: upTrendRet.length,
                         annRet: getAnnRet(upTrendRet),
-                        volAnn: (upTrendRet.length > 1 ? getStdDev(upTrendRet) : 0) * Math.sqrt(252),
+                        volAnn: (upTrendRet.length > 1 ? getStdDev(upTrendRet) : 0) * Math.sqrt(periodsPerYear(currentDataFrequency)),
                         winRate: upTrendRet.length > 0 ? upTrendRet.filter(r => r > 0).length / upTrendRet.length : 0
                     },
                     {
                         regime: "Tipos Bajando (< Media 200)",
                         days: downTrendRet.length,
                         annRet: getAnnRet(downTrendRet),
-                        volAnn: (downTrendRet.length > 1 ? getStdDev(downTrendRet) : 0) * Math.sqrt(252),
+                        volAnn: (downTrendRet.length > 1 ? getStdDev(downTrendRet) : 0) * Math.sqrt(periodsPerYear(currentDataFrequency)),
                         winRate: downTrendRet.length > 0 ? downTrendRet.filter(r => r > 0).length / downTrendRet.length : 0
                     }
                 ];
@@ -4503,21 +4609,13 @@
                 if (!globalRatesData || !currentData) return;
 
                 const horizonLabel = document.getElementById('ratesHorizonSelect').value;
-                const horizonMap = { "1M": 21, "3M": 63, "6M": 126, "12M": 252 };
-                const fwDays = horizonMap[horizonLabel] || 252;
-                const bwDays = 252; // Medir el cambio de tipos interanual (12 meses hacia atrás)
-
-                const ratesMap = new Map();
-                globalRatesData.forEach(d => ratesMap.set(d.date.toISOString().split('T')[0], d.price));
-
+                const fwDays = periodsForMonths(({ "1M": 1, "3M": 3, "6M": 6, "12M": 12 })[horizonLabel] || 12, currentDataFrequency);
+                const bwDays = periodsForMonths(12, currentDataFrequency);
                 const validPairs = [];
                 for (let i = bwDays; i < currentData.length - fwDays; i++) {
-                    const dStr = currentData[i].date.toISOString().split('T')[0];
-                    const dStrPrev = currentData[i - bwDays].date.toISOString().split('T')[0];
-
-                    if (ratesMap.has(dStr) && ratesMap.has(dStrPrev)) {
-                        const currentRate = ratesMap.get(dStr);
-                        const prevRate = ratesMap.get(dStrPrev);
+                    const currentRate = getAlignedValueOnOrBefore(globalRatesData, currentData[i].date);
+                    const prevRate = getAlignedValueOnOrBefore(globalRatesData, currentData[i - bwDays].date);
+                    if (Number.isFinite(currentRate) && Number.isFinite(prevRate)) {
                         const rateChange = currentRate - prevRate;
                         const forwardRet = (currentData[i + fwDays].price / currentData[i].price) - 1;
                         validPairs.push({ rateLevel: currentRate, rateChange: rateChange, forwardRet: forwardRet });
@@ -4650,14 +4748,13 @@
             }
 
             function calculateDipAnalysis(data, drawdowns) {
-                // Added '36 meses'
-                const thresholds = { '5%': -0.05, '10%': -0.10, '20%': -0.20 }, horizons = { '1 mes': 21, '6 meses': 126, '12 meses': 252, '36 meses': 756, '60 meses': 1260 };
+                const thresholds = { '5%': -0.05, '10%': -0.10, '20%': -0.20 }, horizons = horizonDefinitions(currentDataFrequency);
                 const results = [], rawEvents = {};
                 for (const [threshLabel, threshVal] of Object.entries(thresholds)) {
                     const eventIndices = []; let lastIdx = -999;
                     drawdowns.forEach((dd, i) => { if (dd <= threshVal) { if (i - lastIdx > 1) { eventIndices.push(i); lastIdx = i; } else { lastIdx = i; } } });
                     rawEvents[threshLabel] = { indices: eventIndices, forwardRets: {} };
-                    for (const [horizLabel, days] of Object.entries(horizons)) {
+                    for (const { label: horizLabel, periods: days } of horizons) {
                         const rets = [], scatterData = [];
                         eventIndices.forEach(idx => { if (idx + days < data.length) { const ret = (data[idx + days].price / data[idx + 1].price) - 1; rets.push(ret); scatterData.push({ dd: drawdowns[idx], ret: ret }); } });
                         rawEvents[threshLabel].forwardRets[horizLabel] = rets;
@@ -4841,8 +4938,16 @@
             function calculateATHAnalysis(data) {
                 let maxHigh = -Infinity; const isRecordHigh = new Array(data.length).fill(false), recordIndices = [];
                 data.forEach((d, i) => { if (d.price > maxHigh) { maxHigh = d.price; isRecordHigh[i] = true; recordIndices.push(i); } });
-                const horizons = { "1M": 21, "3M": 63, "6M": 126, "12M": 252, "24M": 504, "3Y": 756, "5Y": 1260 }, results = {};
-                for (const [label, days] of Object.entries(horizons)) {
+                const horizons = [
+                    { label: '1M', periods: periodsForMonths(1, currentDataFrequency) },
+                    { label: '3M', periods: periodsForMonths(3, currentDataFrequency) },
+                    { label: '6M', periods: periodsForMonths(6, currentDataFrequency) },
+                    { label: '12M', periods: periodsForMonths(12, currentDataFrequency) },
+                    { label: '24M', periods: periodsForMonths(24, currentDataFrequency) },
+                    { label: '3Y', periods: periodsForMonths(36, currentDataFrequency) },
+                    { label: '5Y', periods: periodsForMonths(60, currentDataFrequency) }
+                ], results = {};
+                for (const { label, periods: days } of horizons) {
                     const rec = [], non = [];
                     for (let i = 0; i < data.length - days; i++) { const ret = (data[i + days].price / data[i].price) - 1; if (isRecordHigh[i]) rec.push(ret); else non.push(ret); }
 
@@ -5197,6 +5302,8 @@
                     const meanTot = getMean(r);
                     return {
                         horizon: k,
+                        periods: v,
+                        periodsPerYear: perYear,
                         meanTot,
                         meanAnn: getMean(annualized),
                         minTot,
@@ -5361,7 +5468,7 @@
             // --- MODIFIED RENDER BAR CHART (Split into 2) ---
             function renderBarChart(s) {
                 // 1. Annualized Chart (Exclude periods < 1 year)
-                const annualizedData = s.filter(i => i.horizon !== '3 meses');
+                const annualizedData = s.filter(i => (i.periods || 0) >= (i.periodsPerYear || periodsPerYear(currentDataFrequency)));
 
                 Plotly.newPlot('rollingAnnualizedChart', [
                     { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.minAnn), type: 'bar', name: 'Mínimo Anualizado', marker: { color: '#2d7a78' }, text: annualizedData.map(i => fmtPct(i.minAnn)), textposition: 'auto' },
@@ -5825,7 +5932,7 @@
                 if (episodes.length === 0) return;
 
                 const traces = [];
-                const forwardDays = 252; // 1 year of trading days
+                const forwardDays = periodsForMonths(12, currentDataFrequency);
 
                 // Helper to generate faint colors
                 const faintColors = ['#94a3b8', '#38bdf8', '#c084fc', '#f472b6', '#fbbf24', '#34d399', '#f87171', '#a78bfa', '#fb923c'];
@@ -5841,7 +5948,7 @@
 
                     const maxLen = Math.min(d.length, startIndex + forwardDays + 1);
                     for (let k = startIndex; k < maxLen; k++) {
-                        x.push(k - startIndex); // Trading days since reaching drawdown
+                        x.push(k - startIndex);
                         y.push((d[k].price / basePrice) - 1);
                     }
 
