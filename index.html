@@ -844,6 +844,29 @@
                 return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
             }
 
+            function movingAverageValues(values, windowSize) {
+                return values.map((_, idx) => {
+                    if (idx < windowSize - 1) return null;
+                    const slice = values.slice(idx - windowSize + 1, idx + 1);
+                    return slice.reduce((acc, v) => acc + v, 0) / slice.length;
+                });
+            }
+
+            function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
+                const x = portfolioData.map(d => d.date);
+                const y = portfolioData.map(d => d.price);
+                const traces = [
+                    { x, y, mode: 'lines', name: mode === 'real' ? 'Cartera real' : 'Backtest', line: { color: '#2563eb', width: 2.2 } },
+                    { x, y: movingAverageValues(y, 50), mode: 'lines', name: 'Media móvil 50', line: { color: '#f59e0b', width: 1.8 } }
+                ];
+                Plotly.newPlot('portfolioChart', traces, {
+                    title: mode === 'real' ? 'Evolución real de la cartera' : 'Evolución cartera (Backtest)',
+                    margin: { t: 40, l: 60, r: 20, b: 40 },
+                    yaxis: { title: 'Patrimonio' },
+                    legend: { orientation: 'h', y: -0.15 }
+                }, { responsive: true });
+            }
+
             function selectedPortfolioFrequency(data) {
                 const selected = document.getElementById('portfolioDataFrequency')?.value || 'auto';
                 return selected === 'auto' ? inferDataFrequency(data) : selected;
@@ -1110,7 +1133,7 @@
                 const ddData = calculateDrawdownData(portfolioData);
                 loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns };
                 portfolioImportMode = mode;
-                Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d => d.date), y: portfolioData.map(d => d.price), mode: 'lines', name: mode === 'real' ? 'Cartera real' : 'Backtest', line: { color: '#2563eb', width: 2 } }], { title: mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)', margin: { t: 40, l: 60, r: 20, b: 40 }, yaxis: { title: 'Patrimonio' } }, { responsive: true });
+                renderPortfolioBacktestChart(portfolioData, mode);
                 try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
                 try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
                 document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — Frecuencia: ${frequencyLabel(frequency)}. CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
@@ -1626,7 +1649,7 @@
                     const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(periodsPerYear(frequency));
 
                     // Render portfolio cumulative chart
-                    Plotly.newPlot('portfolioChart', [{ x: portfolioData.map(d => d.date), y: portfolioData.map(d => d.price), mode: 'lines', name: 'Patrimonio', line: { color: '#2563eb', width: 2 } }], { title: 'Evolución Cartera (Backtest)', margin: { t: 40, l: 60, r: 20, b: 40 }, yaxis: { title: 'Patrimonio' } }, { responsive: true });
+                    renderPortfolioBacktestChart(portfolioData, 'backtest');
 
                     // Save returns, covariance and ticker list for later use (composition + correlation)
                     const corrTickers = tickers.slice();
@@ -1696,6 +1719,12 @@
                     }
                     setPortfolioReportProgress(35, 'Ejecutando forecast: 10.000 simulaciones, 15 años, 1.000 EUR...');
                     await runPortfolioReportForecastScenario();
+                    setPortfolioReportProgress(48, 'Calculando distribución de activos de la cartera...');
+                    preparePortfolioReportAllocationState();
+                    setPortfolioReportProgress(51, 'Calculando correlaciones anuales...');
+                    const corrSelect = document.getElementById('portfolioCorrFreq');
+                    if (corrSelect) corrSelect.value = 'A';
+                    try { updatePortfolioCorr(); } catch (e) { console.warn('annual corr render failed', e); }
                     setPortfolioReportProgress(55, 'Preparando métricas y epígrafes...');
                     await waitForUiFrame();
                     const p = loadedPortfolio;
@@ -1763,31 +1792,14 @@
                             <p>El periodo analizado cubre ${data.length} observaciones entre ${fmtDate(start)} y ${fmtDate(end)}. La lectura combina rentabilidad, riesgo realizado, profundidad de las caídas, recuperación, estabilidad temporal y escenarios prospectivos Monte Carlo.</p>
                             <p><b>Forecast del informe:</b> 10.000 simulaciones, horizonte de 15 años y capital inicial de 1.000 EUR/u.m. Las simulaciones usan log-retornos históricos de la cartera y se muestran como percentiles, probabilidades y distribución de drawdown.</p>
                         </section>
-                        <section class="grid2">
-                            <div class="block"><h2>Metricas principales</h2><table>${metricRows}</table></div>
-                            <div class="block"><h2>Composicion</h2><table>${compositionRows || '<tr><td>Sin composicion</td><td></td></tr>'}</table></div>
+                        <section class="block executive-metrics">
+                            <h2>Métricas principales de la cartera</h2>
+                            <p class="indented">Resumen cuantitativo del periodo analizado. Estas métricas permiten contrastar crecimiento, riesgo realizado, peor pérdida histórica y consistencia temporal antes de entrar en el detalle gráfico.</p>
+                            <table class="kv-table">${metricRows}</table>
+                            <p class="analysis-note"><b>Comentario analítico:</b> ${reading}</p>
+                            <p class="method-note"><b>Metodología:</b> rentabilidad total por capitalización simple, CAGR anualizado por días naturales, volatilidad anualizada según frecuencia detectada y drawdown calculado como caída desde máximos acumulados.</p>
                         </section>
                         ${visualSections}
-                        <section class="block">
-                            <h2>Drawdowns historicos</h2>
-                            <p>Los drawdowns muestran las mayores caídas desde máximos y el tiempo bajo el agua. Es la medida más directa de dolor para el cliente.</p>
-                            <table><thead><tr><th>Inicio</th><th>Valle</th><th>Recuperación</th><th>Caída</th><th>Tiempo bajo agua</th></tr></thead><tbody>${episodeRows}</tbody></table>
-                        </section>
-                        <section class="block">
-                            <h2>Rentabilidades móviles</h2>
-                            <p>Resumen de ventanas históricas: rentabilidad media, media anualizada, peor ventana y mejor ventana. Ayuda a separar resultado puntual de consistencia temporal.</p>
-                            <table><thead><tr><th>Ventana</th><th>Media total</th><th>Media anual</th><th>Peor</th><th>Mejor</th></tr></thead><tbody>${rollingRows}</tbody></table>
-                        </section>
-                        <section class="block">
-                            <h2>Estacionalidad</h2>
-                            <p>Rentabilidad media por mes natural. Mejor mes histórico: <b>${escapeHtml(bestSeason?.month || '-')}</b>. Peor mes histórico: <b>${escapeHtml(worstSeason?.month || '-')}</b>.</p>
-                            <table><thead><tr><th>Mes</th><th>Media</th><th>Muestras</th><th>Mejor</th><th>Peor</th></tr></thead><tbody>${seasonalityRows}</tbody></table>
-                        </section>
-                        <section class="block">
-                            <h2>Sensibilidades</h2>
-                            <p>Correlación y beta frente a factores de mercado disponibles. Beta positiva significa que la cartera tiende a moverse en el mismo sentido que el factor; beta negativa, en sentido contrario.</p>
-                            <table><thead><tr><th>Factor</th><th>Obs.</th><th>Corr.</th><th>Beta</th><th>Lectura</th></tr></thead><tbody>${sensitivityRows}</tbody></table>
-                        </section>
                         <section class="block">
                             <h2>Interpretacion para cliente</h2>
                             <p>El análisis combina rentabilidad acumulada, crecimiento anualizado, volatilidad y drawdown máximo para evaluar si el riesgo asumido está siendo compensado. El drawdown mide la peor pérdida desde máximos y es clave para valorar tolerancia del cliente y capacidad de permanencia.</p>
@@ -1817,16 +1829,62 @@
                 await waitForUiFrame();
             }
 
+            function preparePortfolioReportAllocationState() {
+                if (!loadedPortfolio?.returns || !loadedPortfolio?.entries?.length) return false;
+                const keys = loadedPortfolio.entries.map(e => e.ticker).filter(k => Array.isArray(loadedPortfolio.returns[k]) && loadedPortfolio.returns[k].length);
+                if (!keys.length) return false;
+                const minLen = Math.min(...keys.map(k => loadedPortfolio.returns[k].length));
+                if (minLen < 2) return false;
+                const rawWeightSum = loadedPortfolio.entries.filter(e => keys.includes(e.ticker)).reduce((acc, e) => acc + (e.weight || 0), 0);
+                const weights = Object.fromEntries(keys.map(k => {
+                    const entry = loadedPortfolio.entries.find(e => e.ticker === k);
+                    return [k, rawWeightSum ? (entry?.weight || 0) / rawWeightSum : 1 / keys.length];
+                }));
+                const dateSource = (loadedPortfolio.commonDates || []).slice(-minLen);
+                assetAllocationState = {
+                    keys,
+                    labels: Object.fromEntries(keys.map(k => [k, k])),
+                    sourceLabel: `Cartera cargada (${loadedPortfolio.sourceLabel || 'datos actuales'})`,
+                    dates: dateSource.length === minLen ? dateSource : Array.from({ length: minLen }, (_, i) => `${i + 1}`),
+                    returns: Object.fromEntries(keys.map(k => [k, loadedPortfolio.returns[k].slice(-minLen)])),
+                    weights
+                };
+                const threshold = document.getElementById('assetAllocationThreshold');
+                if (threshold) threshold.value = '0';
+                try { renderAssetAllocationWeights(); } catch (e) { console.warn('asset allocation controls render failed', e); }
+                try { updateAssetAllocationAnalysis(); } catch (e) { console.warn('asset allocation report render failed', e); }
+                return true;
+            }
+
             async function buildPortfolioReportVisualSections() {
                 const sections = [
-                    { title: 'Cartera cargada', note: 'Evolución reconstruida, composición, matriz de correlaciones y correlación dinámica calculadas al cargar la cartera.', charts: [['portfolioChart', 'Evolución de cartera'], ['portfolioCompositionChart', 'Composición'], ['portfolioCorrMatrixChart', 'Matriz de correlaciones'], ['portfolioRollingCorrChart', 'Rolling correlation de activos']] },
-                    { title: 'Distribución de activos', note: 'Rango histórico por plazo de inversión, evolución acumulada y tabla de escenarios con media, máximos, mínimos, drawdown y probabilidad bajo umbral.', charts: [['assetAllocationScenarioChart', 'Rango de rentabilidades por plazo'], ['assetAllocationCumulativeChart', 'Evolución de la asignación']], tables: [['assetAllocationStatsBody', 'Escenarios por plazo']] },
-                    { title: 'Análisis general', note: 'Gráficas y tablas de la pestaña Análisis Individual aplicadas a la serie CARTERA.', charts: [['technicalChart', 'Precio, medias móviles y RSI'], ['returnsChart', 'Retornos y bandas sigma'], ['returnsHistogram', 'Distribución de rentabilidades'], ['bestDaysBarChart', 'Impacto de perder mejores días'], ['bestDaysLocationChart', 'Localización de mejores días']], tables: [['metricsTableBody', 'Métricas principales'], ['sigmaEventsTableBody', 'Eventos extremos'], ['top10TableBody', 'Top mejores días']] },
-                    { title: 'Drawdowns y caídas', note: 'Profundidad, duración y comportamiento posterior a caídas históricas.', charts: [['drawdownChart', 'Curva submarina'], ['ddSpaghettiChart', 'Episodios comparables'], ['dipChart', 'Buy the dip']], tables: [['drawdownTableBody', 'Top episodios drawdown'], ['dipStatsTableBody', 'Estadísticas buy the dip'], ['drawdownDurationTableBody', 'Duración de drawdowns']] },
-                    { title: 'Rentabilidades móviles y anuales', note: 'Consistencia histórica por ventanas, años naturales y distribución anual.', charts: [['barChart', 'Ventanas anualizadas'], ['lineChart', 'Rentabilidad anualizada móvil'], ['annualDistChart', 'Rentabilidad anual'], ['annualDistHistChart', 'Distribución anual'], ['monthlyHeatmapChart', 'Mapa mensual']], tables: [['annualTableBody', 'Resumen por años']] },
-                    { title: 'Estacionalidad', note: 'Patrones medios por semana, mes, trimestre, día del año y deciles estacionales cuando la frecuencia de datos lo permite.', charts: [['weeklyChart', 'Estacionalidad semanal'], ['monthlyChart', 'Estacionalidad mensual'], ['quarterlyChart', 'Estacionalidad trimestral'], ['seasonalityYoYChart', 'Evolución anual estacional'], ['seasonalityDecilesChart', 'Deciles estacionales']] },
-                    { title: 'Sensibilidades', note: 'Lectura frente a factores de mercado cargados por el análisis individual.', charts: [['vixPriceChart', 'VIX'], ['vixBarChart', 'Retornos tras VIX alto'], ['vixScatterChart', 'VIX vs retorno futuro'], ['oilPriceChart', 'Petróleo'], ['oilBarChart', 'Retornos en episodios de petróleo'], ['ratesPriceChart', 'Tipos'], ['ratesHeatmapChart', 'Tipos y retorno futuro'], ['ratesBarChart', 'Regímenes de tipos'], ['ratesScatterChart', 'Scatter tipos']], tables: [['vixStatsTableBody', 'Estadísticas VIX'], ['vixPeaksTableBody', 'Picos VIX'], ['oilStatsTableBody', 'Estadísticas petróleo'], ['ratesStatsTableBody', 'Estadísticas tipos'], ['ratesMatrixTableBody', 'Matriz tipos/retornos']] },
-                    { title: 'Forecast Monte Carlo', note: 'Simulación específica del informe: 10.000 simulaciones, horizonte de 15 años y capital inicial de 1.000 EUR/u.m. Incluye todas las gráficas y tablas de la pestaña Forecast.', charts: [['forecastBalanceChart', 'Backtest y percentiles a 12 meses'], ['forecastLongTermChart', 'Evolución a largo plazo por percentiles'], ['forecastDrawdownHist', 'Histograma de máximo drawdown simulado']], tables: [['forecastPerfTable', 'Performance Summary'], ['forecastExpectedTable', 'Expected Annual Return'], ['forecastProbTable', 'Probabilidades anuales']] }
+                    {
+                        title: 'Resumen cartera y composición',
+                        note: 'Evolución patrimonial, pesos de cartera y correlaciones anuales entre activos.',
+                        method: 'La evolución se calcula capitalizando los retornos de la cartera. La media móvil usa 50 observaciones. La correlación se recalcula con ventanas anuales para reducir ruido de corto plazo.',
+                        charts: [['portfolioChart', 'Evolución de cartera y media móvil 50'], ['portfolioCompositionChart', 'Composición de la cartera'], ['portfolioCorrMatrixChart', 'Matriz de correlaciones anuales'], ['portfolioRollingCorrChart', 'Rolling correlation de activos']]
+                    },
+                    {
+                        title: 'Rentabilidades históricas y esperadas',
+                        note: 'Rango histórico por plazo, escenarios de distribución de activos, rentabilidades móviles y distribución anual.',
+                        method: 'Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de pérdida del 0%. Para plazos de un año o más se expresa la rentabilidad anualizada.',
+                        charts: [['assetAllocationScenarioChart', 'Rango max/media/min por plazo'], ['assetAllocationCumulativeChart', 'Evolución mensual de la asignación'], ['barChart', 'Rangos de rentabilidad móvil'], ['lineChart', 'Rentabilidad anualizada móvil'], ['returnsChart', 'Retornos y bandas sigma'], ['returnsHistogram', 'Distribución de rentabilidades'], ['annualDistChart', 'Rentabilidad anual y caídas intra-año'], ['monthlyHeatmapChart', 'Mapa de calor mensual']],
+                        tables: [['assetAllocationStatsBody', 'Escenarios por plazo'], ['sigmaEventsTableBody', 'Eventos extremos sigma'], ['annualTableBody', 'Resumen por años']]
+                    },
+                    {
+                        title: 'Drawdowns',
+                        note: 'Profundidad, duración y recuperación de las caídas históricas de la cartera.',
+                        method: 'El drawdown se mide como pérdida porcentual desde el máximo acumulado previo. La recuperación se identifica cuando la serie vuelve a superar el máximo anterior.',
+                        charts: [['drawdownChart', 'Curva submarina'], ['ddSpaghettiChart', 'Episodios de drawdown comparables']],
+                        tables: [['drawdownTableBody', 'Top episodios drawdown'], ['drawdownDurationTableBody', 'Duración de drawdowns']]
+                    },
+                    {
+                        title: 'Forecast Monte Carlo',
+                        note: 'Simulación específica del informe: 10.000 simulaciones, horizonte de 15 años y capital inicial de 1.000 EUR/u.m.',
+                        method: 'Modelo geométrico sobre log-retornos históricos de la cartera. Los resultados se presentan como percentiles, probabilidades de superar umbrales y distribución de máximo drawdown simulado.',
+                        charts: [['forecastBalanceChart', 'Backtest y percentiles a 12 meses'], ['forecastLongTermChart', 'Evolución a largo plazo por percentiles'], ['forecastDrawdownHist', 'Histograma de máximo drawdown simulado']],
+                        tables: [['forecastPerfTable', 'Performance Summary'], ['forecastExpectedTable', 'Expected Annual Return'], ['forecastProbTable', 'Probabilidades anuales']]
+                    }
                 ];
                 const html = [];
                 for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
@@ -1836,13 +1894,58 @@
                     const chartBlocks = [];
                     for (const [id, title] of section.charts || []) {
                         const img = await capturePlotlyReportImage(id);
-                        if (img) chartBlocks.push(`<figure><figcaption>${escapeHtml(title)}</figcaption><img src="${img}" alt="${escapeHtml(title)}"></figure>`);
+                        if (img) {
+                            chartBlocks.push(`<figure><figcaption>${escapeHtml(title)}</figcaption><img src="${img}" alt="${escapeHtml(title)}"><p class="analysis-note"><b>Comentario analítico:</b> ${escapeHtml(reportInsightForItem(id, title))}</p><p class="method-note"><b>Metodología:</b> ${escapeHtml(reportMethodForItem(id, title))}</p></figure>`);
+                        }
                     }
                     const tableBlocks = (section.tables || []).map(([id, title]) => cloneReportTable(id, title)).filter(Boolean);
                     if (!chartBlocks.length && !tableBlocks.length) continue;
-                    html.push(`<section class="block report-visuals"><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.note)}</p><div class="chart-grid">${chartBlocks.join('')}</div>${tableBlocks.join('')}</section>`);
+                    html.push(`<section class="block report-visuals"><h2>${escapeHtml(section.title)}</h2><p class="indented">${escapeHtml(section.note)}</p><p class="method-note section-method"><b>Metodología del epígrafe:</b> ${escapeHtml(section.method || '')}</p><div class="chart-grid">${chartBlocks.join('')}</div>${tableBlocks.join('')}</section>`);
                 }
                 return html.join('');
+            }
+
+            function reportInsightForItem(id, title) {
+                const map = {
+                    portfolioChart: 'Permite evaluar si el crecimiento de la cartera es estable o depende de episodios concretos; la media móvil ayuda a distinguir tendencia de ruido.',
+                    portfolioCompositionChart: 'Muestra la concentración inicial del riesgo por activo. Pesos muy elevados en pocos activos aumentan dependencia específica.',
+                    portfolioCorrMatrixChart: 'Correlaciones altas reducen la diversificación efectiva; correlaciones bajas o negativas mejoran la estabilidad de la cartera.',
+                    portfolioRollingCorrChart: 'La correlación media entre activos no es constante. Subidas fuertes suelen indicar que la diversificación se deteriora en estrés.',
+                    assetAllocationScenarioChart: 'Resume el rango histórico de resultados por plazo. Cuanto más alto sea el mínimo histórico, mayor robustez temporal muestra la asignación.',
+                    assetAllocationCumulativeChart: 'Contrasta la progresión compuesta de la asignación con los episodios de caída y recuperación.',
+                    barChart: 'Compara ventanas de inversión y ayuda a estimar qué plazos han compensado mejor el riesgo asumido.',
+                    lineChart: 'Detecta cambios de régimen en la rentabilidad anualizada móvil.',
+                    returnsChart: 'Las bandas sigma sitúan los movimientos extremos frente al comportamiento medio de la serie.',
+                    returnsHistogram: 'Permite ver asimetrías, colas y concentración de retornos alrededor de la media.',
+                    annualDistChart: 'Cruza rentabilidad anual con caída intra-año para medir si el cliente fue remunerado por soportar volatilidad.',
+                    monthlyHeatmapChart: 'Identifica concentración temporal de rentabilidad y años especialmente atípicos.',
+                    drawdownChart: 'Mide la profundidad y persistencia del dolor histórico de la cartera.',
+                    ddSpaghettiChart: 'Compara episodios de caídas para contextualizar la recuperación actual frente a crisis anteriores.',
+                    forecastBalanceChart: 'Muestra el abanico probabilístico de resultados de corto plazo desde el último dato observado.',
+                    forecastLongTermChart: 'Ilustra la dispersión de resultados a largo plazo y el impacto de la volatilidad compuesta.',
+                    forecastDrawdownHist: 'Resume la severidad de pérdidas máximas esperables bajo la simulación.',
+                    assetAllocationStatsBody: 'La tabla sintetiza la compensación por plazo: media, extremos, drawdown y probabilidad de caer por debajo del umbral definido.',
+                    sigmaEventsTableBody: 'Los eventos sigma identifican sesiones o periodos anómalos que conviene explicar al cliente por su impacto en riesgo.',
+                    annualTableBody: 'El resumen anual ayuda a comprobar si la rentabilidad procede de muchos años consistentes o de pocos ejercicios excepcionales.',
+                    drawdownTableBody: 'La tabla ordena los episodios más dolorosos y permite valorar profundidad, duración y recuperación.',
+                    drawdownDurationTableBody: 'La duración bajo el agua es crítica para evaluar tolerancia psicológica y necesidad de liquidez.',
+                    forecastPerfTable: 'Resume resultados terminales y drawdowns simulados por percentil, útil para comunicar escenarios conservadores y centrales.',
+                    forecastExpectedTable: 'Traduce los escenarios de balance a rentabilidades anualizadas esperadas por horizonte.',
+                    forecastProbTable: 'Mide la probabilidad simulada de superar distintos objetivos de rentabilidad anual.'
+                };
+                return map[id] || `Lectura analítica de ${title.toLowerCase()} dentro del comportamiento agregado de la cartera.`;
+            }
+
+            function reportMethodForItem(id, title) {
+                if (id.startsWith('forecast')) return 'Monte Carlo con log-retornos históricos, 10.000 simulaciones, horizonte de 15 años y capital inicial 1.000.';
+                if (id === 'assetAllocationStatsBody') return 'Ventanas móviles por plazo sobre retornos de los activos de cartera, pesos normalizados y umbral de rentabilidad inferior fijado al 0%.';
+                if (id === 'annualTableBody') return 'Agregación por años naturales a partir de la serie de cartera cargada.';
+                if (id === 'sigmaEventsTableBody') return 'Eventos detectados cuando el retorno queda fuera de las bandas de tres desviaciones típicas.';
+                if (id === 'drawdownTableBody' || id === 'drawdownDurationTableBody') return 'Episodios calculados desde máximos acumulados, valle y recuperación posterior.';
+                if (id.includes('Corr')) return 'Correlaciones sobre retornos alineados de los activos; la matriz del informe queda fijada en frecuencia anual.';
+                if (id.includes('drawdown') || id === 'drawdownChart' || id === 'ddSpaghettiChart') return 'Drawdown calculado como caída desde máximos acumulados y recuperación al recuperar el máximo previo.';
+                if (id.startsWith('assetAllocation')) return 'Ventanas móviles sobre retornos mensuales/periodificados de la cartera cargada, con pesos normalizados.';
+                return 'Cálculo derivado de la misma serie de cartera ya analizada en la pestaña Análisis Individual, respetando la frecuencia detectada.';
             }
 
             async function capturePlotlyReportImage(id) {
@@ -1863,7 +1966,13 @@
                 if (!table) return '';
                 const clone = table.cloneNode(true);
                 clone.querySelectorAll('button, select, input, script').forEach(el => el.remove());
-                return `<div class="table-block"><h3>${escapeHtml(title)}</h3>${clone.outerHTML}</div>`;
+                clone.removeAttribute('class');
+                clone.removeAttribute('style');
+                clone.querySelectorAll('*').forEach(el => {
+                    el.removeAttribute('class');
+                    el.removeAttribute('style');
+                });
+                return `<div class="table-block"><h3>${escapeHtml(title)}</h3>${clone.outerHTML}<p class="analysis-note"><b>Comentario analítico:</b> ${escapeHtml(reportInsightForItem(bodyId, title))}</p><p class="method-note"><b>Metodología:</b> ${escapeHtml(reportMethodForItem(bodyId, title))}</p></div>`;
             }
 
             function safeFmtDate(d) {
@@ -1942,7 +2051,40 @@
 
             function portfolioReportStyles() {
                 return `<style>
-                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}.report{max-width:980px;margin:0 auto;background:white;padding:36px}.cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:24px;margin-bottom:24px}.eyebrow{text-transform:uppercase;font-size:11px;font-weight:700;color:#64748b;letter-spacing:.08em}h1{font-size:30px;margin:6px 0;color:#0f172a}h2{font-size:16px;margin:0 0 12px;color:#0f172a}h3{font-size:13px;margin:14px 0 8px;color:#334155}.stamp{font-size:12px;font-weight:700;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px}.summary span{display:block;font-size:11px;color:#64748b;text-transform:uppercase}.summary strong{display:block;font-size:22px;margin-top:4px}.block{border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px;break-inside:avoid}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.chart-grid{display:grid;grid-template-columns:1fr;gap:14px}figure{margin:0;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;break-inside:avoid}figcaption{font-size:11px;text-transform:uppercase;font-weight:700;color:#475569;margin-bottom:8px}figure img{display:block;width:100%;height:auto;background:white;border-radius:4px}.table-block{margin-top:14px;break-inside:avoid}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#e2e8f0;color:#334155;text-align:left;text-transform:uppercase;font-size:10px;letter-spacing:.04em;padding:8px}td{border-bottom:1px solid #e2e8f0;padding:8px;vertical-align:top}.num{text-align:right;font-weight:700}.good{color:#047857}.bad{color:#dc2626}p{line-height:1.55;color:#334155}footer{font-size:11px;color:#64748b;margin-top:24px;border-top:1px solid #e2e8f0;padding-top:12px}@media print{body{background:white}.report{padding:0}.summary{grid-template-columns:repeat(4,1fr)}.block,figure,.table-block{page-break-inside:avoid}}
+                    @page{size:A4;margin:10mm}
+                    *{box-sizing:border-box}
+                    body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;margin:0}
+                    .report{width:190mm;max-width:190mm;margin:0 auto;background:white;padding:18mm 14mm}
+                    .cover{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d4ed8;padding-bottom:18px;margin-bottom:18px}
+                    .eyebrow{text-transform:uppercase;font-size:10px;font-weight:800;color:#64748b;letter-spacing:.08em}
+                    h1{font-size:28px;margin:6px 0;color:#0f172a;line-height:1.12}
+                    h2{font-size:17px;margin:0 0 12px;color:#0f172a;border-left:4px solid #1d4ed8;padding-left:10px;font-weight:800}
+                    h3{font-size:12px;margin:12px 0 8px;color:#1e293b;font-weight:800}
+                    .stamp{font-size:11px;font-weight:800;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px;white-space:nowrap}
+                    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+                    .summary div{background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:12px;min-width:0}
+                    .summary span{display:block;font-size:9px;color:#64748b;text-transform:uppercase;font-weight:800}
+                    .summary strong{display:block;font-size:18px;margin-top:4px;line-height:1.15}
+                    .block{border:1px solid #dbe4ef;border-radius:8px;padding:14px;margin-bottom:14px;break-inside:avoid-page;background:#fff}
+                    .chart-grid{display:grid;grid-template-columns:1fr;gap:12px}
+                    figure{margin:0;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#f8fafc;break-inside:avoid-page}
+                    figcaption{font-size:10px;text-transform:uppercase;font-weight:800;color:#334155;margin-bottom:8px;letter-spacing:.03em}
+                    figure img{display:block;width:100%;max-height:132mm;object-fit:contain;background:white;border-radius:4px;border:1px solid #eef2f7}
+                    .table-block{margin-top:12px;break-inside:avoid-page;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff}
+                    table{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed}
+                    th{background:#eaf0f7;color:#334155;text-align:left;text-transform:uppercase;font-size:8.5px;letter-spacing:.03em;padding:6px;font-weight:800;word-break:break-word}
+                    td{border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+                    tr:last-child td{border-bottom:0}
+                    .kv-table td:first-child{width:42%;color:#475569;font-weight:700}
+                    .num{text-align:right;font-weight:800}
+                    .good{color:#047857}.bad{color:#dc2626}
+                    p{line-height:1.55;color:#334155;margin:7px 0;font-size:11px}
+                    .indented{text-indent:14px;text-align:justify}
+                    .analysis-note{background:#eff6ff;border-left:3px solid #2563eb;padding:7px 9px;margin-top:8px;border-radius:4px;color:#1e3a8a;text-indent:0}
+                    .method-note{background:#f8fafc;border-left:3px solid #94a3b8;padding:7px 9px;margin-top:6px;border-radius:4px;color:#475569;text-indent:0;font-size:10px}
+                    .section-method{margin-bottom:12px}
+                    footer{font-size:10px;color:#64748b;margin-top:20px;border-top:1px solid #e2e8f0;padding-top:10px}
+                    @media print{body{background:white}.report{padding:0;width:auto;max-width:none}.block,figure,.table-block{page-break-inside:avoid}.summary{grid-template-columns:repeat(4,1fr)}}
                 </style>`;
             }
 
@@ -5069,7 +5211,7 @@
                 traces.push({ x: [dates[0], dates[dates.length - 1]], y: [m - (3 * s), m - (3 * s)], mode: 'lines', name: `-3σ (T:${prob3s} / R:${rProbLt3})`, line: { color: '#15803d', dash: 'dot', width: 1.5 } });
 
                 Plotly.newPlot('returnsChart', traces, {
-                    title: 'Retornos Diarios + Bandas Sigma', xaxis: { title: 'Fecha' }, yaxis: { title: 'Retorno', tickformat: '.1%' }, margin: { t: 40, l: 60, r: 20, b: 40 }, showlegend: true
+                    title: `Retornos ${frequencyLabel(currentDataFrequency).toLowerCase()} + Bandas Sigma`, xaxis: { title: 'Fecha' }, yaxis: { title: 'Retorno', tickformat: '.1%' }, margin: { t: 40, l: 60, r: 20, b: 40 }, showlegend: true
                 }, { responsive: true });
 
                 Plotly.newPlot('returnsHistogram', [{ x: d.returns.map(x => x * 100), type: 'histogram', nbinsx: 50, marker: { color: '#6366f1' } }], { title: 'Distribución de Rentabilidades', xaxis: { title: 'Retorno (%)' }, yaxis: { title: 'Frecuencia' }, margin: { t: 40, l: 60, r: 20, b: 40 }, shapes: [{ type: 'line', x0: d.meanRet * 100, x1: d.meanRet * 100, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', dash: 'dot', width: 2 } }, { type: 'line', x0: d.var95 * 100, x1: d.var95 * 100, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', width: 2 } }], annotations: [{ x: d.var95 * 100, y: 0.5, yref: 'paper', text: `VaR 95%: ${fmtPct(d.var95)}`, showarrow: true, ax: 40 }] }, { responsive: true });
