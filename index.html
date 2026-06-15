@@ -646,6 +646,16 @@
 
                 <div id="portfolioSubtabContent-main" class="portfolio-subtab-content">
                 <div class="mt-6">
+                    <div class="mb-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                        <div>
+                            <label class="text-xs uppercase font-bold text-slate-500">Benchmark comparativo</label>
+                            <select id="portfolioBenchmarkSelect" onchange="renderPortfolioBacktestChart(loadedPortfolio?.portfolioData || [], loadedPortfolio?.mode || 'backtest')"
+                                class="mt-1 min-w-[260px] text-sm p-2 border border-slate-300 rounded bg-white">
+                                <option value="">Sin benchmark</option>
+                            </select>
+                        </div>
+                        <div id="portfolioBenchmarkNote" class="text-xs text-slate-500"></div>
+                    </div>
                     <div id="portfolioChart" class="w-full h-[520px] bg-white border border-gray-100 rounded-lg"></div>
                 </div>
 
@@ -748,7 +758,6 @@
                                     </div>
                                 </div>
                                 <div id="assetAllocationScenarioChart" class="w-full h-[360px] border border-slate-100 rounded"></div>
-                                <div id="assetAllocationCumulativeChart" class="w-full h-[300px] border border-slate-100 rounded"></div>
                             </div>
                         </div>
                     </div>
@@ -770,6 +779,10 @@
                             </table>
                         </div>
                         <p class="text-xs text-slate-400 mt-3">Para 1 año o más se muestra rentabilidad anualizada, siguiendo la lógica del Excel de ejemplo. El cálculo usa ventanas móviles mensuales y los pesos normalizados.</p>
+                    </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-indigo-500 pl-3">EvoluciÃ³n de la asignaciÃ³n</h4>
+                        <div id="assetAllocationCumulativeChart" class="w-full h-[300px] border border-slate-100 rounded"></div>
                     </div>
                 </div>
             </div>
@@ -852,14 +865,51 @@
                 });
             }
 
+            function portfolioEntryLabel(entry) {
+                return String(entry?.name || entry?.label || entry?.assetName || entry?.ticker || '').trim();
+            }
+
+            function portfolioLabelForTicker(ticker) {
+                const entry = loadedPortfolio?.entries?.find(e => String(e.ticker).toUpperCase() === String(ticker).toUpperCase());
+                return portfolioEntryLabel(entry) || ticker;
+            }
+
+            function selectedPortfolioBenchmark() {
+                const key = document.getElementById('portfolioBenchmarkSelect')?.value || '';
+                return key && loadedPortfolio?.benchmarks?.[key] ? loadedPortfolio.benchmarks[key] : null;
+            }
+
+            function alignPortfolioWithBenchmark(portfolioData, benchmarkData) {
+                const benchMap = new Map((benchmarkData || []).map(d => [d.date.toISOString().slice(0, 10), d.price]));
+                const rows = (portfolioData || [])
+                    .map(d => {
+                        const key = d.date.toISOString().slice(0, 10);
+                        return benchMap.has(key) ? { date: d.date, portfolio: d.price, benchmark: benchMap.get(key) } : null;
+                    })
+                    .filter(Boolean);
+                if (rows.length < 2) return null;
+                const p0 = rows[0].portfolio;
+                const b0 = rows[0].benchmark;
+                if (!(p0 > 0) || !(b0 > 0)) return null;
+                return {
+                    x: rows.map(r => r.date),
+                    portfolio: rows.map(r => (r.portfolio / p0) * 100),
+                    benchmark: rows.map(r => (r.benchmark / b0) * 100)
+                };
+            }
+
             function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
+                if (!portfolioData?.length) return;
                 const x = portfolioData.map(d => d.date);
                 const y = portfolioData.map(d => d.price);
-                const rsi = calculateRSI(y, 14);
+                const benchmark = selectedPortfolioBenchmark();
+                const comparison = benchmark ? alignPortfolioWithBenchmark(portfolioData, benchmark.data) : null;
+                const chartX = comparison?.x || x;
+                const chartY = comparison?.portfolio || y;
+                const rsi = calculateRSI(chartY, 14);
                 const traces = [
-                    { x, y, mode: 'lines', name: mode === 'real' ? 'Cartera real' : 'Backtest', line: { color: '#2563eb', width: 2.2 } },
+                    { x: chartX, y: chartY, mode: 'lines', name: benchmark ? 'Cartera (Base 100)' : (mode === 'real' ? 'Cartera real' : 'Backtest'), line: { color: '#2563eb', width: 2.2 } },
                     { x, y: movingAverageValues(y, 50), mode: 'lines', name: 'Media móvil 50', line: { color: '#f59e0b', width: 1.8 } },
-                    { x, y: movingAverageValues(y, 200), mode: 'lines', name: 'Media móvil 200', line: { color: '#0f172a', width: 1.8 } },
                     { x, y: rsi, yaxis: 'y2', mode: 'lines', name: 'RSI 14', line: { color: '#7c3aed', width: 1.7 } }
                 ];
                 Plotly.newPlot('portfolioChart', traces, {
@@ -871,6 +921,36 @@
                     shapes: [
                         { type: 'line', x0: x[0], x1: x[x.length - 1], y0: 70, y1: 70, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } },
                         { type: 'line', x0: x[0], x1: x[x.length - 1], y0: 30, y1: 30, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } }
+                    ]
+                }, { responsive: true });
+            }
+
+            function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
+                if (!portfolioData?.length) return;
+                const x = portfolioData.map(d => d.date);
+                const y = portfolioData.map(d => d.price);
+                const benchmark = selectedPortfolioBenchmark();
+                const comparison = benchmark ? alignPortfolioWithBenchmark(portfolioData, benchmark.data) : null;
+                const chartX = comparison?.x || x;
+                const chartY = comparison?.portfolio || y;
+                const rsi = calculateRSI(chartY, 14);
+                const traces = [
+                    { x: chartX, y: chartY, mode: 'lines', name: benchmark ? 'Cartera (Base 100)' : (mode === 'real' ? 'Cartera real' : 'Backtest'), line: { color: '#2563eb', width: 2.2 } },
+                    { x: chartX, y: movingAverageValues(chartY, 50), mode: 'lines', name: 'Media movil 50', line: { color: '#f59e0b', width: 1.8 } },
+                    { x: chartX, y: rsi, yaxis: 'y2', mode: 'lines', name: 'RSI 14', line: { color: '#7c3aed', width: 1.7 } }
+                ];
+                if (comparison) traces.splice(1, 0, { x: comparison.x, y: comparison.benchmark, mode: 'lines', name: `${benchmark.label} (Base 100)`, line: { color: '#0f172a', width: 2, dash: 'dot' } });
+                const note = document.getElementById('portfolioBenchmarkNote');
+                if (note) note.textContent = comparison ? `Comparacion base 100 desde ${comparison.x[0].toISOString().slice(0, 10)}` : (benchmark ? 'Benchmark sin fechas comunes suficientes.' : '');
+                Plotly.newPlot('portfolioChart', traces, {
+                    title: comparison ? 'Evolucion cartera vs benchmark (Base 100)' : (mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)'),
+                    margin: { t: 40, l: 60, r: 20, b: 40 },
+                    yaxis: { title: comparison ? 'Base 100' : 'Patrimonio', domain: [0.33, 1] },
+                    yaxis2: { title: 'RSI', domain: [0, 0.22], range: [0, 100] },
+                    legend: { orientation: 'h', y: -0.18 },
+                    shapes: [
+                        { type: 'line', x0: chartX[0], x1: chartX[chartX.length - 1], y0: 70, y1: 70, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } },
+                        { type: 'line', x0: chartX[0], x1: chartX[chartX.length - 1], y0: 30, y1: 30, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } }
                     ]
                 }, { responsive: true });
             }
@@ -1023,16 +1103,26 @@
                     ['2021-03-31', 396.33, 62.35, 136.72, 159.96],
                     ['2021-04-30', 417.30, 65.18, 139.85, 165.66]
                 ];
+                const bench = [
+                    ['date', 'MSCI World', 'S&P 500', 'Bloomberg Global Agg'],
+                    ['2021-01-31', 100.00, 100.00, 100.00],
+                    ['2021-02-28', 102.10, 102.78, 98.95],
+                    ['2021-03-31', 104.35, 107.09, 97.64],
+                    ['2021-04-30', 108.03, 112.76, 98.41]
+                ];
                 const instructions = [
                     ['Campo/Hoja', 'Uso'],
                     ['weights.ticker', 'Ticker de Yahoo o identificador del activo.'],
+                    ['weights.name', 'Nombre del activo usado en graficas, matrices e informes. Es la columna C de la plantilla.'],
                     ['weights.weight', 'Peso objetivo. Puede sumar 1, 100 o cualquier escala; se normaliza automaticamente.'],
                     ['prices', 'Opcional. Si existe, la app usa estos precios en vez de descargar Yahoo.'],
                     ['prices.date', 'Fecha de cierre del precio. Usa formato YYYY-MM-DD.'],
-                    ['prices.<ticker>', 'Una columna por ticker con el precio/NAV del activo.']
+                    ['prices.<ticker>', 'Una columna por ticker con el precio/NAV del activo.'],
+                    ['bench', 'Opcional. Misma estructura que prices para benchmarks comparativos.']
                 ];
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(weights), 'weights');
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prices), 'prices');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bench), 'bench');
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instructions), 'instructions');
                 XLSX.writeFile(wb, 'plantilla_backtesting_cartera.xlsx');
             }
@@ -1065,18 +1155,20 @@
                 const weightsSheet = findSheet(workbook, ['weights', 'pesos', 'cartera']) || workbook.SheetNames[0];
                 const weightsRows = sheetRows(workbook, weightsSheet);
                 const entries = weightsRows.map(row => ({
-                    ticker: String(firstValue(row, ['ticker', 'symbol', 'isin', 'activo']) || '').toUpperCase().trim(),
-                    weight: parseNumber(firstValue(row, ['weight', 'peso', 'allocation', 'target']))
+                    ticker: String(firstValue(row, ['ticker', 'symbol', 'ticker yahoo', 'isin', 'codigo', 'codigo activo']) || '').toUpperCase().trim(),
+                    weight: parseNumber(firstValue(row, ['weight', 'peso', 'allocation', 'target'])),
+                    name: String(firstValue(row, ['name', 'nombre', 'activo', 'asset', 'descripcion', 'description', 'label']) || '').trim()
                 })).filter(e => e.ticker && Number.isFinite(e.weight));
                 if (!entries.length) return alert('No encuentro pesos validos. Usa columnas ticker y weight.');
                 normalizeEntryWeights(entries);
                 setPortfolioRows(entries);
+                const benchmarks = benchmarkSheetToSeriesMap(workbook, findSheet(workbook, ['bench', 'benchmark', 'benchmarks']));
 
                 const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
                 if (pricesSheet) {
                     const seriesMap = priceSheetToSeriesMap(workbook, pricesSheet, entries);
-                    if (Object.keys(seriesMap).length >= entries.length) {
-                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`);
+                    if (entries.every(e => (seriesMap[e.ticker] || []).length >= 2)) {
+                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks);
                         return;
                     }
                 }
@@ -1085,6 +1177,10 @@
                 if (loadedPortfolio) {
                     loadedPortfolio.sourceLabel = `Excel pesos + Yahoo: ${fileName}`;
                     loadedPortfolio.mode = 'backtest';
+                    loadedPortfolio.benchmarks = benchmarks;
+                    populatePortfolioBenchmarkSelect();
+                    preparePortfolioReportAllocationState();
+                    renderPortfolioBacktestChart(loadedPortfolio.portfolioData, loadedPortfolio.mode);
                 }
             }
 
@@ -1107,7 +1203,7 @@
                 });
             }
 
-            function computeImportedBacktestPortfolio(entries, seriesMap, sourceLabel) {
+            function computeImportedBacktestPortfolio(entries, seriesMap, sourceLabel, benchmarks = {}) {
                 const validTickers = entries.map(e => e.ticker).filter(t => seriesMap[t]?.length);
                 const maps = {};
                 validTickers.forEach(t => { maps[t] = new Map(seriesMap[t].map(d => [d.date.toISOString().slice(0, 10), d.price])); });
@@ -1127,10 +1223,10 @@
                 const values = [1000];
                 portReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const portfolioData = commonDates.map((date, i) => ({ date: new Date(date), price: values[i] }));
-                finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers: validTickers, sourceLabel, mode: 'backtest' });
+                finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers: validTickers, sourceLabel, mode: 'backtest', benchmarks });
             }
 
-            function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode }) {
+            function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode, benchmarks = {} }) {
                 const frequency = selectedPortfolioFrequency(portfolioData);
                 const portfolioReturns = priceReturns(portfolioData);
                 const firstPrice = portfolioData[0].price;
@@ -1139,11 +1235,13 @@
                 const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
                 const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(periodsPerYear(frequency));
                 const ddData = calculateDrawdownData(portfolioData);
-                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns };
+                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks };
                 portfolioImportMode = mode;
+                populatePortfolioBenchmarkSelect();
                 renderPortfolioBacktestChart(portfolioData, mode);
                 try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
                 try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
+                try { preparePortfolioReportAllocationState(); } catch (e) { console.warn('asset allocation sync failed', e); }
                 document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — Frecuencia: ${frequencyLabel(frequency)}. CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
                 document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                 document.getElementById('analyzePortfolioBtn').disabled = false;
@@ -1219,6 +1317,7 @@
                 entries.forEach(e => {
                     const row = document.createElement('div');
                     row.className = 'grid grid-cols-12 gap-2 items-center portfolio-row';
+                    row.dataset.portfolioName = e.name || e.label || '';
                     row.innerHTML = `
                         <div class="col-span-5"><input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" value="${escapeHtml(e.ticker)}"></div>
                         <div class="col-span-4"><input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" value="${Number(e.weight).toFixed(6)}"></div>
@@ -1244,6 +1343,37 @@
                 });
                 Object.keys(seriesMap).forEach(t => seriesMap[t].sort((a, b) => a.date - b.date));
                 return seriesMap;
+            }
+
+            function benchmarkSheetToSeriesMap(workbook, sheetName) {
+                if (!sheetName) return {};
+                const rows = sheetRows(workbook, sheetName);
+                if (!rows.length) return {};
+                const columns = Object.keys(rows[0]).filter(k => !['date', 'fecha'].includes(k));
+                const out = {};
+                columns.forEach(col => out[col] = { key: col, label: col, data: [] });
+                rows.forEach(row => {
+                    const date = parseExcelDate(firstValue(row, ['date', 'fecha']));
+                    if (!date) return;
+                    columns.forEach(col => {
+                        const price = parseNumber(row[col]);
+                        if (Number.isFinite(price) && price > 0) out[col].data.push({ date, price });
+                    });
+                });
+                Object.keys(out).forEach(key => out[key].data.sort((a, b) => a.date - b.date));
+                return Object.fromEntries(Object.entries(out).filter(([, value]) => value.data.length >= 2));
+            }
+
+            function populatePortfolioBenchmarkSelect() {
+                const select = document.getElementById('portfolioBenchmarkSelect');
+                if (!select) return;
+                const current = select.value;
+                const benchmarks = loadedPortfolio?.benchmarks || {};
+                const options = ['<option value="">Sin benchmark</option>'].concat(Object.entries(benchmarks).map(([key, value]) => `<option value="${escapeHtml(key)}">${escapeHtml(value.label || key)}</option>`));
+                select.innerHTML = options.join('');
+                if (benchmarks[current]) select.value = current;
+                const note = document.getElementById('portfolioBenchmarkNote');
+                if (note && !Object.keys(benchmarks).length) note.textContent = 'Sube una hoja bench para comparar contra indices de referencia.';
             }
 
             function priceReturns(series) {
@@ -1539,7 +1669,8 @@
                 const entries = rows.map(r => {
                     const t = r.querySelector('.portfolio-ticker')?.value?.toUpperCase()?.trim() || '';
                     const w = parseFloat(r.querySelector('.portfolio-weight')?.value) || 0;
-                    return { ticker: t, weight: w };
+                    const name = String(r.dataset.portfolioName || '').trim();
+                    return { ticker: t, weight: w, name };
                 }).filter(e => e.ticker);
                 if (entries.length < 1) return alert('Añade al menos un activo con ticker.');
                 // normalize weights here
@@ -1664,6 +1795,8 @@
                     const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
                     loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns };
+                    populatePortfolioBenchmarkSelect();
+                    try { preparePortfolioReportAllocationState(); } catch (e) { console.warn('asset allocation sync failed', e); }
 
                     // Render composition pie and initial correlation matrix (default frequency selector)
                     try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
@@ -1856,7 +1989,7 @@
                 const dateSource = (loadedPortfolio.commonDates || []).slice(-minLen);
                 assetAllocationState = {
                     keys,
-                    labels: Object.fromEntries(keys.map(k => [k, k])),
+                    labels: Object.fromEntries(keys.map(k => [k, portfolioLabelForTicker(k)])),
                     sourceLabel: `Cartera cargada (${loadedPortfolio.sourceLabel || 'datos actuales'})`,
                     dates: dateSource.length === minLen ? dateSource : Array.from({ length: minLen }, (_, i) => `${i + 1}`),
                     returns: Object.fromEntries(keys.map(k => [k, loadedPortfolio.returns[k].slice(-minLen)])),
@@ -1874,7 +2007,7 @@
                     {
                         title: 'Resumen cartera y composición',
                         note: 'Evolución patrimonial, pesos de cartera y correlaciones anuales entre activos.',
-                        method: 'La evolución se calcula capitalizando los retornos de la cartera. Las medias móviles usan 50 y 200 observaciones; el RSI usa 14 periodos. La correlación se recalcula con ventanas anuales para reducir ruido de corto plazo.',
+                        method: 'La evolución se calcula capitalizando los retornos de la cartera. La media móvil usa 50 observaciones; el RSI usa 14 periodos. Si existe benchmark, la comparación se normaliza en base 100 desde la primera fecha común. La correlación se recalcula con ventanas anuales para reducir ruido de corto plazo.',
                         items: [
                             { type: 'chart', id: 'portfolioChart', title: 'Evolución de cartera, medias móviles y RSI' },
                             { type: 'chart', id: 'portfolioCompositionChart', title: 'Composición de la cartera' },
@@ -1976,7 +2109,7 @@
             }
 
             function reportMethodForItem(id, title) {
-                if (id === 'portfolioChart') return 'Serie de cartera capitalizada, medias móviles simples de 50 y 200 observaciones, y RSI de 14 periodos en panel secundario.';
+                if (id === 'portfolioChart') return 'Serie de cartera capitalizada, media móvil simple de 50 observaciones, benchmark opcional normalizado base 100 y RSI de 14 periodos en panel secundario.';
                 if (id.startsWith('forecast')) return 'Monte Carlo con log-retornos históricos de la cartera cargada, 10.000 simulaciones, horizonte de 15 años y capital inicial 1.000.';
                 if (id === 'assetAllocationStatsBody') return 'Ventanas móviles por plazo sobre retornos de los activos de cartera, pesos normalizados y umbral de rentabilidad inferior fijado al 0%.';
                 if (id === 'annualTableBody') return 'Agregación por años naturales a partir de la serie de cartera cargada.';
@@ -2161,10 +2294,11 @@
 
             // Render portfolio composition as a Pie chart
             function renderPortfolioComposition(entries) {
-                const labels = entries.map(e => e.ticker);
+                const labels = entries.map(e => portfolioEntryLabel(e));
+                const tickers = entries.map(e => e.ticker);
                 const values = entries.map(e => (e.weight || 0));
                 const colors = ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#475569', '#64748b', '#94a3b8'];
-                const trace = [{ labels, values, type: 'pie', hole: 0.35, marker: { colors } }];
+                const trace = [{ labels, values, customdata: tickers, type: 'pie', hole: 0.35, marker: { colors }, hovertemplate: '%{label}<br>Ticker: %{customdata}<br>Peso: %{percent}<extra></extra>' }];
                 const layout = { title: 'Composición de la Cartera (Pesos)', margin: { t: 40, l: 20, r: 20, b: 20 }, legend: { orientation: 'h', y: -0.15 } };
                 Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
             }
@@ -2198,7 +2332,7 @@
                     z.push(row);
                 }
 
-                renderPortfolioCorrMatrix(tickers, z, freq, windowSize, minLen);
+                renderPortfolioCorrMatrix(tickers.map(t => portfolioLabelForTicker(t)), z, freq, windowSize, minLen);
                 renderPortfolioRollingCorrelation(tickers, baseReturns, windowSize);
             }
 
@@ -2256,7 +2390,7 @@
                             if (!allByIndex.has(key)) allByIndex.set(key, []);
                             allByIndex.get(key).push(corr);
                         }
-                        traces.push({ x, y, mode: 'lines', name: `${tickers[i]} / ${tickers[j]}`, line: { width: 1, color: '#94a3b8' }, opacity: 0.35, hovertemplate: '%{y:.2f}<extra>%{fullData.name}</extra>' });
+                        traces.push({ x, y, mode: 'lines', name: `${portfolioLabelForTicker(tickers[i])} / ${portfolioLabelForTicker(tickers[j])}`, line: { width: 1, color: '#94a3b8' }, opacity: 0.35, hovertemplate: '%{y:.2f}<extra>%{fullData.name}</extra>' });
                         pairCount++;
                     }
                 }
