@@ -1362,6 +1362,7 @@
                     active.classList.remove('text-slate-500', 'border-transparent');
                     active.classList.add('text-blue-700', 'border-blue-700');
                 }
+                if (tabName === 'scoring') syncFundScoringPortfolioFromLoadedPortfolio();
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
             }
 
@@ -1469,6 +1470,7 @@
                 if (!entries.length) return alert('No encuentro pesos validos. Usa columnas ticker y weight.');
                 normalizeEntryWeights(entries);
                 setPortfolioRows(entries);
+                syncFundScoringPortfolioFromEntries(entries, `Excel pesos: ${fileName}`);
                 const benchmarks = benchmarkSheetToSeriesMap(workbook, findSheet(workbook, ['bench', 'benchmark', 'benchmarks']));
 
                 const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
@@ -1546,6 +1548,7 @@
                 const ddData = calculateDrawdownData(portfolioData);
                 loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries };
                 portfolioImportMode = mode;
+                syncFundScoringPortfolioFromEntries(entries, sourceLabel);
                 populatePortfolioBenchmarkSelect();
                 populateFundComparisonControls();
                 renderPortfolioBacktestChart(portfolioData, mode);
@@ -1572,7 +1575,7 @@
 
             function findSheet(workbook, names) {
                 const lower = workbook.SheetNames.map(name => ({ name, key: name.toLowerCase() }));
-                const found = lower.find(s => names.some(n => s.key.includes(n)));
+                const found = lower.find(s => names.some(n => s.key.includes(String(n).toLowerCase())));
                 return found?.name || null;
             }
 
@@ -1866,6 +1869,24 @@
                 return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
             }
 
+            function isLikelyIsin(value) {
+                return /^[A-Z]{2}[A-Z0-9]{10}$/.test(normalizeIsin(value));
+            }
+
+            function syncFundScoringPortfolioFromEntries(entries, sourceLabel = 'cartera cargada') {
+                const rows = (entries || [])
+                    .map(e => ({ isin: normalizeIsin(e.ticker || e.isin), weight: (Number(e.weight) || 0) * 100 }))
+                    .filter(r => isLikelyIsin(r.isin) && Number.isFinite(r.weight) && r.weight > 0);
+                if (!rows.length) return false;
+                setFundPortfolioRows(rows, sourceLabel);
+                return true;
+            }
+
+            function syncFundScoringPortfolioFromLoadedPortfolio() {
+                if (fundPortfolioRows.length || !loadedPortfolio?.entries?.length) return false;
+                return syncFundScoringPortfolioFromEntries(loadedPortfolio.entries, 'cartera principal');
+            }
+
             function normalizeFundName(value) {
                 return String(value || '')
                     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -2014,7 +2035,7 @@
 
             function parseFundPortfolioRows(rows) {
                 return rows.map(row => ({
-                    isin: normalizeIsin(firstValue(row, ['isin', 'ISIN', 'codigo', 'código', 'fund isin'])),
+                    isin: normalizeIsin(firstValue(row, ['isin', 'ISIN', 'ticker', 'symbol', 'codigo', 'código', 'fund isin'])),
                     weight: parseFundWeight(firstValue(row, ['peso', 'Peso', 'weight', 'Weight', 'peso (%)', 'Peso (%)', 'allocation']))
                 })).filter(r => r.isin && Number.isFinite(r.weight) && r.weight > 0);
             }
@@ -2648,6 +2669,7 @@
                     const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
                     loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns, priceSeries: seriesMapToComparable(seriesMap, entries), benchmarks: {} };
+                    syncFundScoringPortfolioFromEntries(entries, 'Manual/Yahoo');
                     populatePortfolioBenchmarkSelect();
                     populateFundComparisonControls();
                     try { preparePortfolioReportAllocationState(); } catch (e) { console.warn('asset allocation sync failed', e); }
