@@ -642,6 +642,8 @@
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-blue-700 border-b-2 border-blue-700">Cartera y análisis</button>
                     <button id="portfolioSubtab-assets" onclick="showPortfolioSubtab('assets')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Distribución de activos</button>
+                    <button id="portfolioSubtab-scoring" onclick="showPortfolioSubtab('scoring')"
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Scoring de Cartera</button>
                     <button id="portfolioSubtab-funds" onclick="showPortfolioSubtab('funds')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Comparativa fondos</button>
                 </div>
@@ -718,6 +720,98 @@
                         Carga una cartera y pulsa Generar para crear el informe descargable.
                     </div>
                 </div>
+                </div>
+
+                <div id="portfolioSubtabContent-scoring" class="portfolio-subtab-content hidden mt-6 space-y-4">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="font-bold text-slate-900 border-l-4 border-blue-700 pl-3">Scoring de Cartera</h3>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Cruza ISINs de cartera contra el ranking interno, resuelve clases equivalentes y calcula score/TER ponderado.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <label class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800 cursor-pointer">
+                                    <i class="fa-solid fa-database mr-1"></i>Subir universo
+                                    <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importFundUniverseFile(this.files[0])">
+                                </label>
+                                <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
+                                    <i class="fa-solid fa-briefcase mr-1"></i>Subir cartera
+                                    <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importFundScoringPortfolioFile(this.files[0])">
+                                </label>
+                                <button onclick="runFundScoringAnalysis()" class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Analizar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Universo cargado</div>
+                                <div id="fundUniverseStatus" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Cartera cargada</div>
+                                <div id="fundPortfolioStatus" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Matching</div>
+                                <div id="fundScoringStatus" class="text-sm font-bold text-slate-800 mt-2">Sin ejecutar</div>
+                            </div>
+                        </div>
+                        <label class="text-xs uppercase font-bold text-slate-500">Pegar cartera manualmente (ISIN,peso)</label>
+                        <textarea id="fundPortfolioPaste" rows="4" class="mt-1 w-full p-3 border border-slate-300 rounded text-sm font-mono" placeholder="LU1234567890,25&#10;IE00XXXXXXXX,15"></textarea>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <button onclick="loadFundPortfolioFromText()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50">Usar texto pegado</button>
+                            <button onclick="clearFundScoringState()" class="px-3 py-2 bg-white border border-red-200 rounded text-xs font-bold text-red-700 hover:bg-red-50">Limpiar scoring</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="text-xs uppercase font-bold text-slate-500">Score ponderado</div>
+                            <div id="fundWeightedScore" class="text-3xl font-black text-blue-900 mt-2">-</div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="text-xs uppercase font-bold text-slate-500">TER ponderado</div>
+                            <div id="fundWeightedTer" class="text-3xl font-black text-blue-900 mt-2">-</div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="text-xs uppercase font-bold text-slate-500">Peso resuelto</div>
+                            <div id="fundResolvedWeight" class="text-3xl font-black text-blue-900 mt-2">-</div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="text-xs uppercase font-bold text-slate-500">Fondos resueltos</div>
+                            <div id="fundResolvedCount" class="text-3xl font-black text-blue-900 mt-2">-</div>
+                        </div>
+                    </div>
+                    <div id="fundScoringNotice" class="hidden rounded border border-amber-200 bg-amber-50 text-amber-900 p-3 text-sm"></div>
+
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
+                            <h4 class="font-bold text-slate-800 border-l-4 border-blue-600 pl-3">Fondos de cartera vs universo</h4>
+                            <input id="fundManualSearch" type="search" oninput="renderFundManualSearch(this.value)" class="w-full lg:w-80 p-2 border border-slate-300 rounded text-sm" placeholder="Buscar manualmente en universo...">
+                        </div>
+                        <div id="fundManualSearchResults" class="hidden mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm"></div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm text-slate-600">
+                                <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">ISIN cartera</th>
+                                        <th class="px-3 py-2 text-left">Nombre fondo</th>
+                                        <th class="px-3 py-2 text-left">Gestora</th>
+                                        <th class="px-3 py-2 text-left">Categoria</th>
+                                        <th class="px-3 py-2 text-right">Peso</th>
+                                        <th class="px-3 py-2 text-right">Score</th>
+                                        <th class="px-3 py-2 text-right">TER</th>
+                                        <th class="px-3 py-2 text-right">Ret 1Y</th>
+                                        <th class="px-3 py-2 text-right">Ret 3Y</th>
+                                        <th class="px-3 py-2 text-right">Ret 5Y</th>
+                                        <th class="px-3 py-2 text-left">Estado match</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fundScoringTableBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="portfolioSubtabContent-funds" class="portfolio-subtab-content hidden mt-6 space-y-4">
@@ -923,6 +1017,10 @@
             let portfolioAnalysisPromise = null;
             let portfolioChartRange = 'ALL';
             let fundCompareRange = 'ALL';
+            let fundUniverseState = null;
+            let fundPortfolioRows = [];
+            let fundScoringResults = [];
+            let fundManualTargetIndex = -1;
 
             function setPortfolioReportProgress(percent, label) {
                 const wrap = document.getElementById('portfolioReportProgressWrap');
@@ -1721,6 +1819,413 @@
                         ['Max drawdown bench', fmtPct(benchDD)]
                     ];
                     metricsBody.innerHTML = metrics.map(([label, value]) => `<tr><td class="px-3 py-2 font-bold text-slate-700">${label}</td><td class="px-3 py-2 text-right">${value}</td></tr>`).join('');
+                }
+            }
+
+            function sheetRowsFromHeader(workbook, sheetName, headerRowNumber = 1) {
+                const sheet = workbook.Sheets[sheetName];
+                if (!sheet) return [];
+                return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false, range: headerRowNumber - 1 }).map(row => {
+                    const normalized = {};
+                    Object.keys(row).forEach(key => normalized[String(key).trim()] = row[key]);
+                    return normalized;
+                });
+            }
+
+            function fundCol(row, names) {
+                const keys = Object.keys(row || {});
+                for (const name of names) {
+                    const found = keys.find(k => k.toLowerCase().trim() === name.toLowerCase().trim());
+                    if (found && row[found] !== null && row[found] !== undefined && row[found] !== '') return row[found];
+                }
+                return null;
+            }
+
+            function parseRankingNumber(value) {
+                if (value === null || value === undefined || value === '' || String(value).trim().toUpperCase() === 'N/A') return NaN;
+                if (typeof value === 'number') return value;
+                let text = String(value).replace('%', '').trim();
+                const hasComma = text.includes(',');
+                const hasDot = text.includes('.');
+                if (hasComma && hasDot) {
+                    const lastComma = text.lastIndexOf(',');
+                    const lastDot = text.lastIndexOf('.');
+                    text = lastComma > lastDot ? text.replace(/\./g, '').replace(',', '.') : text.replace(/,/g, '');
+                } else if ((text.match(/,/g) || []).length > 1) {
+                    text = text.replace(/,/g, '');
+                } else if ((text.match(/\./g) || []).length > 1) {
+                    text = text.replace(/\./g, '');
+                } else if (hasComma) {
+                    text = text.replace(',', '.');
+                }
+                const n = Number(text);
+                return Number.isFinite(n) ? n : NaN;
+            }
+
+            function normalizeIsin(value) {
+                return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+            }
+
+            function normalizeFundName(value) {
+                return String(value || '')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/[€$£]/g, ' eur ')
+                    .replace(/\b(acc|dis|dist|cap|inc|hdg|hedged|unhedged)\b/g, ' ')
+                    .replace(/\b(eur|usd|gbp|chf|sek|nok|dkk|jpy|hkd|sgd)\b/g, ' ')
+                    .replace(/\b(class|clase|share|shares)\b/g, ' ')
+                    .replace(/\b[a-z]{1,3}\d?h?\b$/g, ' ')
+                    .replace(/[^a-z0-9]+/g, ' ')
+                    .trim();
+            }
+
+            function tokenSimilarity(a, b) {
+                const aa = normalizeFundName(a), bb = normalizeFundName(b);
+                if (!aa || !bb) return 0;
+                if (aa === bb) return 1;
+                const aTokens = new Set(aa.split(/\s+/).filter(Boolean));
+                const bTokens = new Set(bb.split(/\s+/).filter(Boolean));
+                const inter = [...aTokens].filter(t => bTokens.has(t)).length;
+                const union = new Set([...aTokens, ...bTokens]).size || 1;
+                const jaccard = inter / union;
+                const contains = aa.includes(bb) || bb.includes(aa) ? 0.18 : 0;
+                const prefix = aa.slice(0, 12) === bb.slice(0, 12) ? 0.12 : 0;
+                return Math.min(1, jaccard + contains + prefix);
+            }
+
+            async function importFundUniverseFile(file) {
+                if (!file) return;
+                if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
+                document.getElementById('fundUniverseStatus').innerText = 'Leyendo universo...';
+                const workbook = await readWorkbook(file);
+                const sheetName = findSheet(workbook, ['Ranking Completo']);
+                if (!sheetName) {
+                    document.getElementById('fundUniverseStatus').innerText = 'Error: falta hoja Ranking Completo';
+                    return alert('El Excel debe incluir una hoja llamada Ranking Completo.');
+                }
+                const rows = sheetRowsFromHeader(workbook, sheetName, 8);
+                const records = rows.map((row, idx) => {
+                    const isin = normalizeIsin(fundCol(row, ['ISIN']));
+                    const name = String(fundCol(row, ['Name']) || '').trim();
+                    const category = String(fundCol(row, ['Morningstar Category', 'Category']) || '').trim();
+                    const score = parseRankingNumber(fundCol(row, ['Score']));
+                    const ter = parseRankingNumber(fundCol(row, ['KIID Ongoing Charge*']));
+                    const aum = parseRankingNumber(fundCol(row, ['AUM*']));
+                    return {
+                        rowIndex: idx,
+                        name,
+                        normalizedName: normalizeFundName(name),
+                        isin,
+                        category,
+                        score,
+                        ter,
+                        aum,
+                        manager: String(fundCol(row, ['Entidad*', 'Entidad', 'Manager', 'Provider']) || '').trim(),
+                        currency: String(fundCol(row, ['Divisa', 'Currency']) || '').trim(),
+                        ranking: String(fundCol(row, ['Ranking']) || '').trim(),
+                        ret1: parseRankingNumber(fundCol(row, ['Return 1Y*'])),
+                        ret3: parseRankingNumber(fundCol(row, ['Return 3Y*'])),
+                        ret5: parseRankingNumber(fundCol(row, ['Return 5Y*'])),
+                        risk1: parseRankingNumber(fundCol(row, ['Risk 1Y*'])),
+                        risk3: parseRankingNumber(fundCol(row, ['Risk 3Y*'])),
+                        risk5: parseRankingNumber(fundCol(row, ['Risk 5Y*'])),
+                        dd1: parseRankingNumber(fundCol(row, ['Max Drawdown 1Y*'])),
+                        dd3: parseRankingNumber(fundCol(row, ['Max Drawdown 3Y*'])),
+                        dd5: parseRankingNumber(fundCol(row, ['Max Drawdown 5Y*']))
+                    };
+                }).filter(r => r.isin && r.name);
+                const isinIndex = new Map();
+                records.forEach(r => {
+                    const prev = isinIndex.get(r.isin);
+                    if (!prev || (Number.isFinite(r.score) && r.score > (prev.score || -Infinity))) isinIndex.set(r.isin, r);
+                });
+                fundUniverseState = { records, isinIndex, quartiles: buildFundQuartiles(records), fileName: file.name };
+                document.getElementById('fundUniverseStatus').innerText = `${records.length.toLocaleString('es-ES')} fondos (${file.name})`;
+                document.getElementById('fundScoringStatus').innerText = 'Universo listo';
+                if (fundPortfolioRows.length) runFundScoringAnalysis();
+            }
+
+            function buildFundQuartiles(records) {
+                const metrics = {
+                    score: { field: 'score', lowerBetter: false },
+                    ter: { field: 'ter', lowerBetter: true },
+                    ret1: { field: 'ret1', lowerBetter: false },
+                    ret3: { field: 'ret3', lowerBetter: false },
+                    ret5: { field: 'ret5', lowerBetter: false },
+                    risk1: { field: 'risk1', lowerBetter: true },
+                    risk3: { field: 'risk3', lowerBetter: true },
+                    risk5: { field: 'risk5', lowerBetter: true },
+                    dd1: { field: 'dd1', lowerBetter: false },
+                    dd3: { field: 'dd3', lowerBetter: false },
+                    dd5: { field: 'dd5', lowerBetter: false }
+                };
+                const byCat = {};
+                records.forEach(r => {
+                    const cat = r.category || 'Sin categoria';
+                    if (!byCat[cat]) byCat[cat] = {};
+                    Object.entries(metrics).forEach(([key, cfg]) => {
+                        const v = r[cfg.field];
+                        if (Number.isFinite(v)) {
+                            if (!byCat[cat][key]) byCat[cat][key] = [];
+                            byCat[cat][key].push(v);
+                        }
+                    });
+                });
+                Object.values(byCat).forEach(catMetrics => Object.values(catMetrics).forEach(arr => arr.sort((a, b) => a - b)));
+                return { byCat, metrics };
+            }
+
+            function metricQuartile(record, metricKey) {
+                if (!record || !fundUniverseState?.quartiles) return null;
+                const cfg = fundUniverseState.quartiles.metrics[metricKey];
+                const arr = fundUniverseState.quartiles.byCat[record.category || 'Sin categoria']?.[metricKey];
+                const v = record[cfg?.field];
+                if (!cfg || !arr?.length || !Number.isFinite(v)) return null;
+                const rank = arr.filter(x => cfg.lowerBetter ? x <= v : x >= v).length;
+                const pct = rank / arr.length;
+                if (pct <= 0.25) return 1;
+                if (pct <= 0.50) return 2;
+                if (pct <= 0.75) return 3;
+                return 4;
+            }
+
+            function quartileCell(value, record, metricKey, isPercentPoint = true) {
+                if (!Number.isFinite(value)) return '<td class="px-3 py-2 text-right text-slate-400">-</td>';
+                const q = metricQuartile(record, metricKey);
+                const cls = q === 1 ? 'bg-emerald-100 text-emerald-900' : q === 2 ? 'bg-lime-100 text-lime-900' : q === 3 ? 'bg-orange-100 text-orange-900' : q === 4 ? 'bg-red-100 text-red-900' : '';
+                const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                return `<td class="px-3 py-2 text-right font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</td>`;
+            }
+
+            async function importFundScoringPortfolioFile(file) {
+                if (!file) return;
+                document.getElementById('fundPortfolioStatus').innerText = 'Leyendo cartera...';
+                let rows = [];
+                if (file.name.toLowerCase().endsWith('.csv')) {
+                    const text = await file.text();
+                    rows = parseFundPortfolioText(text);
+                } else {
+                    if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
+                    const workbook = await readWorkbook(file);
+                    rows = parseFundPortfolioRows(sheetRows(workbook, workbook.SheetNames[0]));
+                }
+                setFundPortfolioRows(rows, file.name);
+            }
+
+            function parseFundPortfolioRows(rows) {
+                return rows.map(row => ({
+                    isin: normalizeIsin(firstValue(row, ['isin', 'ISIN', 'codigo', 'código', 'fund isin'])),
+                    weight: parseFundWeight(firstValue(row, ['peso', 'Peso', 'weight', 'Weight', 'peso (%)', 'Peso (%)', 'allocation']))
+                })).filter(r => r.isin && Number.isFinite(r.weight) && r.weight > 0);
+            }
+
+            function parseFundPortfolioText(text) {
+                return String(text || '').split(/\r?\n/).map(line => {
+                    const parts = line.split(/[;,\t]/).map(x => x.trim()).filter(Boolean);
+                    return { isin: normalizeIsin(parts[0]), weight: parseFundWeight(parts[1]) };
+                }).filter(r => r.isin && Number.isFinite(r.weight) && r.weight > 0);
+            }
+
+            function parseFundWeight(value) {
+                const n = parseNumber(value);
+                if (!Number.isFinite(n)) return NaN;
+                return n <= 1 && !String(value).includes('%') ? n * 100 : n;
+            }
+
+            function setFundPortfolioRows(rows, sourceLabel = 'texto') {
+                fundPortfolioRows = rows;
+                const total = rows.reduce((acc, r) => acc + r.weight, 0);
+                document.getElementById('fundPortfolioStatus').innerText = rows.length ? `${rows.length} ISINs · peso ${total.toFixed(2)}% (${sourceLabel})` : 'Sin filas validas';
+                document.getElementById('fundScoringStatus').innerText = rows.length ? 'Cartera lista' : 'Cartera vacia';
+                if (fundUniverseState && rows.length) runFundScoringAnalysis();
+            }
+
+            function loadFundPortfolioFromText() {
+                setFundPortfolioRows(parseFundPortfolioText(document.getElementById('fundPortfolioPaste')?.value || ''), 'texto pegado');
+            }
+
+            function clearFundScoringState() {
+                fundPortfolioRows = [];
+                fundScoringResults = [];
+                document.getElementById('fundPortfolioPaste').value = '';
+                document.getElementById('fundPortfolioStatus').innerText = 'Pendiente';
+                document.getElementById('fundScoringStatus').innerText = 'Sin ejecutar';
+                renderFundScoringResults();
+            }
+
+            async function runFundScoringAnalysis() {
+                if (!fundUniverseState?.records?.length) return alert('Primero sube el universo de fondos.');
+                if (!fundPortfolioRows.length) return alert('Primero sube o pega una cartera con ISIN y peso.');
+                document.getElementById('fundScoringStatus').innerText = 'Resolviendo ISINs...';
+                fundScoringResults = [];
+                for (const row of fundPortfolioRows) {
+                    fundScoringResults.push(await resolveFundPortfolioRow(row));
+                    renderFundScoringResults();
+                    await waitForUiFrame();
+                }
+                document.getElementById('fundScoringStatus').innerText = 'Analisis completado';
+                renderFundScoringResults();
+            }
+
+            async function resolveFundPortfolioRow(row) {
+                const direct = fundUniverseState.isinIndex.get(row.isin);
+                if (direct) return { ...row, record: direct, status: 'direct', confidence: 1, included: true };
+                const figi = await fetchOpenFigiIsin(row.isin);
+                if (!figi?.name) return { ...row, record: null, status: 'unresolved', confidence: 0, included: false, note: 'Sin resultado OpenFIGI' };
+                const candidates = fuzzyFundCandidates(figi.name);
+                if (!candidates.length || candidates[0].confidence < 0.75) return { ...row, record: null, status: 'unresolved', confidence: candidates[0]?.confidence || 0, included: false, note: figi.name };
+                return { ...row, record: candidates[0].record, status: 'auto', confidence: candidates[0].confidence, included: false, note: figi.name, candidates };
+            }
+
+            async function fetchOpenFigiIsin(isin) {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 5000);
+                try {
+                    const res = await fetch('https://api.openfigi.com/v3/mapping', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify([{ idType: 'ID_ISIN', idValue: isin }]),
+                        signal: controller.signal
+                    });
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    return data?.[0]?.data?.[0] || null;
+                } catch (e) {
+                    console.warn('OpenFIGI lookup failed', isin, e);
+                    return null;
+                } finally {
+                    clearTimeout(timeout);
+                }
+            }
+
+            function fuzzyFundCandidates(name) {
+                const byAum = new Map();
+                fundUniverseState.records.forEach(record => {
+                    const confidence = tokenSimilarity(name, record.name);
+                    if (confidence < 0.55) return;
+                    const key = Number.isFinite(record.aum) ? String(record.aum) : record.name;
+                    const current = byAum.get(key);
+                    const better = !current || confidence > current.confidence || (Math.abs(confidence - current.confidence) < 0.02 && (record.score || -Infinity) > (current.record.score || -Infinity));
+                    if (better) byAum.set(key, { record, confidence });
+                });
+                return [...byAum.values()].sort((a, b) => b.confidence - a.confidence || (b.record.score || 0) - (a.record.score || 0)).slice(0, 3);
+            }
+
+            function confirmFundAutoMatch(index) {
+                if (!fundScoringResults[index]) return;
+                fundScoringResults[index].included = true;
+                fundScoringResults[index].status = 'confirmed';
+                renderFundScoringResults();
+            }
+
+            function applyFundManualMatch(index, recordIndex) {
+                const record = fundUniverseState?.records?.find(r => r.rowIndex === Number(recordIndex));
+                if (!record || !fundScoringResults[index]) return;
+                fundScoringResults[index].record = record;
+                fundScoringResults[index].status = 'manual';
+                fundScoringResults[index].confidence = 1;
+                fundScoringResults[index].included = true;
+                fundManualTargetIndex = -1;
+                renderFundScoringResults();
+            }
+
+            function setFundManualTarget(index) {
+                fundManualTargetIndex = index;
+                const input = document.getElementById('fundManualSearch');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }
+
+            function renderFundManualSearch(query) {
+                const box = document.getElementById('fundManualSearchResults');
+                if (!box) return;
+                const q = String(query || '').trim();
+                if (!q || !fundUniverseState?.records?.length) {
+                    box.classList.add('hidden');
+                    box.innerHTML = '';
+                    return;
+                }
+                const matches = fuzzyFundCandidates(q).concat(
+                    fundUniverseState.records.filter(r => r.isin.includes(normalizeIsin(q))).slice(0, 3).map(r => ({ record: r, confidence: 1 }))
+                ).slice(0, 6);
+                box.classList.remove('hidden');
+                box.innerHTML = matches.length ? matches.map(m => `<div class="flex items-center justify-between gap-3 border-b border-slate-200 py-2 last:border-0">
+                    <div><div class="font-bold">${escapeHtml(m.record.name)}</div><div class="text-xs text-slate-500">${escapeHtml(m.record.isin)} · ${escapeHtml(m.record.category)} · Score ${fmtScore(m.record.score)}</div></div>
+                    <button onclick="applyFundManualMatchPrompt(${m.record.rowIndex})" class="px-2 py-1 bg-blue-700 text-white rounded text-xs font-bold">Usar</button>
+                </div>`).join('') : 'Sin candidatos.';
+            }
+
+            function applyFundManualMatchPrompt(recordIndex) {
+                const idx = fundManualTargetIndex >= 0 ? fundManualTargetIndex : fundScoringResults.findIndex(r => !r.included);
+                if (idx < 0) return alert('No hay filas pendientes para corregir.');
+                applyFundManualMatch(idx, recordIndex);
+            }
+
+            function fmtScore(value) {
+                return Number.isFinite(value) ? value.toFixed(2) : '-';
+            }
+
+            function fmtPercentPoint(value) {
+                return Number.isFinite(value) ? `${value.toFixed(2)}%` : '-';
+            }
+
+            function renderFundScoringResults() {
+                const body = document.getElementById('fundScoringTableBody');
+                if (!body) return;
+                body.innerHTML = fundScoringResults.length ? fundScoringResults.map((r, idx) => fundScoringRowHtml(r, idx)).join('') : '<tr><td colspan="11" class="px-3 py-6 text-center text-slate-400">Carga universo y cartera para ver el scoring.</td></tr>';
+                updateFundScoringKpis();
+            }
+
+            function fundScoringRowHtml(result, idx) {
+                const rec = result.record;
+                if (!rec) {
+                    return `<tr>
+                        <td class="px-3 py-2 font-mono">${escapeHtml(result.isin)}</td>
+                        <td class="px-3 py-2 text-slate-400" colspan="3">No resuelto${result.note ? ` · ${escapeHtml(result.note)}` : ''}</td>
+                        <td class="px-3 py-2 text-right">${fmtPercentPoint(result.weight)}</td>
+                        <td class="px-3 py-2 text-right text-slate-400" colspan="5">Excluido del calculo</td>
+                        <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div><button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></td>
+                    </tr>`;
+                }
+                let statusHtml = '';
+                if (result.status === 'direct') statusHtml = '<span class="text-emerald-700 font-bold">Directo</span>';
+                else if (result.status === 'confirmed') statusHtml = `<span class="text-emerald-700 font-bold">Auto confirmado ${Math.round(result.confidence * 100)}%</span>`;
+                else if (result.status === 'manual') statusHtml = '<span class="text-blue-700 font-bold">Manual</span>';
+                else statusHtml = `<div class="space-y-1"><div class="text-amber-700 font-bold">Auto ${Math.round(result.confidence * 100)}%</div><div class="flex gap-1"><button onclick="confirmFundAutoMatch(${idx})" class="px-2 py-1 bg-emerald-700 text-white rounded text-[11px] font-bold">Confirmar</button><button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></div></div>`;
+                return `<tr class="${result.included ? '' : 'bg-amber-50/40'}">
+                    <td class="px-3 py-2 font-mono">${escapeHtml(result.isin)}</td>
+                    <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(rec.name)}</div><div class="text-xs text-slate-400">${escapeHtml(rec.isin)} · AUM ${Number.isFinite(rec.aum) ? rec.aum.toLocaleString('es-ES') : '-'}</div></td>
+                    <td class="px-3 py-2">${escapeHtml(rec.manager || '-')}</td>
+                    <td class="px-3 py-2 min-w-[220px]">${escapeHtml(rec.category || '-')}</td>
+                    <td class="px-3 py-2 text-right font-bold">${fmtPercentPoint(result.weight)}</td>
+                    ${quartileCell(rec.score, rec, 'score', false)}
+                    ${quartileCell(rec.ter, rec, 'ter', true)}
+                    ${quartileCell(rec.ret1, rec, 'ret1', true)}
+                    ${quartileCell(rec.ret3, rec, 'ret3', true)}
+                    ${quartileCell(rec.ret5, rec, 'ret5', true)}
+                    <td class="px-3 py-2">${statusHtml}</td>
+                </tr>`;
+            }
+
+            function updateFundScoringKpis() {
+                const included = fundScoringResults.filter(r => r.included && r.record);
+                const totalWeight = fundPortfolioRows.reduce((acc, r) => acc + r.weight, 0);
+                const resolvedWeight = included.reduce((acc, r) => acc + r.weight, 0);
+                const score = included.reduce((acc, r) => acc + (r.weight / 100) * (Number.isFinite(r.record.score) ? r.record.score : 0), 0);
+                const terRows = included.filter(r => Number.isFinite(r.record.ter));
+                const ter = terRows.reduce((acc, r) => acc + (r.weight / 100) * r.record.ter, 0);
+                document.getElementById('fundWeightedScore').innerText = included.length ? score.toFixed(2) : '-';
+                document.getElementById('fundWeightedTer').innerText = terRows.length ? `${ter.toFixed(2)}%` : '-';
+                document.getElementById('fundResolvedWeight').innerText = fundPortfolioRows.length ? `${resolvedWeight.toFixed(2)}%` : '-';
+                document.getElementById('fundResolvedCount').innerText = fundPortfolioRows.length ? `${included.length}/${fundPortfolioRows.length}` : '-';
+                const unresolved = fundPortfolioRows.length - included.length;
+                const notice = document.getElementById('fundScoringNotice');
+                if (notice) {
+                    const partial = unresolved || Math.abs(totalWeight - resolvedWeight) > 0.01;
+                    notice.classList.toggle('hidden', !partial);
+                    notice.innerText = partial ? `Aviso: calculo parcial. Peso total cartera ${totalWeight.toFixed(2)}%, peso incluido ${resolvedWeight.toFixed(2)}%. Confirma matches automaticos o corrige manualmente los ISINs pendientes.` : '';
                 }
             }
 
