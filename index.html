@@ -1892,16 +1892,32 @@
                     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .toLowerCase()
                     .replace(/[€$£]/g, ' eur ')
-                    .replace(/\b(acc|dis|dist|cap|inc|hdg|hedged|unhedged)\b/g, ' ')
+                    .replace(/\b(acc|accumulating|accumulation|dis|dist|distribution|income|cap|inc|hdg|hedged|unhedged|units|unit)\b/g, ' ')
                     .replace(/\b(eur|usd|gbp|chf|sek|nok|dkk|jpy|hkd|sgd)\b/g, ' ')
-                    .replace(/\b(class|clase|share|shares)\b/g, ' ')
-                    .replace(/\b[a-z]{1,3}\d?h?\b$/g, ' ')
+                    .replace(/\b(class|clase|share|shares|sub|funds)\b/g, ' ')
+                    .replace(/-[a-z0-9]{1,8}\b/g, ' ')
+                    .replace(/\b[a-z]{1,5}\d?h?\b$/g, ' ')
                     .replace(/[^a-z0-9]+/g, ' ')
                     .trim();
             }
 
+            function fundNameTokens(value) {
+                const stop = new Set(['the', 'and', 'of', 'sicav', 'ucits', 'plc', 'sa', 'ltd']);
+                return normalizeFundName(value).split(/\s+/).filter(t => t && !stop.has(t));
+            }
+
+            function baseFundName(value) {
+                const classTokens = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'p', 'r', 's', 't', 'ea', 'beur', 'dusda', 'usda']);
+                const tokens = fundNameTokens(value).filter(t => !classTokens.has(t) && !/^[a-z]\d?h?$/.test(t));
+                const deduped = [];
+                tokens.forEach(t => {
+                    if (!deduped.includes(t)) deduped.push(t);
+                });
+                return deduped.join(' ');
+            }
+
             function tokenSimilarity(a, b) {
-                const aa = normalizeFundName(a), bb = normalizeFundName(b);
+                const aa = baseFundName(a), bb = baseFundName(b);
                 if (!aa || !bb) return 0;
                 if (aa === bb) return 1;
                 const aTokens = new Set(aa.split(/\s+/).filter(Boolean));
@@ -1909,9 +1925,12 @@
                 const inter = [...aTokens].filter(t => bTokens.has(t)).length;
                 const union = new Set([...aTokens, ...bTokens]).size || 1;
                 const jaccard = inter / union;
+                const coverageA = inter / (aTokens.size || 1);
+                const coverageB = inter / (bTokens.size || 1);
                 const contains = aa.includes(bb) || bb.includes(aa) ? 0.18 : 0;
                 const prefix = aa.slice(0, 12) === bb.slice(0, 12) ? 0.12 : 0;
-                return Math.min(1, jaccard + contains + prefix);
+                const coreBonus = [...aTokens].some(t => t.length >= 4 && bTokens.has(t)) ? 0.06 : 0;
+                return Math.min(1, (jaccard * 0.52) + (coverageA * 0.24) + (coverageB * 0.12) + contains + prefix + coreBonus);
             }
 
             async function importFundUniverseFile(file) {
@@ -2091,26 +2110,31 @@
             async function resolveFundPortfolioRow(row) {
                 const direct = fundUniverseState.isinIndex.get(row.isin);
                 if (direct) return { ...row, record: direct, status: 'direct', confidence: 1, included: true };
-                const figi = await fetchOpenFigiIsin(row.isin);
-                if (!figi?.name) return { ...row, record: null, status: 'unresolved', confidence: 0, included: false, note: 'Sin resultado OpenFIGI' };
-                const candidates = fuzzyFundCandidates(figi.name);
-                if (!candidates.length || candidates[0].confidence < 0.75) return { ...row, record: null, status: 'unresolved', confidence: candidates[0]?.confidence || 0, included: false, note: figi.name };
-                return { ...row, record: candidates[0].record, status: 'auto', confidence: candidates[0].confidence, included: false, note: figi.name, candidates };
+                const figiResults = await fetchOpenFigiIsin(row.isin);
+                const figiNames = openFigiSearchTerms(figiResults);
+                if (!figiNames.length) return { ...row, record: null, status: 'unresolved', confidence: 0, included: false, note: 'Sin resultado OpenFIGI', candidates: [] };
+                const candidates = fuzzyFundCandidates(figiNames);
+                const best = candidates[0];
+                const note = `OpenFIGI: ${figiNames[0]}`;
+                if (!best || best.confidence < 0.58) return { ...row, record: null, status: 'unresolved', confidence: best?.confidence || 0, included: false, note, candidates };
+                if (best.confidence < 0.75) return { ...row, record: best.record, status: 'review', confidence: best.confidence, included: false, note, candidates };
+                return { ...row, record: best.record, status: 'auto', confidence: best.confidence, included: false, note, candidates };
             }
 
             async function fetchOpenFigiIsin(isin) {
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 5000);
                 try {
-                    const res = await fetch('https://api.openfigi.com/v3/mapping', {
+                    const body = JSON.stringify([{ idType: 'ID_ISIN', idValue: isin }]);
+                    const request = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify([{ idType: 'ID_ISIN', idValue: isin }]),
+                        body,
                         signal: controller.signal
-                    });
-                    if (!res.ok) return null;
-                    const data = await res.json();
-                    return data?.[0]?.data?.[0] || null;
+                    };
+                    let data = await fetchOpenFigiJson('/api/openfigi', request);
+                    if (!data) data = await fetchOpenFigiJson('https://api.openfigi.com/v3/mapping', request);
+                    return Array.isArray(data?.[0]?.data) ? data[0].data : [];
                 } catch (e) {
                     console.warn('OpenFIGI lookup failed', isin, e);
                     return null;
@@ -2119,15 +2143,39 @@
                 }
             }
 
-            function fuzzyFundCandidates(name) {
+            async function fetchOpenFigiJson(url, request) {
+                try {
+                    const res = await fetch(url, request);
+                    if (!res.ok) return null;
+                    const text = await res.text();
+                    return JSON.parse(text);
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function openFigiSearchTerms(results) {
+                const terms = [];
+                (Array.isArray(results) ? results : []).forEach(item => {
+                    [item?.name, item?.securityDescription, item?.ticker].forEach(v => {
+                        const text = String(v || '').trim();
+                        if (text && !terms.includes(text)) terms.push(text);
+                    });
+                });
+                return terms;
+            }
+
+            function fuzzyFundCandidates(searchTerms) {
+                const terms = Array.isArray(searchTerms) ? searchTerms.filter(Boolean) : [searchTerms].filter(Boolean);
                 const byAum = new Map();
                 fundUniverseState.records.forEach(record => {
-                    const confidence = tokenSimilarity(name, record.name);
+                    const scores = terms.map(term => tokenSimilarity(term, record.name));
+                    const confidence = Math.max(0, ...scores);
                     if (confidence < 0.55) return;
-                    const key = Number.isFinite(record.aum) ? String(record.aum) : record.name;
+                    const key = Number.isFinite(record.aum) ? String(record.aum) : baseFundName(record.name);
                     const current = byAum.get(key);
                     const better = !current || confidence > current.confidence || (Math.abs(confidence - current.confidence) < 0.02 && (record.score || -Infinity) > (current.record.score || -Infinity));
-                    if (better) byAum.set(key, { record, confidence });
+                    if (better) byAum.set(key, { record, confidence, matchBase: baseFundName(record.name) });
                 });
                 return [...byAum.values()].sort((a, b) => b.confidence - a.confidence || (b.record.score || 0) - (a.record.score || 0)).slice(0, 3);
             }
@@ -2202,19 +2250,22 @@
             function fundScoringRowHtml(result, idx) {
                 const rec = result.record;
                 if (!rec) {
+                    const traceHtml = fundCandidateTraceHtml(result);
                     return `<tr>
                         <td class="px-3 py-2 font-mono">${escapeHtml(result.isin)}</td>
                         <td class="px-3 py-2 text-slate-400" colspan="3">No resuelto${result.note ? ` · ${escapeHtml(result.note)}` : ''}</td>
                         <td class="px-3 py-2 text-right">${fmtPercentPoint(result.weight)}</td>
                         <td class="px-3 py-2 text-right text-slate-400" colspan="5">Excluido del calculo</td>
-                        <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div><button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></td>
+                        <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div>${traceHtml}<button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></td>
                     </tr>`;
                 }
                 let statusHtml = '';
                 if (result.status === 'direct') statusHtml = '<span class="text-emerald-700 font-bold">Directo</span>';
                 else if (result.status === 'confirmed') statusHtml = `<span class="text-emerald-700 font-bold">Auto confirmado ${Math.round(result.confidence * 100)}%</span>`;
                 else if (result.status === 'manual') statusHtml = '<span class="text-blue-700 font-bold">Manual</span>';
+                else if (result.status === 'review') statusHtml = `<div class="space-y-1"><div class="text-orange-700 font-bold">Revisar ${Math.round(result.confidence * 100)}%</div><div class="flex gap-1"><button onclick="confirmFundAutoMatch(${idx})" class="px-2 py-1 bg-emerald-700 text-white rounded text-[11px] font-bold">Confirmar</button><button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></div></div>`;
                 else statusHtml = `<div class="space-y-1"><div class="text-amber-700 font-bold">Auto ${Math.round(result.confidence * 100)}%</div><div class="flex gap-1"><button onclick="confirmFundAutoMatch(${idx})" class="px-2 py-1 bg-emerald-700 text-white rounded text-[11px] font-bold">Confirmar</button><button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></div></div>`;
+                const traceHtml = fundCandidateTraceHtml(result);
                 return `<tr class="${result.included ? '' : 'bg-amber-50/40'}">
                     <td class="px-3 py-2 font-mono">${escapeHtml(result.isin)}</td>
                     <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(rec.name)}</div><div class="text-xs text-slate-400">${escapeHtml(rec.isin)} · AUM ${Number.isFinite(rec.aum) ? rec.aum.toLocaleString('es-ES') : '-'}</div></td>
@@ -2226,8 +2277,16 @@
                     ${quartileCell(rec.ret1, rec, 'ret1', true)}
                     ${quartileCell(rec.ret3, rec, 'ret3', true)}
                     ${quartileCell(rec.ret5, rec, 'ret5', true)}
-                    <td class="px-3 py-2">${statusHtml}</td>
+                    <td class="px-3 py-2">${statusHtml}${traceHtml}</td>
                 </tr>`;
+            }
+
+            function fundCandidateTraceHtml(result) {
+                const candidates = Array.isArray(result.candidates) ? result.candidates : [];
+                const note = result.note ? `<div class="text-[11px] text-slate-500 mt-1">${escapeHtml(result.note)}</div>` : '';
+                if (!candidates.length) return note;
+                const items = candidates.slice(0, 3).map(c => `<li>${Math.round((c.confidence || 0) * 100)}% - ${escapeHtml(c.record?.name || '-')} <span class="text-slate-400">(${escapeHtml(c.record?.isin || '-')})</span></li>`).join('');
+                return `${note}<details class="mt-1 text-[11px] text-slate-500"><summary class="cursor-pointer font-bold">Candidatos OpenFIGI</summary><ol class="list-decimal pl-4">${items}</ol></details>`;
             }
 
             function updateFundScoringKpis() {
