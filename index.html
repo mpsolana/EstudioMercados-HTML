@@ -908,6 +908,91 @@
                         <h4 class="font-bold text-slate-800 border-l-4 border-blue-600 pl-3 mb-3">Distribucion por categoria</h4>
                         <div id="fundCategoryPieChart" class="w-full h-[340px]"></div>
                     </div>
+
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h4 class="font-bold text-slate-900 border-l-4 border-sky-700 pl-3">Scoring agregado de posiciones</h4>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Importa posiciones globales y fondos aprobados para detectar fondos deficientes, exposicion agregada y alternativas de traspaso.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <label class="px-3 py-2 bg-sky-700 text-white rounded text-xs font-bold hover:bg-sky-800 cursor-pointer">
+                                    <i class="fa-solid fa-file-import mr-1"></i>Subir posiciones
+                                    <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" class="hidden" onchange="importAggregatePositionsFile(this.files[0])">
+                                </label>
+                                <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
+                                    <i class="fa-solid fa-circle-check mr-1"></i>Subir fondos aprobados
+                                    <input id="approvedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importApprovedFundsFile(this.files[0])">
+                                </label>
+                                <button onclick="runAggregateScoringAnalysis()" class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800">
+                                    <i class="fa-solid fa-layer-group mr-1"></i>Analizar agregado
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Posiciones cargadas</div>
+                                <div id="aggregatePositionsStatus" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Fondos aprobados</div>
+                                <div id="approvedFundsStatus" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Estado agregado</div>
+                                <div id="aggregateScoringStatus" class="text-sm font-bold text-slate-800 mt-2">Sin ejecutar</div>
+                            </div>
+                        </div>
+                        <div id="aggregateScoringNotice" class="hidden rounded border border-amber-200 bg-amber-50 text-amber-900 p-3 text-sm mb-4"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-5">
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Fondos unicos</div><div id="aggregateUniqueFunds" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Categorias</div><div id="aggregateCategories" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Score pond.</div><div id="aggregateWeightedScore" class="text-2xl font-black text-blue-900 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">TER pond.</div><div id="aggregateWeightedTer" class="text-2xl font-black text-blue-900 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Deficientes &lt; 2</div><div id="aggregateWeakFunds" class="text-2xl font-black text-red-700 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Importe resuelto</div><div id="aggregateResolvedAmount" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Aprobados</div><div id="aggregateApprovedCount" class="text-2xl font-black text-emerald-700 mt-1">-</div></div>
+                            <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">No aprobados</div><div id="aggregateUnapprovedCount" class="text-2xl font-black text-amber-700 mt-1">-</div></div>
+                        </div>
+
+                        <div class="mb-5">
+                            <h5 class="font-bold text-slate-800 border-l-4 border-red-500 pl-3 mb-2">Fondos deficientes o sin score</h5>
+                            <div class="overflow-x-auto border border-slate-100 rounded">
+                                <table class="min-w-full text-sm text-slate-600">
+                                    <thead class="bg-red-50 text-xs uppercase text-red-700">
+                                        <tr><th class="px-3 py-2 text-left">ISIN</th><th class="px-3 py-2 text-left">Fondo</th><th class="px-3 py-2 text-left">Categoria</th><th class="px-3 py-2 text-right">Peso</th><th class="px-3 py-2 text-right">Score</th><th class="px-3 py-2 text-left">Recomendacion aprobada</th><th class="px-3 py-2 text-left">Recomendacion universo</th></tr>
+                                    </thead>
+                                    <tbody id="aggregateWeakFundsBody" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="mb-5">
+                            <h5 class="font-bold text-slate-800 border-l-4 border-sky-600 pl-3 mb-2">Posiciones agregadas por ISIN</h5>
+                            <div class="overflow-x-auto border border-slate-100 rounded">
+                                <table class="min-w-full text-sm text-slate-600">
+                                    <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">Bloque</th><th class="px-3 py-2 text-left">ISIN</th><th class="px-3 py-2 text-left">Fondo</th><th class="px-3 py-2 text-right">Clientes/pos.</th><th class="px-3 py-2 text-right">Importe</th><th class="px-3 py-2 text-right">Peso</th><th class="px-3 py-2 text-left">Categoria</th><th class="px-3 py-2 text-right">Score</th><th class="px-3 py-2 text-right">TER</th><th class="px-3 py-2 text-right">Ret 1Y</th><th class="px-3 py-2 text-right">Risk 3Y</th><th class="px-3 py-2 text-right">MD 3Y</th><th class="px-3 py-2 text-left">Aprobado</th><th class="px-3 py-2 text-left">Recomendaciones</th><th class="px-3 py-2 text-left">Matching</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="aggregatePositionsTableBody" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h5 class="font-bold text-slate-800 border-l-4 border-blue-600 pl-3 mb-2">Fondos de Santalucia</h5>
+                            <div class="overflow-x-auto border border-slate-100 rounded">
+                                <table class="min-w-full text-sm text-slate-600">
+                                    <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                                        <tr><th class="px-3 py-2 text-left">ISIN</th><th class="px-3 py-2 text-left">Nombre</th><th class="px-3 py-2 text-left">Categoria</th><th class="px-3 py-2 text-right">Score</th><th class="px-3 py-2 text-right">TER</th><th class="px-3 py-2 text-right">Ret 1Y</th><th class="px-3 py-2 text-right">Risk 3Y</th><th class="px-3 py-2 text-left">En aprobados</th><th class="px-3 py-2 text-left">En posiciones</th></tr>
+                                    </thead>
+                                    <tbody id="santaluciaFundsBody" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="portfolioSubtabContent-massive" class="portfolio-subtab-content hidden mt-6 space-y-4">
@@ -1180,6 +1265,9 @@
             let fundPortfolioRows = [];
             let fundScoringResults = [];
             let fundManualTargetIndex = -1;
+            let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
+            let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
+            let aggregateScoringResults = [];
             let marketsPortfolioAssetsState = { assets: [], data: {}, range: '10Y' };
 
             function setPortfolioReportProgress(percent, label) {
@@ -2902,6 +2990,410 @@
                     fundScoringResults[index].status = 'unresolved';
                 }
                 renderFundScoringResults();
+            }
+
+            async function importAggregatePositionsFile(file) {
+                if (!file) return;
+                if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
+                const status = document.getElementById('aggregatePositionsStatus');
+                if (status) status.innerText = 'Leyendo posiciones...';
+                let rows = [];
+                try {
+                    const workbook = await readWorkbook(file);
+                    rows = bestRowsByDetectedHeader(workbook, ['isin', 'instrument']);
+                } catch (e) {
+                    console.warn('aggregate positions workbook parse failed', e);
+                }
+                if (!rows.length) {
+                    rows = htmlTextRowsByDetectedHeader(await file.text(), ['isin', 'instrument']);
+                }
+                const parsed = parseAggregatePositionRows(rows);
+                aggregatePositionsState = aggregateFundPositions(parsed, file.name);
+                if (status) status.innerText = aggregatePositionsState.aggregated.length
+                    ? `${aggregatePositionsState.rows.length} posiciones de fondos · ${aggregatePositionsState.aggregated.length} ISIN únicos (${file.name})`
+                    : 'Sin fondos detectados';
+                renderAggregateScoringResults();
+                if (fundUniverseState?.records?.length && aggregatePositionsState.aggregated.length) runAggregateScoringAnalysis();
+            }
+
+            async function importApprovedFundsFile(file) {
+                if (!file) return;
+                if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
+                const status = document.getElementById('approvedFundsStatus');
+                if (status) status.innerText = 'Leyendo fondos aprobados...';
+                const workbook = await readWorkbook(file);
+                const sheet = findSheet(workbook, ['Fondos', 'aprobados', 'terceros']) || workbook.SheetNames[0];
+                const rows = rowsByDetectedHeader(workbook.Sheets[sheet], ['isin', 'nombre']);
+                const records = rows.map((row, idx) => {
+                    const isin = normalizeIsin(looseRowValue(row, ['ISIN', 'isin']));
+                    const name = String(looseRowValue(row, ['Nombre', 'Name', 'Fondo', 'Instrument']) || '').trim();
+                    return {
+                        rowIndex: idx,
+                        isin,
+                        name,
+                        normalizedName: normalizeFundName(name),
+                        categoryCode: String(looseRowValue(row, ['Categoría SL', 'Categoria SL', 'Category SL']) || '').trim(),
+                        categoryName: String(looseRowValue(row, ['Nombre de la Categoría', 'Nombre de la Categoria', 'Categoria', 'Category']) || '').trim(),
+                        type: String(looseRowValue(row, ['Tipo', 'Type']) || '').trim(),
+                        manager: String(looseRowValue(row, ['Gestora', 'Manager', 'Entidad']) || '').trim(),
+                        managerGroup: String(looseRowValue(row, ['Grupo Gestora', 'Grupo', 'Provider Group']) || '').trim(),
+                        ticker: String(looseRowValue(row, ['Ticker']) || '').trim(),
+                        currency: String(looseRowValue(row, ['Divisa', 'Currency']) || '').trim(),
+                        fixedIncomePct: parseRankingNumber(looseRowValue(row, ['% Net Fixed Income', 'Net Fixed Income', 'Fixed Income'])),
+                        equityPct: parseRankingNumber(looseRowValue(row, ['% Net Equity', 'Net Equity', 'Equity'])),
+                        ytm: parseRankingNumber(looseRowValue(row, ['Yield to Maturity', 'YTM'])),
+                        duration: parseRankingNumber(looseRowValue(row, ['Modified Duration', 'Duration']))
+                    };
+                }).filter(r => r.isin && r.name);
+                const isinIndex = new Map();
+                records.forEach(r => {
+                    const current = isinIndex.get(r.isin);
+                    if (!current || r.name.length > current.name.length) isinIndex.set(r.isin, r);
+                });
+                approvedFundsState = { records, isinIndex, fileName: file.name };
+                if (status) status.innerText = `${records.length.toLocaleString('es-ES')} fondos aprobados (${file.name})`;
+                renderAggregateScoringResults();
+                if (aggregatePositionsState.aggregated.length && fundUniverseState?.records?.length) runAggregateScoringAnalysis();
+            }
+
+            function bestRowsByDetectedHeader(workbook, requiredKeys) {
+                let best = [];
+                (workbook?.SheetNames || []).forEach(sheetName => {
+                    const rows = rowsByDetectedHeader(workbook.Sheets[sheetName], requiredKeys);
+                    if (rows.length > best.length) best = rows;
+                });
+                return best;
+            }
+
+            function rowsByDetectedHeader(sheet, requiredKeys) {
+                if (!sheet) return [];
+                const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false });
+                return rowsFromMatrixWithDetectedHeader(matrix, requiredKeys);
+            }
+
+            function htmlTextRowsByDetectedHeader(text, requiredKeys) {
+                const doc = new DOMParser().parseFromString(String(text || ''), 'text/html');
+                const tables = Array.from(doc.querySelectorAll('table'));
+                let best = [];
+                tables.forEach(table => {
+                    const matrix = Array.from(table.querySelectorAll('tr')).map(tr =>
+                        Array.from(tr.querySelectorAll('th,td')).map(td => td.textContent.replace(/\s+/g, ' ').trim())
+                    ).filter(row => row.some(Boolean));
+                    const rows = rowsFromMatrixWithDetectedHeader(matrix, requiredKeys);
+                    if (rows.length > best.length) best = rows;
+                });
+                return best;
+            }
+
+            function rowsFromMatrixWithDetectedHeader(matrix, requiredKeys) {
+                const rows = (matrix || []).filter(r => Array.isArray(r) && r.some(v => v !== null && v !== undefined && String(v).trim() !== ''));
+                let headerIndex = -1;
+                for (let i = 0; i < Math.min(rows.length, 30); i++) {
+                    const normalized = rows[i].map(normalizeHeaderLabel);
+                    const ok = requiredKeys.every(req => normalized.some(h => h.includes(normalizeHeaderLabel(req))));
+                    if (ok) { headerIndex = i; break; }
+                }
+                if (headerIndex < 0) return [];
+                const headers = rows[headerIndex].map((h, i) => String(h || `col_${i}`).trim() || `col_${i}`);
+                return rows.slice(headerIndex + 1).map(row => {
+                    const obj = {};
+                    headers.forEach((h, i) => { obj[h] = row[i]; });
+                    return obj;
+                }).filter(row => Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== ''));
+            }
+
+            function normalizeHeaderLabel(value) {
+                return String(value || '')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9%]+/g, ' ')
+                    .trim();
+            }
+
+            function looseRowValue(row, names) {
+                const keys = Object.keys(row || {});
+                for (const name of names) {
+                    const wanted = normalizeHeaderLabel(name);
+                    let found = keys.find(k => normalizeHeaderLabel(k) === wanted);
+                    if (!found) found = keys.find(k => {
+                        const key = normalizeHeaderLabel(k);
+                        return key && wanted && (key.includes(wanted) || wanted.includes(key));
+                    });
+                    if (found && row[found] !== null && row[found] !== undefined && row[found] !== '') return row[found];
+                }
+                return null;
+            }
+
+            function parseAggregatePositionRows(rows) {
+                return (rows || []).map(row => {
+                    const productType = String(looseRowValue(row, ['PRODUCT TYPE', 'Tipo producto', 'Product']) || '').trim();
+                    const assetType = String(looseRowValue(row, ['TYPE OF ASSET', 'Tipo activo', 'Asset Type']) || '').trim();
+                    const typeText = `${productType} ${assetType}`;
+                    const isin = normalizeIsin(looseRowValue(row, ['ISIN', 'isin']));
+                    const name = String(looseRowValue(row, ['INSTRUMENT', 'Instrumento', 'Nombre', 'Name']) || '').trim();
+                    const account = String(looseRowValue(row, ['ACCOUNT', 'Cliente', 'Cuenta']) || '').trim();
+                    const amount = parseRankingNumber(looseRowValue(row, ['DIV INSTITUTION COUNTER VALUE', 'Counter Value', 'Contravalor', 'Valor efectivo', 'Market Value', 'MARKET VALUE']));
+                    const units = parseRankingNumber(looseRowValue(row, ['UNITS', 'Participaciones', 'Nominal Amount', 'NOMINAL AMOUNT']));
+                    return { isin, name, productType, assetType, account, amount, units };
+                }).filter(r => r.isin && /fund|fondo/i.test(`${r.productType} ${r.assetType}`));
+            }
+
+            function aggregateFundPositions(rows, fileName) {
+                const grouped = new Map();
+                rows.forEach(row => {
+                    if (!grouped.has(row.isin)) {
+                        grouped.set(row.isin, { isin: row.isin, name: row.name, productType: row.productType, assetType: row.assetType, amount: 0, amountCount: 0, units: 0, rows: 0, accounts: new Set() });
+                    }
+                    const item = grouped.get(row.isin);
+                    item.rows += 1;
+                    if (row.name && (!item.name || row.name.length > item.name.length)) item.name = row.name;
+                    if (row.account) item.accounts.add(row.account);
+                    if (Number.isFinite(row.amount) && row.amount > 0) { item.amount += row.amount; item.amountCount += 1; }
+                    if (Number.isFinite(row.units) && row.units > 0) item.units += row.units;
+                });
+                const aggregated = [...grouped.values()].sort((a, b) => (b.amount || b.rows) - (a.amount || a.rows));
+                const totalAmount = aggregated.reduce((acc, r) => acc + (Number.isFinite(r.amount) ? r.amount : 0), 0);
+                const hasAmounts = totalAmount > 0;
+                aggregated.forEach(r => {
+                    r.weight = hasAmounts ? (r.amount / totalAmount) * 100 : (100 / Math.max(aggregated.length, 1));
+                    r.weightDecimal = r.weight / 100;
+                    r.clientCount = r.accounts.size;
+                });
+                return { rows, aggregated, fileName, hasAmounts, totalAmount };
+            }
+
+            async function runAggregateScoringAnalysis() {
+                if (!fundUniverseState?.records?.length) return alert('Primero sube el universo/ranking interno.');
+                if (!aggregatePositionsState.aggregated.length) return alert('Primero sube el Excel de posiciones.');
+                const status = document.getElementById('aggregateScoringStatus');
+                if (status) status.innerText = 'Resolviendo universo y aprobados...';
+                aggregateScoringResults = [];
+                for (const position of aggregatePositionsState.aggregated) {
+                    const universeMatch = await resolveAggregateUniverseMatch(position);
+                    const approvedMatch = await resolveApprovedFundMatch(position);
+                    aggregateScoringResults.push({ position, universeMatch, approvedMatch });
+                    renderAggregateScoringResults();
+                    await waitForUiFrame();
+                }
+                if (status) status.innerText = `Analisis completado (${aggregateScoringResults.length} ISINs)`;
+                renderAggregateScoringResults();
+            }
+
+            async function resolveAggregateUniverseMatch(position) {
+                const direct = fundUniverseState?.isinIndex?.get(position.isin);
+                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
+                const figiResults = await fetchOpenFigiIsin(position.isin);
+                const figiNames = openFigiSearchTerms(figiResults);
+                const searchTerms = figiNames.length ? figiNames : [position.name];
+                const candidates = fuzzyFundCandidates(searchTerms);
+                const best = candidates[0];
+                if (!best || best.confidence < 0.58) return { record: null, status: 'unresolved', confidence: best?.confidence || 0, candidates, note: figiNames[0] ? `OpenFIGI: ${figiNames[0]}` : 'Sin match universo' };
+                return { record: best.record, status: best.confidence >= 0.75 ? 'auto' : 'review', confidence: best.confidence, candidates, note: figiNames[0] ? `OpenFIGI: ${figiNames[0]}` : 'Match por nombre' };
+            }
+
+            async function resolveApprovedFundMatch(position) {
+                if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
+                const direct = approvedFundsState.isinIndex.get(position.isin);
+                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
+                const figiResults = await fetchOpenFigiIsin(position.isin);
+                const figiNames = openFigiSearchTerms(figiResults);
+                const searchTerms = figiNames.length ? figiNames : [position.name];
+                const candidates = fuzzyApprovedCandidates(searchTerms);
+                const best = candidates[0];
+                if (!best || best.confidence < 0.58) return { record: null, status: 'not-approved', confidence: best?.confidence || 0, candidates, note: figiNames[0] ? `OpenFIGI: ${figiNames[0]}` : 'Sin match aprobados' };
+                return { record: best.record, status: best.confidence >= 0.75 ? 'equivalent-approved' : 'review-approved', confidence: best.confidence, candidates, note: figiNames[0] ? `OpenFIGI: ${figiNames[0]}` : 'Match aprobado por nombre' };
+            }
+
+            function fuzzyApprovedCandidates(searchTerms) {
+                const terms = Array.isArray(searchTerms) ? searchTerms.filter(Boolean) : [searchTerms].filter(Boolean);
+                const byBase = new Map();
+                (approvedFundsState.records || []).forEach(record => {
+                    const confidence = Math.max(0, ...terms.map(term => tokenSimilarity(term, record.name)));
+                    if (confidence < 0.55) return;
+                    const key = baseFundName(record.name) || record.isin;
+                    const current = byBase.get(key);
+                    if (!current || confidence > current.confidence) byBase.set(key, { record, confidence });
+                });
+                return [...byBase.values()].sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+            }
+
+            function renderAggregateScoringResults() {
+                const sourceRows = aggregateScoringResults.length
+                    ? aggregateScoringResults
+                    : aggregatePositionsState.aggregated.map(position => ({ position, universeMatch: {}, approvedMatch: {} }));
+                renderAggregateKpis(sourceRows);
+                renderAggregatePositionsTable(sourceRows);
+                renderAggregateWeakFunds(sourceRows);
+                renderSantaluciaFundsTable(sourceRows);
+            }
+
+            function renderAggregateKpis(rows) {
+                const totalWeight = rows.reduce((acc, r) => acc + (r.position?.weight || 0), 0);
+                const matched = rows.filter(r => r.universeMatch?.record);
+                const categories = new Set(matched.map(r => r.universeMatch.record.category).filter(Boolean));
+                const scoreRows = matched.filter(r => Number.isFinite(r.universeMatch.record.score));
+                const terRows = matched.filter(r => Number.isFinite(r.universeMatch.record.ter));
+                const weightedScore = scoreRows.length ? scoreRows.reduce((acc, r) => acc + r.universeMatch.record.score * (r.position.weight || 0), 0) / Math.max(scoreRows.reduce((acc, r) => acc + (r.position.weight || 0), 0), 1e-9) : NaN;
+                const weightedTer = terRows.length ? terRows.reduce((acc, r) => acc + r.universeMatch.record.ter * (r.position.weight || 0), 0) / Math.max(terRows.reduce((acc, r) => acc + (r.position.weight || 0), 0), 1e-9) : NaN;
+                const weak = rows.filter(r => Number.isFinite(r.universeMatch?.record?.score) && r.universeMatch.record.score < 2);
+                const approved = rows.filter(r => r.approvedMatch?.record);
+                setText('aggregateUniqueFunds', rows.length ? String(rows.length) : '-');
+                setText('aggregateCategories', rows.length ? String(categories.size) : '-');
+                setText('aggregateWeightedScore', Number.isFinite(weightedScore) ? weightedScore.toFixed(2) : '-');
+                setText('aggregateWeightedTer', Number.isFinite(weightedTer) ? `${weightedTer.toFixed(2)}%` : '-');
+                setText('aggregateWeakFunds', rows.length ? String(weak.length) : '-');
+                setText('aggregateResolvedAmount', aggregatePositionsState.hasAmounts ? formatEur(matched.reduce((acc, r) => acc + (r.position.amount || 0), 0)) : `${totalWeight.toFixed(1)}%`);
+                setText('aggregateApprovedCount', rows.length ? String(approved.length) : '-');
+                setText('aggregateUnapprovedCount', rows.length ? String(rows.length - approved.length) : '-');
+                const notice = document.getElementById('aggregateScoringNotice');
+                if (notice) {
+                    const messages = [];
+                    if (aggregatePositionsState.aggregated.length && !aggregatePositionsState.hasAmounts) messages.push('El archivo de posiciones no trae contravalor EUR usable; las metricas ponderadas usan equal-weight por ISIN unico.');
+                    if (rows.length && matched.length < rows.length) messages.push(`${rows.length - matched.length} ISIN(s) sin match de universo/ranking.`);
+                    notice.classList.toggle('hidden', !messages.length);
+                    notice.innerText = messages.join(' ');
+                }
+            }
+
+            function renderAggregatePositionsTable(rows) {
+                const body = document.getElementById('aggregatePositionsTableBody');
+                if (!body) return;
+                body.innerHTML = rows.length ? rows.map(r => aggregatePositionRowHtml(r)).join('') : '<tr><td colspan="15" class="px-3 py-6 text-center text-slate-400">Sube posiciones y ejecuta el analisis agregado.</td></tr>';
+            }
+
+            function aggregatePositionRowHtml(result) {
+                const pos = result.position || {};
+                const rec = result.universeMatch?.record || null;
+                const approved = result.approvedMatch?.record || null;
+                const bucket = aggregateAssetBucket(rec, approved);
+                const score = rec?.score;
+                const weakCls = Number.isFinite(score) && score < 2 ? 'bg-red-50' : '';
+                const approvedText = approved ? `<span class="text-emerald-700 font-bold">Si</span><div class="text-[11px] text-slate-400">${escapeHtml(approved.isin)} · ${escapeHtml(result.approvedMatch.status || '')}</div>` : '<span class="text-amber-700 font-bold">No</span>';
+                return `<tr class="${weakCls}">
+                    <td class="px-3 py-2 font-bold">${escapeHtml(bucket)}</td>
+                    <td class="px-3 py-2 font-mono">${escapeHtml(pos.isin || '-')}</td>
+                    <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(pos.name || rec?.name || '-')}</div><div class="text-[11px] text-slate-400">${escapeHtml(pos.assetType || '')}</div></td>
+                    <td class="px-3 py-2 text-right">${(pos.clientCount || 0).toLocaleString('es-ES')} / ${(pos.rows || 0).toLocaleString('es-ES')}</td>
+                    <td class="px-3 py-2 text-right">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
+                    <td class="px-3 py-2 text-right font-bold">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
+                    <td class="px-3 py-2">${escapeHtml(rec?.category || approved?.categoryName || '-')}</td>
+                    <td class="px-3 py-2 text-right font-bold ${Number.isFinite(score) && score < 2 ? 'text-red-700' : 'text-slate-800'}">${fmtScore(score)}</td>
+                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.ter)}</td>
+                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.ret1)}</td>
+                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.risk3)}</td>
+                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.dd3)}</td>
+                    <td class="px-3 py-2 min-w-[170px]">${approvedText}</td>
+                    <td class="px-3 py-2 min-w-[320px]">${aggregateRecommendationHtml(rec)}</td>
+                    <td class="px-3 py-2 min-w-[190px]">${aggregateMatchTraceHtml(result)}</td>
+                </tr>`;
+            }
+
+            function renderAggregateWeakFunds(rows) {
+                const body = document.getElementById('aggregateWeakFundsBody');
+                if (!body) return;
+                const weak = rows.filter(r => !r.universeMatch?.record || (Number.isFinite(r.universeMatch.record.score) && r.universeMatch.record.score < 2));
+                body.innerHTML = weak.length ? weak.map(r => {
+                    const rec = r.universeMatch?.record;
+                    const pos = r.position || {};
+                    const approvedRec = bestAggregateApprovedRecommendation(rec)[0];
+                    const universeRec = rec ? getBetterFundRecommendations(rec, 1)[0] : null;
+                    return `<tr>
+                        <td class="px-3 py-2 font-mono">${escapeHtml(pos.isin)}</td>
+                        <td class="px-3 py-2 font-bold">${escapeHtml(pos.name || rec?.name || '-')}</td>
+                        <td class="px-3 py-2">${escapeHtml(rec?.category || '-')}</td>
+                        <td class="px-3 py-2 text-right">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
+                        <td class="px-3 py-2 text-right font-bold ${Number.isFinite(rec?.score) ? 'text-red-700' : 'text-slate-400'}">${fmtScore(rec?.score)}</td>
+                        <td class="px-3 py-2">${approvedRec ? approvedRecommendationLabel(approvedRec) : '-'}</td>
+                        <td class="px-3 py-2">${universeRec ? universeRecommendationLabel(universeRec) : '-'}</td>
+                    </tr>`;
+                }).join('') : '<tr><td colspan="7" class="px-3 py-6 text-center text-emerald-700 font-bold">No hay fondos deficientes con score inferior a 2.</td></tr>';
+            }
+
+            function renderSantaluciaFundsTable(rows) {
+                const body = document.getElementById('santaluciaFundsBody');
+                if (!body) return;
+                const santa = (fundUniverseState?.records || []).filter(r => /santa\s?lucia|santalucia/i.test(`${r.manager || ''} ${r.name || ''}`));
+                body.innerHTML = santa.length ? santa.slice(0, 250).map(r => {
+                    const approvedClass = (approvedFundsState.records || []).find(ap => ap.isin === r.isin || tokenSimilarity(ap.name, r.name) >= 0.75);
+                    const aggregateClass = (rows || []).find(item => item.position?.isin === r.isin || item.universeMatch?.record?.isin === r.isin || tokenSimilarity(item.position?.name || item.universeMatch?.record?.name || '', r.name) >= 0.75);
+                    return `<tr>
+                        <td class="px-3 py-2 font-mono">${escapeHtml(r.isin)}</td>
+                        <td class="px-3 py-2 font-bold">${escapeHtml(r.name)}</td>
+                        <td class="px-3 py-2">${escapeHtml(r.category || '-')}</td>
+                        <td class="px-3 py-2 text-right">${fmtScore(r.score)}</td>
+                        <td class="px-3 py-2 text-right">${fmtPercentPoint(r.ter)}</td>
+                        <td class="px-3 py-2 text-right">${fmtPercentPoint(r.ret1)}</td>
+                        <td class="px-3 py-2 text-right">${fmtPercentPoint(r.risk3)}</td>
+                        <td class="px-3 py-2">${approvedClass ? `<span class="text-emerald-700 font-bold">Si</span><div class="text-[11px] text-slate-400">${escapeHtml(approvedClass.isin)}</div>` : '<span class="text-slate-400">No</span>'}</td>
+                        <td class="px-3 py-2">${aggregateClass ? `<span class="text-blue-700 font-bold">Si</span><div class="text-[11px] text-slate-400">${escapeHtml(aggregateClass.position?.isin || '')}</div>` : '<span class="text-slate-400">No</span>'}</td>
+                    </tr>`;
+                }).join('') : '<tr><td colspan="9" class="px-3 py-6 text-center text-slate-400">Carga el universo/ranking para ver fondos Santalucia.</td></tr>';
+            }
+
+            function aggregateAssetBucket(record, approved) {
+                const approvedFi = approved && Number.isFinite(approved.fixedIncomePct) && approved.fixedIncomePct >= 0.5;
+                const approvedEq = approved && Number.isFinite(approved.equityPct) && approved.equityPct >= 0.5;
+                const text = `${record?.category || ''} ${record?.name || ''} ${approved?.categoryName || ''} ${approved?.name || ''}`.toLowerCase();
+                if (approvedFi || isFixedIncomeFund(record) || /(rf|bond|fixed income|credit|debt|monetary|duration|renta fija)/i.test(text)) return 'RF';
+                if (approvedEq || /(rv|equity|stock|renta variable|small|large|growth|value)/i.test(text)) return 'RV';
+                return 'Mixto/Otros';
+            }
+
+            function aggregateRecommendationHtml(record) {
+                if (!record) return '<span class="text-slate-400">Sin categoria ancla</span>';
+                const approved = bestAggregateApprovedRecommendation(record).slice(0, 3);
+                const universe = getBetterFundRecommendations(record, 3);
+                const approvedHtml = approved.length ? approved.map(approvedRecommendationLabel).join('<br>') : '<span class="text-slate-400">Sin aprobado mejor</span>';
+                const universeHtml = universe.length ? universe.map(universeRecommendationLabel).join('<br>') : '<span class="text-slate-400">Sin universo mejor</span>';
+                return `<details class="text-xs" open><summary class="cursor-pointer font-bold text-emerald-700">Aprobados</summary>${approvedHtml}</details><details class="text-xs mt-1"><summary class="cursor-pointer font-bold text-blue-700">Universo invertible</summary>${universeHtml}</details>`;
+            }
+
+            function bestAggregateApprovedRecommendation(anchor) {
+                if (!anchor || !approvedFundsState.records?.length || !fundUniverseState?.records?.length) return [];
+                const anchorScore = Number.isFinite(anchor.score) ? anchor.score : -Infinity;
+                const anchorCategory = normalizeHeaderLabel(anchor.category || '');
+                return approvedFundsState.records.map(ap => {
+                    const universe = universeRecordForApproved(ap);
+                    return { approved: ap, universe };
+                }).filter(x => x.universe && normalizeHeaderLabel(x.universe.category || '') === anchorCategory && Number.isFinite(x.universe.score) && x.universe.score > anchorScore)
+                    .sort((a, b) => (b.universe.score - a.universe.score) || ((a.universe.ter || Infinity) - (b.universe.ter || Infinity)))
+                    .slice(0, 5);
+            }
+
+            function universeRecordForApproved(approved) {
+                if (!approved) return null;
+                const direct = fundUniverseState?.isinIndex?.get(approved.isin);
+                if (direct) return direct;
+                const candidates = fuzzyFundCandidates([approved.name]);
+                return candidates[0]?.confidence >= 0.65 ? candidates[0].record : null;
+            }
+
+            function approvedRecommendationLabel(item) {
+                const ap = item.approved || item;
+                const universe = item.universe || universeRecordForApproved(ap);
+                return `${escapeHtml(ap.isin)} · ${escapeHtml(ap.name)} · Score ${fmtScore(universe?.score)} · TER ${fmtPercentPoint(universe?.ter)}`;
+            }
+
+            function universeRecommendationLabel(record) {
+                return `${escapeHtml(record.isin)} · ${escapeHtml(record.name)} · Score ${fmtScore(record.score)} · TER ${fmtPercentPoint(record.ter)}`;
+            }
+
+            function aggregateMatchTraceHtml(result) {
+                const u = result.universeMatch || {};
+                const a = result.approvedMatch || {};
+                const universe = u.record ? `<div><span class="font-bold text-blue-700">Universo:</span> ${escapeHtml(u.status || '-')} ${Number.isFinite(u.confidence) ? Math.round(u.confidence * 100) + '%' : ''}</div>` : '<div><span class="font-bold text-red-700">Universo:</span> sin match</div>';
+                const approved = a.record ? `<div><span class="font-bold text-emerald-700">Aprobado:</span> ${escapeHtml(a.status || '-')} ${Number.isFinite(a.confidence) ? Math.round(a.confidence * 100) + '%' : ''}</div>` : '<div><span class="font-bold text-amber-700">Aprobado:</span> no aprobado</div>';
+                const note = u.note || a.note ? `<div class="text-[11px] text-slate-400">${escapeHtml(u.note || a.note)}</div>` : '';
+                return `${universe}${approved}${note}`;
+            }
+
+            function setText(id, value) {
+                const el = document.getElementById(id);
+                if (el) el.innerText = value;
+            }
+
+            function formatEur(value) {
+                return Number.isFinite(value) ? value.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) : '-';
             }
 
             function isFixedIncomeFund(record) {
