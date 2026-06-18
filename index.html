@@ -510,7 +510,7 @@
                     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div>
                             <h3 class="text-gray-800 font-bold border-l-4 border-slate-700 pl-3">Activos en cartera</h3>
-                            <p class="text-xs text-gray-500 mt-1 pl-3">Zona preparada para cargar un Excel de activos de cartera. El formato y la funcionalidad se conectaran cuando definas la plantilla.</p>
+                            <p class="text-xs text-gray-500 mt-1 pl-3">Sube un Excel con hoja <span class="font-mono">YF A</span>: ticker, ticker yf, name y asset_class. La app descargara los historicos de Yahoo y construira tabla y grafica.</p>
                         </div>
                         <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer w-fit">
                             <i class="fa-solid fa-file-excel mr-1"></i>Subir Excel
@@ -518,7 +518,61 @@
                         </label>
                     </div>
                     <div id="marketsPortfolioAssetsStatus" class="mt-4 rounded border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                        Pendiente de plantilla. Cuando indiques columnas y objetivo, se podra cruzar con los activos cargados de mercado.
+                        Pendiente de archivo.
+                    </div>
+                    <div id="marketsPortfolioAssetsPanel" class="hidden mt-4 space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                            <div>
+                                <label class="text-[11px] uppercase font-bold text-slate-500">Categoria</label>
+                                <select id="marketsPortfolioCategoryFilter" onchange="renderMarketsPortfolioAssets()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div class="lg:col-span-2">
+                                <label class="text-[11px] uppercase font-bold text-slate-500">Activos en grafica</label>
+                                <select id="marketsPortfolioAssetSelect" multiple onchange="renderMarketsPortfolioAssetsChart()" class="mt-1 w-full min-h-[82px] p-2 border border-slate-300 rounded text-sm bg-white"></select>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-xs" id="marketsPortfolioTimeFilters">
+                            <button onclick="setMarketsPortfolioRange('1M', this)" class="px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">1M</button>
+                            <button onclick="setMarketsPortfolioRange('3M', this)" class="px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">3M</button>
+                            <button onclick="setMarketsPortfolioRange('YTD', this)" class="px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">YTD</button>
+                            <button onclick="setMarketsPortfolioRange('1Y', this)" class="px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">1A</button>
+                            <button onclick="setMarketsPortfolioRange('3Y', this)" class="px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">3A</button>
+                            <button onclick="setMarketsPortfolioRange('5Y', this)" class="px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">5A</button>
+                            <button onclick="setMarketsPortfolioRange('10Y', this)" class="px-3 py-1 rounded bg-blue-700 text-white">10A</button>
+                        </div>
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="min-w-full text-xs text-right text-gray-600 whitespace-nowrap">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left sticky left-0 bg-gray-50 z-10 font-extrabold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Instrumento</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="6">Rendimiento acumulado</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="3">Anualizado</th>
+                                        <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
+                                    </tr>
+                                    <tr class="border-b border-gray-200 bg-gray-50">
+                                        <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10">Activo</th>
+                                        <th class="px-3 py-2 border-l">Diario</th>
+                                        <th class="px-3 py-2">Semana</th>
+                                        <th class="px-3 py-2">Mes</th>
+                                        <th class="px-3 py-2">3 Meses</th>
+                                        <th class="px-3 py-2 bg-sky-50">YTD</th>
+                                        <th class="px-3 py-2 border-r">1 Ano</th>
+                                        <th class="px-3 py-2">3 Anos</th>
+                                        <th class="px-3 py-2">5 Anos</th>
+                                        <th class="px-3 py-2 border-r">10 Anos</th>
+                                        <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
+                                        <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
+                                        <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
+                                        <th class="px-3 py-2 bg-red-50">MDD 5A</th>
+                                        <th class="px-3 py-2 bg-red-50">MDD hist</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="marketsPortfolioAssetsTableBody" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                        <div id="marketsPortfolioAssetsChart" class="w-full h-[440px] border border-slate-100 rounded"></div>
                     </div>
                 </div>
             </div>
@@ -544,7 +598,6 @@
                             </div>
                             <div class="flex flex-wrap gap-2 justify-end">
                                 <button onclick="downloadPortfolioTemplate('backtest')" class="px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-file-excel mr-1"></i>Plantilla Backtest</button>
-                                <button onclick="downloadPortfolioTemplate('real')" class="px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-file-excel mr-1"></i>Plantilla Real</button>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
@@ -782,7 +835,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
                         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                             <div class="text-xs uppercase font-bold text-slate-500">Score ponderado</div>
                             <div id="fundWeightedScore" class="text-3xl font-black text-blue-900 mt-2">-</div>
@@ -799,8 +852,21 @@
                             <div class="text-xs uppercase font-bold text-slate-500">Fondos resueltos</div>
                             <div id="fundResolvedCount" class="text-3xl font-black text-blue-900 mt-2">-</div>
                         </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="text-xs uppercase font-bold text-slate-500">Yield RF ponderada</div>
+                            <div id="fundWeightedYtm" class="text-3xl font-black text-blue-900 mt-2">-</div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="text-xs uppercase font-bold text-slate-500">Duracion RF ponderada</div>
+                            <div id="fundWeightedDuration" class="text-3xl font-black text-blue-900 mt-2">-</div>
+                        </div>
                     </div>
                     <div id="fundScoringNotice" class="hidden rounded border border-amber-200 bg-amber-50 text-amber-900 p-3 text-sm"></div>
+
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <h4 class="font-bold text-slate-800 border-l-4 border-blue-600 pl-3 mb-3">Distribucion por categoria</h4>
+                        <div id="fundCategoryPieChart" class="w-full h-[340px]"></div>
+                    </div>
 
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
@@ -817,6 +883,8 @@
                                         <th class="px-3 py-2 text-left">Gestora</th>
                                         <th class="px-3 py-2 text-left">Categoria</th>
                                         <th class="px-3 py-2 text-right">Peso</th>
+                                        <th class="px-3 py-2 text-right">YTM</th>
+                                        <th class="px-3 py-2 text-right">Duracion</th>
                                         <th class="px-3 py-2 text-right">Score</th>
                                         <th class="px-3 py-2 text-right">TER</th>
                                         <th class="px-3 py-2 text-right">Ret 1Y</th>
@@ -1046,6 +1114,7 @@
             let fundPortfolioRows = [];
             let fundScoringResults = [];
             let fundManualTargetIndex = -1;
+            let marketsPortfolioAssetsState = { assets: [], data: {}, range: '10Y' };
 
             function setPortfolioReportProgress(percent, label) {
                 const wrap = document.getElementById('portfolioReportProgressWrap');
@@ -1443,6 +1512,19 @@
                     ['2021-03-31', 104.35, 107.09, 97.64],
                     ['2021-04-30', 108.03, 112.76, 98.41]
                 ];
+                const yfAssets = [
+                    ['ticker', 'ticker yf', 'name', 'asset_class'],
+                    ['SPY', 'SPY', 'S&P 500 ETF', 'Renta variable EEUU'],
+                    ['IWDA.L', 'IWDA.L', 'MSCI World UCITS', 'Renta variable global'],
+                    ['TLT', 'TLT', 'Treasury 20+ ETF', 'Renta fija gobierno'],
+                    ['GLD', 'GLD', 'Gold ETF', 'Alternativos']
+                ];
+                const benchCategories = [
+                    ['ticker', 'name', 'asset class'],
+                    ['MSCI World', 'MSCI World', 'Renta variable global'],
+                    ['S&P 500', 'S&P 500', 'Renta variable EEUU'],
+                    ['Bloomberg Global Agg', 'Bloomberg Global Aggregate', 'Renta fija global']
+                ];
                 const instructions = [
                     ['Campo/Hoja', 'Uso'],
                     ['weights.ticker', 'Ticker de Yahoo o identificador del activo.'],
@@ -1451,11 +1533,15 @@
                     ['prices', 'Opcional. Si existe, la app usa estos precios en vez de descargar Yahoo.'],
                     ['prices.date', 'Fecha de cierre del precio. Usa formato YYYY-MM-DD.'],
                     ['prices.<ticker>', 'Una columna por ticker con el precio/NAV del activo.'],
-                    ['bench', 'Opcional. Misma estructura que prices para benchmarks comparativos.']
+                    ['bench', 'Opcional. Misma estructura que prices para benchmarks comparativos.'],
+                    ['YF A', 'Activos de cartera o universo a descargar desde Yahoo. Usa ticker, ticker yf, name y asset_class.'],
+                    ['bench categ', 'Mapa de benchmark a categoria para comparador masivo por asset class.']
                 ];
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(weights), 'weights');
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prices), 'prices');
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bench), 'bench');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(yfAssets), 'YF A');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(benchCategories), 'bench categ');
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instructions), 'instructions');
                 XLSX.writeFile(wb, 'plantilla_backtesting_cartera.xlsx');
             }
@@ -1490,19 +1576,22 @@
                 const entries = weightsRows.map(row => ({
                     ticker: String(firstValue(row, ['ticker', 'symbol', 'ticker yahoo', 'isin', 'codigo', 'codigo activo']) || '').toUpperCase().trim(),
                     weight: parseNumber(firstValue(row, ['weight', 'peso', 'allocation', 'target'])),
-                    name: String(firstValue(row, ['name', 'nombre', 'activo', 'asset', 'descripcion', 'description', 'label']) || '').trim()
+                    name: String(firstValue(row, ['name', 'nombre', 'activo', 'asset', 'descripcion', 'description', 'label']) || '').trim(),
+                    assetClass: String(firstValue(row, ['asset_class', 'asset class', 'categoria', 'category']) || '').trim()
                 })).filter(e => e.ticker && Number.isFinite(e.weight));
                 if (!entries.length) return alert('No encuentro pesos validos. Usa columnas ticker y weight.');
                 normalizeEntryWeights(entries);
                 setPortfolioRows(entries);
                 syncFundScoringPortfolioFromEntries(entries, `Excel pesos: ${fileName}`);
                 const benchmarks = benchmarkSheetToSeriesMap(workbook, findSheet(workbook, ['bench', 'benchmark', 'benchmarks']));
+                const benchCategories = benchmarkCategorySheetToMap(workbook, findSheet(workbook, ['bench categ', 'bench category', 'benchmark categ']));
+                applyBenchmarkCategoryMetadata(benchmarks, benchCategories);
 
                 const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
                 if (pricesSheet) {
                     const seriesMap = priceSheetToSeriesMap(workbook, pricesSheet, entries);
                     if (entries.every(e => (seriesMap[e.ticker] || []).length >= 2)) {
-                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks, seriesMapToComparable(seriesMap, entries));
+                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks, seriesMapToComparable(seriesMap, entries), benchCategories);
                         return;
                     }
                 }
@@ -1512,6 +1601,7 @@
                     loadedPortfolio.sourceLabel = `Excel pesos + Yahoo: ${fileName}`;
                     loadedPortfolio.mode = 'backtest';
                     loadedPortfolio.benchmarks = benchmarks;
+                    loadedPortfolio.benchCategories = benchCategories;
                     loadedPortfolio.priceSeries = loadedPortfolio.priceSeries || {};
                     populatePortfolioBenchmarkSelect();
                     populateFundComparisonControls();
@@ -1539,7 +1629,7 @@
                 });
             }
 
-            function computeImportedBacktestPortfolio(entries, seriesMap, sourceLabel, benchmarks = {}, priceSeries = {}) {
+            function computeImportedBacktestPortfolio(entries, seriesMap, sourceLabel, benchmarks = {}, priceSeries = {}, benchCategories = {}) {
                 const validTickers = entries.map(e => e.ticker).filter(t => seriesMap[t]?.length);
                 const maps = {};
                 validTickers.forEach(t => { maps[t] = new Map(seriesMap[t].map(d => [d.date.toISOString().slice(0, 10), d.price])); });
@@ -1559,10 +1649,10 @@
                 const values = [1000];
                 portReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const portfolioData = commonDates.map((date, i) => ({ date: new Date(date), price: values[i] }));
-                finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers: validTickers, sourceLabel, mode: 'backtest', benchmarks, priceSeries });
+                finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers: validTickers, sourceLabel, mode: 'backtest', benchmarks, priceSeries, benchCategories });
             }
 
-            function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode, benchmarks = {}, priceSeries = {} }) {
+            function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode, benchmarks = {}, priceSeries = {}, benchCategories = {} }) {
                 const frequency = selectedPortfolioFrequency(portfolioData);
                 const portfolioReturns = priceReturns(portfolioData);
                 const firstPrice = portfolioData[0].price;
@@ -1571,7 +1661,7 @@
                 const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
                 const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(periodsPerYear(frequency));
                 const ddData = calculateDrawdownData(portfolioData);
-                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries };
+                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries, benchCategories };
                 portfolioImportMode = mode;
                 syncFundScoringPortfolioFromEntries(entries, sourceLabel);
                 populatePortfolioBenchmarkSelect();
@@ -1656,6 +1746,7 @@
                     const row = document.createElement('div');
                     row.className = 'grid grid-cols-12 gap-2 items-center portfolio-row';
                     row.dataset.portfolioName = e.name || e.label || '';
+                    row.dataset.assetClass = e.assetClass || e.asset_class || '';
                     row.innerHTML = `
                         <div class="col-span-5"><input class="portfolio-ticker w-full p-2 border border-gray-300 rounded text-sm uppercase font-mono" value="${escapeHtml(e.ticker)}"></div>
                         <div class="col-span-4"><input class="portfolio-weight w-full p-2 border border-gray-300 rounded text-sm" value="${Number(e.weight).toFixed(6)}"></div>
@@ -1684,10 +1775,13 @@
             }
 
             function seriesMapToComparable(seriesMap, entries = []) {
-                const byTicker = Object.fromEntries(entries.map(e => [String(e.ticker).toUpperCase(), portfolioEntryLabel(e)]));
+                const byTicker = Object.fromEntries(entries.map(e => [String(e.ticker).toUpperCase(), e]));
                 return Object.fromEntries(Object.entries(seriesMap || {})
                     .filter(([, data]) => Array.isArray(data) && data.length >= 2)
-                    .map(([key, data]) => [key, { key, label: byTicker[String(key).toUpperCase()] || key, data }]));
+                    .map(([key, data]) => {
+                        const entry = byTicker[String(key).toUpperCase()];
+                        return [key, { key, label: entry ? portfolioEntryLabel(entry) : key, assetClass: entry?.assetClass || '', data }];
+                    }));
             }
 
             function benchmarkSheetToSeriesMap(workbook, sheetName) {
@@ -1709,6 +1803,32 @@
                 return Object.fromEntries(Object.entries(out).filter(([, value]) => value.data.length >= 2));
             }
 
+            function benchmarkCategorySheetToMap(workbook, sheetName) {
+                if (!sheetName) return {};
+                const rows = sheetRows(workbook, sheetName);
+                const out = {};
+                rows.forEach(row => {
+                    const ticker = String(firstValue(row, ['ticker', 'benchmark', 'bench']) || '').trim();
+                    if (!ticker) return;
+                    const item = {
+                        name: String(firstValue(row, ['name', 'nombre']) || ticker).trim(),
+                        assetClass: String(firstValue(row, ['asset class', 'asset_class', 'categoria', 'category']) || '').trim()
+                    };
+                    out[ticker] = item;
+                    out[ticker.toLowerCase()] = item;
+                });
+                return out;
+            }
+
+            function applyBenchmarkCategoryMetadata(benchmarks, categories) {
+                Object.entries(benchmarks || {}).forEach(([key, bench]) => {
+                    const meta = categories?.[key] || categories?.[String(key).toLowerCase()];
+                    if (!meta) return;
+                    if (meta.name) bench.label = meta.name;
+                    if (meta.assetClass) bench.assetClass = meta.assetClass;
+                });
+            }
+
             function populatePortfolioBenchmarkSelect() {
                 const select = document.getElementById('portfolioBenchmarkSelect');
                 if (!select) return;
@@ -1721,19 +1841,29 @@
                 if (note && !Object.keys(benchmarks).length) note.textContent = 'Sube una hoja bench para comparar contra indices de referencia.';
             }
 
+            function benchCategoryMeta(key) {
+                const map = loadedPortfolio?.benchCategories || {};
+                return map[key] || map[String(key || '').toLowerCase()] || null;
+            }
+
             function populateFundComparisonControls() {
                 const assetSelect = document.getElementById('fundCompareAssetSelect');
                 const benchSelect = document.getElementById('fundCompareBenchSelect');
                 if (!assetSelect || !benchSelect) return;
                 const assets = loadedPortfolio?.priceSeries || {};
                 const benches = loadedPortfolio?.benchmarks || {};
+                const benchCategories = loadedPortfolio?.benchCategories || {};
                 const currentAsset = assetSelect.value;
                 const currentBench = benchSelect.value;
                 assetSelect.innerHTML = Object.keys(assets).length
                     ? Object.entries(assets).map(([key, value]) => `<option value="${escapeHtml(key)}">${escapeHtml(value.label || key)}</option>`).join('')
                     : '<option value="">Carga una cartera con hoja prices</option>';
                 benchSelect.innerHTML = Object.keys(benches).length
-                    ? Object.entries(benches).map(([key, value]) => `<option value="${escapeHtml(key)}">${escapeHtml(value.label || key)}</option>`).join('')
+                    ? Object.entries(benches).map(([key, value]) => {
+                        const meta = benchCategoryMeta(key);
+                        const cat = meta?.assetClass ? ` - ${meta.assetClass}` : '';
+                        return `<option value="${escapeHtml(key)}">${escapeHtml(meta?.name || value.label || key)}${escapeHtml(cat)}</option>`;
+                    }).join('')
                     : '<option value="">Carga una hoja bench</option>';
                 if (assets[currentAsset]) assetSelect.value = currentAsset;
                 if (benches[currentBench]) benchSelect.value = currentBench;
@@ -1746,11 +1876,22 @@
                 const benchKey = document.getElementById('fundCompareBenchSelect')?.value;
                 const asset = loadedPortfolio?.priceSeries?.[assetKey];
                 const bench = loadedPortfolio?.benchmarks?.[benchKey];
+                const category = benchCategoryMeta(benchKey)?.assetClass || '';
                 const notice = document.getElementById('fundCompareNotice');
-                if (!asset || !bench) {
+                if (!bench) {
                     if (notice) notice.textContent = 'Carga un Excel con hoja prices y hoja bench para activar la comparativa.';
                     Plotly.purge('fundCompareChart');
                     ['fundComparePeriodBody', 'fundCompareAnnualBody', 'fundCompareMetricsBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+                    return;
+                }
+                const categoryAssets = category ? Object.values(loadedPortfolio?.priceSeries || {}).filter(s => String(s.assetClass || '').toLowerCase().trim() === String(category).toLowerCase().trim()) : [];
+                if (categoryAssets.length > 0) {
+                    renderFundCategoryComparison(categoryAssets, bench, category);
+                    return;
+                }
+                if (!asset) {
+                    if (notice) notice.textContent = 'Selecciona un activo o define categorias en bench categ para comparacion automatica.';
+                    Plotly.purge('fundCompareChart');
                     return;
                 }
                 const rowsAll = alignedSeriesRows(asset.data, bench.data, 'ALL');
@@ -1774,6 +1915,89 @@
                 }, { responsive: true });
                 if (notice) notice.textContent = `${asset.label} vs ${bench.label}. Fechas comunes: ${rowsAll[0].date.toISOString().slice(0, 10)} / ${rowsAll[rowsAll.length - 1].date.toISOString().slice(0, 10)}.`;
                 renderFundComparisonTables(rowsAll, asset.label, bench.label);
+            }
+
+            function renderFundCategoryComparison(assets, bench, category) {
+                updateRangeButtons('.fund-range-btn', fundCompareRange);
+                const notice = document.getElementById('fundCompareNotice');
+                const traces = [];
+                const benchVisible = normalizeBase100(sliceSeriesByRange(bench.data, fundCompareRange));
+                if (benchVisible.length) traces.push({ x: benchVisible.map(d => d.date), y: benchVisible.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 2.6, dash: 'dot' } });
+                assets.forEach(asset => {
+                    const rowsVisible = alignedSeriesRows(asset.data, bench.data, fundCompareRange);
+                    if (rowsVisible.length < 2) return;
+                    const norm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.asset })));
+                    traces.push({ x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: asset.label, line: { width: 1.8 } });
+                });
+                Plotly.newPlot('fundCompareChart', traces, {
+                    title: `Comparador por categoria: ${category} vs ${bench.label}`,
+                    yaxis: { title: 'Base 100' },
+                    margin: { t: 45, l: 55, r: 20, b: 45 },
+                    legend: { orientation: 'h', y: -0.2 },
+                    hovermode: 'x unified'
+                }, { responsive: true });
+                if (notice) notice.textContent = `Benchmark ${bench.label}. Se muestran ${assets.length} activos de la categoria ${category}.`;
+                renderFundCategoryComparisonTables(assets, bench, category);
+            }
+
+            function renderFundCategoryComparisonTables(assets, bench, category) {
+                const horizons = [
+                    { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
+                    { label: 'YTD', months: 'YTD' }, { label: '3A', months: 36 }, { label: '5A', months: 60 }, { label: 'Inicio', months: null }
+                ];
+                const periodBody = document.getElementById('fundComparePeriodBody');
+                if (periodBody) {
+                    const rows = [];
+                    assets.forEach(asset => {
+                        const aligned = alignedSeriesRows(asset.data, bench.data, 'ALL');
+                        horizons.forEach(h => {
+                            const ret = periodReturnFromRows(aligned, h.months);
+                            if (!ret) return;
+                            const alpha = ret.asset - ret.bench;
+                            rows.push(`<tr>
+                                <td class="px-3 py-2 font-bold text-slate-800">${escapeHtml(asset.label)} - ${h.label}</td>
+                                <td class="px-3 py-2 text-right ${ret.asset >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(ret.asset)}</td>
+                                <td class="px-3 py-2 text-right ${ret.bench >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(ret.bench)}</td>
+                                <td class="px-3 py-2 text-right font-bold ${alpha >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(alpha)}</td>
+                            </tr>`);
+                        });
+                    });
+                    periodBody.innerHTML = rows.join('');
+                }
+                const annualBody = document.getElementById('fundCompareAnnualBody');
+                if (annualBody) {
+                    const rows = [];
+                    assets.forEach(asset => {
+                        const aligned = alignedSeriesRows(asset.data, bench.data, 'ALL');
+                        const yearly = new Map();
+                        aligned.forEach(r => {
+                            const y = r.date.getUTCFullYear();
+                            if (!yearly.has(y)) yearly.set(y, []);
+                            yearly.get(y).push(r);
+                        });
+                        [...yearly.entries()].sort((a, b) => b[0] - a[0]).slice(0, 6).forEach(([year, yrRows]) => {
+                            const ret = periodReturnFromRows(yrRows, null);
+                            if (!ret || yrRows.length < 2) return;
+                            const alpha = ret.asset - ret.bench;
+                            rows.push(`<tr>
+                                <td class="px-3 py-2 font-bold text-slate-800">${escapeHtml(asset.label)} - ${year}</td>
+                                <td class="px-3 py-2 text-right ${ret.asset >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(ret.asset)}</td>
+                                <td class="px-3 py-2 text-right ${ret.bench >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(ret.bench)}</td>
+                                <td class="px-3 py-2 text-right font-bold ${alpha >= 0 ? 'text-green-700' : 'text-red-600'}">${fmtPct(alpha)}</td>
+                            </tr>`);
+                        });
+                    });
+                    annualBody.innerHTML = rows.join('');
+                }
+                const metricsBody = document.getElementById('fundCompareMetricsBody');
+                if (metricsBody) {
+                    metricsBody.innerHTML = [
+                        ['Categoria', category],
+                        ['Benchmark', bench.label],
+                        ['Activos comparados', String(assets.length)],
+                        ['Criterio', 'Activos con asset_class igual a la categoria del benchmark']
+                    ].map(([label, value]) => `<tr><td class="px-3 py-2 font-bold text-slate-700">${label}</td><td class="px-3 py-2 text-right">${escapeHtml(value)}</td></tr>`).join('');
+                }
             }
 
             function renderFundComparisonTables(rowsAll, assetLabel, benchLabel) {
@@ -2268,18 +2492,23 @@
             function renderFundScoringResults() {
                 const body = document.getElementById('fundScoringTableBody');
                 if (!body) return;
-                body.innerHTML = fundScoringResults.length ? fundScoringResults.map((r, idx) => fundScoringRowHtml(r, idx)).join('') : '<tr><td colspan="12" class="px-3 py-6 text-center text-slate-400">Carga universo y cartera para ver el scoring.</td></tr>';
+                body.innerHTML = fundScoringResults.length ? fundScoringResults.map((r, idx) => fundScoringRowHtml(r, idx)).join('') : '<tr><td colspan="14" class="px-3 py-6 text-center text-slate-400">Carga universo y cartera para ver el scoring.</td></tr>';
                 updateFundScoringKpis();
             }
 
             function fundScoringRowHtml(result, idx) {
-                const rec = result.record;
+                const rec = fundResolvedRecord(result);
+                const weightEditor = fundWeightEditorHtml(result, idx);
+                const ytmInput = `<input type="number" step="0.05" value="${Number.isFinite(result.ytm) ? result.ytm : ''}" oninput="updateFundScoringManualMetric(${idx}, 'ytm', this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="%">`;
+                const durationInput = `<input type="number" step="0.1" value="${Number.isFinite(result.duration) ? result.duration : ''}" oninput="updateFundScoringManualMetric(${idx}, 'duration', this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="yrs">`;
                 if (!rec) {
                     const traceHtml = fundCandidateTraceHtml(result);
                     return `<tr>
                         <td class="px-3 py-2 font-mono">${escapeHtml(result.isin)}</td>
                         <td class="px-3 py-2 text-slate-400" colspan="3">No resuelto${result.note ? ` · ${escapeHtml(result.note)}` : ''}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(result.weight)}</td>
+                        <td class="px-3 py-2 min-w-[190px]">${weightEditor}</td>
+                        <td class="px-3 py-2 text-right">${ytmInput}</td>
+                        <td class="px-3 py-2 text-right">${durationInput}</td>
                         <td class="px-3 py-2 text-right text-slate-400" colspan="5">Excluido del calculo</td>
                         <td class="px-3 py-2 min-w-[260px]">${fundRecommendationHtml(result)}</td>
                         <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div>${traceHtml}<button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></td>
@@ -2297,7 +2526,9 @@
                     <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(rec.name)}</div><div class="text-xs text-slate-400">${escapeHtml(rec.isin)} · AUM ${Number.isFinite(rec.aum) ? rec.aum.toLocaleString('es-ES') : '-'}</div></td>
                     <td class="px-3 py-2">${escapeHtml(rec.manager || '-')}</td>
                     <td class="px-3 py-2 min-w-[220px]">${escapeHtml(rec.category || '-')}</td>
-                    <td class="px-3 py-2 text-right font-bold">${fmtPercentPoint(result.weight)}</td>
+                    <td class="px-3 py-2 min-w-[190px]">${weightEditor}</td>
+                    <td class="px-3 py-2 text-right">${ytmInput}</td>
+                    <td class="px-3 py-2 text-right">${durationInput}</td>
                     ${quartileCell(rec.score, rec, 'score', false)}
                     ${quartileCell(rec.ter, rec, 'ter', true)}
                     ${quartileCell(rec.ret1, rec, 'ret1', true)}
@@ -2317,9 +2548,9 @@
             }
 
             function fundRecommendationHtml(result) {
-                const anchor = result.record || result.candidates?.[0]?.record || null;
+                const anchor = fundResolvedRecord(result) || result.candidates?.[0]?.record || null;
                 if (!anchor || !fundUniverseState?.records?.length) {
-                    return '<div class="text-xs text-slate-400">Sin categoria ancla</div>';
+                    return fundManualCategoryHtml(result);
                 }
                 const recs = getBetterFundRecommendations(anchor);
                 if (!recs.length) {
@@ -2347,27 +2578,255 @@
                     .slice(0, limit);
             }
 
-            function handleMarketsPortfolioAssetsUpload(file) {
+            function fundResolvedRecord(result) {
+                if (result?.record) return result.record;
+                if (Number.isFinite(result?.manualAnchorRowIndex)) return fundUniverseState?.records?.find(r => r.rowIndex === result.manualAnchorRowIndex) || null;
+                return null;
+            }
+
+            function fundWeightEditorHtml(result, idx) {
+                const weight = Number.isFinite(result.weight) ? result.weight : 0;
+                return `<div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <input id="fundWeightRange-${idx}" type="range" min="0" max="100" step="0.1" value="${weight}" oninput="updateFundScoringWeight(${idx}, this.value)" class="w-24">
+                        <input id="fundWeightInput-${idx}" type="number" min="0" max="100" step="0.1" value="${weight.toFixed(2)}" oninput="updateFundScoringWeight(${idx}, this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right">
+                    </div>
+                    <div class="text-[11px] text-slate-400">Peso editable (%)</div>
+                </div>`;
+            }
+
+            function updateFundScoringWeight(index, value) {
+                const n = parseNumber(value);
+                if (!Number.isFinite(n) || !fundScoringResults[index]) return;
+                fundScoringResults[index].weight = Math.max(0, n);
+                if (fundPortfolioRows[index]) fundPortfolioRows[index].weight = fundScoringResults[index].weight;
+                const range = document.getElementById(`fundWeightRange-${index}`);
+                const input = document.getElementById(`fundWeightInput-${index}`);
+                if (range && Number(range.value) !== fundScoringResults[index].weight) range.value = fundScoringResults[index].weight;
+                if (input && Number(input.value) !== fundScoringResults[index].weight) input.value = fundScoringResults[index].weight.toFixed(2);
+                updateFundScoringKpis();
+            }
+
+            function updateFundScoringManualMetric(index, field, value) {
+                if (!fundScoringResults[index]) return;
+                const n = parseNumber(value);
+                fundScoringResults[index][field] = Number.isFinite(n) ? n : NaN;
+                updateFundScoringKpis();
+            }
+
+            function fundManualCategoryHtml(result) {
+                const idx = fundScoringResults.indexOf(result);
+                const categories = [...new Set((fundUniverseState?.records || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+                const selected = result.manualCategory || '';
+                const catOptions = '<option value="">Elegir categoria...</option>' + categories.map(c => `<option value="${escapeHtml(c)}" ${c === selected ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+                const funds = selected ? getCategoryFunds(selected, 12) : [];
+                const fundOptions = '<option value="">Elegir fondo ancla...</option>' + funds.map(r => `<option value="${r.rowIndex}" ${r.rowIndex === result.manualAnchorRowIndex ? 'selected' : ''}>${escapeHtml(r.isin)} - Score ${fmtScore(r.score)} - TER ${Number.isFinite(r.ter) ? r.ter.toFixed(2) + '%' : '-'}</option>`).join('');
+                return `<div class="space-y-1">
+                    <select onchange="setFundManualCategory(${idx}, this.value)" class="w-full p-1 border border-slate-300 rounded bg-white text-xs">${catOptions}</select>
+                    <select onchange="setFundManualAnchor(${idx}, this.value)" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" ${selected ? '' : 'disabled'}>${fundOptions}</select>
+                    <div class="text-[11px] text-slate-400">Usa una categoria y fondo ancla para activar recomendaciones.</div>
+                </div>`;
+            }
+
+            function getCategoryFunds(category, limit = 50) {
+                return (fundUniverseState?.records || [])
+                    .filter(r => r.category === category)
+                    .sort((a, b) => (Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity))
+                    .slice(0, limit);
+            }
+
+            function setFundManualCategory(index, category) {
+                if (!fundScoringResults[index]) return;
+                fundScoringResults[index].manualCategory = category;
+                fundScoringResults[index].manualAnchorRowIndex = NaN;
+                renderFundScoringResults();
+            }
+
+            function setFundManualAnchor(index, rowIndex) {
+                if (!fundScoringResults[index]) return;
+                const n = Number(rowIndex);
+                fundScoringResults[index].manualAnchorRowIndex = Number.isFinite(n) ? n : NaN;
+                if (Number.isFinite(n)) {
+                    fundScoringResults[index].included = true;
+                    fundScoringResults[index].status = 'manual';
+                }
+                renderFundScoringResults();
+            }
+
+            function isFixedIncomeFund(record) {
+                const text = `${record?.category || ''} ${record?.name || ''}`.toLowerCase();
+                return /(bond|fixed income|renta fija|oblig|debt|credit|aggregate|gov|government|high yield|yield|duration|treasury|income)/i.test(text);
+            }
+
+            async function handleMarketsPortfolioAssetsUpload(file) {
                 const box = document.getElementById('marketsPortfolioAssetsStatus');
                 if (!box) return;
                 if (!file) {
                     box.innerText = 'Sin archivo seleccionado.';
                     return;
                 }
-                box.innerHTML = `<span class="font-bold text-slate-700">${escapeHtml(file.name)}</span> cargado como placeholder. Falta definir plantilla y reglas de cruce para activar el analisis.`;
+                if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
+                box.innerHTML = `Leyendo <span class="font-bold text-slate-700">${escapeHtml(file.name)}</span>...`;
+                const workbook = await readWorkbook(file);
+                const sheet = findSheet(workbook, ['YF A', 'yf a', 'yahoo', 'activos']) || workbook.SheetNames[0];
+                const rows = sheetRows(workbook, sheet);
+                const assets = rows.map(row => ({
+                    ticker: String(firstValue(row, ['ticker', 'isin', 'codigo']) || '').trim(),
+                    yahoo: String(firstValue(row, ['ticker yf', 'ticker_yf', 'yahoo', 'ticker yahoo']) || firstValue(row, ['ticker', 'isin', 'codigo']) || '').trim(),
+                    name: String(firstValue(row, ['name', 'nombre', 'asset', 'descripcion']) || '').trim(),
+                    assetClass: String(firstValue(row, ['asset_class', 'asset class', 'categoria', 'category']) || 'Sin categoria').trim()
+                })).filter(a => a.yahoo);
+                if (!assets.length) return alert('No encuentro activos validos en la hoja YF A.');
+                box.innerText = `Descargando ${assets.length} activos desde Yahoo...`;
+                const today = new Date().toISOString().split('T')[0];
+                const start = new Date(); start.setFullYear(start.getFullYear() - 10);
+                const startStr = start.toISOString().split('T')[0];
+                const results = await Promise.all(assets.map(a => fetchYahooData(a.yahoo, startStr, today).catch(() => [])));
+                const data = {};
+                assets.forEach((a, i) => { data[a.yahoo] = results[i] || []; });
+                marketsPortfolioAssetsState = { assets, data, range: '10Y' };
+                box.innerHTML = `<span class="font-bold text-slate-700">${escapeHtml(file.name)}</span>: ${assets.length} activos cargados.`;
+                document.getElementById('marketsPortfolioAssetsPanel')?.classList.remove('hidden');
+                populateMarketsPortfolioControls();
+                renderMarketsPortfolioAssets();
+            }
+
+            function populateMarketsPortfolioControls() {
+                const catSelect = document.getElementById('marketsPortfolioCategoryFilter');
+                const assetSelect = document.getElementById('marketsPortfolioAssetSelect');
+                const cats = [...new Set(marketsPortfolioAssetsState.assets.map(a => a.assetClass || 'Sin categoria'))].sort((a, b) => a.localeCompare(b));
+                if (catSelect) catSelect.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+                if (assetSelect) {
+                    assetSelect.innerHTML = marketsPortfolioAssetsState.assets.map((a, i) => `<option value="${escapeHtml(a.yahoo)}" ${i < 8 ? 'selected' : ''}>${escapeHtml(a.name || a.yahoo)} (${escapeHtml(a.assetClass || '-')})</option>`).join('');
+                }
+            }
+
+            function setMarketsPortfolioRange(range, btn) {
+                marketsPortfolioAssetsState.range = range || '10Y';
+                document.querySelectorAll('#marketsPortfolioTimeFilters button').forEach(b => b.className = 'px-3 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200');
+                if (btn) btn.className = 'px-3 py-1 rounded bg-blue-700 text-white';
+                renderMarketsPortfolioAssetsChart();
+            }
+
+            function renderMarketsPortfolioAssets() {
+                renderMarketsPortfolioAssetsTable();
+                renderMarketsPortfolioAssetsChart();
+            }
+
+            function renderMarketsPortfolioAssetsTable() {
+                const tbody = document.getElementById('marketsPortfolioAssetsTableBody');
+                if (!tbody) return;
+                const cat = document.getElementById('marketsPortfolioCategoryFilter')?.value || '';
+                const assets = marketsPortfolioAssetsState.assets.filter(a => !cat || a.assetClass === cat);
+                tbody.innerHTML = assets.map(a => {
+                    const d = marketsPortfolioAssetsState.data[a.yahoo] || [];
+                    const stats = marketStatsFromSeries(d);
+                    return `<tr class="hover:bg-gray-50 border-b">
+                        <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"><div>${escapeHtml(a.name || a.yahoo)}</div><div class="text-[10px] text-slate-400">${escapeHtml(a.yahoo)} - ${escapeHtml(a.assetClass || '-')}</div></td>
+                        ${marketMetricCell(stats.daily, true, true)}
+                        ${marketMetricCell(stats.week)}
+                        ${marketMetricCell(stats.month)}
+                        ${marketMetricCell(stats.threeM)}
+                        ${marketMetricCell(stats.ytd, true, true)}
+                        ${marketMetricCell(stats.oneY)}
+                        ${marketMetricCell(stats.threeY)}
+                        ${marketMetricCell(stats.fiveY)}
+                        ${marketMetricCell(stats.tenY)}
+                        <td class="px-3 py-2 border-l text-gray-600 bg-blue-50/30">${Number.isFinite(stats.vol1) ? fmtPct(stats.vol1) : '-'}</td>
+                        <td class="px-3 py-2 text-gray-600 bg-blue-50/30">${Number.isFinite(stats.vol3) ? fmtPct(stats.vol3) : '-'}</td>
+                        <td class="px-3 py-2 border-r text-gray-600 bg-blue-50/30">${Number.isFinite(stats.vol5) ? fmtPct(stats.vol5) : '-'}</td>
+                        <td class="px-3 py-2 text-red-600 bg-red-50/30">${Number.isFinite(stats.mdd5) ? fmtPct(stats.mdd5) : '-'}</td>
+                        <td class="px-3 py-2 text-red-700 bg-red-50/50 font-bold">${Number.isFinite(stats.mddHist) ? fmtPct(stats.mddHist) : '-'}</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            function marketStatsFromSeries(d) {
+                if (!d || d.length < 2) return {};
+                const last = d[d.length - 1];
+                const today = new Date();
+                const ytdStartDate = new Date(today.getFullYear(), 0, 1);
+                const ytdIdx = d.findIndex(x => x.date >= ytdStartDate);
+                const ytdStart = ytdIdx !== -1 ? d[ytdIdx] : d[0];
+                const retBack = back => d.length > back ? last.price / d[d.length - 1 - back].price - 1 : NaN;
+                const annBack = back => d.length > back ? Math.pow(last.price / d[d.length - 1 - back].price, 252 / back) - 1 : NaN;
+                const volBack = back => {
+                    if (d.length <= back) return NaN;
+                    return getStdDev(priceReturns(d.slice(d.length - 1 - back))) * Math.sqrt(252);
+                };
+                return {
+                    daily: retBack(1), week: retBack(5), month: retBack(21), threeM: retBack(63),
+                    ytd: last.price / ytdStart.price - 1, oneY: retBack(252),
+                    threeY: annBack(756), fiveY: annBack(1260), tenY: annBack(2520),
+                    vol1: volBack(252), vol3: volBack(756), vol5: volBack(1260),
+                    mdd5: maxDrawdownFromPrices(d.slice(-1260).map(x => x.price)),
+                    mddHist: maxDrawdownFromPrices(d.map(x => x.price))
+                };
+            }
+
+            function marketMetricCell(v, isPct = true, isBold = false) {
+                if (!Number.isFinite(v)) return '<td class="px-3 py-2 text-gray-400">-</td>';
+                const color = v > 0 ? 'text-green-600' : (v < 0 ? 'text-red-600' : 'text-gray-600');
+                return `<td class="px-3 py-2 ${color} ${isBold ? 'font-bold' : ''}">${isPct ? fmtPct(v) : v.toFixed(2)}</td>`;
+            }
+
+            function renderMarketsPortfolioAssetsChart() {
+                const el = document.getElementById('marketsPortfolioAssetsChart');
+                const select = document.getElementById('marketsPortfolioAssetSelect');
+                if (!el || !select || !window.Plotly) return;
+                const selected = Array.from(select.selectedOptions).map(o => o.value);
+                const traces = selected.map((ticker, i) => {
+                    const meta = marketsPortfolioAssetsState.assets.find(a => a.yahoo === ticker) || { name: ticker };
+                    const data = sliceSeriesByRange(marketsPortfolioAssetsState.data[ticker] || [], marketsPortfolioAssetsState.range);
+                    const norm = normalizeBase100(data);
+                    return { x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: meta.name || ticker, line: { width: 2 } };
+                }).filter(t => t.x.length);
+                if (!traces.length) {
+                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Selecciona activos con datos suficientes.</div>';
+                    return;
+                }
+                Plotly.newPlot(el, traces, { title: 'Evolucion de activos en cartera (Base 100)', yaxis: { title: 'Base 100' }, margin: { t: 45, l: 55, r: 20, b: 45 }, legend: { orientation: 'h', y: -0.2 }, hovermode: 'x unified' }, { responsive: true });
+            }
+
+            function sliceSeriesByRange(series, range) {
+                if (!series?.length || range === 'ALL') return series || [];
+                const end = series[series.length - 1].date;
+                const start = new Date(end);
+                if (range === 'YTD') start.setMonth(0, 1);
+                else if (range === '1M') start.setMonth(start.getMonth() - 1);
+                else if (range === '3M') start.setMonth(start.getMonth() - 3);
+                else if (range === '1Y') start.setFullYear(start.getFullYear() - 1);
+                else if (range === '3Y') start.setFullYear(start.getFullYear() - 3);
+                else if (range === '5Y') start.setFullYear(start.getFullYear() - 5);
+                else if (range === '10Y') start.setFullYear(start.getFullYear() - 10);
+                return series.filter(d => d.date >= start);
             }
 
             function updateFundScoringKpis() {
-                const included = fundScoringResults.filter(r => r.included && r.record);
+                const included = fundScoringResults.map(r => ({ ...r, record: fundResolvedRecord(r) })).filter(r => r.included && r.record);
                 const totalWeight = fundPortfolioRows.reduce((acc, r) => acc + r.weight, 0);
                 const resolvedWeight = included.reduce((acc, r) => acc + r.weight, 0);
-                const score = included.reduce((acc, r) => acc + (r.weight / 100) * (Number.isFinite(r.record.score) ? r.record.score : 0), 0);
+                const scoreWeight = included.filter(r => Number.isFinite(r.record.score)).reduce((acc, r) => acc + r.weight, 0);
+                const score = scoreWeight > 0 ? included.reduce((acc, r) => acc + (Number.isFinite(r.record.score) ? r.record.score * r.weight : 0), 0) / scoreWeight : NaN;
                 const terRows = included.filter(r => Number.isFinite(r.record.ter));
-                const ter = terRows.reduce((acc, r) => acc + (r.weight / 100) * r.record.ter, 0);
-                document.getElementById('fundWeightedScore').innerText = included.length ? score.toFixed(2) : '-';
-                document.getElementById('fundWeightedTer').innerText = terRows.length ? `${ter.toFixed(2)}%` : '-';
+                const terWeight = terRows.reduce((acc, r) => acc + r.weight, 0);
+                const ter = terWeight > 0 ? terRows.reduce((acc, r) => acc + r.record.ter * r.weight, 0) / terWeight : NaN;
+                const fixedIncome = included.filter(r => isFixedIncomeFund(r.record));
+                const ytmRows = fixedIncome.filter(r => Number.isFinite(r.ytm));
+                const ytmWeight = ytmRows.reduce((acc, r) => acc + r.weight, 0);
+                const weightedYtm = ytmWeight > 0 ? ytmRows.reduce((acc, r) => acc + r.ytm * r.weight, 0) / ytmWeight : NaN;
+                const durationRows = fixedIncome.filter(r => Number.isFinite(r.duration));
+                const durationWeight = durationRows.reduce((acc, r) => acc + r.weight, 0);
+                const weightedDuration = durationWeight > 0 ? durationRows.reduce((acc, r) => acc + r.duration * r.weight, 0) / durationWeight : NaN;
+                document.getElementById('fundWeightedScore').innerText = Number.isFinite(score) ? score.toFixed(2) : '-';
+                document.getElementById('fundWeightedTer').innerText = Number.isFinite(ter) ? `${ter.toFixed(2)}%` : '-';
                 document.getElementById('fundResolvedWeight').innerText = fundPortfolioRows.length ? `${resolvedWeight.toFixed(2)}%` : '-';
                 document.getElementById('fundResolvedCount').innerText = fundPortfolioRows.length ? `${included.length}/${fundPortfolioRows.length}` : '-';
+                const ytmEl = document.getElementById('fundWeightedYtm');
+                const durEl = document.getElementById('fundWeightedDuration');
+                if (ytmEl) ytmEl.innerText = Number.isFinite(weightedYtm) ? `${weightedYtm.toFixed(2)}%` : '-';
+                if (durEl) durEl.innerText = Number.isFinite(weightedDuration) ? weightedDuration.toFixed(2) : '-';
+                renderFundCategoryPie(included);
                 const unresolved = fundPortfolioRows.length - included.length;
                 const notice = document.getElementById('fundScoringNotice');
                 if (notice) {
@@ -2375,6 +2834,31 @@
                     notice.classList.toggle('hidden', !partial);
                     notice.innerText = partial ? `Aviso: calculo parcial. Peso total cartera ${totalWeight.toFixed(2)}%, peso incluido ${resolvedWeight.toFixed(2)}%. Confirma matches automaticos o corrige manualmente los ISINs pendientes.` : '';
                 }
+            }
+
+            function renderFundCategoryPie(rows) {
+                const el = document.getElementById('fundCategoryPieChart');
+                if (!el || !window.Plotly) return;
+                const byCat = new Map();
+                rows.forEach(r => {
+                    const cat = r.record?.category || 'Sin categoria';
+                    byCat.set(cat, (byCat.get(cat) || 0) + (Number.isFinite(r.weight) ? r.weight : 0));
+                });
+                if (!byCat.size) {
+                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Sin categorias resueltas.</div>';
+                    return;
+                }
+                Plotly.newPlot(el, [{
+                    labels: [...byCat.keys()],
+                    values: [...byCat.values()],
+                    type: 'pie',
+                    hole: 0.42,
+                    textinfo: 'label+percent',
+                    marker: { colors: ['#1d4ed8', '#64748b', '#0f766e', '#9333ea', '#ca8a04', '#dc2626', '#0891b2', '#4f46e5'] }
+                }], {
+                    margin: { t: 20, l: 20, r: 20, b: 20 },
+                    legend: { orientation: 'h', y: -0.15 }
+                }, { responsive: true });
             }
 
             function priceReturns(series) {
@@ -2671,7 +3155,8 @@
                     const t = r.querySelector('.portfolio-ticker')?.value?.toUpperCase()?.trim() || '';
                     const w = parseFloat(r.querySelector('.portfolio-weight')?.value) || 0;
                     const name = String(r.dataset.portfolioName || '').trim();
-                    return { ticker: t, weight: w, name };
+                    const assetClass = String(r.dataset.assetClass || '').trim();
+                    return { ticker: t, weight: w, name, assetClass };
                 }).filter(e => e.ticker);
                 if (entries.length < 1) return alert('Añade al menos un activo con ticker.');
                 // normalize weights here
