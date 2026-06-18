@@ -506,6 +506,21 @@
                         Forinto Húngaro
                     </div>
                 </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                        <div>
+                            <h3 class="text-gray-800 font-bold border-l-4 border-slate-700 pl-3">Activos en cartera</h3>
+                            <p class="text-xs text-gray-500 mt-1 pl-3">Zona preparada para cargar un Excel de activos de cartera. El formato y la funcionalidad se conectaran cuando definas la plantilla.</p>
+                        </div>
+                        <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer w-fit">
+                            <i class="fa-solid fa-file-excel mr-1"></i>Subir Excel
+                            <input id="marketsPortfolioAssetsInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleMarketsPortfolioAssetsUpload(this.files[0])">
+                        </label>
+                    </div>
+                    <div id="marketsPortfolioAssetsStatus" class="mt-4 rounded border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                        Pendiente de plantilla. Cuando indiques columnas y objetivo, se podra cruzar con los activos cargados de mercado.
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -644,6 +659,8 @@
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Distribución de activos</button>
                     <button id="portfolioSubtab-scoring" onclick="showPortfolioSubtab('scoring')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Scoring de Cartera</button>
+                    <button id="portfolioSubtab-massive" onclick="showPortfolioSubtab('massive')"
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Comparador masivo</button>
                     <button id="portfolioSubtab-funds" onclick="showPortfolioSubtab('funds')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Comparativa fondos</button>
                 </div>
@@ -805,12 +822,20 @@
                                         <th class="px-3 py-2 text-right">Ret 1Y</th>
                                         <th class="px-3 py-2 text-right">Ret 3Y</th>
                                         <th class="px-3 py-2 text-right">Ret 5Y</th>
+                                        <th class="px-3 py-2 text-left">Recomendacion</th>
                                         <th class="px-3 py-2 text-left">Estado match</th>
                                     </tr>
                                 </thead>
                                 <tbody id="fundScoringTableBody" class="divide-y divide-slate-100"></tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+
+                <div id="portfolioSubtabContent-massive" class="portfolio-subtab-content hidden mt-6 space-y-4">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
+                        <h3 class="font-bold text-slate-900">Comparador masivo</h3>
+                        <p class="text-sm text-slate-500 mt-2">Subpestaña preparada para una comparativa masiva de fondos. Pendiente de definir formato de entrada y criterios.</p>
                     </div>
                 </div>
 
@@ -2243,7 +2268,7 @@
             function renderFundScoringResults() {
                 const body = document.getElementById('fundScoringTableBody');
                 if (!body) return;
-                body.innerHTML = fundScoringResults.length ? fundScoringResults.map((r, idx) => fundScoringRowHtml(r, idx)).join('') : '<tr><td colspan="11" class="px-3 py-6 text-center text-slate-400">Carga universo y cartera para ver el scoring.</td></tr>';
+                body.innerHTML = fundScoringResults.length ? fundScoringResults.map((r, idx) => fundScoringRowHtml(r, idx)).join('') : '<tr><td colspan="12" class="px-3 py-6 text-center text-slate-400">Carga universo y cartera para ver el scoring.</td></tr>';
                 updateFundScoringKpis();
             }
 
@@ -2256,6 +2281,7 @@
                         <td class="px-3 py-2 text-slate-400" colspan="3">No resuelto${result.note ? ` · ${escapeHtml(result.note)}` : ''}</td>
                         <td class="px-3 py-2 text-right">${fmtPercentPoint(result.weight)}</td>
                         <td class="px-3 py-2 text-right text-slate-400" colspan="5">Excluido del calculo</td>
+                        <td class="px-3 py-2 min-w-[260px]">${fundRecommendationHtml(result)}</td>
                         <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div>${traceHtml}<button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></td>
                     </tr>`;
                 }
@@ -2277,6 +2303,7 @@
                     ${quartileCell(rec.ret1, rec, 'ret1', true)}
                     ${quartileCell(rec.ret3, rec, 'ret3', true)}
                     ${quartileCell(rec.ret5, rec, 'ret5', true)}
+                    <td class="px-3 py-2 min-w-[280px]">${fundRecommendationHtml(result)}</td>
                     <td class="px-3 py-2">${statusHtml}${traceHtml}</td>
                 </tr>`;
             }
@@ -2287,6 +2314,47 @@
                 if (!candidates.length) return note;
                 const items = candidates.slice(0, 3).map(c => `<li>${Math.round((c.confidence || 0) * 100)}% - ${escapeHtml(c.record?.name || '-')} <span class="text-slate-400">(${escapeHtml(c.record?.isin || '-')})</span></li>`).join('');
                 return `${note}<details class="mt-1 text-[11px] text-slate-500"><summary class="cursor-pointer font-bold">Candidatos OpenFIGI</summary><ol class="list-decimal pl-4">${items}</ol></details>`;
+            }
+
+            function fundRecommendationHtml(result) {
+                const anchor = result.record || result.candidates?.[0]?.record || null;
+                if (!anchor || !fundUniverseState?.records?.length) {
+                    return '<div class="text-xs text-slate-400">Sin categoria ancla</div>';
+                }
+                const recs = getBetterFundRecommendations(anchor);
+                if (!recs.length) {
+                    return `<div class="text-xs text-slate-400">Sin ISIN con mejor score en ${escapeHtml(anchor.category || 'categoria')}</div>`;
+                }
+                const options = recs.map(r => {
+                    const ter = Number.isFinite(r.ter) ? `${r.ter.toFixed(2)}% TER` : 'TER -';
+                    const score = Number.isFinite(r.score) ? `Score ${r.score.toFixed(2)}` : 'Score -';
+                    return `<option value="${escapeHtml(r.isin)}">${escapeHtml(r.isin)} - ${score} - ${ter} - ${escapeHtml(r.name)}</option>`;
+                }).join('');
+                const currentScore = Number.isFinite(anchor.score) ? anchor.score.toFixed(2) : '-';
+                return `<div class="space-y-1">
+                    <select class="w-full p-1 border border-slate-300 rounded bg-white text-xs">${options}</select>
+                    <div class="text-[11px] text-slate-400">Categoria: ${escapeHtml(anchor.category || '-')} | score actual ${currentScore}</div>
+                </div>`;
+            }
+
+            function getBetterFundRecommendations(anchor, limit = 5) {
+                const category = anchor?.category || '';
+                if (!category || !fundUniverseState?.records?.length) return [];
+                const anchorScore = Number.isFinite(anchor.score) ? anchor.score : -Infinity;
+                return fundUniverseState.records
+                    .filter(r => r.isin !== anchor.isin && r.category === category && Number.isFinite(r.score) && r.score > anchorScore)
+                    .sort((a, b) => (b.score - a.score) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity)))
+                    .slice(0, limit);
+            }
+
+            function handleMarketsPortfolioAssetsUpload(file) {
+                const box = document.getElementById('marketsPortfolioAssetsStatus');
+                if (!box) return;
+                if (!file) {
+                    box.innerText = 'Sin archivo seleccionado.';
+                    return;
+                }
+                box.innerHTML = `<span class="font-bold text-slate-700">${escapeHtml(file.name)}</span> cargado como placeholder. Falta definir plantilla y reglas de cruce para activar el analisis.`;
             }
 
             function updateFundScoringKpis() {
