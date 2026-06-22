@@ -4966,13 +4966,10 @@
                         ${reportQuartileTd(record.ter, record, 'ter', true)}
                         ${reportQuartileTd(record.ret1, record, 'ret1', true)}
                         ${reportQuartileTd(record.ret3, record, 'ret3', true)}
-                        ${reportQuartileTd(record.ret5, record, 'ret5', true)}
                         ${reportQuartileTd(record.risk1, record, 'risk1', true)}
                         ${reportQuartileTd(record.risk3, record, 'risk3', true)}
-                        ${reportQuartileTd(record.risk5, record, 'risk5', true)}
                         ${reportQuartileTd(record.dd1, record, 'dd1', true)}
                         ${reportQuartileTd(record.dd3, record, 'dd3', true)}
-                        ${reportQuartileTd(record.dd5, record, 'dd5', true)}
                     </tr>`;
                 }).join('');
                 return `<section class="block">
@@ -4984,8 +4981,8 @@
                         <div><span>Cambios aplicados</span><strong>${summary.changed}</strong></div>
                     </section>
                     <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} El TER ponderado resume el coste corriente de los fondos incluidos en el cálculo.</p>
-                    <table>
-                        <thead><tr><th>ISIN original</th><th>ISIN seleccionado</th><th>Fondo</th><th>Peso</th><th>Categoría</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Ret 3Y</th><th>Ret 5Y</th><th>Risk 1Y</th><th>Risk 3Y</th><th>Risk 5Y</th><th>MD 1Y</th><th>MD 3Y</th><th>MD 5Y</th></tr></thead>
+                    <table class="wide-report-table">
+                        <thead><tr><th>ISIN orig.</th><th>ISIN sel.</th><th>Fondo</th><th>Peso</th><th>Cat.</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Ret 3Y</th><th>Risk 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                     <p class="method-note"><b>Metodología:</b> el score y TER ponderados usan la selección actual de cada fila, incluyendo proxies o recomendaciones aplicadas, y excluyen fondos marcados como excluidos. Los colores representan cuartiles frente a fondos de la misma categoría: verde Q1, lima Q2, naranja Q3 y rojo Q4.</p>
@@ -5397,6 +5394,10 @@
                     table{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed}
                     th{background:#0b1f3a;color:#ffffff;text-align:left;text-transform:uppercase;font-size:8.5px;letter-spacing:.03em;padding:6px;font-weight:800;word-break:break-word;border-right:1px solid #263b59}
                     td{border-bottom:1px solid #e2e8f0;padding:6px;vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+                    .wide-report-table{font-size:8.2px;table-layout:auto}
+                    .wide-report-table th{font-size:7.4px;padding:4px;line-height:1.2;word-break:normal;overflow-wrap:normal;hyphens:none}
+                    .wide-report-table td{padding:4px;line-height:1.22;word-break:normal;overflow-wrap:anywhere}
+                    .wide-report-table td:nth-child(2),.wide-report-table td:nth-child(3){min-width:22mm}
                     tbody tr:nth-child(even) td{background:#f7f9fc}
                     tr:last-child td{border-bottom:0}
                     .kv-table td:first-child{width:42%;color:#475569;font-weight:700}
@@ -5505,14 +5506,12 @@
                         ${reportQuartileTd(rec?.risk3, rec, 'risk3', true)}
                         ${reportQuartileTd(rec?.dd1, rec, 'dd1', true)}
                         ${reportQuartileTd(rec?.dd3, rec, 'dd3', true)}
-                        ${reportQuartileTd(rec?.dd5, rec, 'dd5', true)}
-                        <td>${result.approvedMatch?.record ? 'Sí' : 'No'}</td>
                     </tr>`;
                 }).join('');
                 return `<section class="block">
                     <h2>Posición agregada por ISIN</h2>
-                    <table>
-                        <thead><tr><th>Bloque</th><th>ISIN</th><th>Fondo</th><th>Importe</th><th>Peso</th><th>Categoría</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th><th>MD 5Y</th><th>Aprobado</th></tr></thead>
+                    <table class="wide-report-table">
+                        <thead><tr><th>Bloque</th><th>ISIN</th><th>Fondo</th><th>Importe</th><th>Peso</th><th>Cat.</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                     <p class="method-note"><b>Metodología:</b> cada fila representa un ISIN único agregado desde el Excel de posiciones. Las sustituciones/proxies seleccionados se muestran como cambio aplicado y afectan al score/TER ponderado.</p>
@@ -5529,8 +5528,8 @@
                     const pos = result.position || {};
                     const rec = aggregateEffectiveRecord(result);
                     const recs = aggregateRecommendationsForResult(result);
-                    const approved = recs.approved.slice(0, 5).map(r => `${r.isin} (${fmtScore(r.score)}, TER ${Number.isFinite(r.ter) ? r.ter.toFixed(2) + '%' : '-'})`).join('<br>') || '-';
-                    const universe = recs.universe.slice(0, 5).map(r => `${r.isin} (${fmtScore(r.score)}, TER ${Number.isFinite(r.ter) ? r.ter.toFixed(2) + '%' : '-'})`).join('<br>') || '-';
+                    const approved = recs.approved.slice(0, 5).map(reportRecommendationLabel).join('<br>') || '-';
+                    const universe = recs.universe.slice(0, 5).map(reportRecommendationLabel).join('<br>') || '-';
                     return `<tr>
                         <td>${escapeHtml(pos.isin || '-')}</td>
                         <td>${escapeHtml(pos.name || rec?.name || '-')}</td>
@@ -5547,6 +5546,17 @@
                     <table><thead><tr><th>ISIN</th><th>Fondo</th><th>Categoría</th><th>Score efectivo</th><th>Estado</th><th>Aprobados/cartera</th><th>Universo invertible</th></tr></thead><tbody>${rows}</tbody></table>
                     <p class="method-note"><b>Metodología:</b> las recomendaciones se filtran por categoría efectiva y se ordenan por mejor score y menor TER. No modifican la cartera salvo que el usuario las seleccione explícitamente en pantalla.</p>
                 </section>`;
+            }
+
+            function reportRecommendationLabel(item) {
+                const record = item?.universe || item || {};
+                const approved = item?.approved || {};
+                const isin = record.isin || approved.isin || '-';
+                const name = record.name || approved.name || '-';
+                const score = fmtScore(record.score);
+                const ter = Number.isFinite(record.ter) ? `${record.ter.toFixed(2)}%` : '-';
+                const source = item?.source ? ` · ${item.source}` : '';
+                return `${escapeHtml(isin)} - ${escapeHtml(name)} (${score}, TER ${ter}${escapeHtml(source)})`;
             }
 
             function reportAggregateChangeHtml(result) {
@@ -5599,12 +5609,11 @@
                         ${reportQuartileTd(r.risk3, r, 'risk3', true)}
                         ${reportQuartileTd(r.dd1, r, 'dd1', true)}
                         ${reportQuartileTd(r.dd3, r, 'dd3', true)}
-                        ${reportQuartileTd(r.dd5, r, 'dd5', true)}
                     </tr>`;
                 }).join('');
                 return `<section class="block">
                     <h2>Fondos Santalucía</h2>
-                    <table><thead><tr><th>ISIN</th><th>Nombre</th><th>Categoría</th><th>Importe</th><th>Peso</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th><th>MD 5Y</th></tr></thead><tbody>${rows}</tbody></table>
+                    <table class="wide-report-table"><thead><tr><th>ISIN</th><th>Nombre</th><th>Cat.</th><th>Importe</th><th>Peso</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead><tbody>${rows}</tbody></table>
                     <p class="method-note"><b>Metodología:</b> se incluyen todos los fondos Santalucía localizados en el ranking y los presentes en cartera agregada aunque no aparezcan en ranking. Los nombres en verde indican presencia en la cartera agregada cargada.</p>
                 </section>`;
             }
