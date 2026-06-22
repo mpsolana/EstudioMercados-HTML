@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title id="docTitle">MPS MarketAnalyzer v13</title>
+    <title id="docTitle">Analyzer v13</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -128,7 +128,7 @@
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <i class="fa-solid fa-chart-simple text-blue-400 text-xl"></i>
-                <h1 class="text-xl font-bold tracking-wide">MPS Market<span class="text-blue-400">Analyzer</span>
+                <h1 class="text-xl font-bold tracking-wide">Analyzer
                 </h1>
             </div>
             <div class="text-xs text-gray-400 hidden sm:block" id="versionLabel">v13</div>
@@ -804,6 +804,10 @@
                                     <i class="fa-solid fa-database mr-1"></i>Subir universo
                                     <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importFundUniverseFile(this.files[0])">
                                 </label>
+                                <label class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800 cursor-pointer">
+                                    <i class="fa-solid fa-circle-check mr-1"></i>Subir aprobados
+                                    <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importApprovedFundsFile(this.files[0])">
+                                </label>
                                 <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
                                     <i class="fa-solid fa-briefcase mr-1"></i>Subir cartera
                                     <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importFundScoringPortfolioFile(this.files[0])">
@@ -813,10 +817,14 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4">
                             <div class="rounded border border-slate-200 bg-slate-50 p-3">
                                 <div class="text-[11px] uppercase font-bold text-slate-500">Universo cargado</div>
                                 <div id="fundUniverseStatus" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
+                            </div>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-3">
+                                <div class="text-[11px] uppercase font-bold text-slate-500">Fondos aprobados</div>
+                                <div id="approvedFundsStatusTop" class="text-sm font-bold text-slate-800 mt-2">Pendiente</div>
                             </div>
                             <div class="rounded border border-slate-200 bg-slate-50 p-3">
                                 <div class="text-[11px] uppercase font-bold text-slate-500">Cartera cargada</div>
@@ -895,7 +903,7 @@
                                         <th class="px-3 py-2 text-right">MD 1Y</th>
                                         <th class="px-3 py-2 text-right">MD 3Y</th>
                                         <th class="px-3 py-2 text-right">MD 5Y</th>
-                                        <th class="px-3 py-2 text-left">Recomendacion</th>
+                                        <th class="px-3 py-2 text-left">Recomendaciones</th>
                                         <th class="px-3 py-2 text-left">Estado match</th>
                                     </tr>
                                 </thead>
@@ -988,10 +996,11 @@
                                     <tbody id="aggregatePositionsTableBody" class="divide-y divide-slate-100"></tbody>
                                 </table>
                             </div>
+                            <p class="mt-2 text-[11px] text-slate-500">* Los colores de las metricas representan el cuartil dentro de la categoria del ranking cargado: verde = Q1, lima = Q2, naranja = Q3, rojo = Q4.</p>
                         </div>
 
                         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
-                            <h5 class="font-bold text-slate-800 border-l-4 border-emerald-600 pl-3 mb-2">Exposicion por categoria</h5>
+                            <h5 class="font-bold text-slate-800 border-l-4 border-emerald-600 pl-3 mb-2">Exposicion por bloque</h5>
                             <div id="aggregateCategoryPieChart" class="w-full h-[340px]"></div>
                         </div>
 
@@ -1005,6 +1014,7 @@
                                     <tbody id="santaluciaFundsBody" class="divide-y divide-slate-100"></tbody>
                                 </table>
                             </div>
+                            <p class="mt-2 text-[11px] text-slate-500">* Las metricas se colorean por cuartil frente a fondos de la misma categoria del ranking. Los nombres en verde indican fondos presentes en la cartera agregada cargada.</p>
                         </div>
                     </div>
                 </div>
@@ -2567,6 +2577,14 @@
                 return `<td class="px-3 py-2 text-right font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</td>`;
             }
 
+            function quartileValueHtml(value, record, metricKey, isPercentPoint = true) {
+                if (!Number.isFinite(value)) return '<span class="text-slate-400">-</span>';
+                const q = metricQuartile(record, metricKey);
+                const cls = q === 1 ? 'bg-emerald-100 text-emerald-900' : q === 2 ? 'bg-lime-100 text-lime-900' : q === 3 ? 'bg-orange-100 text-orange-900' : q === 4 ? 'bg-red-100 text-red-900' : 'bg-slate-50 text-slate-800';
+                const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                return `<span class="inline-flex justify-end min-w-[72px] rounded px-2 py-1 font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</span>`;
+            }
+
             async function importFundScoringPortfolioFile(file) {
                 if (!file) return;
                 document.getElementById('fundPortfolioStatus').innerText = 'Leyendo cartera...';
@@ -2897,29 +2915,49 @@
                 if (!anchor || !fundUniverseState?.records?.length) {
                     return fundManualCategoryHtml(result);
                 }
-                const recs = getBetterFundRecommendations(anchor, 5000);
                 const idx = fundScoringResults.indexOf(result);
-                if (!recs.length) {
-                    const manualBlock = result.status === 'manual' ? `<div class="mb-2">${fundManualCategoryHtml(result)}</div>` : '';
-                    const reset = fundHasAppliedChange(result) ? `<button onclick="resetFundRecommendation(${idx})" class="px-2 py-1 border border-slate-300 rounded bg-white text-[11px] font-bold">Volver al ISIN original</button>` : '';
-                    return `${manualBlock}<div class="text-xs text-slate-400">Sin ISIN con mejor score en ${escapeHtml(anchor.category || 'categoria')}</div>${reset}`;
-                }
-                const listId = `fundRecommendationList-${idx}`;
-                const options = recs.map(r => {
-                    const ter = Number.isFinite(r.ter) ? `${r.ter.toFixed(2)}% TER` : 'TER -';
-                    const score = Number.isFinite(r.score) ? `Score ${r.score.toFixed(2)}` : 'Score -';
-                    return `<option value="${escapeHtml(r.isin)} | ${score} | ${ter} | ${escapeHtml(r.name)}"></option>`;
-                }).join('');
+                const approved = getApprovedFundRecommendations(anchor, 5000);
+                const universe = getBetterFundRecommendations(anchor, 5000);
                 const currentScore = Number.isFinite(anchor.score) ? anchor.score.toFixed(2) : '-';
                 const manualBlock = result.status === 'manual' ? `<div class="mb-2">${fundManualCategoryHtml(result)}</div>` : '';
                 const reset = fundHasAppliedChange(result) ? `<button onclick="resetFundRecommendation(${idx})" class="px-2 py-1 border border-slate-300 rounded bg-white text-[11px] font-bold">Volver al ISIN original</button>` : '';
                 return `<div class="space-y-1">
                     ${manualBlock}
-                    <input list="${listId}" onchange="applyFundRecommendation(${idx}, this.value.split(' | ')[0])" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="Buscar recomendacion por ISIN o nombre...">
-                    <datalist id="${listId}">${options}</datalist>
+                    <details open><summary class="cursor-pointer font-bold text-emerald-700">Fondos aprobados (${approved.length})</summary>${fundRecommendationSelectHtml(idx, approved, 'Buscar aprobado...')}</details>
+                    <details><summary class="cursor-pointer font-bold text-blue-700">Universo invertible (${universe.length})</summary>${fundRecommendationSelectHtml(idx, universe, 'Buscar universo...')}</details>
                     <div class="text-[11px] text-slate-400">Categoria: ${escapeHtml(anchor.category || '-')} | score actual ${currentScore}</div>
                     ${reset}
                 </div>`;
+            }
+
+            function fundRecommendationSelectHtml(idx, records, placeholder) {
+                if (!records?.length) return '<div class="text-xs text-slate-400">Sin alternativas mejores</div>';
+                const listId = `fundRecommendationList-${idx}-${normalizeHeaderLabel(placeholder).replace(/\s+/g, '-')}`;
+                const options = records.map(r => {
+                    const ter = Number.isFinite(r.ter) ? `${r.ter.toFixed(2)}% TER` : 'TER -';
+                    const score = Number.isFinite(r.score) ? `Score ${r.score.toFixed(2)}` : 'Score -';
+                    return `<option value="${escapeHtml(r.isin)} | ${score} | ${ter} | ${escapeHtml(r.name)}"></option>`;
+                }).join('');
+                return `<input list="${listId}" onchange="applyFundRecommendation(${idx}, this.value.split(' | ')[0])" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="${escapeHtml(placeholder)}">
+                    <datalist id="${listId}">${options}</datalist>`;
+            }
+
+            function getApprovedFundRecommendations(anchor, limit = 5000) {
+                const category = normalizeHeaderLabel(anchor?.category || '');
+                if (!category || !approvedFundsState?.records?.length || !fundUniverseState?.records?.length) return [];
+                const anchorScore = Number.isFinite(anchor.score) ? anchor.score : -Infinity;
+                const deduped = new Map();
+                approvedFundsState.records.forEach(ap => {
+                    const rec = fundUniverseState.isinIndex.get(ap.isin) || universeRecordForApproved(ap);
+                    if (!rec || rec.isin === anchor.isin) return;
+                    if (normalizeHeaderLabel(rec.category || '') !== category) return;
+                    if (!Number.isFinite(rec.score) || rec.score <= anchorScore) return;
+                    const prev = deduped.get(rec.isin);
+                    if (!prev || rec.score > prev.score) deduped.set(rec.isin, rec);
+                });
+                return [...deduped.values()]
+                    .sort((a, b) => (b.score - a.score) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity)))
+                    .slice(0, limit);
             }
 
             function getBetterFundRecommendations(anchor, limit = 5) {
@@ -3134,7 +3172,9 @@
                 if (!file) return;
                 if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
                 const status = document.getElementById('approvedFundsStatus');
+                const topStatus = document.getElementById('approvedFundsStatusTop');
                 if (status) status.innerText = 'Leyendo fondos aprobados...';
+                if (topStatus) topStatus.innerText = 'Leyendo fondos aprobados...';
                 const workbook = await readWorkbook(file);
                 const sheet = findSheet(workbook, ['Fondos', 'aprobados', 'terceros']) || workbook.SheetNames[0];
                 const rows = rowsByDetectedHeader(workbook.Sheets[sheet], ['isin', 'nombre']);
@@ -3170,8 +3210,10 @@
                 aggregateRecommendationCache.clear();
                 rebuildAggregateFastIndex();
                 if (status) status.innerText = `${records.length.toLocaleString('es-ES')} fondos aprobados (${file.name})`;
+                if (topStatus) topStatus.innerText = `${records.length.toLocaleString('es-ES')} fondos aprobados (${file.name})`;
                 const scoringStatus = document.getElementById('aggregateScoringStatus');
                 if (scoringStatus && aggregatePositionsState.aggregated.length) scoringStatus.innerText = 'Pendiente de analizar';
+                if (fundScoringResults.length) renderFundScoringResults();
                 renderAggregateScoringResults();
             }
 
@@ -3342,6 +3384,7 @@
                     currentRecord: universeMatch?.record || null,
                     selectedRecommendation: '',
                     manualCategory: universeMatch?.record?.category || approvedMatch?.record?.categoryName || '',
+                    manualBucket: '',
                     manualScore: NaN,
                     included: true
                 };
@@ -3359,6 +3402,10 @@
                 };
             }
 
+            function aggregateStaticRecord(result) {
+                return result?.universeMatch?.record || result?.originalRecord || null;
+            }
+
             function findAggregateResult(index) {
                 return aggregateScoringResults[index] || null;
             }
@@ -3368,6 +3415,13 @@
                 if (!result) return;
                 result.manualCategory = String(value || '').trim();
                 aggregateRecommendationCache.clear();
+                renderAggregateScoringResults();
+            }
+
+            function setAggregateManualBucket(index, value) {
+                const result = findAggregateResult(index);
+                if (!result) return;
+                result.manualBucket = String(value || '').trim();
                 renderAggregateScoringResults();
             }
 
@@ -3642,13 +3696,12 @@
                 const activeRows = (rows || []).filter(r => r.included !== false);
                 const byCat = new Map();
                 activeRows.forEach(result => {
-                    const rec = aggregateEffectiveRecord(result);
-                    const category = rec?.category || result.manualCategory || result.approvedMatch?.record?.categoryName || 'Sin categoria';
+                    const category = aggregateEffectiveBucket(result);
                     const value = aggregatePositionsState.hasAmounts ? (result.position?.amount || 0) : (result.position?.weight || 0);
                     if (value > 0) byCat.set(category, (byCat.get(category) || 0) + value);
                 });
                 if (!byCat.size) {
-                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Sin exposicion por categoria.</div>';
+                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Sin exposicion por bloque.</div>';
                     return;
                 }
                 Plotly.newPlot(el, [{
@@ -3675,21 +3728,19 @@
                 const groups = new Map();
                 rows.forEach((result, idx) => {
                     const rec = aggregateEffectiveRecord(result);
-                    const bucket = aggregateAssetBucket(rec, result.approvedMatch?.record);
-                    const category = rec?.category || result.manualCategory || result.approvedMatch?.record?.categoryName || 'Sin categoria';
-                    const key = `${bucket}|||${category}`;
-                    if (!groups.has(key)) groups.set(key, { bucket, category, items: [] });
-                    groups.get(key).items.push({ result, idx, rec });
+                    const bucket = aggregateEffectiveBucket(result);
+                    if (!groups.has(bucket)) groups.set(bucket, { bucket, items: [] });
+                    groups.get(bucket).items.push({ result, idx, rec });
                 });
                 body.innerHTML = [...groups.values()].map(group => {
                     const items = group.items;
-                    const slug = `agg-${normalizeHeaderLabel(group.bucket + ' ' + group.category).replace(/\s+/g, '-') || 'otros'}`;
+                    const slug = `agg-${normalizeHeaderLabel(group.bucket).replace(/\s+/g, '-') || 'otros'}`;
                     const weight = items.reduce((acc, x) => acc + (x.result.position?.weight || 0), 0);
                     const weak = items.filter(x => Number.isFinite(x.rec?.score) && x.rec.score < 2).length;
                     const changed = items.filter(x => aggregateHasAppliedChange(x.result)).length;
                     const header = `<tr class="bg-slate-50"><td colspan="17" class="px-3 py-2">
                         <button onclick="toggleAggregateBucket('${slug}')" class="font-black text-slate-800 hover:text-blue-700">
-                            <i class="fa-solid fa-chevron-down mr-2"></i>${escapeHtml(group.bucket)} - ${escapeHtml(group.category)}
+                            <i class="fa-solid fa-chevron-down mr-2"></i>${escapeHtml(group.bucket)}
                         </button>
                         <span class="ml-3 text-xs text-slate-500">${items.length} fondos - ${weight.toFixed(2)}% peso - ${weak} deficientes - ${changed} cambios</span>
                     </td></tr>`;
@@ -3705,7 +3756,7 @@
                 const pos = result.position || {};
                 const rec = aggregateEffectiveRecord(result);
                 const approved = result.approvedMatch?.record || null;
-                const bucket = aggregateAssetBucket(rec, approved);
+                const bucket = aggregateEffectiveBucket(result);
                 const score = rec?.score;
                 const changed = aggregateHasAppliedChange(result);
                 const weakCls = changed ? 'bg-emerald-50' : (Number.isFinite(score) && score < 2 ? 'bg-red-50' : (result.included === false ? 'bg-slate-50 opacity-70' : ''));
@@ -3714,20 +3765,20 @@
                 const scoreEditor = aggregateScoreEditorHtml(result, idx, score);
                 const includeEditor = `<label class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 mt-1"><input type="checkbox" ${result.included === false ? '' : 'checked'} onchange="toggleAggregateIncluded(${idx}, this.checked)"> Incluir</label>`;
                 return `<tr class="${weakCls}" data-aggregate-bucket="${escapeHtml(bucketSlug || '')}">
-                    <td class="px-3 py-2 font-bold">${escapeHtml(bucket)}</td>
+                    <td class="px-3 py-2 font-bold min-w-[120px]">${aggregateBucketEditorHtml(result, idx)}</td>
                     <td class="px-3 py-2 font-mono">${escapeHtml(pos.isin || '-')}</td>
                     <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(pos.name || rec?.name || '-')}</div><div class="text-[11px] text-slate-400">${escapeHtml(pos.assetType || '')}</div>${aggregateChangeBadge(result)}</td>
                     <td class="px-3 py-2 text-right">${(pos.clientCount || 0).toLocaleString('es-ES')} / ${(pos.rows || 0).toLocaleString('es-ES')}</td>
                     <td class="px-3 py-2 text-right">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
                     <td class="px-3 py-2 text-right font-bold">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}${includeEditor}</td>
                     <td class="px-3 py-2 min-w-[210px]">${categoryEditor}</td>
-                    <td class="px-3 py-2 text-right font-bold ${Number.isFinite(score) && score < 2 ? 'text-red-700' : 'text-slate-800'}">${scoreEditor}</td>
-                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.ter)}</td>
-                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.ret1)}</td>
-                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.risk3)}</td>
-                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.dd1)}</td>
-                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.dd3)}</td>
-                    <td class="px-3 py-2 text-right">${fmtPercentPoint(rec?.dd5)}</td>
+                    <td class="px-3 py-2 text-right">${scoreEditor}</td>
+                    ${quartileCell(rec?.ter, rec, 'ter', true)}
+                    ${quartileCell(rec?.ret1, rec, 'ret1', true)}
+                    ${quartileCell(rec?.risk3, rec, 'risk3', true)}
+                    ${quartileCell(rec?.dd1, rec, 'dd1', true)}
+                    ${quartileCell(rec?.dd3, rec, 'dd3', true)}
+                    ${quartileCell(rec?.dd5, rec, 'dd5', true)}
                     <td class="px-3 py-2 min-w-[170px]">${approvedText}</td>
                     <td class="px-3 py-2 min-w-[360px]">${aggregateRecommendationHtml(result, idx)}</td>
                     <td class="px-3 py-2 min-w-[190px]">${aggregateMatchTraceHtml(result)}</td>
@@ -3743,8 +3794,9 @@
             }
 
             function aggregateScoreEditorHtml(result, idx, score) {
+                const rec = aggregateEffectiveRecord(result);
                 return `<div class="space-y-1">
-                    <div>${fmtScore(score)}</div>
+                    <div>${quartileValueHtml(score, rec, 'score', false)}</div>
                     <input type="number" step="0.01" value="${Number.isFinite(result.manualScore) ? result.manualScore : ''}" oninput="setAggregateManualScore(${idx}, this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="Manual">
                 </div>`;
             }
@@ -3779,7 +3831,7 @@
                 if (!body) return;
                 const portfolioMatches = new Map();
                 (rows || []).forEach(item => {
-                    const rec = aggregateEffectiveRecord(item);
+                    const rec = aggregateStaticRecord(item);
                     const text = `${item.position?.name || ''} ${rec?.name || ''}`;
                     if (!isSantaluciaText(text)) return;
                     const key = rec?.isin || item.position?.isin || baseFundName(item.position?.name) || item.position?.name;
@@ -3791,12 +3843,12 @@
                 const byKey = new Map();
                 (fundUniverseState?.records || []).filter(r => isSantaluciaText(`${r.manager || ''} ${r.name || ''}`)).forEach(record => {
                     const exact = portfolioMatches.get(record.isin);
-                    const fuzzy = exact || [...portfolioMatches.values()].find(item => tokenSimilarity(item.position?.name || aggregateEffectiveRecord(item)?.name || '', record.name) >= 0.72);
+                    const fuzzy = exact || [...portfolioMatches.values()].find(item => tokenSimilarity(item.position?.name || aggregateStaticRecord(item)?.name || '', record.name) >= 0.72);
                     byKey.set(record.isin || record.name, { record, position: fuzzy?.position || null, inPortfolio: Boolean(fuzzy), missingRanking: false });
                 });
 
                 portfolioMatches.forEach(item => {
-                    const rec = aggregateEffectiveRecord(item);
+                    const rec = aggregateStaticRecord(item);
                     const exactKey = rec?.isin && byKey.has(rec.isin) ? rec.isin : null;
                     if (exactKey) {
                         const existing = byKey.get(exactKey);
@@ -3821,21 +3873,21 @@
                 body.innerHTML = santa.length ? santa.slice(0, 250).map(r => {
                     const record = r.record || {};
                     const pos = r.position || {};
-                    const cls = r.inPortfolio ? 'bg-emerald-50' : '';
-                    const name = `${escapeHtml(record.name || pos.name || '-')} ${r.missingRanking ? '<span class="ml-2 rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Sin ranking</span>' : ''}`;
-                    return `<tr class="${cls}">
+                    const nameClass = r.inPortfolio ? 'text-emerald-800' : 'text-slate-800';
+                    const name = `<span class="${nameClass}">${escapeHtml(record.name || pos.name || '-')}</span> ${r.missingRanking ? '<span class="ml-2 rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Sin ranking</span>' : ''}`;
+                    return `<tr>
                         <td class="px-3 py-2 font-mono">${escapeHtml(record.isin || pos.isin || '-')}</td>
                         <td class="px-3 py-2 font-bold">${name}</td>
                         <td class="px-3 py-2">${escapeHtml(record.category || pos.assetType || '-')}</td>
                         <td class="px-3 py-2 text-right">${aggregatePositionsState.hasAmounts && Number.isFinite(pos.amount) ? formatEur(pos.amount) : '-'}</td>
                         <td class="px-3 py-2 text-right">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
-                        <td class="px-3 py-2 text-right">${fmtScore(record.score)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(record.ter)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(record.ret1)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(record.risk3)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(record.dd1)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(record.dd3)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(record.dd5)}</td>
+                        ${quartileCell(record.score, record, 'score', false)}
+                        ${quartileCell(record.ter, record, 'ter', true)}
+                        ${quartileCell(record.ret1, record, 'ret1', true)}
+                        ${quartileCell(record.risk3, record, 'risk3', true)}
+                        ${quartileCell(record.dd1, record, 'dd1', true)}
+                        ${quartileCell(record.dd3, record, 'dd3', true)}
+                        ${quartileCell(record.dd5, record, 'dd5', true)}
                     </tr>`;
                 }).join('') : '<tr><td colspan="12" class="px-3 py-6 text-center text-slate-400">Carga el universo/ranking para ver fondos Santalucia.</td></tr>';
             }
@@ -3875,13 +3927,25 @@
                 return /santa\s*lucia|santalucia|sant\s*lucia|santlucia/i.test(String(value || ''));
             }
 
+            function aggregateEffectiveBucket(result) {
+                if (result?.manualBucket) return result.manualBucket;
+                return aggregateAssetBucket(aggregateEffectiveRecord(result), result?.approvedMatch?.record);
+            }
+
+            function aggregateBucketEditorHtml(result, idx) {
+                const selected = aggregateEffectiveBucket(result);
+                return `<select onchange="setAggregateManualBucket(${idx}, this.value)" class="w-full p-1 border border-slate-300 rounded bg-white text-xs font-bold">
+                    ${['RF', 'RV', 'Otros'].map(b => `<option value="${b}" ${selected === b ? 'selected' : ''}>${b}</option>`).join('')}
+                </select>`;
+            }
+
             function aggregateAssetBucket(record, approved) {
                 const approvedFi = approved && Number.isFinite(approved.fixedIncomePct) && approved.fixedIncomePct >= 0.5;
                 const approvedEq = approved && Number.isFinite(approved.equityPct) && approved.equityPct >= 0.5;
                 const text = `${record?.category || ''} ${record?.name || ''} ${approved?.categoryName || ''} ${approved?.name || ''}`.toLowerCase();
                 if (approvedFi || isFixedIncomeFund(record) || /(rf|bond|fixed income|credit|debt|monetary|duration|renta fija)/i.test(text)) return 'RF';
                 if (approvedEq || /(rv|equity|stock|renta variable|small|large|growth|value)/i.test(text)) return 'RV';
-                return 'Mixto/Otros';
+                return 'Otros';
             }
 
             function aggregateRecommendationHtml(result, idx) {
@@ -5496,12 +5560,12 @@
         <div class="container mx-auto p-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es MPS MarketAnalyzer?
+                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es Analyzer?
                 </h2>
 
                 <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
                     <p>
-                        <strong class="text-gray-900">MPS MarketAnalyzer v13</strong> es una plataforma avanzada de
+                        <strong class="text-gray-900">Analyzer v13</strong> es una plataforma avanzada de
                         análisis financiero y estadístico diseñada para operar enteramente en el lado del cliente (tu
                         navegador). Toda la ejecución de procesamiento y modelos cuantitativos ocurre de manera local,
                         ofreciendo privacidad y alta velocidad de cálculo.
@@ -6675,9 +6739,9 @@
                     const label = document.getElementById('versionLabel');
                     if (label) label.innerText = `v13 ${ts}`;
                     const title = document.getElementById('docTitle');
-                    if (title) title.innerText = `MPS MarketAnalyzer v13 ${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                    if (title) title.innerText = `Analyzer v13 ${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
                     // Also update document.title for the browser tab
-                    document.title = title ? title.innerText : `MPS MarketAnalyzer v13 ${ts}`;
+                    document.title = title ? title.innerText : `Analyzer v13 ${ts}`;
                 } catch (e) { /* no-op */ }
             }
 
