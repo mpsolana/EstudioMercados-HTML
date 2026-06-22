@@ -881,6 +881,27 @@
                             </div>
                         </div>
                         <div id="fundManualSearchResults" class="hidden mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm"></div>
+                        <div class="mb-3 rounded border border-blue-100 bg-blue-50/40 p-3">
+                            <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr_120px_auto] gap-2 items-end">
+                                <div>
+                                    <label class="text-[10px] uppercase font-bold text-slate-500">Categoria</label>
+                                    <input id="fundAddCategoryInput" list="fundAddCategoryList" onfocus="renderFundAddOptions()" oninput="renderFundAddOptions()" class="mt-1 w-full p-2 border border-slate-300 rounded text-xs bg-white" placeholder="Buscar categoria...">
+                                    <datalist id="fundAddCategoryList"></datalist>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] uppercase font-bold text-slate-500">Fondo / ISIN</label>
+                                    <input id="fundAddSearchInput" list="fundAddSearchList" onfocus="renderFundAddOptions()" class="mt-1 w-full p-2 border border-slate-300 rounded text-xs bg-white" placeholder="Buscar ISIN o nombre...">
+                                    <datalist id="fundAddSearchList"></datalist>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] uppercase font-bold text-slate-500">Peso (%)</label>
+                                    <input id="fundAddWeightInput" type="number" step="0.1" min="0" max="100" value="0" class="mt-1 w-full p-2 border border-slate-300 rounded text-xs text-right bg-white">
+                                </div>
+                                <button onclick="addFundScoringRowFromControls()" class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800">
+                                    <i class="fa-solid fa-plus mr-1"></i>Añadir fondo
+                                </button>
+                            </div>
+                        </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full text-sm text-slate-600">
                                 <thead class="bg-slate-100 text-xs uppercase text-slate-500">
@@ -2641,6 +2662,63 @@
                 renderFundScoringResults();
             }
 
+            function renderFundAddOptions() {
+                const categoryList = document.getElementById('fundAddCategoryList');
+                const fundList = document.getElementById('fundAddSearchList');
+                if (!categoryList || !fundList || !fundUniverseState?.records?.length) return;
+                const selected = document.getElementById('fundAddCategoryInput')?.value || '';
+                const categories = [...new Set(fundUniverseState.records.map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+                categoryList.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+                const q = normalizeHeaderLabel(selected);
+                const funds = fundUniverseState.records
+                    .filter(r => !q || normalizeHeaderLabel(r.category || '').includes(q) || q.includes(normalizeHeaderLabel(r.category || '')))
+                    .sort((a, b) => (Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity))
+                    .slice(0, 500);
+                fundList.innerHTML = funds.map(r => `<option value="${escapeHtml(r.isin)} | Score ${fmtScore(r.score)} | TER ${fmtPercentPoint(r.ter)} | ${escapeHtml(r.name)}"></option>`).join('');
+            }
+
+            function addFundScoringRowFromControls() {
+                if (!fundUniverseState?.records?.length) return alert('Primero sube el universo/ranking interno.');
+                const raw = document.getElementById('fundAddSearchInput')?.value || '';
+                const isin = normalizeIsin(raw.split(' | ')[0] || raw);
+                const record = fundUniverseState.isinIndex.get(isin);
+                if (!record) return alert('Selecciona un fondo valido del universo.');
+                const weight = Math.max(0, Math.min(100, parseNumber(document.getElementById('fundAddWeightInput')?.value) || 0));
+                const row = { isin: record.isin, weight, initialWeight: weight, ytm: NaN, duration: NaN };
+                fundPortfolioRows.push(row);
+                fundScoringResults.push(createFundScoringResult(row, record, 'manual', 1, true));
+                if (weight > 0) normalizeFundScoringWeights(fundScoringResults.length - 1, weight);
+                else syncFundPortfolioWeights();
+                document.getElementById('fundAddSearchInput').value = '';
+                document.getElementById('fundAddWeightInput').value = '0';
+                document.getElementById('fundScoringStatus').innerText = 'Fondo añadido manualmente';
+                updateFundPortfolioStatusFromRows('manual');
+                renderFundScoringResults();
+            }
+
+            function removeFundScoringRow(index) {
+                if (!fundScoringResults[index]) return;
+                fundScoringResults.splice(index, 1);
+                fundPortfolioRows.splice(index, 1);
+                rescaleFundScoringWeightsTo100();
+                updateFundPortfolioStatusFromRows('manual');
+                renderFundScoringResults();
+            }
+
+            function rescaleFundScoringWeightsTo100() {
+                if (!fundScoringResults.length) return;
+                const total = fundScoringResults.reduce((acc, r) => acc + Math.max(0, Number.isFinite(r.weight) ? r.weight : 0), 0);
+                fundScoringResults.forEach(r => {
+                    r.weight = total > 0 ? (Math.max(0, r.weight || 0) / total) * 100 : 100 / fundScoringResults.length;
+                });
+                syncFundPortfolioWeights();
+            }
+
+            function updateFundPortfolioStatusFromRows(sourceLabel = 'manual') {
+                const total = fundPortfolioRows.reduce((acc, r) => acc + (Number.isFinite(r.weight) ? r.weight : 0), 0);
+                document.getElementById('fundPortfolioStatus').innerText = fundPortfolioRows.length ? `${fundPortfolioRows.length} ISINs · peso ${total.toFixed(2)}% (${sourceLabel})` : 'Sin filas validas';
+            }
+
             async function runFundScoringAnalysis() {
                 if (!fundUniverseState?.records?.length) return alert('Primero sube el universo de fondos.');
                 if (!fundPortfolioRows.length) return alert('Primero sube o pega una cartera con ISIN y peso.');
@@ -2867,7 +2945,7 @@
                         <td class="px-3 py-2 text-right">${durationInput}</td>
                         <td class="px-3 py-2 text-right text-slate-400" colspan="11">Excluido del calculo</td>
                         <td class="px-3 py-2 min-w-[260px]">${fundRecommendationHtml(result)}</td>
-                        <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div>${traceHtml}<button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button></td>
+                        <td class="px-3 py-2"><div class="text-amber-700 font-bold mb-1">No resuelto</div>${traceHtml}<div class="flex flex-wrap gap-1 mt-1"><button onclick="setFundManualTarget(${idx})" class="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold">Corregir</button><button onclick="removeFundScoringRow(${idx})" class="px-2 py-1 bg-white border border-red-200 text-red-700 rounded text-[11px] font-bold">Eliminar</button></div></td>
                     </tr>`;
                 }
                 let statusHtml = '';
@@ -2898,7 +2976,7 @@
                     ${quartileCell(rec.dd3, rec, 'dd3', true)}
                     ${quartileCell(rec.dd5, rec, 'dd5', true)}
                     <td class="px-3 py-2 min-w-[280px]">${fundRecommendationHtml(result)}</td>
-                    <td class="px-3 py-2">${statusHtml}${traceHtml}</td>
+                    <td class="px-3 py-2">${statusHtml}${traceHtml}<button onclick="removeFundScoringRow(${idx})" class="mt-1 px-2 py-1 bg-white border border-red-200 text-red-700 rounded text-[11px] font-bold">Eliminar</button></td>
                 </tr>`;
             }
 
@@ -3789,7 +3867,7 @@
                 const categories = [...new Set((fundUniverseState?.records || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
                 const selected = result.manualCategory || rec?.category || '';
                 const listId = `aggregateCategoryList-${idx}`;
-                return `<input list="${listId}" value="${escapeHtml(selected)}" onchange="setAggregateManualCategory(${idx}, this.value)" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="Categoria/proxy...">
+                return `<input list="${listId}" value="${escapeHtml(selected)}" onfocus="this.select()" onchange="setAggregateManualCategory(${idx}, this.value)" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="Buscar cualquier categoria...">
                     <datalist id="${listId}">${categories.map(c => `<option value="${escapeHtml(c)}"></option>`).join('')}</datalist>`;
             }
 
@@ -3924,7 +4002,8 @@
             }
 
             function isSantaluciaText(value) {
-                return /santa\s*lucia|santalucia|sant\s*lucia|santlucia/i.test(String(value || ''));
+                const text = normalizeHeaderLabel(value);
+                return /santa\s*lucia|santalucia|sant\s*lucia|santlucia/.test(text);
             }
 
             function aggregateEffectiveBucket(result) {
