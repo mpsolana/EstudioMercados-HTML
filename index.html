@@ -648,6 +648,24 @@
                             </div>
                         </div>
                     </div>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h3 class="font-bold text-slate-800 border-l-4 border-slate-700 pl-3 mb-2">Informe gestora</h3>
+                        <p class="text-xs text-slate-600 mb-3">Genera un informe interno con scoring agregado, cambios propuestos, Santalucia y comparativa masiva por benchmark.</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="generateManagerReport()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold hover:bg-slate-900"><i class="fa-solid fa-file-lines mr-1"></i>Generar</button>
+                            <button onclick="downloadManagerReportPdf()" class="px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
+                            <button onclick="downloadManagerReportWord()" class="px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-file-word mr-1"></i>Word</button>
+                        </div>
+                        <div id="managerReportProgressWrap" class="hidden mt-3">
+                            <div class="flex items-center justify-between text-[11px] font-bold text-slate-800 mb-1">
+                                <span id="managerReportProgressLabel">Preparando informe...</span>
+                                <span id="managerReportProgressPct">0%</span>
+                            </div>
+                            <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                                <div id="managerReportProgressBar" class="h-full bg-slate-800 transition-all duration-300" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="portfolioBuilder" class="space-y-3">
@@ -788,6 +806,15 @@
                     </div>
                     <div id="portfolioReportPreview" class="p-5 text-sm text-slate-500">
                         Carga una cartera y pulsa Generar para crear el informe descargable.
+                    </div>
+                </div>
+                <div class="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-slate-800 text-white flex items-center justify-between">
+                        <h3 class="font-bold"><i class="fa-solid fa-building-columns mr-2"></i>Informe Gestora</h3>
+                        <span id="managerReportStatus" class="text-xs text-slate-300">Pendiente de generar</span>
+                    </div>
+                    <div id="managerReportPreview" class="p-5 text-sm text-slate-500">
+                        Carga scoring agregado y benchmarks, y pulsa Generar para crear el informe interno.
                     </div>
                 </div>
                 </div>
@@ -1301,6 +1328,7 @@
             // Globals to hold loaded portfolio series
             let loadedPortfolio = null; // { entries, commonDates, portfolioData, stats }
             let portfolioReportHtml = '';
+            let managerReportHtml = '';
             let portfolioImportMode = 'manual';
             let portfolioAnalysisPromise = null;
             let portfolioChartRange = 'ALL';
@@ -1325,6 +1353,20 @@
                 const pct = document.getElementById('portfolioReportProgressPct');
                 const text = document.getElementById('portfolioReportProgressLabel');
                 const status = document.getElementById('portfolioReportStatus');
+                const value = Math.max(0, Math.min(100, Math.round(percent || 0)));
+                if (wrap) wrap.classList.remove('hidden');
+                if (bar) bar.style.width = `${value}%`;
+                if (pct) pct.innerText = `${value}%`;
+                if (text && label) text.innerText = label;
+                if (status && label) status.innerText = label;
+            }
+
+            function setManagerReportProgress(percent, label) {
+                const wrap = document.getElementById('managerReportProgressWrap');
+                const bar = document.getElementById('managerReportProgressBar');
+                const pct = document.getElementById('managerReportProgressPct');
+                const text = document.getElementById('managerReportProgressLabel');
+                const status = document.getElementById('managerReportStatus');
                 const value = Math.max(0, Math.min(100, Math.round(percent || 0)));
                 if (wrap) wrap.classList.remove('hidden');
                 if (bar) bar.style.width = `${value}%`;
@@ -2150,11 +2192,11 @@
                 const traces = [];
                 const benchVisible = normalizeBase100(sliceSeriesByRange(bench.data, massiveFundCompareRange));
                 if (benchVisible.length) traces.push({ x: benchVisible.map(d => d.date), y: benchVisible.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 2.8, dash: 'dot' } });
-                assets.forEach(asset => {
+                assets.forEach((asset, index) => {
                     const rowsVisible = alignedSeriesRows(asset.data, bench.data, massiveFundCompareRange);
                     if (rowsVisible.length < 2) return;
                     const norm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.asset })));
-                    traces.push({ x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: asset.label, line: { width: 1.8 } });
+                    traces.push({ x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: asset.label, line: { color: massiveComparisonColor(index), width: 1.8 } });
                 });
                 if (!traces.length) {
                     if (notice) notice.textContent = `Sin fechas comunes suficientes para ${category}.`;
@@ -4871,6 +4913,85 @@
                 }
             }
 
+            function reportQuartileTd(value, record, metricKey, isPercentPoint = true) {
+                if (!Number.isFinite(value)) return '<td class="num muted">-</td>';
+                const q = metricQuartile(record, metricKey);
+                const cls = q ? `q${q}` : '';
+                const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                return `<td class="num ${cls}" title="${q ? `Q${q} dentro de categoría` : ''}">${text}</td>`;
+            }
+
+            function scoreInterpretation(score) {
+                if (!Number.isFinite(score)) return 'No hay score ponderado suficiente para emitir una lectura cuantitativa.';
+                if (score >= 4) return 'La cartera se concentra en fondos con posicionamiento relativo muy competitivo dentro de sus categorías.';
+                if (score >= 3) return 'La cartera presenta una calidad agregada buena, con margen para optimizar fondos concretos.';
+                if (score >= 2) return 'La cartera tiene una calidad agregada intermedia; conviene revisar fondos con score bajo o costes elevados.';
+                return 'La cartera muestra una calidad agregada débil frente al universo comparable y requiere revisión prioritaria.';
+            }
+
+            function fundScoringSummary() {
+                const included = (fundScoringResults || [])
+                    .map(r => ({ result: r, record: fundResolvedRecord(r) }))
+                    .filter(x => x.result.included && x.record);
+                const resolvedWeight = included.reduce((acc, x) => acc + (Number.isFinite(x.result.weight) ? x.result.weight : 0), 0);
+                const scoreRows = included.filter(x => Number.isFinite(x.record.score));
+                const scoreWeight = scoreRows.reduce((acc, x) => acc + (Number.isFinite(x.result.weight) ? x.result.weight : 0), 0);
+                const weightedScore = scoreWeight > 0 ? scoreRows.reduce((acc, x) => acc + x.record.score * x.result.weight, 0) / scoreWeight : NaN;
+                const terRows = included.filter(x => Number.isFinite(x.record.ter));
+                const terWeight = terRows.reduce((acc, x) => acc + (Number.isFinite(x.result.weight) ? x.result.weight : 0), 0);
+                const weightedTer = terWeight > 0 ? terRows.reduce((acc, x) => acc + x.record.ter * x.result.weight, 0) / terWeight : NaN;
+                const changed = included.filter(x => fundHasAppliedChange(x.result)).length;
+                return { included, resolvedWeight, weightedScore, weightedTer, changed };
+            }
+
+            function buildClientScoringReportSection() {
+                const summary = fundScoringSummary();
+                if (!summary.included.length) {
+                    return `<section class="block">
+                        <h2>Scoring cartera</h2>
+                        <p class="indented">No hay scoring de cartera disponible para este informe. Para activarlo, carga el universo de fondos y ejecuta el análisis en la subpestaña Scoring de Cartera.</p>
+                    </section>`;
+                }
+                const rows = summary.included.map(({ result, record }) => {
+                    const original = result.isin || result.originalRecord?.isin || record.isin || '-';
+                    const selected = record.isin || '-';
+                    const changed = fundHasAppliedChange(result);
+                    return `<tr>
+                        <td>${escapeHtml(original)}</td>
+                        <td>${escapeHtml(selected)}${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
+                        <td>${escapeHtml(record.name || '-')}</td>
+                        <td class="num">${Number.isFinite(result.weight) ? result.weight.toFixed(2) + '%' : '-'}</td>
+                        <td>${escapeHtml(record.category || '-')}</td>
+                        ${reportQuartileTd(record.score, record, 'score', false)}
+                        ${reportQuartileTd(record.ter, record, 'ter', true)}
+                        ${reportQuartileTd(record.ret1, record, 'ret1', true)}
+                        ${reportQuartileTd(record.ret3, record, 'ret3', true)}
+                        ${reportQuartileTd(record.ret5, record, 'ret5', true)}
+                        ${reportQuartileTd(record.risk1, record, 'risk1', true)}
+                        ${reportQuartileTd(record.risk3, record, 'risk3', true)}
+                        ${reportQuartileTd(record.risk5, record, 'risk5', true)}
+                        ${reportQuartileTd(record.dd1, record, 'dd1', true)}
+                        ${reportQuartileTd(record.dd3, record, 'dd3', true)}
+                        ${reportQuartileTd(record.dd5, record, 'dd5', true)}
+                    </tr>`;
+                }).join('');
+                return `<section class="block">
+                    <h2>Scoring cartera</h2>
+                    <section class="summary compact-summary">
+                        <div><span>Score ponderado</span><strong>${fmtScore(summary.weightedScore)}</strong></div>
+                        <div><span>TER ponderado</span><strong>${Number.isFinite(summary.weightedTer) ? summary.weightedTer.toFixed(2) + '%' : '-'}</strong></div>
+                        <div><span>Peso resuelto</span><strong>${summary.resolvedWeight.toFixed(2)}%</strong></div>
+                        <div><span>Cambios aplicados</span><strong>${summary.changed}</strong></div>
+                    </section>
+                    <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} El TER ponderado resume el coste corriente de los fondos incluidos en el cálculo.</p>
+                    <table>
+                        <thead><tr><th>ISIN original</th><th>ISIN seleccionado</th><th>Fondo</th><th>Peso</th><th>Categoría</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Ret 3Y</th><th>Ret 5Y</th><th>Risk 1Y</th><th>Risk 3Y</th><th>Risk 5Y</th><th>MD 1Y</th><th>MD 3Y</th><th>MD 5Y</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <p class="method-note"><b>Metodología:</b> el score y TER ponderados usan la selección actual de cada fila, incluyendo proxies o recomendaciones aplicadas, y excluyen fondos marcados como excluidos. Los colores representan cuartiles frente a fondos de la misma categoría: verde Q1, lima Q2, naranja Q3 y rojo Q4.</p>
+                </section>`;
+            }
+
             async function generatePortfolioReport() {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData?.length) return alert('Primero carga una cartera.');
                 try {
@@ -4934,6 +5055,7 @@
                     const sensitivityRows = sensitivityRowsData.length ? sensitivityRowsData.map(r => `<tr><td>${r.factor}</td><td class="num">${r.points}</td><td class="num">${r.correlation.toFixed(2)}</td><td class="num">${r.beta.toFixed(2)}</td><td>${escapeHtml(r.reading)}</td></tr>`).join('') : '<tr><td colspan="5">Sin datos auxiliares cargados. Pulsa Ejecutar Análisis Cartera para enriquecer sensibilidad a VIX, petróleo y tipos.</td></tr>';
                     const bestSeason = seasonality.reduce((a, b) => b.avg > a.avg ? b : a, seasonality[0]);
                     const worstSeason = seasonality.reduce((a, b) => b.avg < a.avg ? b : a, seasonality[0]);
+                    const clientScoringSection = buildClientScoringReportSection();
                     setPortfolioReportProgress(62, 'Capturando gráficos y tablas...');
                     const visualSections = await buildPortfolioReportVisualSections();
                     setPortfolioReportProgress(88, 'Maquetando informe PDF...');
@@ -4966,6 +5088,7 @@
                             <p class="analysis-note"><b>Descripción:</b> ${reading}</p>
                             <p class="method-note"><b>Metodología:</b> rentabilidad total por capitalización simple, CAGR anualizado por días naturales, volatilidad anualizada según frecuencia detectada y drawdown calculado como caída desde máximos acumulados.</p>
                         </section>
+                        ${clientScoringSection}
                         ${visualSections}
                         <section class="block">
                             <h2>Interpretacion para cliente</h2>
@@ -5278,6 +5401,11 @@
                     tr:last-child td{border-bottom:0}
                     .kv-table td:first-child{width:42%;color:#475569;font-weight:700}
                     .num{text-align:right;font-weight:800}
+                    .muted{color:#94a3b8}
+                    .q1{background:#dcfce7!important;color:#14532d!important}.q2{background:#ecfccb!important;color:#365314!important}.q3{background:#ffedd5!important;color:#7c2d12!important}.q4{background:#fee2e2!important;color:#7f1d1d!important}
+                    .badge{display:inline-block;border-radius:2px;padding:2px 5px;margin-top:3px;font-size:8px;font-weight:800;text-transform:uppercase}
+                    .good-badge{background:#dcfce7;color:#166534}.warn-badge{background:#fef3c7;color:#92400e}
+                    .compact-summary{grid-template-columns:repeat(4,1fr)}
                     .good{color:#047857}.bad{color:#dc2626}
                     p{line-height:1.55;color:#334155;margin:7px 0;font-size:11px}
                     .indented{text-indent:14px;text-align:justify}
@@ -5306,6 +5434,349 @@
                 if (!portfolioReportHtml) return;
                 if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(portfolioReportHtml), 'Informe_Cartera.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
                 return downloadBlob(portfolioReportHtml, 'Informe_Cartera.html', 'text/html;charset=utf-8');
+            }
+
+            function massiveComparisonColor(index) {
+                const palette = ['#1d4ed8', '#2563eb', '#3b82f6', '#0f172a', '#475569', '#64748b', '#94a3b8', '#0e7490', '#0369a1', '#334155'];
+                return palette[index % palette.length];
+            }
+
+            function aggregateScoringSummary() {
+                const rows = aggregateScoringResults || [];
+                const activeRows = rows.filter(r => r.included !== false);
+                const matched = activeRows.map(r => ({ result: r, record: aggregateEffectiveRecord(r) })).filter(x => x.record);
+                const totalWeight = activeRows.reduce((acc, r) => acc + (r.position?.weight || 0), 0);
+                const scoreRows = matched.filter(x => Number.isFinite(x.record.score));
+                const scoreWeight = scoreRows.reduce((acc, x) => acc + (x.result.position?.weight || 0), 0);
+                const weightedScore = scoreWeight > 0 ? scoreRows.reduce((acc, x) => acc + x.record.score * (x.result.position?.weight || 0), 0) / scoreWeight : NaN;
+                const terRows = matched.filter(x => Number.isFinite(x.record.ter));
+                const terWeight = terRows.reduce((acc, x) => acc + (x.result.position?.weight || 0), 0);
+                const weightedTer = terWeight > 0 ? terRows.reduce((acc, x) => acc + x.record.ter * (x.result.position?.weight || 0), 0) / terWeight : NaN;
+                const weak = activeRows.filter(r => {
+                    const rec = aggregateEffectiveRecord(r);
+                    return Number.isFinite(rec?.score) && rec.score < 2;
+                });
+                const noScore = activeRows.filter(r => !Number.isFinite(aggregateEffectiveRecord(r)?.score));
+                const approved = rows.filter(r => r.approvedMatch?.record);
+                const changed = rows.filter(aggregateHasAppliedChange);
+                const categories = new Set(matched.map(x => x.record.category).filter(Boolean));
+                return { rows, activeRows, matched, totalWeight, weightedScore, weightedTer, weak, noScore, approved, changed, categories };
+            }
+
+            function buildManagerSummarySection(summary) {
+                const resolvedAmount = aggregatePositionsState.hasAmounts
+                    ? formatEur(summary.matched.reduce((acc, x) => acc + (x.result.position?.amount || 0), 0))
+                    : `${summary.totalWeight.toFixed(1)}%`;
+                return `<section class="block">
+                    <h2>Resumen agregado</h2>
+                    <section class="summary">
+                        <div><span>Fondos únicos</span><strong>${summary.rows.length || '-'}</strong></div>
+                        <div><span>Score ponderado</span><strong>${fmtScore(summary.weightedScore)}</strong></div>
+                        <div><span>TER ponderado</span><strong>${Number.isFinite(summary.weightedTer) ? summary.weightedTer.toFixed(2) + '%' : '-'}</strong></div>
+                        <div><span>Deficientes &lt; 2</span><strong>${summary.weak.length}</strong></div>
+                        <div><span>Categorías</span><strong>${summary.categories.size || '-'}</strong></div>
+                        <div><span>Importe resuelto</span><strong>${resolvedAmount}</strong></div>
+                        <div><span>Aprobados</span><strong>${summary.approved.length}</strong></div>
+                        <div><span>No aprobados</span><strong>${Math.max(0, summary.rows.length - summary.approved.length)}</strong></div>
+                    </section>
+                    <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} Los fondos con score inferior a 2 y los fondos sin score concentran la revisión prioritaria para comité o traspaso.</p>
+                    <p class="method-note"><b>Metodología:</b> las métricas ponderadas usan el contravalor EUR agregado cuando está disponible; si no, usan el peso normalizado por ISIN único. El registro efectivo incorpora proxies/recomendaciones aplicadas por el usuario.</p>
+                </section>`;
+            }
+
+            function buildManagerAggregatePositionsSection(summary) {
+                if (!summary.rows.length) {
+                    return `<section class="block"><h2>Posición agregada</h2><p class="indented">No hay posiciones agregadas cargadas.</p></section>`;
+                }
+                const rows = summary.rows.map(result => {
+                    const pos = result.position || {};
+                    const rec = aggregateEffectiveRecord(result);
+                    const changed = aggregateHasAppliedChange(result);
+                    return `<tr>
+                        <td>${escapeHtml(aggregateEffectiveBucket(result) || '-')}</td>
+                        <td>${escapeHtml(pos.isin || '-')}</td>
+                        <td>${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
+                        <td class="num">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
+                        <td class="num">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
+                        <td>${escapeHtml(rec?.category || '-')}</td>
+                        ${reportQuartileTd(rec?.score, rec, 'score', false)}
+                        ${reportQuartileTd(rec?.ter, rec, 'ter', true)}
+                        ${reportQuartileTd(rec?.ret1, rec, 'ret1', true)}
+                        ${reportQuartileTd(rec?.risk3, rec, 'risk3', true)}
+                        ${reportQuartileTd(rec?.dd1, rec, 'dd1', true)}
+                        ${reportQuartileTd(rec?.dd3, rec, 'dd3', true)}
+                        ${reportQuartileTd(rec?.dd5, rec, 'dd5', true)}
+                        <td>${result.approvedMatch?.record ? 'Sí' : 'No'}</td>
+                    </tr>`;
+                }).join('');
+                return `<section class="block">
+                    <h2>Posición agregada por ISIN</h2>
+                    <table>
+                        <thead><tr><th>Bloque</th><th>ISIN</th><th>Fondo</th><th>Importe</th><th>Peso</th><th>Categoría</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th><th>MD 5Y</th><th>Aprobado</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <p class="method-note"><b>Metodología:</b> cada fila representa un ISIN único agregado desde el Excel de posiciones. Las sustituciones/proxies seleccionados se muestran como cambio aplicado y afectan al score/TER ponderado.</p>
+                </section>`;
+            }
+
+            function buildManagerProposedChangesSection(summary) {
+                const candidates = [...summary.changed, ...summary.weak, ...summary.noScore]
+                    .filter((item, idx, arr) => arr.indexOf(item) === idx);
+                if (!candidates.length) {
+                    return `<section class="block"><h2>Cambios propuestos</h2><p class="analysis-note"><b>Descripción:</b> No hay cambios aplicados ni fondos deficientes/sin score pendientes de revisión.</p></section>`;
+                }
+                const rows = candidates.map(result => {
+                    const pos = result.position || {};
+                    const rec = aggregateEffectiveRecord(result);
+                    const recs = aggregateRecommendationsForResult(result);
+                    const approved = recs.approved.slice(0, 5).map(r => `${r.isin} (${fmtScore(r.score)}, TER ${Number.isFinite(r.ter) ? r.ter.toFixed(2) + '%' : '-'})`).join('<br>') || '-';
+                    const universe = recs.universe.slice(0, 5).map(r => `${r.isin} (${fmtScore(r.score)}, TER ${Number.isFinite(r.ter) ? r.ter.toFixed(2) + '%' : '-'})`).join('<br>') || '-';
+                    return `<tr>
+                        <td>${escapeHtml(pos.isin || '-')}</td>
+                        <td>${escapeHtml(pos.name || rec?.name || '-')}</td>
+                        <td>${escapeHtml(rec?.category || '-')}</td>
+                        <td class="num">${fmtScore(rec?.score)}</td>
+                        <td>${reportAggregateChangeHtml(result)}</td>
+                        <td>${approved}</td>
+                        <td>${universe}</td>
+                    </tr>`;
+                }).join('');
+                return `<section class="block">
+                    <h2>Cambios propuestos</h2>
+                    <p class="indented">Se resumen los cambios ya aplicados en la herramienta y las mejores alternativas disponibles para fondos deficientes o sin score.</p>
+                    <table><thead><tr><th>ISIN</th><th>Fondo</th><th>Categoría</th><th>Score efectivo</th><th>Estado</th><th>Aprobados/cartera</th><th>Universo invertible</th></tr></thead><tbody>${rows}</tbody></table>
+                    <p class="method-note"><b>Metodología:</b> las recomendaciones se filtran por categoría efectiva y se ordenan por mejor score y menor TER. No modifican la cartera salvo que el usuario las seleccione explícitamente en pantalla.</p>
+                </section>`;
+            }
+
+            function reportAggregateChangeHtml(result) {
+                if (!aggregateHasAppliedChange(result)) return '<span class="badge warn-badge">Pendiente</span>';
+                const original = result.originalRecord || result.universeMatch?.record || {};
+                const current = result.currentRecord || {};
+                return `<span class="badge good-badge">Cambio aplicado</span><br>${escapeHtml(original.isin || '-')} -> ${escapeHtml(current.isin || '-')}`;
+            }
+
+            function collectSantaluciaReportRows(summary) {
+                const portfolioMatches = new Map();
+                (summary.rows || []).forEach(item => {
+                    const rec = aggregateStaticRecord(item);
+                    const text = `${item.position?.name || ''} ${rec?.name || ''}`;
+                    if (!isSantaluciaText(text)) return;
+                    const key = rec?.isin || item.position?.isin || baseFundName(item.position?.name) || item.position?.name;
+                    if (key) portfolioMatches.set(key, item);
+                    if (rec?.isin) portfolioMatches.set(rec.isin, item);
+                    if (item.position?.isin) portfolioMatches.set(item.position.isin, item);
+                });
+                const rows = [];
+                (fundUniverseState?.records || []).filter(r => isSantaluciaText(`${r.manager || ''} ${r.name || ''}`)).forEach(record => {
+                    const exact = portfolioMatches.get(record.isin);
+                    const fuzzy = exact || [...portfolioMatches.values()].find(item => tokenSimilarity(item.position?.name || aggregateStaticRecord(item)?.name || '', record.name) >= 0.72);
+                    rows.push({ record, position: fuzzy?.position || null, inPortfolio: Boolean(fuzzy), missingRanking: false });
+                });
+                portfolioMatches.forEach(item => {
+                    const rec = aggregateStaticRecord(item);
+                    const already = rows.some(row => (rec?.isin && row.record?.isin === rec.isin) || tokenSimilarity(row.record?.name || '', item.position?.name || rec?.name || '') >= 0.72);
+                    if (!already) rows.push({ record: rec || { isin: item.position?.isin || '', name: item.position?.name || '', category: 'Sin ranking' }, position: item.position, inPortfolio: true, missingRanking: !Number.isFinite(rec?.score) });
+                });
+                return rows.sort((a, b) => (Number(a.inPortfolio) - Number(b.inPortfolio)) * -1 || String(a.record?.name || '').localeCompare(String(b.record?.name || '')));
+            }
+
+            function buildManagerSantaluciaSection(summary) {
+                const santa = collectSantaluciaReportRows(summary);
+                if (!santa.length) return `<section class="block"><h2>Fondos Santalucía</h2><p class="indented">No se han identificado fondos Santalucía en ranking o posiciones.</p></section>`;
+                const rows = santa.map(row => {
+                    const r = row.record || {};
+                    const p = row.position || {};
+                    return `<tr>
+                        <td>${escapeHtml(r.isin || p.isin || '-')}</td>
+                        <td>${row.inPortfolio ? '<span class="good">' : ''}${escapeHtml(r.name || p.name || '-')}${row.inPortfolio ? '</span>' : ''}${row.missingRanking ? '<br><span class="badge warn-badge">Sin ranking</span>' : ''}</td>
+                        <td>${escapeHtml(r.category || p.assetType || '-')}</td>
+                        <td class="num">${aggregatePositionsState.hasAmounts && Number.isFinite(p.amount) ? formatEur(p.amount) : '-'}</td>
+                        <td class="num">${Number.isFinite(p.weight) ? p.weight.toFixed(2) + '%' : '-'}</td>
+                        ${reportQuartileTd(r.score, r, 'score', false)}
+                        ${reportQuartileTd(r.ter, r, 'ter', true)}
+                        ${reportQuartileTd(r.ret1, r, 'ret1', true)}
+                        ${reportQuartileTd(r.risk3, r, 'risk3', true)}
+                        ${reportQuartileTd(r.dd1, r, 'dd1', true)}
+                        ${reportQuartileTd(r.dd3, r, 'dd3', true)}
+                        ${reportQuartileTd(r.dd5, r, 'dd5', true)}
+                    </tr>`;
+                }).join('');
+                return `<section class="block">
+                    <h2>Fondos Santalucía</h2>
+                    <table><thead><tr><th>ISIN</th><th>Nombre</th><th>Categoría</th><th>Importe</th><th>Peso</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th><th>MD 5Y</th></tr></thead><tbody>${rows}</tbody></table>
+                    <p class="method-note"><b>Metodología:</b> se incluyen todos los fondos Santalucía localizados en el ranking y los presentes en cartera agregada aunque no aparezcan en ranking. Los nombres en verde indican presencia en la cartera agregada cargada.</p>
+                </section>`;
+            }
+
+            async function buildManagerExposureSection() {
+                const img = await capturePlotlyReportImage('aggregateCategoryPieChart');
+                if (!img) return `<section class="block"><h2>Exposición por bloques</h2><p class="indented">No hay pie chart agregado disponible.</p></section>`;
+                return `<section class="block"><h2>Exposición por bloques</h2><figure><figcaption>RF / RV / Otros</figcaption><img src="${img}" alt="Exposición por bloques"><p class="analysis-note"><b>Descripción:</b> Muestra la distribución agregada por bloque general usando contravalor EUR cuando está disponible.</p><p class="method-note"><b>Metodología:</b> cada ISIN se clasifica por el bloque efectivo definido en scoring agregado; los cambios manuales de bloque se reflejan en el gráfico.</p></figure></section>`;
+            }
+
+            function massiveComparisonTraces(assets, bench, range = 'ALL') {
+                const traces = [];
+                const benchVisible = normalizeBase100(sliceSeriesByRange(bench.data, range));
+                if (benchVisible.length) traces.push({ x: benchVisible.map(d => d.date), y: benchVisible.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 3, dash: 'dot' } });
+                assets.forEach((asset, index) => {
+                    const rowsVisible = alignedSeriesRows(asset.data, bench.data, range);
+                    if (rowsVisible.length < 2) return;
+                    const norm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.asset })));
+                    traces.push({ x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: asset.label, line: { color: massiveComparisonColor(index), width: 1.9 } });
+                });
+                return traces;
+            }
+
+            function buildMassiveComparisonTablesHtml(assets, bench) {
+                const horizons = [
+                    { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
+                    { label: 'YTD', months: 'YTD' }, { label: '3A', months: 36 }, { label: '5A', months: 60 }, { label: 'Inicio', months: null }
+                ];
+                const periodRows = [];
+                const annualRows = [];
+                assets.forEach(asset => {
+                    const aligned = alignedSeriesRows(asset.data, bench.data, 'ALL');
+                    horizons.forEach(h => {
+                        const ret = periodReturnFromRows(aligned, h.months);
+                        if (!ret) return;
+                        const alpha = ret.asset - ret.bench;
+                        periodRows.push(`<tr><td>${escapeHtml(asset.label)}</td><td>${h.label}</td><td class="num ${ret.asset >= 0 ? 'good' : 'bad'}">${fmtPct(ret.asset)}</td><td class="num ${ret.bench >= 0 ? 'good' : 'bad'}">${fmtPct(ret.bench)}</td><td class="num ${alpha >= 0 ? 'good' : 'bad'}">${fmtPct(alpha)}</td></tr>`);
+                    });
+                    const yearly = new Map();
+                    aligned.forEach(r => {
+                        const y = r.date.getUTCFullYear();
+                        if (!yearly.has(y)) yearly.set(y, []);
+                        yearly.get(y).push(r);
+                    });
+                    [...yearly.entries()].sort((a, b) => b[0] - a[0]).forEach(([year, yrRows]) => {
+                        const ret = periodReturnFromRows(yrRows, null);
+                        if (!ret || yrRows.length < 2) return;
+                        const alpha = ret.asset - ret.bench;
+                        annualRows.push(`<tr><td>${escapeHtml(asset.label)}</td><td>${year}</td><td class="num ${ret.asset >= 0 ? 'good' : 'bad'}">${fmtPct(ret.asset)}</td><td class="num ${ret.bench >= 0 ? 'good' : 'bad'}">${fmtPct(ret.bench)}</td><td class="num ${alpha >= 0 ? 'good' : 'bad'}">${fmtPct(alpha)}</td></tr>`);
+                    });
+                });
+                return `<div class="table-block"><h3>Rentabilidad y alfa por periodo</h3><table><thead><tr><th>Activo</th><th>Periodo</th><th>Activo</th><th>Bench</th><th>Alfa</th></tr></thead><tbody>${periodRows.join('') || '<tr><td colspan="5">Sin datos suficientes.</td></tr>'}</tbody></table></div>
+                    <div class="table-block"><h3>Rentabilidad y alfa por año natural</h3><table><thead><tr><th>Activo</th><th>Año</th><th>Activo</th><th>Bench</th><th>Alfa</th></tr></thead><tbody>${annualRows.join('') || '<tr><td colspan="5">Sin datos suficientes.</td></tr>'}</tbody></table></div>`;
+            }
+
+            async function captureMassiveComparisonImage(assets, bench, category) {
+                if (!window.Plotly) return '';
+                const traces = massiveComparisonTraces(assets, bench, 'ALL');
+                if (!traces.length) return '';
+                const div = document.createElement('div');
+                div.style.width = '980px';
+                div.style.height = '520px';
+                div.style.position = 'fixed';
+                div.style.left = '-1200px';
+                div.style.top = '0';
+                document.body.appendChild(div);
+                try {
+                    await Plotly.newPlot(div, traces, {
+                        title: `${category} vs ${bench.label}`,
+                        yaxis: { title: 'Base 100' },
+                        margin: { t: 45, l: 55, r: 20, b: 45 },
+                        legend: { orientation: 'h', y: -0.2 },
+                        hovermode: 'x unified',
+                        plot_bgcolor: '#ffffff',
+                        paper_bgcolor: '#ffffff'
+                    }, { staticPlot: true, responsive: false });
+                    return await Plotly.toImage(div, { format: 'png', width: 980, height: 520, scale: 1.5 });
+                } catch (e) {
+                    console.warn('manager massive chart capture failed', e);
+                    return '';
+                } finally {
+                    try { Plotly.purge(div); } catch (e) { }
+                    div.remove();
+                }
+            }
+
+            async function buildManagerMassiveComparisonSections() {
+                const benchmarks = loadedPortfolio?.benchmarks || {};
+                const priceSeries = loadedPortfolio?.priceSeries || {};
+                const sections = [];
+                const entries = Object.entries(benchmarks).filter(([key]) => String(benchCategoryMeta(key)?.assetClass || '').trim());
+                for (let i = 0; i < entries.length; i++) {
+                    const [key, bench] = entries[i];
+                    const category = String(benchCategoryMeta(key)?.assetClass || '').trim();
+                    const assets = Object.values(priceSeries).filter(s => String(s.assetClass || '').toLowerCase().trim() === category.toLowerCase());
+                    if (!assets.length) continue;
+                    setManagerReportProgress(64 + Math.round((i / Math.max(1, entries.length)) * 20), `Capturando comparador ${category}...`);
+                    const img = await captureMassiveComparisonImage(assets, bench, category);
+                    sections.push(`<section class="block">
+                        <h2>Comparador masivo: ${escapeHtml(category)}</h2>
+                        <p class="indented">Compara todos los fondos/activos de la categoría frente a su benchmark de referencia, normalizados en base 100.</p>
+                        ${img ? `<figure><figcaption>${escapeHtml(category)} vs ${escapeHtml(bench.label)}</figcaption><img src="${img}" alt="${escapeHtml(category)}"></figure>` : '<p class="indented">Sin gráfica disponible por falta de fechas comunes suficientes.</p>'}
+                        ${buildMassiveComparisonTablesHtml(assets, bench)}
+                        <p class="method-note"><b>Metodología:</b> los activos se asignan a la categoría por la hoja weights/prices y el benchmark por bench categ. El alfa es rentabilidad del activo menos rentabilidad del benchmark en el mismo periodo.</p>
+                    </section>`);
+                }
+                return sections.length ? sections.join('') : `<section class="block"><h2>Comparador masivo por benchmark</h2><p class="indented">No hay benchmarks/categorías suficientes para construir la comparativa masiva.</p></section>`;
+            }
+
+            async function generateManagerReport() {
+                try {
+                    setManagerReportProgress(5, 'Preparando informe gestora...');
+                    if (aggregateScoringResults.length) {
+                        try { renderAggregateScoringResults(); } catch (e) { console.warn('aggregate render before manager report failed', e); }
+                    }
+                    await waitForUiFrame();
+                    const summary = aggregateScoringSummary();
+                    setManagerReportProgress(25, 'Preparando scoring agregado...');
+                    const summarySection = buildManagerSummarySection(summary);
+                    const positionsSection = buildManagerAggregatePositionsSection(summary);
+                    const changesSection = buildManagerProposedChangesSection(summary);
+                    const santaSection = buildManagerSantaluciaSection(summary);
+                    setManagerReportProgress(45, 'Capturando exposición por bloques...');
+                    const exposureSection = await buildManagerExposureSection();
+                    setManagerReportProgress(62, 'Construyendo comparadores por benchmark...');
+                    const massiveSections = await buildManagerMassiveComparisonSections();
+                    setManagerReportProgress(88, 'Maquetando informe gestora...');
+                    managerReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe Gestora</title>${portfolioReportStyles()}</head><body>
+                    <section class="report">
+                        <header class="cover">
+                            <div>
+                                <div class="eyebrow">Informe Gestora</div>
+                                <h1>Seguimiento agregado de fondos</h1>
+                                <p>${new Date().toLocaleDateString('es-ES')}</p>
+                            </div>
+                            <div class="stamp">Analyzer</div>
+                        </header>
+                        ${summarySection}
+                        ${positionsSection}
+                        ${changesSection}
+                        ${exposureSection}
+                        ${santaSection}
+                        ${massiveSections}
+                        <footer>Analyzer · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
+                    </section>
+                    </body></html>`;
+                    document.getElementById('managerReportPreview').innerHTML = managerReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || managerReportHtml;
+                    setManagerReportProgress(100, 'Informe gestora generado');
+                } catch (e) {
+                    console.error('generateManagerReport error:', e);
+                    setManagerReportProgress(100, 'Error generando informe gestora');
+                    alert(`Error generando informe gestora: ${e.message || e}`);
+                }
+            }
+
+            async function downloadManagerReportPdf() {
+                if (!managerReportHtml) await generateManagerReport();
+                if (!managerReportHtml) return;
+                setManagerReportProgress(92, 'Exportando PDF...');
+                await waitForUiFrame();
+                const el = document.createElement('div');
+                el.innerHTML = managerReportHtml;
+                if (!window.html2pdf) return downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
+                await html2pdf().set({ margin: 8, filename: 'Informe_Gestora.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
+                setManagerReportProgress(100, 'PDF gestora generado');
+            }
+
+            async function downloadManagerReportWord() {
+                if (!managerReportHtml) await generateManagerReport();
+                if (!managerReportHtml) return;
+                if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(managerReportHtml), 'Informe_Gestora.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                return downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
             }
 
             // Small helper: sample covariance
