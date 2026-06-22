@@ -524,7 +524,7 @@
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
                             <div>
                                 <label class="text-[11px] uppercase font-bold text-slate-500">Categoria</label>
-                                <select id="marketsPortfolioCategoryFilter" onchange="renderMarketsPortfolioAssets()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                                <select id="marketsPortfolioCategoryFilter" onchange="handleMarketsPortfolioCategoryChange()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white">
                                     <option value="">Todas</option>
                                 </select>
                             </div>
@@ -552,21 +552,21 @@
                                         <th class="px-3 py-3 border-l text-center" colspan="5">Riesgo (Vol. y MaxDD)</th>
                                     </tr>
                                     <tr class="border-b border-gray-200 bg-gray-50">
-                                        <th class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10">Activo</th>
-                                        <th class="px-3 py-2 border-l">Diario</th>
-                                        <th class="px-3 py-2">Semana</th>
-                                        <th class="px-3 py-2">Mes</th>
-                                        <th class="px-3 py-2">3 Meses</th>
-                                        <th class="px-3 py-2 bg-sky-50">YTD</th>
-                                        <th class="px-3 py-2 border-r">1 Ano</th>
-                                        <th class="px-3 py-2">3 Anos</th>
-                                        <th class="px-3 py-2">5 Anos</th>
-                                        <th class="px-3 py-2 border-r">10 Anos</th>
-                                        <th class="px-3 py-2 bg-blue-50">Vol 1A</th>
-                                        <th class="px-3 py-2 bg-blue-50">Vol 3A</th>
-                                        <th class="px-3 py-2 bg-blue-50 border-r">Vol 5A</th>
-                                        <th class="px-3 py-2 bg-red-50">MDD 5A</th>
-                                        <th class="px-3 py-2 bg-red-50">MDD hist</th>
+                                        <th onclick="sortMarketsPortfolioAssets('name')" class="px-4 py-2 text-left sticky left-0 bg-gray-50 z-10 cursor-pointer">Activo</th>
+                                        <th onclick="sortMarketsPortfolioAssets('daily')" class="px-3 py-2 border-l cursor-pointer">Diario</th>
+                                        <th onclick="sortMarketsPortfolioAssets('week')" class="px-3 py-2 cursor-pointer">Semana</th>
+                                        <th onclick="sortMarketsPortfolioAssets('month')" class="px-3 py-2 cursor-pointer">Mes</th>
+                                        <th onclick="sortMarketsPortfolioAssets('threeM')" class="px-3 py-2 cursor-pointer">3 Meses</th>
+                                        <th onclick="sortMarketsPortfolioAssets('ytd')" class="px-3 py-2 bg-sky-50 cursor-pointer">YTD</th>
+                                        <th onclick="sortMarketsPortfolioAssets('oneY')" class="px-3 py-2 border-r cursor-pointer">1 Ano</th>
+                                        <th onclick="sortMarketsPortfolioAssets('threeY')" class="px-3 py-2 cursor-pointer">3 Anos</th>
+                                        <th onclick="sortMarketsPortfolioAssets('fiveY')" class="px-3 py-2 cursor-pointer">5 Anos</th>
+                                        <th onclick="sortMarketsPortfolioAssets('tenY')" class="px-3 py-2 border-r cursor-pointer">10 Anos</th>
+                                        <th onclick="sortMarketsPortfolioAssets('vol1')" class="px-3 py-2 bg-blue-50 cursor-pointer">Vol 1A</th>
+                                        <th onclick="sortMarketsPortfolioAssets('vol3')" class="px-3 py-2 bg-blue-50 cursor-pointer">Vol 3A</th>
+                                        <th onclick="sortMarketsPortfolioAssets('vol5')" class="px-3 py-2 bg-blue-50 border-r cursor-pointer">Vol 5A</th>
+                                        <th onclick="sortMarketsPortfolioAssets('mdd5')" class="px-3 py-2 bg-red-50 cursor-pointer">MDD 5A</th>
+                                        <th onclick="sortMarketsPortfolioAssets('mddHist')" class="px-3 py-2 bg-red-50 cursor-pointer">MDD hist</th>
                                     </tr>
                                 </thead>
                                 <tbody id="marketsPortfolioAssetsTableBody" class="divide-y divide-gray-100"></tbody>
@@ -944,6 +944,15 @@
                             </div>
                         </div>
                         <div id="aggregateScoringNotice" class="hidden rounded border border-amber-200 bg-amber-50 text-amber-900 p-3 text-sm mb-4"></div>
+                        <div id="aggregateScoringProgressWrap" class="hidden rounded border border-sky-100 bg-sky-50 p-3 mb-4">
+                            <div class="flex items-center justify-between text-xs font-bold text-sky-900 mb-2">
+                                <span id="aggregateScoringProgressLabel">Preparando analisis...</span>
+                                <span id="aggregateScoringProgressPct">0%</span>
+                            </div>
+                            <div class="h-2 bg-white rounded-full overflow-hidden border border-sky-100">
+                                <div id="aggregateScoringProgressBar" class="h-full bg-sky-700 rounded-full transition-all duration-200" style="width:0%"></div>
+                            </div>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-5">
                             <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Fondos unicos</div><div id="aggregateUniqueFunds" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
                             <div class="rounded border border-slate-200 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Categorias</div><div id="aggregateCategories" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
@@ -1268,7 +1277,9 @@
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
             let aggregateScoringResults = [];
-            let marketsPortfolioAssetsState = { assets: [], data: {}, range: '10Y' };
+            const openFigiLookupCache = new Map();
+            const aggregateRecommendationCache = new Map();
+            let marketsPortfolioAssetsState = { assets: [], data: {}, range: '10Y', sortKey: 'name', sortDir: 'asc' };
 
             function setPortfolioReportProgress(percent, label) {
                 const wrap = document.getElementById('portfolioReportProgressWrap');
@@ -2490,6 +2501,7 @@
                     if (!prev || (Number.isFinite(r.score) && r.score > (prev.score || -Infinity))) isinIndex.set(r.isin, r);
                 });
                 fundUniverseState = { records, isinIndex, quartiles: buildFundQuartiles(records), fileName: file.name };
+                aggregateRecommendationCache.clear();
                 document.getElementById('fundUniverseStatus').innerText = `${records.length.toLocaleString('es-ES')} fondos (${file.name})`;
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
                 if (fundPortfolioRows.length) runFundScoringAnalysis();
@@ -2632,10 +2644,12 @@
             }
 
             async function fetchOpenFigiIsin(isin) {
+                const cacheKey = normalizeIsin(isin);
+                if (openFigiLookupCache.has(cacheKey)) return openFigiLookupCache.get(cacheKey);
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 5000);
                 try {
-                    const body = JSON.stringify([{ idType: 'ID_ISIN', idValue: isin }]);
+                    const body = JSON.stringify([{ idType: 'ID_ISIN', idValue: cacheKey }]);
                     const request = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2644,9 +2658,12 @@
                     };
                     let data = await fetchOpenFigiJson('/api/openfigi', request);
                     if (!data) data = await fetchOpenFigiJson('https://api.openfigi.com/v3/mapping', request);
-                    return Array.isArray(data?.[0]?.data) ? data[0].data : [];
+                    const result = Array.isArray(data?.[0]?.data) ? data[0].data : [];
+                    openFigiLookupCache.set(cacheKey, result);
+                    return result;
                 } catch (e) {
                     console.warn('OpenFIGI lookup failed', isin, e);
+                    openFigiLookupCache.set(cacheKey, []);
                     return null;
                 } finally {
                     clearTimeout(timeout);
@@ -3009,11 +3026,14 @@
                 }
                 const parsed = parseAggregatePositionRows(rows);
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
+                aggregateScoringResults = [];
                 if (status) status.innerText = aggregatePositionsState.aggregated.length
                     ? `${aggregatePositionsState.rows.length} posiciones de fondos · ${aggregatePositionsState.aggregated.length} ISIN únicos (${file.name})`
                     : 'Sin fondos detectados';
+                const scoringStatus = document.getElementById('aggregateScoringStatus');
+                if (scoringStatus) scoringStatus.innerText = aggregatePositionsState.aggregated.length ? 'Pendiente de analizar' : 'Sin ejecutar';
+                setAggregateScoringProgress(0, 'Pendiente de analizar', false);
                 renderAggregateScoringResults();
-                if (fundUniverseState?.records?.length && aggregatePositionsState.aggregated.length) runAggregateScoringAnalysis();
             }
 
             async function importApprovedFundsFile(file) {
@@ -3051,9 +3071,12 @@
                     if (!current || r.name.length > current.name.length) isinIndex.set(r.isin, r);
                 });
                 approvedFundsState = { records, isinIndex, fileName: file.name };
+                aggregateScoringResults = [];
+                aggregateRecommendationCache.clear();
                 if (status) status.innerText = `${records.length.toLocaleString('es-ES')} fondos aprobados (${file.name})`;
+                const scoringStatus = document.getElementById('aggregateScoringStatus');
+                if (scoringStatus && aggregatePositionsState.aggregated.length) scoringStatus.innerText = 'Pendiente de analizar';
                 renderAggregateScoringResults();
-                if (aggregatePositionsState.aggregated.length && fundUniverseState?.records?.length) runAggregateScoringAnalysis();
             }
 
             function bestRowsByDetectedHeader(workbook, requiredKeys) {
@@ -3168,15 +3191,55 @@
                 const status = document.getElementById('aggregateScoringStatus');
                 if (status) status.innerText = 'Resolviendo universo y aprobados...';
                 aggregateScoringResults = [];
-                for (const position of aggregatePositionsState.aggregated) {
-                    const universeMatch = await resolveAggregateUniverseMatch(position);
-                    const approvedMatch = await resolveApprovedFundMatch(position);
+                aggregateRecommendationCache.clear();
+                setAggregateScoringProgress(0, 'Preparando ISINs únicos...', true);
+                const total = aggregatePositionsState.aggregated.length;
+                for (let i = 0; i < total; i++) {
+                    const position = aggregatePositionsState.aggregated[i];
+                    const { universeMatch, approvedMatch } = await resolveAggregatePositionMatches(position);
                     aggregateScoringResults.push({ position, universeMatch, approvedMatch });
-                    renderAggregateScoringResults();
-                    await waitForUiFrame();
+                    if (i === total - 1 || i % 5 === 0) {
+                        const pct = ((i + 1) / total) * 100;
+                        setAggregateScoringProgress(pct, `Analizando ${i + 1}/${total}: ${position.isin}`, true);
+                        renderAggregateScoringResults();
+                        await waitForUiFrame();
+                    }
                 }
                 if (status) status.innerText = `Analisis completado (${aggregateScoringResults.length} ISINs)`;
+                setAggregateScoringProgress(100, `Analisis completado (${aggregateScoringResults.length} ISINs)`, true);
                 renderAggregateScoringResults();
+            }
+
+            async function resolveAggregatePositionMatches(position) {
+                let universeMatch = resolveAggregateUniverseLocal(position);
+                let approvedMatch = resolveApprovedFundLocal(position);
+                if (universeMatch.record && approvedMatch.record) return { universeMatch, approvedMatch };
+                const figiResults = await fetchOpenFigiIsin(position.isin);
+                const figiNames = openFigiSearchTerms(figiResults);
+                if (!universeMatch.record) universeMatch = resolveAggregateUniverseLocal(position, figiNames);
+                if (!approvedMatch.record) approvedMatch = resolveApprovedFundLocal(position, figiNames);
+                return { universeMatch, approvedMatch };
+            }
+
+            function resolveAggregateUniverseLocal(position, searchTerms = []) {
+                const direct = fundUniverseState?.isinIndex?.get(position.isin);
+                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
+                const terms = [...searchTerms, position.name].filter(Boolean);
+                const candidates = fuzzyFundCandidates(terms);
+                const best = candidates[0];
+                if (!best || best.confidence < 0.58) return { record: null, status: 'unresolved', confidence: best?.confidence || 0, candidates, note: searchTerms[0] ? `OpenFIGI: ${searchTerms[0]}` : 'Sin match universo' };
+                return { record: best.record, status: best.confidence >= 0.75 ? 'auto' : 'review', confidence: best.confidence, candidates, note: searchTerms[0] ? `OpenFIGI: ${searchTerms[0]}` : 'Match por nombre' };
+            }
+
+            function resolveApprovedFundLocal(position, searchTerms = []) {
+                if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
+                const direct = approvedFundsState.isinIndex.get(position.isin);
+                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
+                const terms = [...searchTerms, position.name].filter(Boolean);
+                const candidates = fuzzyApprovedCandidates(terms);
+                const best = candidates[0];
+                if (!best || best.confidence < 0.58) return { record: null, status: 'not-approved', confidence: best?.confidence || 0, candidates, note: searchTerms[0] ? `OpenFIGI: ${searchTerms[0]}` : 'Sin match aprobados' };
+                return { record: best.record, status: best.confidence >= 0.75 ? 'equivalent-approved' : 'review-approved', confidence: best.confidence, candidates, note: searchTerms[0] ? `OpenFIGI: ${searchTerms[0]}` : 'Match aprobado por nombre' };
             }
 
             async function resolveAggregateUniverseMatch(position) {
@@ -3295,8 +3358,9 @@
                 body.innerHTML = weak.length ? weak.map(r => {
                     const rec = r.universeMatch?.record;
                     const pos = r.position || {};
-                    const approvedRec = bestAggregateApprovedRecommendation(rec)[0];
-                    const universeRec = rec ? getBetterFundRecommendations(rec, 1)[0] : null;
+                    const recs = rec ? aggregateRecommendationsForRecord(rec) : { approved: [], universe: [] };
+                    const approvedRec = recs.approved[0];
+                    const universeRec = recs.universe[0];
                     return `<tr>
                         <td class="px-3 py-2 font-mono">${escapeHtml(pos.isin)}</td>
                         <td class="px-3 py-2 font-bold">${escapeHtml(pos.name || rec?.name || '-')}</td>
@@ -3341,11 +3405,24 @@
 
             function aggregateRecommendationHtml(record) {
                 if (!record) return '<span class="text-slate-400">Sin categoria ancla</span>';
-                const approved = bestAggregateApprovedRecommendation(record).slice(0, 3);
-                const universe = getBetterFundRecommendations(record, 3);
+                const recs = aggregateRecommendationsForRecord(record);
+                const approved = recs.approved.slice(0, 3);
+                const universe = recs.universe.slice(0, 3);
                 const approvedHtml = approved.length ? approved.map(approvedRecommendationLabel).join('<br>') : '<span class="text-slate-400">Sin aprobado mejor</span>';
                 const universeHtml = universe.length ? universe.map(universeRecommendationLabel).join('<br>') : '<span class="text-slate-400">Sin universo mejor</span>';
                 return `<details class="text-xs" open><summary class="cursor-pointer font-bold text-emerald-700">Aprobados</summary>${approvedHtml}</details><details class="text-xs mt-1"><summary class="cursor-pointer font-bold text-blue-700">Universo invertible</summary>${universeHtml}</details>`;
+            }
+
+            function aggregateRecommendationsForRecord(record) {
+                if (!record?.isin) return { approved: [], universe: [] };
+                const key = record.isin;
+                if (!aggregateRecommendationCache.has(key)) {
+                    aggregateRecommendationCache.set(key, {
+                        approved: bestAggregateApprovedRecommendation(record),
+                        universe: getBetterFundRecommendations(record, 5)
+                    });
+                }
+                return aggregateRecommendationCache.get(key);
             }
 
             function bestAggregateApprovedRecommendation(anchor) {
@@ -3385,6 +3462,18 @@
                 const approved = a.record ? `<div><span class="font-bold text-emerald-700">Aprobado:</span> ${escapeHtml(a.status || '-')} ${Number.isFinite(a.confidence) ? Math.round(a.confidence * 100) + '%' : ''}</div>` : '<div><span class="font-bold text-amber-700">Aprobado:</span> no aprobado</div>';
                 const note = u.note || a.note ? `<div class="text-[11px] text-slate-400">${escapeHtml(u.note || a.note)}</div>` : '';
                 return `${universe}${approved}${note}`;
+            }
+
+            function setAggregateScoringProgress(percent, label, visible = true) {
+                const wrap = document.getElementById('aggregateScoringProgressWrap');
+                const bar = document.getElementById('aggregateScoringProgressBar');
+                const pct = document.getElementById('aggregateScoringProgressPct');
+                const text = document.getElementById('aggregateScoringProgressLabel');
+                const value = Math.max(0, Math.min(100, Math.round(percent || 0)));
+                if (wrap) wrap.classList.toggle('hidden', !visible);
+                if (bar) bar.style.width = `${value}%`;
+                if (pct) pct.innerText = `${value}%`;
+                if (text) text.innerText = label || '';
             }
 
             function setText(id, value) {
@@ -3427,7 +3516,7 @@
                 const results = await Promise.all(assets.map(a => fetchYahooData(a.yahoo, startStr, today).catch(() => [])));
                 const data = {};
                 assets.forEach((a, i) => { data[a.yahoo] = results[i] || []; });
-                marketsPortfolioAssetsState = { assets, data, range: '10Y' };
+                marketsPortfolioAssetsState = { assets, data, range: '10Y', sortKey: 'name', sortDir: 'asc' };
                 box.innerHTML = `<span class="font-bold text-slate-700">${escapeHtml(file.name)}</span>: ${assets.length} activos cargados.`;
                 document.getElementById('marketsPortfolioAssetsPanel')?.classList.remove('hidden');
                 populateMarketsPortfolioControls();
@@ -3440,8 +3529,24 @@
                 const cats = [...new Set(marketsPortfolioAssetsState.assets.map(a => a.assetClass || 'Sin categoria'))].sort((a, b) => a.localeCompare(b));
                 if (catSelect) catSelect.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
                 if (assetSelect) {
-                    assetSelect.innerHTML = marketsPortfolioAssetsState.assets.map((a, i) => `<option value="${escapeHtml(a.yahoo)}" ${i < 8 ? 'selected' : ''}>${escapeHtml(a.name || a.yahoo)} (${escapeHtml(a.assetClass || '-')})</option>`).join('');
+                    populateMarketsPortfolioAssetSelect();
                 }
+            }
+
+            function handleMarketsPortfolioCategoryChange() {
+                populateMarketsPortfolioAssetSelect(true);
+                renderMarketsPortfolioAssets();
+            }
+
+            function populateMarketsPortfolioAssetSelect(selectAllVisible = false) {
+                const assetSelect = document.getElementById('marketsPortfolioAssetSelect');
+                if (!assetSelect) return;
+                const cat = document.getElementById('marketsPortfolioCategoryFilter')?.value || '';
+                const visibleAssets = marketsPortfolioAssetsState.assets.filter(a => !cat || a.assetClass === cat);
+                assetSelect.innerHTML = visibleAssets.map((a, i) => {
+                    const selected = selectAllVisible || i < 8;
+                    return `<option value="${escapeHtml(a.yahoo)}" ${selected ? 'selected' : ''}>${escapeHtml(a.name || a.yahoo)} (${escapeHtml(a.assetClass || '-')})</option>`;
+                }).join('');
             }
 
             function setMarketsPortfolioRange(range, btn) {
@@ -3460,10 +3565,13 @@
                 const tbody = document.getElementById('marketsPortfolioAssetsTableBody');
                 if (!tbody) return;
                 const cat = document.getElementById('marketsPortfolioCategoryFilter')?.value || '';
-                const assets = marketsPortfolioAssetsState.assets.filter(a => !cat || a.assetClass === cat);
-                tbody.innerHTML = assets.map(a => {
+                const rows = marketsPortfolioAssetsState.assets.filter(a => !cat || a.assetClass === cat).map(a => {
                     const d = marketsPortfolioAssetsState.data[a.yahoo] || [];
                     const stats = marketStatsFromSeries(d);
+                    return { asset: a, stats };
+                });
+                sortMarketsPortfolioRows(rows);
+                tbody.innerHTML = rows.map(({ asset: a, stats }) => {
                     return `<tr class="hover:bg-gray-50 border-b">
                         <td class="px-4 py-2 text-left sticky left-0 bg-white z-10 font-bold border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"><div>${escapeHtml(a.name || a.yahoo)}</div><div class="text-[10px] text-slate-400">${escapeHtml(a.yahoo)} - ${escapeHtml(a.assetClass || '-')}</div></td>
                         ${marketMetricCell(stats.daily, true, true)}
@@ -3482,6 +3590,29 @@
                         <td class="px-3 py-2 text-red-700 bg-red-50/50 font-bold">${Number.isFinite(stats.mddHist) ? fmtPct(stats.mddHist) : '-'}</td>
                     </tr>`;
                 }).join('');
+            }
+
+            function sortMarketsPortfolioAssets(key) {
+                if (marketsPortfolioAssetsState.sortKey === key) {
+                    marketsPortfolioAssetsState.sortDir = marketsPortfolioAssetsState.sortDir === 'desc' ? 'asc' : 'desc';
+                } else {
+                    marketsPortfolioAssetsState.sortKey = key;
+                    marketsPortfolioAssetsState.sortDir = key === 'name' ? 'asc' : 'desc';
+                }
+                renderMarketsPortfolioAssetsTable();
+            }
+
+            function sortMarketsPortfolioRows(rows) {
+                const key = marketsPortfolioAssetsState.sortKey || 'name';
+                const dir = marketsPortfolioAssetsState.sortDir === 'asc' ? 1 : -1;
+                rows.sort((a, b) => {
+                    if (key === 'name') return String(a.asset.name || a.asset.yahoo).localeCompare(String(b.asset.name || b.asset.yahoo)) * dir;
+                    const av = a.stats?.[key];
+                    const bv = b.stats?.[key];
+                    const an = Number.isFinite(av) ? av : (dir === 1 ? Infinity : -Infinity);
+                    const bn = Number.isFinite(bv) ? bv : (dir === 1 ? Infinity : -Infinity);
+                    return (an - bn) * dir;
+                });
             }
 
             function marketStatsFromSeries(d) {
