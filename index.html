@@ -1276,6 +1276,7 @@
             let fundManualTargetIndex = -1;
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
+            let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), approvedUniverse: new Map() };
             let aggregateScoringResults = [];
             const openFigiLookupCache = new Map();
             const aggregateRecommendationCache = new Map();
@@ -2501,6 +2502,7 @@
                     if (!prev || (Number.isFinite(r.score) && r.score > (prev.score || -Infinity))) isinIndex.set(r.isin, r);
                 });
                 fundUniverseState = { records, isinIndex, quartiles: buildFundQuartiles(records), fileName: file.name };
+                rebuildAggregateFastIndex();
                 aggregateRecommendationCache.clear();
                 document.getElementById('fundUniverseStatus').innerText = `${records.length.toLocaleString('es-ES')} fondos (${file.name})`;
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
@@ -3028,7 +3030,7 @@
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
                 aggregateScoringResults = [];
                 if (status) status.innerText = aggregatePositionsState.aggregated.length
-                    ? `${aggregatePositionsState.rows.length} posiciones de fondos · ${aggregatePositionsState.aggregated.length} ISIN únicos (${file.name})`
+                    ? `${aggregatePositionsState.rows.length} posiciones filtradas · ${aggregatePositionsState.aggregated.length} ISIN únicos agregados (${file.name}). El analisis usara solo estos ISIN únicos.`
                     : 'Sin fondos detectados';
                 const scoringStatus = document.getElementById('aggregateScoringStatus');
                 if (scoringStatus) scoringStatus.innerText = aggregatePositionsState.aggregated.length ? 'Pendiente de analizar' : 'Sin ejecutar';
@@ -3071,8 +3073,10 @@
                     if (!current || r.name.length > current.name.length) isinIndex.set(r.isin, r);
                 });
                 approvedFundsState = { records, isinIndex, fileName: file.name };
+                rebuildAggregateFastIndex();
                 aggregateScoringResults = [];
                 aggregateRecommendationCache.clear();
+                rebuildAggregateFastIndex();
                 if (status) status.innerText = `${records.length.toLocaleString('es-ES')} fondos aprobados (${file.name})`;
                 const scoringStatus = document.getElementById('aggregateScoringStatus');
                 if (scoringStatus && aggregatePositionsState.aggregated.length) scoringStatus.innerText = 'Pendiente de analizar';
@@ -3196,12 +3200,11 @@
                 const total = aggregatePositionsState.aggregated.length;
                 for (let i = 0; i < total; i++) {
                     const position = aggregatePositionsState.aggregated[i];
-                    const { universeMatch, approvedMatch } = await resolveAggregatePositionMatches(position);
+                    const { universeMatch, approvedMatch } = resolveAggregatePositionMatchesFast(position);
                     aggregateScoringResults.push({ position, universeMatch, approvedMatch });
-                    if (i === total - 1 || i % 5 === 0) {
+                    if (i === total - 1 || i % 10 === 0) {
                         const pct = ((i + 1) / total) * 100;
                         setAggregateScoringProgress(pct, `Analizando ${i + 1}/${total}: ${position.isin}`, true);
-                        renderAggregateScoringResults();
                         await waitForUiFrame();
                     }
                 }
@@ -3219,6 +3222,62 @@
                 if (!universeMatch.record) universeMatch = resolveAggregateUniverseLocal(position, figiNames);
                 if (!approvedMatch.record) approvedMatch = resolveApprovedFundLocal(position, figiNames);
                 return { universeMatch, approvedMatch };
+            }
+
+            function rebuildAggregateFastIndex() {
+                const universeBase = new Map();
+                (fundUniverseState?.records || []).forEach(record => {
+                    const keys = [baseFundName(record.name), normalizeFundName(record.name)].filter(Boolean);
+                    keys.forEach(key => {
+                        const current = universeBase.get(key);
+                        if (!current || (record.score || -Infinity) > (current.score || -Infinity)) universeBase.set(key, record);
+                    });
+                });
+                const approvedBase = new Map();
+                (approvedFundsState?.records || []).forEach(record => {
+                    const keys = [baseFundName(record.name), normalizeFundName(record.name)].filter(Boolean);
+                    keys.forEach(key => {
+                        if (!approvedBase.has(key)) approvedBase.set(key, record);
+                    });
+                });
+                const approvedUniverse = new Map();
+                (approvedFundsState?.records || []).forEach(ap => {
+                    const direct = fundUniverseState?.isinIndex?.get(ap.isin);
+                    if (direct) {
+                        approvedUniverse.set(ap.isin, direct);
+                        return;
+                    }
+                    const key = baseFundName(ap.name) || normalizeFundName(ap.name);
+                    const byBase = universeBase.get(key);
+                    if (byBase) approvedUniverse.set(ap.isin, byBase);
+                });
+                aggregateFastIndex = { universeBase, approvedBase, approvedUniverse };
+            }
+
+            function resolveAggregatePositionMatchesFast(position) {
+                return {
+                    universeMatch: resolveAggregateUniverseFast(position),
+                    approvedMatch: resolveApprovedFundFast(position)
+                };
+            }
+
+            function resolveAggregateUniverseFast(position) {
+                const direct = fundUniverseState?.isinIndex?.get(position.isin);
+                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
+                const key = baseFundName(position.name) || normalizeFundName(position.name);
+                const byBase = aggregateFastIndex.universeBase.get(key);
+                if (byBase) return { record: byBase, status: 'name-base', confidence: 0.82, candidates: [{ record: byBase, confidence: 0.82 }], note: 'Match local por nombre base' };
+                return { record: null, status: 'unresolved-fast', confidence: 0, candidates: [], note: 'Sin match local; OpenFIGI omitido en analisis masivo para mantener velocidad' };
+            }
+
+            function resolveApprovedFundFast(position) {
+                if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
+                const direct = approvedFundsState.isinIndex.get(position.isin);
+                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
+                const key = baseFundName(position.name) || normalizeFundName(position.name);
+                const byBase = aggregateFastIndex.approvedBase.get(key);
+                if (byBase) return { record: byBase, status: 'name-base-approved', confidence: 0.82, candidates: [{ record: byBase, confidence: 0.82 }], note: 'Clase aprobada equivalente por nombre base' };
+                return { record: null, status: 'not-approved-fast', confidence: 0, candidates: [], note: 'Sin match local en aprobados' };
             }
 
             function resolveAggregateUniverseLocal(position, searchTerms = []) {
@@ -3430,7 +3489,7 @@
                 const anchorScore = Number.isFinite(anchor.score) ? anchor.score : -Infinity;
                 const anchorCategory = normalizeHeaderLabel(anchor.category || '');
                 return approvedFundsState.records.map(ap => {
-                    const universe = universeRecordForApproved(ap);
+                    const universe = aggregateFastIndex.approvedUniverse.get(ap.isin) || universeRecordForApproved(ap);
                     return { approved: ap, universe };
                 }).filter(x => x.universe && normalizeHeaderLabel(x.universe.category || '') === anchorCategory && Number.isFinite(x.universe.score) && x.universe.score > anchorScore)
                     .sort((a, b) => (b.universe.score - a.universe.score) || ((a.universe.ter || Infinity) - (b.universe.ter || Infinity)))
@@ -3441,6 +3500,9 @@
                 if (!approved) return null;
                 const direct = fundUniverseState?.isinIndex?.get(approved.isin);
                 if (direct) return direct;
+                const key = baseFundName(approved.name) || normalizeFundName(approved.name);
+                const byBase = aggregateFastIndex.universeBase.get(key);
+                if (byBase) return byBase;
                 const candidates = fuzzyFundCandidates([approved.name]);
                 return candidates[0]?.confidence >= 0.65 ? candidates[0].record : null;
             }
