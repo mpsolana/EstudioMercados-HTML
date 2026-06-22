@@ -1276,7 +1276,7 @@
             let fundManualTargetIndex = -1;
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
-            let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), approvedUniverse: new Map() };
+            let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), universeToken: new Map(), approvedToken: new Map(), approvedUniverse: new Map() };
             let aggregateScoringResults = [];
             const openFigiLookupCache = new Map();
             const aggregateRecommendationCache = new Map();
@@ -3226,18 +3226,28 @@
 
             function rebuildAggregateFastIndex() {
                 const universeBase = new Map();
+                const universeToken = new Map();
                 (fundUniverseState?.records || []).forEach(record => {
                     const keys = [baseFundName(record.name), normalizeFundName(record.name)].filter(Boolean);
                     keys.forEach(key => {
                         const current = universeBase.get(key);
                         if (!current || (record.score || -Infinity) > (current.score || -Infinity)) universeBase.set(key, record);
                     });
+                    aggregateIndexTokens(record.name).forEach(token => {
+                        if (!universeToken.has(token)) universeToken.set(token, []);
+                        universeToken.get(token).push(record);
+                    });
                 });
                 const approvedBase = new Map();
+                const approvedToken = new Map();
                 (approvedFundsState?.records || []).forEach(record => {
                     const keys = [baseFundName(record.name), normalizeFundName(record.name)].filter(Boolean);
                     keys.forEach(key => {
                         if (!approvedBase.has(key)) approvedBase.set(key, record);
+                    });
+                    aggregateIndexTokens(record.name).forEach(token => {
+                        if (!approvedToken.has(token)) approvedToken.set(token, []);
+                        approvedToken.get(token).push(record);
                     });
                 });
                 const approvedUniverse = new Map();
@@ -3250,8 +3260,38 @@
                     const key = baseFundName(ap.name) || normalizeFundName(ap.name);
                     const byBase = universeBase.get(key);
                     if (byBase) approvedUniverse.set(ap.isin, byBase);
+                    else {
+                        const candidate = bestAggregateCandidate(ap.name, universeBase, universeToken, 0.65);
+                        if (candidate?.record) approvedUniverse.set(ap.isin, candidate.record);
+                    }
                 });
-                aggregateFastIndex = { universeBase, approvedBase, approvedUniverse };
+                aggregateFastIndex = { universeBase, approvedBase, universeToken, approvedToken, approvedUniverse };
+            }
+
+            function aggregateIndexTokens(name) {
+                return [...new Set(fundNameTokens(name).filter(t => t.length >= 4 && !/^\d+$/.test(t)).slice(0, 12))];
+            }
+
+            function bestAggregateCandidate(name, baseMap, tokenMap, minConfidence = 0.58) {
+                const key = baseFundName(name) || normalizeFundName(name);
+                const exact = baseMap.get(key);
+                if (exact) return { record: exact, confidence: 1 };
+                const counts = new Map();
+                aggregateIndexTokens(name).forEach(token => {
+                    (tokenMap.get(token) || []).forEach(record => counts.set(record, (counts.get(record) || 0) + 1));
+                });
+                const shortlist = [...counts.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 80)
+                    .map(([record]) => record);
+                let best = null;
+                shortlist.forEach(record => {
+                    const confidence = tokenSimilarity(name, record.name);
+                    if (confidence >= minConfidence && (!best || confidence > best.confidence || (Math.abs(confidence - best.confidence) < 0.02 && (record.score || -Infinity) > (best.record.score || -Infinity)))) {
+                        best = { record, confidence };
+                    }
+                });
+                return best;
             }
 
             function resolveAggregatePositionMatchesFast(position) {
@@ -3264,9 +3304,8 @@
             function resolveAggregateUniverseFast(position) {
                 const direct = fundUniverseState?.isinIndex?.get(position.isin);
                 if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
-                const key = baseFundName(position.name) || normalizeFundName(position.name);
-                const byBase = aggregateFastIndex.universeBase.get(key);
-                if (byBase) return { record: byBase, status: 'name-base', confidence: 0.82, candidates: [{ record: byBase, confidence: 0.82 }], note: 'Match local por nombre base' };
+                const best = bestAggregateCandidate(position.name, aggregateFastIndex.universeBase, aggregateFastIndex.universeToken, 0.58);
+                if (best?.record) return { record: best.record, status: best.confidence >= 0.75 ? 'name-token' : 'review-token', confidence: best.confidence, candidates: [best], note: 'Match local por tokens de nombre' };
                 return { record: null, status: 'unresolved-fast', confidence: 0, candidates: [], note: 'Sin match local; OpenFIGI omitido en analisis masivo para mantener velocidad' };
             }
 
@@ -3274,9 +3313,8 @@
                 if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
                 const direct = approvedFundsState.isinIndex.get(position.isin);
                 if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
-                const key = baseFundName(position.name) || normalizeFundName(position.name);
-                const byBase = aggregateFastIndex.approvedBase.get(key);
-                if (byBase) return { record: byBase, status: 'name-base-approved', confidence: 0.82, candidates: [{ record: byBase, confidence: 0.82 }], note: 'Clase aprobada equivalente por nombre base' };
+                const best = bestAggregateCandidate(position.name, aggregateFastIndex.approvedBase, aggregateFastIndex.approvedToken, 0.58);
+                if (best?.record) return { record: best.record, status: best.confidence >= 0.75 ? 'name-token-approved' : 'review-token-approved', confidence: best.confidence, candidates: [best], note: 'Clase aprobada equivalente por tokens de nombre' };
                 return { record: null, status: 'not-approved-fast', confidence: 0, candidates: [], note: 'Sin match local en aprobados' };
             }
 
@@ -3503,8 +3541,8 @@
                 const key = baseFundName(approved.name) || normalizeFundName(approved.name);
                 const byBase = aggregateFastIndex.universeBase.get(key);
                 if (byBase) return byBase;
-                const candidates = fuzzyFundCandidates([approved.name]);
-                return candidates[0]?.confidence >= 0.65 ? candidates[0].record : null;
+                const candidate = bestAggregateCandidate(approved.name, aggregateFastIndex.universeBase, aggregateFastIndex.universeToken, 0.65);
+                return candidate?.record || null;
             }
 
             function approvedRecommendationLabel(item) {
