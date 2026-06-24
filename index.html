@@ -736,6 +736,8 @@
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Comparador masivo</button>
                     <button id="portfolioSubtab-funds" onclick="showPortfolioSubtab('funds')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Comparativa fondos</button>
+                    <button id="portfolioSubtab-screener" onclick="showPortfolioSubtab('screener')"
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Screener universo</button>
                 </div>
 
                 <div id="portfolioSubtabContent-main" class="portfolio-subtab-content">
@@ -1227,6 +1229,51 @@
                     </div>
                 </div>
 
+                <div id="portfolioSubtabContent-screener" class="portfolio-subtab-content hidden mt-6 space-y-4">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="font-bold text-slate-900 border-l-4 border-blue-700 pl-3">Screener universo de fondos</h3>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Usa el Excel de universo ya cargado en Scoring. Los filtros de texto buscan coincidencias; los numericos aceptan &gt;3, &lt;1, 2..4 o un valor exacto.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="renderFundUniverseScreener()" class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800"><i class="fa-solid fa-rotate mr-1"></i>Actualizar</button>
+                                <button onclick="clearFundScreenerFilters()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50">Limpiar filtros</button>
+                            </div>
+                        </div>
+                        <div id="fundScreenerStatus" class="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Carga primero el universo/ranking interno desde Scoring de Cartera.</div>
+                        <div class="overflow-x-auto border border-slate-100 rounded">
+                            <table class="min-w-[1600px] w-full text-xs text-slate-600">
+                                <thead id="fundScreenerHead" class="bg-slate-100 text-[11px] uppercase text-slate-500"></thead>
+                                <tbody id="fundScreenerBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                            <div>
+                                <label class="text-xs uppercase font-bold text-slate-500">Categoria</label>
+                                <select id="fundScreenerChartCategory" onchange="renderFundScreenerChart()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs uppercase font-bold text-slate-500">Eje X</label>
+                                <select id="fundScreenerXAxis" onchange="renderFundScreenerChart()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="text-xs uppercase font-bold text-slate-500">Eje Y</label>
+                                <select id="fundScreenerYAxis" onchange="renderFundScreenerChart()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select>
+                            </div>
+                            <div>
+                                <label class="text-xs uppercase font-bold text-slate-500">Tamano burbuja</label>
+                                <select id="fundScreenerZAxis" onchange="renderFundScreenerChart()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select>
+                            </div>
+                        </div>
+                        <div id="fundScreenerScatter" class="w-full h-[520px] border border-slate-100 rounded"></div>
+                    </div>
+                </div>
+
                 <div id="portfolioSubtabContent-assets" class="portfolio-subtab-content hidden mt-6 space-y-4">
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                         <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
@@ -1369,6 +1416,7 @@
             let fundScoringResults = [];
             let fundManualTargetIndex = -1;
             let fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
+            let fundScreenerState = { sortKey: 'score', sortDir: 'desc', initialized: false, limit: 300 };
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
             let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), universeToken: new Map(), approvedToken: new Map(), approvedUniverse: new Map() };
@@ -1739,6 +1787,7 @@
                     active.classList.add('text-blue-700', 'border-blue-700');
                 }
                 if (tabName === 'scoring') syncFundScoringPortfolioFromLoadedPortfolio();
+                if (tabName === 'screener') renderFundUniverseScreener();
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
             }
 
@@ -2661,10 +2710,12 @@
                     if (!prev || (Number.isFinite(r.score) && r.score > (prev.score || -Infinity))) isinIndex.set(r.isin, r);
                 });
                 fundUniverseState = { records, isinIndex, quartiles: buildFundQuartiles(records), fileName: file.name };
+                fundScreenerState.initialized = false;
                 rebuildAggregateFastIndex();
                 aggregateRecommendationCache.clear();
                 document.getElementById('fundUniverseStatus').innerText = `${records.length.toLocaleString('es-ES')} fondos (${file.name})`;
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
+                try { renderFundUniverseScreener(); } catch (e) { console.warn('fund screener render failed', e); }
                 if (fundPortfolioRows.length) runFundScoringAnalysis();
             }
 
@@ -2815,6 +2866,171 @@
                 document.getElementById('fundPortfolioStatus').innerText = 'Pendiente';
                 document.getElementById('fundScoringStatus').innerText = 'Sin ejecutar';
                 renderFundScoringResults();
+            }
+
+            function fundScreenerColumns() {
+                return [
+                    { key: 'isin', label: 'ISIN', type: 'text', width: '120px' },
+                    { key: 'name', label: 'Fondo', type: 'text', width: '260px' },
+                    { key: 'manager', label: 'Gestora', type: 'text', width: '150px' },
+                    { key: 'category', label: 'Categoria', type: 'text', width: '220px' },
+                    { key: 'score', label: 'Score', type: 'num' },
+                    { key: 'ter', label: 'TER', type: 'num', pct: true },
+                    { key: 'ret1', label: 'Ret 1Y', type: 'num', pct: true },
+                    { key: 'ret3', label: 'Ret 3Y', type: 'num', pct: true },
+                    { key: 'ret5', label: 'Ret 5Y', type: 'num', pct: true },
+                    { key: 'risk1', label: 'Risk 1Y', type: 'num', pct: true },
+                    { key: 'risk3', label: 'Risk 3Y', type: 'num', pct: true },
+                    { key: 'risk5', label: 'Risk 5Y', type: 'num', pct: true },
+                    { key: 'dd1', label: 'MD 1Y', type: 'num', pct: true },
+                    { key: 'dd3', label: 'MD 3Y', type: 'num', pct: true },
+                    { key: 'dd5', label: 'MD 5Y', type: 'num', pct: true },
+                    { key: 'aum', label: 'AUM', type: 'num' }
+                ];
+            }
+
+            function ensureFundScreenerControls() {
+                const metrics = fundScreenerColumns().filter(c => c.type === 'num');
+                const metricOptions = metrics.map(c => `<option value="${c.key}">${escapeHtml(c.label)}</option>`).join('');
+                [['fundScreenerXAxis', 'ret3'], ['fundScreenerYAxis', 'risk3'], ['fundScreenerZAxis', 'aum']].forEach(([id, fallback]) => {
+                    const el = document.getElementById(id);
+                    if (el && !el.options.length) {
+                        el.innerHTML = metricOptions;
+                        el.value = fallback;
+                    }
+                });
+                const categorySelect = document.getElementById('fundScreenerChartCategory');
+                if (categorySelect && fundUniverseState?.records?.length) {
+                    const current = categorySelect.value;
+                    const categories = [...new Set(fundUniverseState.records.map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+                    categorySelect.innerHTML = `<option value="">Todas</option>${categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}`;
+                    if (categories.includes(current)) categorySelect.value = current;
+                }
+            }
+
+            function fundScreenerFilterValue(key) {
+                return document.querySelector(`[data-fund-screener-filter="${key}"]`)?.value || '';
+            }
+
+            function recordMatchesScreenerFilter(record, column, rawFilter) {
+                const filter = String(rawFilter || '').trim();
+                if (!filter) return true;
+                const value = record[column.key];
+                if (column.type !== 'num') return String(value || '').toLowerCase().includes(filter.toLowerCase());
+                const n = Number(value);
+                if (!Number.isFinite(n)) return false;
+                const normalized = filter.replace(',', '.').replace(/\s+/g, '');
+                const range = normalized.match(/^(-?\d+(?:\.\d+)?)\.\.(-?\d+(?:\.\d+)?)$/);
+                if (range) {
+                    const a = Number(range[1]), b = Number(range[2]);
+                    return n >= Math.min(a, b) && n <= Math.max(a, b);
+                }
+                const cmp = normalized.match(/^(>=|<=|>|<|=)?(-?\d+(?:\.\d+)?)$/);
+                if (!cmp) return String(value ?? '').toLowerCase().includes(filter.toLowerCase());
+                const op = cmp[1] || '=';
+                const target = Number(cmp[2]);
+                if (op === '>') return n > target;
+                if (op === '>=') return n >= target;
+                if (op === '<') return n < target;
+                if (op === '<=') return n <= target;
+                return Math.abs(n - target) < 1e-9;
+            }
+
+            function filteredFundScreenerRecords() {
+                const columns = fundScreenerColumns();
+                return (fundUniverseState?.records || []).filter(record => columns.every(col => recordMatchesScreenerFilter(record, col, fundScreenerFilterValue(col.key))));
+            }
+
+            function setFundScreenerSort(key) {
+                if (fundScreenerState.sortKey === key) fundScreenerState.sortDir = fundScreenerState.sortDir === 'asc' ? 'desc' : 'asc';
+                else {
+                    fundScreenerState.sortKey = key;
+                    fundScreenerState.sortDir = 'desc';
+                }
+                fundScreenerState.initialized = false;
+                renderFundUniverseScreener();
+            }
+
+            function renderFundUniverseScreener() {
+                const head = document.getElementById('fundScreenerHead');
+                const body = document.getElementById('fundScreenerBody');
+                const status = document.getElementById('fundScreenerStatus');
+                if (!head || !body) return;
+                ensureFundScreenerControls();
+                const columns = fundScreenerColumns();
+                if (!fundScreenerState.initialized) {
+                    head.innerHTML = `<tr>${columns.map(c => `<th style="min-width:${c.width || '90px'}" class="px-2 py-2 text-left cursor-pointer select-none" onclick="setFundScreenerSort('${c.key}')">${escapeHtml(c.label)} ${fundScreenerState.sortKey === c.key ? (fundScreenerState.sortDir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr>
+                        <tr class="bg-white">${columns.map(c => `<th class="px-2 py-1"><input data-fund-screener-filter="${c.key}" oninput="renderFundUniverseScreener()" class="w-full p-1 border border-slate-200 rounded text-[11px] normal-case font-normal" placeholder="${c.type === 'num' ? '>3, <1, 2..4' : 'contiene...'}" value="${escapeHtml(fundScreenerFilterValue(c.key))}"></th>`).join('')}</tr>`;
+                    fundScreenerState.initialized = true;
+                }
+                if (!fundUniverseState?.records?.length) {
+                    body.innerHTML = '<tr><td colspan="16" class="px-3 py-8 text-center text-slate-400">Carga primero el universo/ranking interno desde Scoring de Cartera.</td></tr>';
+                    if (status) status.innerText = 'Sin universo cargado.';
+                    renderFundScreenerChart();
+                    return;
+                }
+                const rows = filteredFundScreenerRecords().sort((a, b) => {
+                    const col = columns.find(c => c.key === fundScreenerState.sortKey);
+                    const av = a[fundScreenerState.sortKey], bv = b[fundScreenerState.sortKey];
+                    const dir = fundScreenerState.sortDir === 'asc' ? 1 : -1;
+                    if (col?.type === 'num') return ((Number.isFinite(av) ? av : -Infinity) - (Number.isFinite(bv) ? bv : -Infinity)) * dir;
+                    return String(av || '').localeCompare(String(bv || '')) * dir;
+                });
+                const visible = rows.slice(0, fundScreenerState.limit);
+                body.innerHTML = visible.map(record => `<tr class="hover:bg-blue-50">
+                    ${columns.map(col => {
+                        const value = record[col.key];
+                        if (col.type === 'num') return `<td class="px-2 py-1 text-right font-semibold">${Number.isFinite(value) ? (col.pct ? value.toFixed(2) + '%' : value.toLocaleString('es-ES', { maximumFractionDigits: 2 })) : '-'}</td>`;
+                        return `<td class="px-2 py-1 ${col.key === 'isin' ? 'font-mono whitespace-nowrap' : ''}">${escapeHtml(value || '-')}</td>`;
+                    }).join('')}
+                </tr>`).join('');
+                if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} fondos encontrados de ${(fundUniverseState.records || []).length.toLocaleString('es-ES')}. Mostrando ${visible.length.toLocaleString('es-ES')}.`;
+                renderFundScreenerChart(rows);
+            }
+
+            function clearFundScreenerFilters() {
+                document.querySelectorAll('[data-fund-screener-filter]').forEach(input => { input.value = ''; });
+                renderFundUniverseScreener();
+            }
+
+            function renderFundScreenerChart(records = null) {
+                const el = document.getElementById('fundScreenerScatter');
+                if (!el) return;
+                if (!fundUniverseState?.records?.length || !window.Plotly) {
+                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Carga primero el universo para ver la nube de puntos.</div>';
+                    return;
+                }
+                ensureFundScreenerControls();
+                const category = document.getElementById('fundScreenerChartCategory')?.value || '';
+                const xKey = document.getElementById('fundScreenerXAxis')?.value || 'ret3';
+                const yKey = document.getElementById('fundScreenerYAxis')?.value || 'risk3';
+                const zKey = document.getElementById('fundScreenerZAxis')?.value || 'aum';
+                const source = (records || filteredFundScreenerRecords()).filter(r => (!category || r.category === category) && Number.isFinite(r[xKey]) && Number.isFinite(r[yKey]));
+                if (!source.length) {
+                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin fondos con datos suficientes para los ejes seleccionados.</div>';
+                    return;
+                }
+                const zValues = source.map(r => Number.isFinite(r[zKey]) ? Math.max(0, r[zKey]) : 0);
+                const zMin = Math.min(...zValues), zMax = Math.max(...zValues);
+                const sizes = zValues.map(v => zMax > zMin ? 8 + ((v - zMin) / (zMax - zMin)) * 28 : 14);
+                const metricLabel = key => fundScreenerColumns().find(c => c.key === key)?.label || key;
+                Plotly.newPlot(el, [{
+                    x: source.map(r => r[xKey]),
+                    y: source.map(r => r[yKey]),
+                    mode: 'markers',
+                    type: 'scatter',
+                    text: source.map(r => `${r.name}<br>${r.isin}<br>${r.category}`),
+                    customdata: source.map(r => [r.score, r.ter, r[zKey]]),
+                    marker: { size: sizes, color: source.map(r => Number.isFinite(r.score) ? r.score : 0), colorscale: 'Blues', showscale: true, colorbar: { title: 'Score' }, opacity: 0.72, line: { color: '#0f172a', width: 0.4 } },
+                    hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<br>Score: %{customdata[0]:.2f}<br>TER: %{customdata[1]:.2f}%<br>Tamano: %{customdata[2]:.2f}<extra></extra>'
+                }], {
+                    title: `Screener fondos${category ? ' - ' + category : ''}`,
+                    xaxis: { title: metricLabel(xKey), zeroline: false },
+                    yaxis: { title: metricLabel(yKey), zeroline: false },
+                    margin: { t: 50, l: 60, r: 70, b: 60 },
+                    plot_bgcolor: '#ffffff',
+                    paper_bgcolor: '#ffffff'
+                }, { responsive: true });
             }
 
             function renderFundAddOptions() {
@@ -5290,6 +5506,16 @@
                 </section>`;
             }
 
+            async function ensureClientScoringForReport() {
+                if (fundScoringResults?.length) return;
+                if (!fundUniverseState?.records?.length || !loadedPortfolio?.entries?.length) return;
+                syncFundScoringPortfolioFromEntries(loadedPortfolio.entries, loadedPortfolio.sourceLabel || 'cartera principal', { auto: true, silent: true });
+                if (fundPortfolioRows.length && !fundScoringResults.length) {
+                    await runFundScoringAnalysis();
+                    await waitForUiFrame();
+                }
+            }
+
             async function generatePortfolioReport() {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData?.length) return alert('Primero carga una cartera.');
                 try {
@@ -5353,6 +5579,7 @@
                     const sensitivityRows = sensitivityRowsData.length ? sensitivityRowsData.map(r => `<tr><td>${r.factor}</td><td class="num">${r.points}</td><td class="num">${r.correlation.toFixed(2)}</td><td class="num">${r.beta.toFixed(2)}</td><td>${escapeHtml(r.reading)}</td></tr>`).join('') : '<tr><td colspan="5">Sin datos auxiliares cargados. Pulsa Ejecutar Análisis Cartera para enriquecer sensibilidad a VIX, petróleo y tipos.</td></tr>';
                     const bestSeason = seasonality.reduce((a, b) => b.avg > a.avg ? b : a, seasonality[0]);
                     const worstSeason = seasonality.reduce((a, b) => b.avg < a.avg ? b : a, seasonality[0]);
+                    await ensureClientScoringForReport();
                     const clientScoringSection = buildClientScoringReportSection();
                     setPortfolioReportProgress(62, 'Capturando gráficos y tablas...');
                     const visualSections = await buildPortfolioReportVisualSections();
