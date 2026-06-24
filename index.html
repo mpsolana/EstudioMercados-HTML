@@ -2796,6 +2796,7 @@
                     originalRecord: record || null,
                     currentRecord: record || null,
                     selectedRecommendation: '',
+                    manualBucket: '',
                     status,
                     confidence,
                     included,
@@ -2975,8 +2976,10 @@
             function fundScoringRowHtml(result, idx) {
                 const rec = fundResolvedRecord(result);
                 const weightEditor = fundWeightEditorHtml(result, idx);
-                const ytmInput = `<input type="number" step="0.05" value="${Number.isFinite(result.ytm) ? result.ytm : ''}" oninput="updateFundScoringManualMetric(${idx}, 'ytm', this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="%">`;
-                const durationInput = `<input type="number" step="0.1" value="${Number.isFinite(result.duration) ? result.duration : ''}" oninput="updateFundScoringManualMetric(${idx}, 'duration', this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="yrs">`;
+                const bucket = fundEffectiveBucket(result);
+                const isRf = bucket === 'RF';
+                const ytmInput = isRf ? `<input type="number" step="0.05" value="${Number.isFinite(result.ytm) ? result.ytm : ''}" oninput="updateFundScoringManualMetric(${idx}, 'ytm', this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="%">` : '<span class="text-[11px] text-slate-400">Solo RF</span>';
+                const durationInput = isRf ? `<input type="number" step="0.1" value="${Number.isFinite(result.duration) ? result.duration : ''}" oninput="updateFundScoringManualMetric(${idx}, 'duration', this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="yrs">` : '<span class="text-[11px] text-slate-400">Solo RF</span>';
                 if (!rec) {
                     const traceHtml = fundCandidateTraceHtml(result);
                     return `<tr>
@@ -3002,7 +3005,7 @@
                     <td class="px-3 py-2 font-mono">${escapeHtml(result.isin)}</td>
                     <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(rec.name)}</div><div class="text-xs text-slate-400">${escapeHtml(rec.isin)} · AUM ${Number.isFinite(rec.aum) ? rec.aum.toLocaleString('es-ES') : '-'}</div>${fundChangeBadge(result)}</td>
                     <td class="px-3 py-2">${escapeHtml(rec.manager || '-')}</td>
-                    <td class="px-3 py-2 min-w-[220px]">${escapeHtml(rec.category || '-')}</td>
+                    <td class="px-3 py-2 min-w-[220px]"><div>${escapeHtml(rec.category || '-')}</div>${fundBucketSelectHtml(result, idx)}</td>
                     <td class="px-3 py-2 min-w-[190px]">${weightEditor}</td>
                     <td class="px-3 py-2 text-right">${ytmInput}</td>
                     <td class="px-3 py-2 text-right">${durationInput}</td>
@@ -4192,6 +4195,28 @@
                 return /(bond|fixed income|renta fija|oblig|debt|credit|aggregate|gov|government|high yield|yield|duration|treasury|income)/i.test(text);
             }
 
+            function fundEffectiveBucket(result) {
+                if (result?.manualBucket) return result.manualBucket;
+                const record = fundResolvedRecord(result) || result?.record || null;
+                const text = `${record?.category || ''} ${record?.name || ''}`.toLowerCase();
+                if (isFixedIncomeFund(record)) return 'RF';
+                if (/(rv|equity|stock|renta variable|small|large|growth|value)/i.test(text)) return 'RV';
+                return 'Otros';
+            }
+
+            function fundBucketSelectHtml(result, idx) {
+                const selected = fundEffectiveBucket(result);
+                return `<select onchange="setFundManualBucket(${idx}, this.value)" class="mt-1 w-full p-1 border border-slate-300 rounded bg-white text-[11px] font-bold">
+                    ${['RF', 'RV', 'Otros'].map(b => `<option value="${b}" ${selected === b ? 'selected' : ''}>${b}</option>`).join('')}
+                </select>`;
+            }
+
+            function setFundManualBucket(index, value) {
+                if (!fundScoringResults[index]) return;
+                fundScoringResults[index].manualBucket = String(value || '').trim();
+                renderFundScoringResults();
+            }
+
             async function handleMarketsPortfolioAssetsUpload(file) {
                 const box = document.getElementById('marketsPortfolioAssetsStatus');
                 if (!box) return;
@@ -4387,7 +4412,8 @@
                 const terRows = included.filter(r => Number.isFinite(r.record.ter));
                 const terWeight = terRows.reduce((acc, r) => acc + r.weight, 0);
                 const ter = terWeight > 0 ? terRows.reduce((acc, r) => acc + r.record.ter * r.weight, 0) / terWeight : NaN;
-                const fixedIncome = included.filter(r => isFixedIncomeFund(r.record));
+                const fixedIncome = included.filter(r => fundEffectiveBucket(r) === 'RF');
+                const rfWeight = fixedIncome.reduce((acc, r) => acc + r.weight, 0);
                 const ytmRows = fixedIncome.filter(r => Number.isFinite(r.ytm));
                 const ytmWeight = ytmRows.reduce((acc, r) => acc + r.weight, 0);
                 const weightedYtm = ytmWeight > 0 ? ytmRows.reduce((acc, r) => acc + r.ytm * r.weight, 0) / ytmWeight : NaN;
@@ -4408,9 +4434,14 @@
                 if (notice) {
                     const partial = unresolved || Math.abs(totalWeight - resolvedWeight) > 0.01;
                     const changed = fundScoringResults.filter(fundHasAppliedChange).length;
+                    const missingYtmWeight = Math.max(0, rfWeight - ytmWeight);
+                    const missingDurationWeight = Math.max(0, rfWeight - durationWeight);
                     const messages = [];
                     if (partial) messages.push(`Aviso: calculo parcial. Peso total cartera ${totalWeight.toFixed(2)}%, peso incluido ${resolvedWeight.toFixed(2)}%. Confirma matches automaticos o corrige manualmente los ISINs pendientes.`);
                     if (changed) messages.push(`${changed} cambio(s) por recomendacion/proxy aplicados al calculo ponderado. Puedes volver al ISIN original desde cada fila.`);
+                    if (fixedIncome.length) messages.push(`RF: peso total ${rfWeight.toFixed(2)}%; YTM calculada con ${ytmWeight.toFixed(2)}% y duracion con ${durationWeight.toFixed(2)}% del peso RF.`);
+                    if (missingYtmWeight > 0.01) messages.push(`Falta YTM en ${missingYtmWeight.toFixed(2)}% de RF; no se trata como cero.`);
+                    if (missingDurationWeight > 0.01) messages.push(`Falta duracion en ${missingDurationWeight.toFixed(2)}% de RF; no se trata como cero.`);
                     notice.classList.toggle('hidden', !messages.length);
                     notice.innerText = messages.join(' ');
                 }
