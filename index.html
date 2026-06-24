@@ -1260,8 +1260,12 @@
                             <div class="lg:col-span-7 space-y-4">
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div class="rounded border border-slate-200 bg-slate-50 p-3">
-                                        <label class="text-[11px] uppercase font-bold text-slate-500">Probabilidad rent. inferior a</label>
+                                        <label class="text-[11px] uppercase font-bold text-slate-500">Probabilidad rentabilidad</label>
                                         <div class="flex items-center gap-2 mt-1">
+                                            <select id="assetAllocationThresholdDirection" onchange="updateAssetAllocationAnalysis()" class="p-2 border border-slate-300 rounded text-sm bg-white font-bold">
+                                                <option value="lt">&lt;</option>
+                                                <option value="gt">&gt;</option>
+                                            </select>
                                             <input id="assetAllocationThreshold" type="number" value="0" step="0.5" oninput="updateAssetAllocationAnalysis()" class="w-24 p-2 border border-slate-300 rounded text-sm text-right">
                                             <span class="text-sm text-slate-500">%</span>
                                         </div>
@@ -1364,6 +1368,7 @@
             let fundPortfolioRows = [];
             let fundScoringResults = [];
             let fundManualTargetIndex = -1;
+            let fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
             let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), universeToken: new Map(), approvedToken: new Map(), approvedUniverse: new Map() };
@@ -1859,7 +1864,6 @@
                 if (!entries.length) return alert('No encuentro pesos validos. Usa columnas ticker y weight.');
                 normalizeEntryWeights(entries);
                 setPortfolioRows(entries);
-                syncFundScoringPortfolioFromEntries(entries, `Excel pesos: ${fileName}`);
                 const benchmarks = benchmarkSheetToSeriesMap(workbook, findSheet(workbook, ['bench', 'benchmark', 'benchmarks']));
                 const benchCategories = benchmarkCategorySheetToMap(workbook, findSheet(workbook, ['bench categ', 'bench category', 'benchmark categ']));
                 applyBenchmarkCategoryMetadata(benchmarks, benchCategories);
@@ -1940,7 +1944,7 @@
                 const ddData = calculateDrawdownData(portfolioData);
                 loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries, benchCategories };
                 portfolioImportMode = mode;
-                syncFundScoringPortfolioFromEntries(entries, sourceLabel);
+                syncFundScoringPortfolioFromEntries(entries, sourceLabel, { auto: true });
                 populatePortfolioBenchmarkSelect();
                 populateFundComparisonControls();
                 renderPortfolioBacktestChart(portfolioData, mode);
@@ -2500,18 +2504,68 @@
                 return /^[A-Z]{2}[A-Z0-9]{10}$/.test(normalizeIsin(value));
             }
 
-            function syncFundScoringPortfolioFromEntries(entries, sourceLabel = 'cartera cargada') {
-                const rows = (entries || [])
-                    .map(e => ({ isin: normalizeIsin(e.ticker || e.isin), weight: (Number(e.weight) || 0) * 100 }))
-                    .filter(r => isLikelyIsin(r.isin) && Number.isFinite(r.weight) && r.weight > 0);
-                if (!rows.length) return false;
-                setFundPortfolioRows(rows, sourceLabel);
+            function normalizeFundPortfolioEntriesForScoring(entries) {
+                const map = new Map();
+                let invalid = 0;
+                let duplicates = 0;
+                (entries || []).forEach(entry => {
+                    const isin = normalizeIsin(entry?.isin || entry?.ticker || entry?.symbol);
+                    const rawWeight = Number.isFinite(entry?.weight) ? Number(entry.weight) : parseFundWeight(entry?.weight);
+                    if (!isLikelyIsin(isin) || !Number.isFinite(rawWeight) || rawWeight <= 0) {
+                        invalid += 1;
+                        return;
+                    }
+                    const current = map.get(isin);
+                    if (current) duplicates += 1;
+                    map.set(isin, {
+                        isin,
+                        weight: (current?.weight || 0) + rawWeight,
+                        name: current?.name || entry?.name || entry?.label || '',
+                        assetClass: current?.assetClass || entry?.assetClass || entry?.asset_class || ''
+                    });
+                });
+                const rows = [...map.values()];
+                const total = rows.reduce((acc, row) => acc + Math.max(0, row.weight || 0), 0);
+                if (total > 0) {
+                    rows.forEach(row => {
+                        row.weight = (Math.max(0, row.weight || 0) / total) * 100;
+                        row.initialWeight = row.weight;
+                    });
+                }
+                return { rows, invalid, duplicates, rawCount: entries?.length || 0 };
+            }
+
+            function fundScoringRowsSignature(rows, sourceLabel = '') {
+                return `${sourceLabel}|${(rows || []).map(r => `${r.isin}:${Number.isFinite(r.weight) ? r.weight.toFixed(6) : '0'}`).join('|')}`;
+            }
+
+            function syncFundScoringPortfolioFromEntries(entries, sourceLabel = 'cartera cargada', options = {}) {
+                const normalized = normalizeFundPortfolioEntriesForScoring(entries);
+                if (!normalized.rows.length) {
+                    if (!options.silent) {
+                        document.getElementById('fundPortfolioStatus').innerText = `Sin ISINs validos para scoring${normalized.invalid ? ` (${normalized.invalid} filas omitidas)` : ''}`;
+                        document.getElementById('fundScoringStatus').innerText = 'Cartera vacia';
+                    }
+                    return false;
+                }
+                const signature = fundScoringRowsSignature(normalized.rows, sourceLabel);
+                if (options.auto && fundScoringSourceState.manual && fundPortfolioRows.length) return false;
+                if (options.auto && fundScoringSourceState.signature === signature && fundPortfolioRows.length) return false;
+                setFundPortfolioRows(normalized.rows, sourceLabel, {
+                    duplicates: normalized.duplicates,
+                    invalid: normalized.invalid,
+                    auto: Boolean(options.auto),
+                    manual: Boolean(options.manual)
+                });
+                fundScoringSourceState.signature = signature;
+                fundScoringSourceState.autoSynced = Boolean(options.auto);
+                fundScoringSourceState.manual = Boolean(options.manual);
                 return true;
             }
 
             function syncFundScoringPortfolioFromLoadedPortfolio() {
-                if (fundPortfolioRows.length || !loadedPortfolio?.entries?.length) return false;
-                return syncFundScoringPortfolioFromEntries(loadedPortfolio.entries, 'cartera principal');
+                if (!loadedPortfolio?.entries?.length) return false;
+                return syncFundScoringPortfolioFromEntries(loadedPortfolio.entries, 'cartera principal', { auto: true, silent: true });
             }
 
             function normalizeFundName(value) {
@@ -2686,7 +2740,7 @@
                     const workbook = await readWorkbook(file);
                     rows = parseFundPortfolioRows(sheetRows(workbook, workbook.SheetNames[0]));
                 }
-                setFundPortfolioRows(rows, file.name);
+                setFundPortfolioRows(rows, file.name, { manual: true });
             }
 
             function parseFundPortfolioRows(rows) {
@@ -2725,6 +2779,39 @@
                 fundPortfolioRows = [];
                 fundScoringResults = [];
                 document.getElementById('fundPortfolioPaste').value = '';
+                document.getElementById('fundPortfolioStatus').innerText = 'Pendiente';
+                document.getElementById('fundScoringStatus').innerText = 'Sin ejecutar';
+                renderFundScoringResults();
+            }
+
+            function setFundPortfolioRows(rows, sourceLabel = 'texto', meta = {}) {
+                const normalized = normalizeFundPortfolioEntriesForScoring(rows);
+                fundPortfolioRows = normalized.rows.map(r => ({ ...r, initialWeight: Number.isFinite(r.initialWeight) ? r.initialWeight : r.weight }));
+                const total = fundPortfolioRows.reduce((acc, r) => acc + r.weight, 0);
+                const duplicateCount = meta.duplicates ?? normalized.duplicates;
+                const invalidCount = meta.invalid ?? normalized.invalid;
+                const warnings = [];
+                if (duplicateCount) warnings.push(`${duplicateCount} duplicado(s) fusionados`);
+                if (invalidCount) warnings.push(`${invalidCount} fila(s) omitidas`);
+                document.getElementById('fundPortfolioStatus').innerText = fundPortfolioRows.length ? `${fundPortfolioRows.length} ISINs unicos - peso ${total.toFixed(2)}% (${sourceLabel})${warnings.length ? ` - ${warnings.join(' - ')}` : ''}` : 'Sin filas validas';
+                document.getElementById('fundScoringStatus').innerText = fundPortfolioRows.length ? 'Cartera lista' : 'Cartera vacia';
+                fundScoringSourceState.signature = fundScoringRowsSignature(fundPortfolioRows, sourceLabel);
+                fundScoringSourceState.autoSynced = Boolean(meta.auto);
+                fundScoringSourceState.manual = Boolean(meta.manual);
+                if (fundUniverseState && fundPortfolioRows.length) runFundScoringAnalysis();
+            }
+
+            function loadFundPortfolioFromText() {
+                setFundPortfolioRows(parseFundPortfolioText(document.getElementById('fundPortfolioPaste')?.value || ''), 'texto pegado', { manual: true });
+            }
+
+            function clearFundScoringState() {
+                fundPortfolioRows = [];
+                fundScoringResults = [];
+                fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
+                document.getElementById('fundPortfolioPaste').value = '';
+                const fileInput = document.getElementById('fundPortfolioFileInput');
+                if (fileInput) fileInput.value = '';
                 document.getElementById('fundPortfolioStatus').innerText = 'Pendiente';
                 document.getElementById('fundScoringStatus').innerText = 'Sin ejecutar';
                 renderFundScoringResults();
@@ -4838,8 +4925,9 @@
                 const weights = Object.fromEntries(keys.map(k => [k, rawSum ? (assetAllocationState.weights[k] || 0) / rawSum : 1 / keys.length]));
                 const portfolioReturns = assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * (assetAllocationState.returns[k][i] || 0), 0));
                 const threshold = (parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0) || 0) / 100;
+                const thresholdDirection = document.getElementById('assetAllocationThresholdDirection')?.value === 'gt' ? 'gt' : 'lt';
                 const horizons = [{ label: '1 mes', months: 1 }, { label: '3 meses', months: 3 }, { label: '1 año', months: 12 }, { label: '3 años', months: 36 }, { label: '5 años', months: 60 }, { label: '10 años', months: 120 }, { label: '15 años', months: 180 }];
-                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold)).filter(Boolean);
+                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold, thresholdDirection)).filter(Boolean);
                 document.getElementById('assetAllocationWeightSum').innerText = fmtPct(rawSum);
                 document.getElementById('assetAllocationSource').innerText = assetAllocationState.sourceLabel;
                 document.getElementById('assetAllocationHistory').innerText = `${assetAllocationState.dates[0]} / ${assetAllocationState.dates[assetAllocationState.dates.length - 1]}`;
@@ -4847,7 +4935,7 @@
                 renderAssetAllocationCharts(rows, portfolioReturns);
             }
 
-            function calculateAssetAllocationHorizon(returns, months, label, threshold) {
+            function calculateAssetAllocationHorizon(returns, months, label, threshold, thresholdDirection = 'lt') {
                 if (returns.length < months) return null;
                 const samples = [];
                 const drawdowns = [];
@@ -4859,7 +4947,8 @@
                     samples.push(adjustAnnualizedReturnForHorizon(annualized, months));
                     drawdowns.push(rollingWindowMaxDrawdownFromReturns(returns, i - months + 1, months));
                 }
-                return { label, months, annualized: months >= 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probBelow: samples.filter(v => v < threshold).length / samples.length, count: samples.length };
+                const probThreshold = samples.filter(v => thresholdDirection === 'gt' ? v > threshold : v < threshold).length / samples.length;
+                return { label, months, annualized: months >= 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probThreshold, thresholdDirection, threshold, count: samples.length };
             }
 
             function renderAssetAllocationStats(rows) {
@@ -4873,7 +4962,7 @@
                     { label: 'Máximo', key: 'max', cls: 'text-green-700' },
                     { label: 'Mínimo', key: 'min', cls: 'text-red-600' },
                     { label: 'Maximum drawdown', key: 'maxDrawdown', cls: 'text-red-700' },
-                    { label: 'Probabilidad rentabilidad < umbral', key: 'probBelow', cls: 'text-blue-900' },
+                    { label: `Probabilidad rentabilidad ${rows[0]?.thresholdDirection === 'gt' ? '>' : '<'} umbral`, key: 'probThreshold', cls: 'text-blue-900' },
                     { label: 'Muestras', key: 'count', cls: 'text-slate-500', raw: true }
                 ];
                 tbody.innerHTML = metricRows.map(row => `<tr>
@@ -5068,7 +5157,7 @@
                     const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
                     loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns, priceSeries: seriesMapToComparable(seriesMap, entries), benchmarks: {} };
-                    syncFundScoringPortfolioFromEntries(entries, 'Manual/Yahoo');
+                    syncFundScoringPortfolioFromEntries(entries, 'Manual/Yahoo', { auto: true });
                     populatePortfolioBenchmarkSelect();
                     populateFundComparisonControls();
                     try { preparePortfolioReportAllocationState(); } catch (e) { console.warn('asset allocation sync failed', e); }
@@ -5125,7 +5214,11 @@
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `q${q}` : '';
                 const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
-                return `<td class="num ${cls}" title="${q ? `Q${q} dentro de categoría` : ''}">${text}</td>`;
+                return `<td class="num metric-cell ${cls}" title="${q ? `Q${q} dentro de categoría` : ''}">${text}</td>`;
+            }
+
+            function reportColgroup(widths) {
+                return `<colgroup>${widths.map(w => `<col style="width:${w}%">`).join('')}</colgroup>`;
             }
 
             function scoreInterpretation(score) {
@@ -5164,11 +5257,11 @@
                     const selected = record.isin || '-';
                     const changed = fundHasAppliedChange(result);
                     return `<tr>
-                        <td>${escapeHtml(original)}</td>
-                        <td>${escapeHtml(selected)}${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
-                        <td>${escapeHtml(record.name || '-')}</td>
+                        <td class="isin-cell">${escapeHtml(original)}</td>
+                        <td class="isin-cell">${escapeHtml(selected)}${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
+                        <td class="fund-cell">${escapeHtml(record.name || '-')}</td>
                         <td class="num">${Number.isFinite(result.weight) ? result.weight.toFixed(2) + '%' : '-'}</td>
-                        <td>${escapeHtml(record.category || '-')}</td>
+                        <td class="cat-cell">${escapeHtml(record.category || '-')}</td>
                         ${reportQuartileTd(record.score, record, 'score', false)}
                         ${reportQuartileTd(record.ter, record, 'ter', true)}
                         ${reportQuartileTd(record.ret1, record, 'ret1', true)}
@@ -5188,7 +5281,8 @@
                         <div><span>Cambios aplicados</span><strong>${summary.changed}</strong></div>
                     </section>
                     <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} El TER ponderado resume el coste corriente de los fondos incluidos en el cálculo.</p>
-                    <table class="wide-report-table">
+                    <table class="wide-report-table scoring-report-table">
+                        ${reportColgroup([8, 12, 22, 6, 18, 4.25, 4.25, 4.25, 4.25, 4.25, 4.25, 4.25, 4.25])}
                         <thead><tr><th>ISIN orig.</th><th>ISIN sel.</th><th>Fondo</th><th>Peso</th><th>Cat.</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Ret 3Y</th><th>Risk 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
@@ -5350,12 +5444,15 @@
                 };
                 const threshold = document.getElementById('assetAllocationThreshold');
                 if (threshold) threshold.value = '0';
+                const thresholdDirection = document.getElementById('assetAllocationThresholdDirection');
+                if (thresholdDirection) thresholdDirection.value = 'lt';
                 try { renderAssetAllocationWeights(); } catch (e) { console.warn('asset allocation controls render failed', e); }
                 try { updateAssetAllocationAnalysis(); } catch (e) { console.warn('asset allocation report render failed', e); }
                 return true;
             }
 
             async function buildPortfolioReportVisualSections() {
+                const allocationThresholdText = assetAllocationThresholdText();
                 const sections = [
                     {
                         title: 'Resumen cartera y composición',
@@ -5371,7 +5468,7 @@
                     {
                         title: 'Rentabilidades históricas y esperadas',
                         note: 'Rango histórico por plazo, escenarios de distribución de activos, rentabilidades móviles y distribución anual.',
-                        method: 'Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de pérdida del 0%. Para plazos de un año o más se expresa la rentabilidad anualizada.',
+                        method: `Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de probabilidad ${allocationThresholdText}. Para plazos de un año o más se expresa la rentabilidad anualizada.`,
                         items: [
                             { type: 'chart', id: 'assetAllocationScenarioChart', title: 'Rango max/media/min por plazo' },
                             { type: 'table', id: 'assetAllocationStatsBody', title: 'Escenarios por plazo' },
@@ -5449,7 +5546,7 @@
                     forecastBalanceChart: 'Muestra el abanico probabilístico de resultados de corto plazo desde el último dato observado.',
                     forecastLongTermChart: 'Ilustra la dispersión de resultados a largo plazo y el impacto de la volatilidad compuesta.',
                     forecastDrawdownHist: 'Resume la severidad de pérdidas máximas esperables bajo la simulación.',
-                    assetAllocationStatsBody: 'La tabla sintetiza la compensación por plazo: media, extremos, drawdown y probabilidad de caer por debajo del umbral definido.',
+                    assetAllocationStatsBody: `La tabla sintetiza la compensación por plazo: media, extremos, drawdown y probabilidad de rentabilidad ${assetAllocationThresholdText()}.`,
                     sigmaEventsTableBody: 'Los eventos sigma identifican sesiones o periodos anómalos que conviene explicar al cliente por su impacto en riesgo.',
                     annualTableBody: 'El resumen anual ayuda a comprobar si la rentabilidad procede de muchos años consistentes o de pocos ejercicios excepcionales.',
                     drawdownTableBody: 'La tabla ordena los episodios más dolorosos y permite valorar profundidad, duración y recuperación.',
@@ -5464,7 +5561,7 @@
             function reportMethodForItem(id, title) {
                 if (id === 'portfolioChart') return 'Serie de cartera capitalizada, media móvil simple de 50 observaciones, benchmark opcional normalizado base 100 y RSI de 14 periodos en panel secundario.';
                 if (id.startsWith('forecast')) return 'Monte Carlo con log-retornos históricos de la cartera cargada, 10.000 simulaciones, horizonte de 15 años y capital inicial 1.000.';
-                if (id === 'assetAllocationStatsBody') return 'Ventanas móviles por plazo sobre retornos de los activos de cartera, pesos normalizados y umbral de rentabilidad inferior fijado al 0%.';
+                if (id === 'assetAllocationStatsBody') return `Ventanas móviles por plazo sobre retornos de los activos de cartera, pesos normalizados y umbral de probabilidad ${assetAllocationThresholdText()}.`;
                 if (id === 'annualTableBody') return 'Agregación por años naturales a partir de la serie de cartera cargada.';
                 if (id === 'sigmaEventsTableBody') return 'Eventos detectados cuando el retorno queda fuera de las bandas de tres desviaciones típicas.';
                 if (id === 'drawdownTableBody' || id === 'drawdownDurationTableBody') return 'Episodios calculados desde máximos acumulados, valle y recuperación posterior.';
@@ -5472,6 +5569,12 @@
                 if (id.includes('drawdown') || id === 'drawdownChart' || id === 'ddSpaghettiChart') return 'Drawdown calculado como caída desde máximos acumulados y recuperación al recuperar el máximo previo.';
                 if (id.startsWith('assetAllocation')) return 'Ventanas móviles sobre retornos mensuales/periodificados de la cartera cargada, con pesos normalizados.';
                 return 'Cálculo derivado de la misma serie de cartera ya analizada en la pestaña Análisis Individual, respetando la frecuencia detectada.';
+            }
+
+            function assetAllocationThresholdText() {
+                const direction = document.getElementById('assetAllocationThresholdDirection')?.value === 'gt' ? '>' : '<';
+                const threshold = parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0);
+                return `${direction} ${Number.isFinite(threshold) ? threshold.toFixed(2) : '0.00'}%`;
             }
 
             async function capturePlotlyReportImage(id) {
@@ -5604,7 +5707,13 @@
                     .wide-report-table{font-size:8.2px;table-layout:auto}
                     .wide-report-table th{font-size:7.4px;padding:4px;line-height:1.2;word-break:normal;overflow-wrap:normal;hyphens:none}
                     .wide-report-table td{padding:4px;line-height:1.22;word-break:normal;overflow-wrap:anywhere}
-                    .wide-report-table td:nth-child(2),.wide-report-table td:nth-child(3){min-width:22mm}
+                    .scoring-report-table{table-layout:fixed!important;width:100%;font-size:7.2px;border-collapse:collapse}
+                    .scoring-report-table th{font-size:6.7px;padding:4px 3px;line-height:1.12;letter-spacing:.02em;white-space:normal;overflow-wrap:normal;word-break:normal}
+                    .scoring-report-table td{padding:4px 3px;line-height:1.14;vertical-align:middle;overflow-wrap:normal;word-break:normal;hyphens:none}
+                    .scoring-report-table .isin-cell{font-family:Arial,Helvetica,sans-serif;font-size:6.9px;white-space:nowrap;overflow:hidden;text-overflow:clip}
+                    .scoring-report-table .fund-cell,.scoring-report-table .cat-cell{white-space:normal;overflow-wrap:break-word;word-break:normal}
+                    .scoring-report-table .metric-cell,.scoring-report-table .num{white-space:nowrap;text-align:right}
+                    .scoring-report-table .badge{font-size:5.8px;padding:1px 3px;white-space:nowrap}
                     tbody tr:nth-child(even) td{background:#f7f9fc}
                     tr:last-child td{border-bottom:0}
                     .kv-table td:first-child{width:42%;color:#475569;font-weight:700}
@@ -5701,12 +5810,12 @@
                     const rec = aggregateEffectiveRecord(result);
                     const changed = aggregateHasAppliedChange(result);
                     return `<tr>
-                        <td>${escapeHtml(aggregateEffectiveBucket(result) || '-')}</td>
-                        <td>${escapeHtml(pos.isin || '-')}</td>
-                        <td>${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
+                        <td class="block-cell">${escapeHtml(aggregateEffectiveBucket(result) || '-')}</td>
+                        <td class="isin-cell">${escapeHtml(pos.isin || '-')}</td>
+                        <td class="fund-cell">${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
                         <td class="num">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
                         <td class="num">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
-                        <td>${escapeHtml(rec?.category || '-')}</td>
+                        <td class="cat-cell">${escapeHtml(rec?.category || '-')}</td>
                         ${reportQuartileTd(rec?.score, rec, 'score', false)}
                         ${reportQuartileTd(rec?.ter, rec, 'ter', true)}
                         ${reportQuartileTd(rec?.ret1, rec, 'ret1', true)}
@@ -5717,7 +5826,8 @@
                 }).join('');
                 return `<section class="block">
                     <h2>Posición agregada por ISIN</h2>
-                    <table class="wide-report-table">
+                    <table class="wide-report-table scoring-report-table">
+                        ${reportColgroup([6, 10, 23, 9, 6, 18, 4.7, 4.7, 4.7, 4.7, 4.6, 4.6])}
                         <thead><tr><th>Bloque</th><th>ISIN</th><th>Fondo</th><th>Importe</th><th>Peso</th><th>Cat.</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
@@ -5756,10 +5866,10 @@
             }
 
             function reportRecommendationLabel(item) {
-                const record = item?.universe || item || {};
                 const approved = item?.approved || {};
+                const record = item?.universe || item?.record || item || {};
                 const isin = record.isin || approved.isin || '-';
-                const name = record.name || approved.name || '-';
+                const name = record.name || approved.name || record.fundName || approved.fundName || '-';
                 const score = fmtScore(record.score);
                 const ter = Number.isFinite(record.ter) ? `${record.ter.toFixed(2)}%` : '-';
                 const source = item?.source ? ` · ${item.source}` : '';
@@ -5805,9 +5915,9 @@
                     const r = row.record || {};
                     const p = row.position || {};
                     return `<tr>
-                        <td>${escapeHtml(r.isin || p.isin || '-')}</td>
-                        <td>${row.inPortfolio ? '<span class="good">' : ''}${escapeHtml(r.name || p.name || '-')}${row.inPortfolio ? '</span>' : ''}${row.missingRanking ? '<br><span class="badge warn-badge">Sin ranking</span>' : ''}</td>
-                        <td>${escapeHtml(r.category || p.assetType || '-')}</td>
+                        <td class="isin-cell">${escapeHtml(r.isin || p.isin || '-')}</td>
+                        <td class="fund-cell">${row.inPortfolio ? '<span class="good">' : ''}${escapeHtml(r.name || p.name || '-')}${row.inPortfolio ? '</span>' : ''}${row.missingRanking ? '<br><span class="badge warn-badge">Sin ranking</span>' : ''}</td>
+                        <td class="cat-cell">${escapeHtml(r.category || p.assetType || '-')}</td>
                         <td class="num">${aggregatePositionsState.hasAmounts && Number.isFinite(p.amount) ? formatEur(p.amount) : '-'}</td>
                         <td class="num">${Number.isFinite(p.weight) ? p.weight.toFixed(2) + '%' : '-'}</td>
                         ${reportQuartileTd(r.score, r, 'score', false)}
@@ -5820,7 +5930,7 @@
                 }).join('');
                 return `<section class="block">
                     <h2>Fondos Santalucía</h2>
-                    <table class="wide-report-table"><thead><tr><th>ISIN</th><th>Nombre</th><th>Cat.</th><th>Importe</th><th>Peso</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead><tbody>${rows}</tbody></table>
+                    <table class="wide-report-table scoring-report-table">${reportColgroup([10, 25, 20, 9, 6, 5, 5, 5, 5, 5, 5])}<thead><tr><th>ISIN</th><th>Nombre</th><th>Cat.</th><th>Importe</th><th>Peso</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead><tbody>${rows}</tbody></table>
                     <p class="method-note"><b>Metodología:</b> se incluyen todos los fondos Santalucía localizados en el ranking y los presentes en cartera agregada aunque no aparezcan en ranking. Los nombres en verde indican presencia en la cartera agregada cargada.</p>
                 </section>`;
             }
