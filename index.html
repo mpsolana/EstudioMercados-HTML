@@ -10,6 +10,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Plotly.js -->
     <script src="https://cdn.jsdelivr.net/npm/plotly.js@2.27.0/dist/plotly.min.js"></script>
+    <!-- Linear optimizer for RF sleeve allocation -->
+    <script src="https://cdn.jsdelivr.net/npm/javascript-lp-solver@0.4.24/prod/solver.js"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Math.js -->
@@ -908,6 +910,30 @@
                             </div>
                         </div>
                         <div id="fundManualSearchResults" class="hidden mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm"></div>
+                        <div class="mb-3 rounded border border-slate-200 bg-slate-50 p-3">
+                            <div class="flex flex-col xl:flex-row xl:items-end gap-3">
+                                <div class="flex-1">
+                                    <div class="text-xs uppercase font-bold text-slate-500">Optimizador RF</div>
+                                    <div class="text-[11px] text-slate-500 mt-1">Maximiza la YTM ponderada de RF respetando duracion objetivo y pesos min/max dentro de la manga RF. RV/Otros no se modifican.</div>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] uppercase font-bold text-slate-500">Duracion objetivo RF</label>
+                                    <input id="fundRfTargetDuration" type="number" step="0.1" class="mt-1 w-28 p-2 border border-slate-300 rounded text-xs text-right bg-white" placeholder="Actual">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] uppercase font-bold text-slate-500">Peso min RF (%)</label>
+                                    <input id="fundRfMinWeight" type="number" step="0.1" min="0" max="100" value="0" class="mt-1 w-28 p-2 border border-slate-300 rounded text-xs text-right bg-white">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] uppercase font-bold text-slate-500">Peso max RF (%)</label>
+                                    <input id="fundRfMaxWeight" type="number" step="0.1" min="0" max="100" value="100" class="mt-1 w-28 p-2 border border-slate-300 rounded text-xs text-right bg-white">
+                                </div>
+                                <button onclick="useCurrentFundRfDurationTarget()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-100">Usar duracion actual</button>
+                                <button onclick="optimizeFundRfYtm()" class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800">Optimizar YTM RF</button>
+                                <button onclick="restoreFundScoringLoadedWeights()" class="px-3 py-2 bg-white border border-blue-200 rounded text-xs font-bold text-blue-700 hover:bg-blue-50">Volver a pesos originales</button>
+                            </div>
+                            <div id="fundRfOptimizerStatus" class="hidden mt-3 rounded border p-2 text-xs"></div>
+                        </div>
                         <div class="mb-3 rounded border border-blue-100 bg-blue-50/40 p-3">
                             <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr_120px_auto] gap-2 items-end">
                                 <div>
@@ -3169,6 +3195,156 @@
                 });
                 syncFundPortfolioWeights();
                 renderFundScoringResults();
+            }
+
+            function fundRfOptimizerRows() {
+                return fundScoringResults
+                    .map((result, index) => ({ result, index, record: fundResolvedRecord(result) }))
+                    .filter(row => row.result?.included && fundEffectiveBucket(row.result) === 'RF');
+            }
+
+            function currentFundRfWeightedMetric(field) {
+                const rows = fundRfOptimizerRows().filter(row => Number.isFinite(row.result?.[field]));
+                const weight = rows.reduce((acc, row) => acc + Math.max(0, row.result.weight || 0), 0);
+                if (weight <= 0) return NaN;
+                return rows.reduce((acc, row) => acc + row.result[field] * Math.max(0, row.result.weight || 0), 0) / weight;
+            }
+
+            function useCurrentFundRfDurationTarget() {
+                const input = document.getElementById('fundRfTargetDuration');
+                const current = currentFundRfWeightedMetric('duration');
+                if (!input) return;
+                if (!Number.isFinite(current)) {
+                    setFundRfOptimizerStatus('No hay duracion RF suficiente para tomarla como objetivo.', 'error');
+                    return;
+                }
+                input.value = current.toFixed(2);
+                setFundRfOptimizerStatus(`Duracion objetivo RF fijada en ${current.toFixed(2)}.`, 'info');
+            }
+
+            function setFundRfOptimizerStatus(message, type = 'info') {
+                const el = document.getElementById('fundRfOptimizerStatus');
+                if (!el) return;
+                const styles = {
+                    info: 'border-blue-200 bg-blue-50 text-blue-900',
+                    success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                    error: 'border-red-200 bg-red-50 text-red-900'
+                };
+                el.className = `mt-3 rounded border p-2 text-xs ${styles[type] || styles.info}`;
+                el.classList.remove('hidden');
+                el.innerText = message;
+            }
+
+            function fundRfDurationExtreme(rows, minWeight, maxWeight, maximize = false) {
+                const weights = rows.map(() => minWeight);
+                let remaining = 100 - rows.length * minWeight;
+                const order = rows
+                    .map((row, idx) => ({ idx, duration: row.result.duration }))
+                    .sort((a, b) => maximize ? b.duration - a.duration : a.duration - b.duration);
+                order.forEach(item => {
+                    if (remaining <= 1e-9) return;
+                    const add = Math.min(maxWeight - minWeight, remaining);
+                    weights[item.idx] += add;
+                    remaining -= add;
+                });
+                return weights.reduce((acc, w, idx) => acc + w * rows[idx].result.duration, 0) / 100;
+            }
+
+            function solveFundRfAllocation(rows, targetDuration, minWeight, maxWeight) {
+                if (!window.solver?.Solve) {
+                    throw new Error('No se ha cargado el motor de optimizacion lineal. Revisa la conexion al CDN o recarga la pagina.');
+                }
+                const remainingWeight = 100 - rows.length * minWeight;
+                const targetDurationResidual = targetDuration * 100 - rows.reduce((acc, row) => acc + minWeight * row.result.duration, 0);
+                const cap = maxWeight - minWeight;
+                const model = {
+                    optimize: 'ytm',
+                    opType: 'max',
+                    constraints: {
+                        sumWeight: { equal: remainingWeight },
+                        targetDuration: { equal: targetDurationResidual }
+                    },
+                    variables: {}
+                };
+                rows.forEach((row, idx) => {
+                    const capKey = `cap_${idx}`;
+                    const varKey = `rf_${idx}`;
+                    model.constraints[capKey] = { max: cap };
+                    model.variables[varKey] = {
+                        ytm: row.result.ytm,
+                        sumWeight: 1,
+                        targetDuration: row.result.duration,
+                        [capKey]: 1
+                    };
+                });
+                const solution = window.solver.Solve(model);
+                if (!solution?.feasible) {
+                    throw new Error('No existe una combinacion factible con las restricciones indicadas.');
+                }
+                const allocation = rows.map((row, idx) => {
+                    const extra = Number(solution[`rf_${idx}`] || 0);
+                    return Math.max(minWeight, Math.min(maxWeight, minWeight + extra));
+                });
+                const sum = allocation.reduce((acc, v) => acc + v, 0);
+                if (sum > 0 && Math.abs(sum - 100) > 0.0001) {
+                    const scale = 100 / sum;
+                    allocation.forEach((v, idx) => { allocation[idx] = v * scale; });
+                }
+                return allocation;
+            }
+
+            function optimizeFundRfYtm() {
+                const rows = fundRfOptimizerRows();
+                if (!rows.length) {
+                    setFundRfOptimizerStatus('No hay fondos clasificados como RF incluidos en el scoring.', 'error');
+                    return;
+                }
+                const missing = rows.filter(row => !Number.isFinite(row.result.ytm) || !Number.isFinite(row.result.duration));
+                if (missing.length) {
+                    const names = missing.slice(0, 4).map(row => row.record?.name || row.result.isin || 'RF sin nombre').join(', ');
+                    setFundRfOptimizerStatus(`Completa YTM y duracion de todos los fondos RF antes de optimizar. Faltan datos en: ${names}${missing.length > 4 ? '...' : ''}.`, 'error');
+                    return;
+                }
+                const minRaw = parseNumber(document.getElementById('fundRfMinWeight')?.value);
+                const maxRaw = parseNumber(document.getElementById('fundRfMaxWeight')?.value);
+                const minWeight = Number.isFinite(minRaw) ? Math.max(0, Math.min(100, minRaw)) : 0;
+                const maxWeight = Number.isFinite(maxRaw) ? Math.max(0, Math.min(100, maxRaw)) : 100;
+                if (maxWeight < minWeight) {
+                    setFundRfOptimizerStatus('El peso maximo RF debe ser mayor o igual que el peso minimo.', 'error');
+                    return;
+                }
+                if (rows.length * minWeight > 100 + 1e-9 || rows.length * maxWeight < 100 - 1e-9) {
+                    setFundRfOptimizerStatus(`Restricciones no factibles: con ${rows.length} fondos RF, min/max no permiten sumar 100% de la manga RF.`, 'error');
+                    return;
+                }
+                const targetInput = parseNumber(document.getElementById('fundRfTargetDuration')?.value);
+                const currentDuration = currentFundRfWeightedMetric('duration');
+                const targetDuration = Number.isFinite(targetInput) ? targetInput : currentDuration;
+                if (!Number.isFinite(targetDuration)) {
+                    setFundRfOptimizerStatus('Introduce una duracion objetivo RF o completa duraciones para calcular la actual.', 'error');
+                    return;
+                }
+                const minDuration = fundRfDurationExtreme(rows, minWeight, maxWeight, false);
+                const maxDuration = fundRfDurationExtreme(rows, minWeight, maxWeight, true);
+                if (targetDuration < minDuration - 1e-6 || targetDuration > maxDuration + 1e-6) {
+                    setFundRfOptimizerStatus(`Duracion objetivo no factible. Rango posible con min/max: ${minDuration.toFixed(2)} - ${maxDuration.toFixed(2)}.`, 'error');
+                    return;
+                }
+                try {
+                    const allocation = solveFundRfAllocation(rows, targetDuration, minWeight, maxWeight);
+                    const rfTotalWeight = rows.reduce((acc, row) => acc + Math.max(0, row.result.weight || 0), 0);
+                    rows.forEach((row, idx) => {
+                        row.result.weight = rfTotalWeight * allocation[idx] / 100;
+                    });
+                    syncFundPortfolioWeights();
+                    syncFundWeightInputs();
+                    renderFundScoringResults();
+                    const newYtm = currentFundRfWeightedMetric('ytm');
+                    const newDuration = currentFundRfWeightedMetric('duration');
+                    setFundRfOptimizerStatus(`Optimizacion aplicada. Peso RF total intacto: ${rfTotalWeight.toFixed(2)}%. YTM RF ${Number.isFinite(newYtm) ? newYtm.toFixed(2) + '%' : '-'} con duracion ${Number.isFinite(newDuration) ? newDuration.toFixed(2) : '-'}. Usa "Volver a pesos originales" para revertir.`, 'success');
+                } catch (error) {
+                    setFundRfOptimizerStatus(error?.message || 'No se pudo resolver la optimizacion RF.', 'error');
+                }
             }
 
             function updateFundScoringManualMetric(index, field, value) {
