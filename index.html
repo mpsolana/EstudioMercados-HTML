@@ -560,10 +560,10 @@
                                         <th onclick="sortMarketsPortfolioAssets('month')" class="px-3 py-2 cursor-pointer">Mes</th>
                                         <th onclick="sortMarketsPortfolioAssets('threeM')" class="px-3 py-2 cursor-pointer">3 Meses</th>
                                         <th onclick="sortMarketsPortfolioAssets('ytd')" class="px-3 py-2 bg-sky-50 cursor-pointer">YTD</th>
-                                        <th onclick="sortMarketsPortfolioAssets('oneY')" class="px-3 py-2 border-r cursor-pointer">1 Ano</th>
-                                        <th onclick="sortMarketsPortfolioAssets('threeY')" class="px-3 py-2 cursor-pointer">3 Anos</th>
-                                        <th onclick="sortMarketsPortfolioAssets('fiveY')" class="px-3 py-2 cursor-pointer">5 Anos</th>
-                                        <th onclick="sortMarketsPortfolioAssets('tenY')" class="px-3 py-2 border-r cursor-pointer">10 Anos</th>
+                                        <th onclick="sortMarketsPortfolioAssets('oneY')" class="px-3 py-2 border-r cursor-pointer">1 Año</th>
+                                        <th onclick="sortMarketsPortfolioAssets('threeY')" class="px-3 py-2 cursor-pointer">3 Años</th>
+                                        <th onclick="sortMarketsPortfolioAssets('fiveY')" class="px-3 py-2 cursor-pointer">5 Años</th>
+                                        <th onclick="sortMarketsPortfolioAssets('tenY')" class="px-3 py-2 border-r cursor-pointer">10 Años</th>
                                         <th onclick="sortMarketsPortfolioAssets('vol1')" class="px-3 py-2 bg-blue-50 cursor-pointer">Vol 1A</th>
                                         <th onclick="sortMarketsPortfolioAssets('vol3')" class="px-3 py-2 bg-blue-50 cursor-pointer">Vol 3A</th>
                                         <th onclick="sortMarketsPortfolioAssets('vol5')" class="px-3 py-2 bg-blue-50 border-r cursor-pointer">Vol 5A</th>
@@ -1135,13 +1135,13 @@
                         </div>
                     </div>
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                        <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-3">Rentabilidad y alfa por ano natural</h4>
+                        <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-3">Rentabilidad y alfa por año natural</h4>
                         <div class="overflow-x-auto">
                             <table class="min-w-full text-sm text-slate-600">
                                 <thead class="bg-slate-100 text-xs uppercase text-slate-500">
                                     <tr>
                                         <th class="px-3 py-2 text-left">Activo</th>
-                                        <th class="px-3 py-2 text-left">Ano</th>
+                                        <th class="px-3 py-2 text-left">Año</th>
                                         <th class="px-3 py-2 text-right">Activo</th>
                                         <th class="px-3 py-2 text-right">Bench</th>
                                         <th class="px-3 py-2 text-right">Alfa</th>
@@ -1212,12 +1212,12 @@
                         </div>
                     </div>
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                        <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-3">Rentabilidad por ano natural</h4>
+                        <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-3">Rentabilidad por año natural</h4>
                         <div class="overflow-x-auto">
                             <table class="min-w-full text-sm text-slate-600">
                                 <thead class="bg-slate-100 text-xs uppercase text-slate-500">
                                     <tr>
-                                        <th class="px-3 py-2 text-left">Ano</th>
+                                        <th class="px-3 py-2 text-left">Año</th>
                                         <th class="px-3 py-2 text-right">Activo</th>
                                         <th class="px-3 py-2 text-right">Bench</th>
                                         <th class="px-3 py-2 text-right">Alfa</th>
@@ -1236,18 +1236,54 @@
                             <button onclick="renderFundUniverseMetricComparison()" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-rotate mr-1"></i>Actualizar comparacion</button>
                         </div>
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
-                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo origen</label><input id="fundUniverseCompareOriginInput" list="fundUniverseCompareFundList" oninput="onFundUniverseCompareOriginChange()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm" placeholder="ISIN o nombre"></div>
-                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo comparacion</label><div class="flex gap-2 mt-1"><input id="fundUniverseCompareAddInput" list="fundUniverseCompareFundList" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Anadir ISIN/nombre"><button onclick="addFundUniverseComparisonFund()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold">Anadir</button></div></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo origen</label><input id="fundUniverseCompareOriginInput" onfocus="renderFundUniverseSearchPanel('origin')" oninput="renderFundUniverseSearchPanel('origin')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm" placeholder="ISIN o nombre"><div id="fundUniverseCompareOriginPanel" class="hidden absolute z-40 mt-1 w-[min(760px,90vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo comparacion</label><div class="flex gap-2 mt-1"><input id="fundUniverseCompareAddInput" onfocus="renderFundUniverseSearchPanel('add')" oninput="renderFundUniverseSearchPanel('add')" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Añadir ISIN/nombre"><button onclick="addFundUniverseComparisonFund()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold">Añadir</button></div><div id="fundUniverseCompareAddPanel" class="hidden absolute z-40 mt-1 w-[min(760px,90vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
                             <div><label class="text-xs uppercase font-bold text-slate-500">Fondo propuesto</label><select id="fundUniverseCompareProposedSelect" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"><option value="">Selecciona fondo origen</option></select></div>
                         </div>
                         <datalist id="fundUniverseCompareFundList"></datalist><div id="fundUniverseCompareChips" class="flex flex-wrap gap-2 mb-4"></div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                             <div><label class="text-xs uppercase font-bold text-slate-500">Eje X</label><select id="fundUniverseCompareXAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
                             <div><label class="text-xs uppercase font-bold text-slate-500">Eje Y</label><select id="fundUniverseCompareYAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
-                            <div><label class="text-xs uppercase font-bold text-slate-500">Tamano burbuja</label><select id="fundUniverseCompareZAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Tamaño burbuja</label><select id="fundUniverseCompareZAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
                         </div>
                         <div id="fundUniverseCompareStatus" class="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Carga primero el universo/ranking interno desde Scoring de Cartera.</div><div id="fundUniverseCompareChart" class="w-full h-[480px] border border-slate-100 rounded mb-4"></div>
                         <div class="overflow-x-auto border border-slate-100 rounded"><table class="min-w-[1100px] w-full text-xs text-slate-600"><thead id="fundUniverseCompareHead" class="bg-slate-100 text-[11px] uppercase text-slate-500"></thead><tbody id="fundUniverseCompareBody" class="divide-y divide-slate-100"></tbody></table></div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h4 class="font-bold text-slate-900 border-l-4 border-emerald-600 pl-3">Propuesta de mejora de cartera</h4>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Introduce ISIN y peso para proponer fondos con mayor scoring dentro de la misma categoría. Las sustituciones afectan solo al análisis y al informe de propuesta.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="analyzeFundProposalPortfolio()" class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Analizar propuesta</button>
+                                <button onclick="generateFundProposalReport()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold hover:bg-slate-900"><i class="fa-solid fa-file-lines mr-1"></i>Generar informe propuesta</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 xl:grid-cols-[minmax(280px,420px)_1fr] gap-4">
+                            <div>
+                                <label class="text-xs uppercase font-bold text-slate-500">Cartera actual (ISIN, peso)</label>
+                                <textarea id="fundProposalPortfolioInput" class="mt-1 w-full h-40 p-3 border border-slate-300 rounded text-xs font-mono" placeholder="LU0133091248, 15&#10;ES0170156022, 20"></textarea>
+                                <p class="text-[11px] text-slate-400 mt-2">Acepta coma, punto y coma o tabulador. Los pesos se normalizan a 100.</p>
+                            </div>
+                            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Score actual</div><div id="proposalCurrentScore" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
+                                <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Score propuesto</div><div id="proposalNewScore" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
+                                <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">TER actual</div><div id="proposalCurrentTer" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
+                                <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">TER propuesto</div><div id="proposalNewTer" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
+                            </div>
+                        </div>
+                        <div id="fundProposalStatus" class="my-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Carga universo/ranking e introduce una cartera para iniciar el análisis.</div>
+                        <div class="overflow-x-auto border border-slate-100 rounded mb-4">
+                            <table class="min-w-[1200px] w-full text-xs text-slate-600">
+                                <thead class="bg-slate-100 text-[11px] uppercase text-slate-500">
+                                    <tr><th class="px-3 py-2 text-left">ISIN actual</th><th class="px-3 py-2 text-left">Fondo actual</th><th class="px-3 py-2 text-left">Categoría</th><th class="px-3 py-2 text-right">Peso</th><th class="px-3 py-2 text-right">Score</th><th class="px-3 py-2 text-right">TER</th><th class="px-3 py-2 text-left">Fondo propuesto</th><th class="px-3 py-2 text-right">Score prop.</th><th class="px-3 py-2 text-right">TER prop.</th><th class="px-3 py-2 text-left">Acción</th></tr>
+                                </thead>
+                                <tbody id="fundProposalTableBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div id="fundProposalChart" class="w-full h-[460px] border border-slate-100 rounded mb-4"></div>
+                        <div id="fundProposalReportPreview" class="hidden rounded border border-slate-200 bg-white p-4 text-sm text-slate-700"></div>
                     </div>
                 </div>
 
@@ -1288,11 +1324,51 @@
                                 <select id="fundScreenerYAxis" onchange="renderFundScreenerChart()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select>
                             </div>
                             <div>
-                                <label class="text-xs uppercase font-bold text-slate-500">Tamano burbuja</label>
+                                <label class="text-xs uppercase font-bold text-slate-500">Tamaño burbuja</label>
                                 <select id="fundScreenerZAxis" onchange="renderFundScreenerChart()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select>
                             </div>
                         </div>
                         <div id="fundScreenerScatter" class="w-full h-[520px] border border-slate-100 rounded"></div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="font-bold text-slate-900 border-l-4 border-emerald-700 pl-3">Screener asset class</h3>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Carga el Excel de análisis por asset class para filtrar métricas medias, mínimos y máximos por categoría.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <label class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800 cursor-pointer">
+                                    <i class="fa-solid fa-file-excel mr-1"></i>Subir asset class
+                                    <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importAssetClassScreenerFile(this.files[0])">
+                                </label>
+                                <button onclick="renderAssetClassScreener()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50">Actualizar</button>
+                                <button onclick="clearAssetClassScreenerFilters()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50">Limpiar filtros</button>
+                            </div>
+                        </div>
+                        <div id="assetClassScreenerStatus" class="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Sube el Excel AnalisisAssetClass para activar el screener.</div>
+                        <div class="overflow-x-auto border border-slate-100 rounded">
+                            <table class="min-w-[1700px] w-full text-xs text-slate-600">
+                                <thead id="assetClassScreenerHead" class="bg-slate-100 text-[11px] uppercase text-slate-500"></thead>
+                                <tbody id="assetClassScreenerBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                                <div><label class="text-xs uppercase font-bold text-slate-500">Eje X</label><select id="assetClassScreenerXAxis" onchange="renderAssetClassScreenerCharts()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                                <div><label class="text-xs uppercase font-bold text-slate-500">Eje Y</label><select id="assetClassScreenerYAxis" onchange="renderAssetClassScreenerCharts()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                                <div><label class="text-xs uppercase font-bold text-slate-500">Tamaño burbuja</label><select id="assetClassScreenerZAxis" onchange="renderAssetClassScreenerCharts()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                            </div>
+                            <div id="assetClassScreenerScatter" class="w-full h-[470px] border border-slate-100 rounded"></div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                            <div class="mb-4">
+                                <label class="text-xs uppercase font-bold text-slate-500">Categoría</label>
+                                <select id="assetClassReturnCategory" onchange="renderAssetClassScreenerCharts()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select>
+                            </div>
+                            <div id="assetClassReturnRangeChart" class="w-full h-[470px] border border-slate-100 rounded"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -1440,6 +1516,8 @@
             let fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
             let fundScreenerState = { sortKey: 'score', sortDir: 'desc', initialized: false, limit: 300 };
             let fundUniverseCompareState = { comparisons: [] };
+            let assetClassScreenerState = { records: [], fileName: '', sortKey: 'funds', sortDir: 'desc', initialized: false, limit: 300 };
+            let fundProposalState = { rows: [], reportHtml: '' };
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
             let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), universeToken: new Map(), approvedToken: new Map(), approvedUniverse: new Map() };
@@ -1810,7 +1888,7 @@
                     active.classList.add('text-blue-700', 'border-blue-700');
                 }
                 if (tabName === 'scoring') syncFundScoringPortfolioFromLoadedPortfolio();
-                if (tabName === 'screener') renderFundUniverseScreener();
+                if (tabName === 'screener') { renderFundUniverseScreener(); renderAssetClassScreener(); }
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
             }
 
@@ -2173,6 +2251,14 @@
                 return out;
             }
 
+            function normalizeAssetClassKey(value) {
+                return normalizeHeaderLabel(value)
+                    .replace(/\brenta\s+fija\b/g, 'fixed income')
+                    .replace(/\brenta\s+variable\b/g, 'equity')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
             function applyBenchmarkCategoryMetadata(benchmarks, categories) {
                 Object.entries(benchmarks || {}).forEach(([key, bench]) => {
                     const meta = categories?.[key] || categories?.[String(key).toLowerCase()];
@@ -2196,7 +2282,10 @@
 
             function benchCategoryMeta(key) {
                 const map = loadedPortfolio?.benchCategories || {};
-                return map[key] || map[String(key || '').toLowerCase()] || null;
+                const direct = map[key] || map[String(key || '').toLowerCase()];
+                if (direct) return direct;
+                const wanted = normalizeHeaderLabel(key);
+                return Object.entries(map).find(([k]) => normalizeHeaderLabel(k) === wanted)?.[1] || null;
             }
 
             function populateFundComparisonControls() {
@@ -2283,10 +2372,19 @@
                     ['massiveFundComparePeriodBody', 'massiveFundCompareAnnualBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
                     return;
                 }
-                const assets = Object.values(loadedPortfolio?.priceSeries || {})
-                    .filter(s => String(s.assetClass || '').toLowerCase().trim() === category.toLowerCase());
+                const categoryKey = normalizeAssetClassKey(category);
+                const priceSeries = loadedPortfolio?.priceSeries || {};
+                const entries = loadedPortfolio?.entries || [];
+                const entryClassByTicker = new Map(entries.map(e => [String(e.ticker || '').toUpperCase(), e.assetClass || e.asset_class || '']));
+                const candidates = Object.entries(priceSeries).map(([key, series]) => ({
+                    ...series,
+                    key,
+                    assetClass: series.assetClass || entryClassByTicker.get(String(key).toUpperCase()) || ''
+                }));
+                const assets = candidates.filter(s => normalizeAssetClassKey(s.assetClass) === categoryKey);
                 if (!assets.length) {
-                    if (notice) notice.textContent = `No hay activos en prices/weights con asset_class "${category}".`;
+                    const available = [...new Set(candidates.map(s => s.assetClass).filter(Boolean))].slice(0, 8).join(', ');
+                    if (notice) notice.textContent = `No hay activos en prices/weights con asset_class "${category}". Categorias disponibles: ${available || 'ninguna'}.`;
                     Plotly.purge('massiveFundCompareChart');
                     ['massiveFundComparePeriodBody', 'massiveFundCompareAnnualBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
                     return;
@@ -2314,7 +2412,8 @@
                     plot_bgcolor: '#ffffff',
                     paper_bgcolor: '#ffffff'
                 }, { responsive: true });
-                if (notice) notice.textContent = `Benchmark ${bench.label}. Categoria ${category}. Activos comparados: ${assets.length}.`;
+                const missingDates = assets.filter(asset => alignedSeriesRows(asset.data, bench.data, massiveFundCompareRange).length < 2).length;
+                if (notice) notice.textContent = `Benchmark ${bench.label}. Categoría ${category}. Activos comparados: ${assets.length}${missingDates ? `; ${missingDates} sin fechas comunes suficientes en el horizonte.` : ''}.`;
                 renderMassiveFundComparisonTables(assets, bench);
             }
 
@@ -2525,8 +2624,11 @@
                         ['Information ratio', Number.isFinite(infoRatio) ? infoRatio.toFixed(2) : '-'],
                         ['Max drawdown activo', fmtPct(assetDD)],
                         ['Max drawdown bench', fmtPct(benchDD)],
-                        ['% Time Underwater activo', fmtPct(assetQuality.timeUnderwater)],
-                        ['% Time Underwater bench', fmtPct(benchQuality.timeUnderwater)]
+                        ['% Time Underwater técnico activo', fmtPct(assetQuality.timeUnderwater)],
+                        ['% Time Underwater >2% activo', fmtPct(assetQuality.material2)],
+                        ['Drawdown medio bajo agua activo', fmtPct(assetQuality.averageUnderwaterDrawdown)],
+                        ['% Time Underwater técnico bench', fmtPct(benchQuality.timeUnderwater)],
+                        ['% Time Underwater >2% bench', fmtPct(benchQuality.material2)]
                     ];
                     metricsBody.innerHTML = metrics.map(([label, value]) => `<tr><td class="px-3 py-2 font-bold text-slate-700">${label}</td><td class="px-3 py-2 text-right">${value}</td></tr>`).join('');
                 }
@@ -2555,11 +2657,95 @@
                 const first = normalizeIsin(text.split('|')[0]);
                 if (first && fundUniverseState.isinIndex?.has(first)) return fundUniverseState.isinIndex.get(first);
                 const q = normalizeHeaderLabel(text);
-                return fundUniverseState.records.find(r => normalizeHeaderLabel((r.isin || '') + ' ' + (r.name || '') + ' ' + (r.category || '')).includes(q)) || null;
+                const exact = fundUniverseState.records.find(r => normalizeHeaderLabel(r.isin || '') === q || normalizeHeaderLabel(r.name || '') === q);
+                if (exact) return exact;
+                return fundUniverseState.records.find(r => normalizeHeaderLabel((r.isin || '') + ' ' + (r.name || '') + ' ' + (r.manager || '') + ' ' + (r.category || '')).includes(q)) || null;
             }
 
             function fundUniverseRecordOption(record) {
                 return record.isin + ' | ' + record.name + ' | Score ' + fmtScore(record.score) + ' | TER ' + fmtPercentPoint(record.ter);
+            }
+
+            function searchFundUniverseRecords(query, limit = 40, category = '') {
+                if (!fundUniverseState?.records?.length) return [];
+                const q = normalizeHeaderLabel(query);
+                const catKey = normalizeHeaderLabel(category);
+                return fundUniverseState.records
+                    .filter(r => !catKey || normalizeHeaderLabel(r.category || '') === catKey)
+                    .map(r => {
+                        const hay = normalizeHeaderLabel(`${r.isin || ''} ${r.name || ''} ${r.manager || ''} ${r.category || ''}`);
+                        const isinHit = normalizeIsin(query) && String(r.isin || '').includes(normalizeIsin(query));
+                        const score = !q ? 1 : (isinHit ? 4 : hay.includes(q) ? 3 : tokenSimilarity(query, `${r.name || ''} ${r.manager || ''} ${r.category || ''}`));
+                        return { record: r, searchScore: score };
+                    })
+                    .filter(x => !q || x.searchScore > 0.35)
+                    .sort((a, b) => (b.searchScore - a.searchScore) || ((b.record.score || -Infinity) - (a.record.score || -Infinity)) || ((a.record.ter || Infinity) - (b.record.ter || Infinity)))
+                    .slice(0, limit)
+                    .map(x => x.record);
+            }
+
+            function fundSearchResultRow(record, onclick) {
+                return `<button type="button" onclick="${onclick}" class="grid w-full grid-cols-[120px_minmax(260px,1fr)_minmax(180px,260px)_70px_80px] gap-2 px-3 py-2 text-left hover:bg-blue-50 border-b border-slate-100 last:border-0">
+                    <span class="font-mono font-bold text-slate-700">${escapeHtml(record.isin || '-')}</span>
+                    <span><b class="text-slate-900">${escapeHtml(record.name || '-')}</b><br><span class="text-slate-400">${escapeHtml(record.manager || '-')}</span></span>
+                    <span class="text-slate-600">${escapeHtml(record.category || '-')}</span>
+                    <span class="text-right font-bold text-blue-800">${fmtScore(record.score)}</span>
+                    <span class="text-right font-bold text-slate-700">${fmtPercentPoint(record.ter)}</span>
+                </button>`;
+            }
+
+            function renderFundUniverseSearchPanel(kind) {
+                const inputId = kind === 'origin' ? 'fundUniverseCompareOriginInput' : 'fundUniverseCompareAddInput';
+                const panelId = kind === 'origin' ? 'fundUniverseCompareOriginPanel' : 'fundUniverseCompareAddPanel';
+                const input = document.getElementById(inputId);
+                const panel = document.getElementById(panelId);
+                if (!input || !panel) return;
+                const rows = searchFundUniverseRecords(input.value, 35);
+                panel.classList.toggle('hidden', !rows.length);
+                panel.innerHTML = rows.length ? rows.map(r => fundSearchResultRow(r, `selectFundUniverseSearchResult('${kind}','${escapeHtml(r.isin)}')`)).join('') : '';
+            }
+
+            function selectFundUniverseSearchResult(kind, isin) {
+                const record = fundUniverseState?.isinIndex?.get(normalizeIsin(isin));
+                if (!record) return;
+                const input = document.getElementById(kind === 'origin' ? 'fundUniverseCompareOriginInput' : 'fundUniverseCompareAddInput');
+                const panel = document.getElementById(kind === 'origin' ? 'fundUniverseCompareOriginPanel' : 'fundUniverseCompareAddPanel');
+                if (input) input.value = fundUniverseRecordOption(record);
+                if (panel) panel.classList.add('hidden');
+                if (kind === 'origin') onFundUniverseCompareOriginChange();
+                else addFundUniverseComparisonFund();
+            }
+
+            function filterOptionPanel(input, panelId) {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                const q = normalizeHeaderLabel(input?.value || '');
+                panel.querySelectorAll('[data-option-search]').forEach(row => {
+                    row.classList.toggle('hidden', q && !normalizeHeaderLabel(row.getAttribute('data-option-search')).includes(q));
+                });
+            }
+
+            function wideFundOptionPanel(items, selectCall, placeholder, maxRows = 250) {
+                if (!items?.length) return '<div class="text-xs text-slate-400">Sin alternativas mejores</div>';
+                const panelId = `fundWidePanel-${Math.random().toString(36).slice(2)}`;
+                const rows = items.slice(0, maxRows).map(item => {
+                    const rec = item.universe || item;
+                    const source = item.source ? `<span class="ml-1 rounded bg-slate-100 px-1 text-[10px] uppercase text-slate-500">${escapeHtml(item.source)}</span>` : '';
+                    const search = `${rec.isin || ''} ${rec.name || ''} ${rec.manager || ''} ${rec.category || ''}`;
+                    return `<button type="button" data-option-search="${escapeHtml(search)}" onclick="${selectCall(rec.isin)}" class="grid w-full grid-cols-[105px_minmax(230px,1fr)_minmax(150px,230px)_60px_70px] gap-2 px-2 py-2 text-left hover:bg-blue-50 border-b border-slate-100 last:border-0">
+                        <span class="font-mono font-bold">${escapeHtml(rec.isin || '-')}</span>
+                        <span>${escapeHtml(rec.name || '-')} ${source}</span>
+                        <span>${escapeHtml(rec.category || '-')}</span>
+                        <span class="text-right font-bold text-blue-800">${fmtScore(rec.score)}</span>
+                        <span class="text-right font-bold">${fmtPercentPoint(rec.ter)}</span>
+                    </button>`;
+                }).join('');
+                return `<div class="rounded border border-slate-200 bg-white">
+                    <input oninput="filterOptionPanel(this, '${panelId}')" class="w-full border-b border-slate-200 p-2 text-xs" placeholder="${escapeHtml(placeholder)}">
+                    <div class="grid grid-cols-[105px_minmax(230px,1fr)_minmax(150px,230px)_60px_70px] gap-2 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase text-slate-500"><span>ISIN</span><span>Nombre</span><span>Categoría</span><span class="text-right">Score</span><span class="text-right">TER</span></div>
+                    <div id="${panelId}" class="max-h-64 min-w-[620px] overflow-auto">${rows}</div>
+                    ${items.length > maxRows ? `<div class="px-2 py-1 text-[11px] text-slate-400">Mostrando ${maxRows} de ${items.length}. Usa el buscador para acotar.</div>` : ''}
+                </div>`;
             }
 
             function populateFundUniverseCompareControls() {
@@ -2581,7 +2767,8 @@
                 const origin = resolveFundUniverseInput(document.getElementById('fundUniverseCompareOriginInput')?.value);
                 if (!origin) { select.innerHTML = '<option value="">Selecciona fondo origen</option>'; return; }
                 const current = reset ? '' : select.value;
-                const candidates = (fundUniverseState.records || []).filter(r => r.category === origin.category && r.isin !== origin.isin).sort((a, b) => ((Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity)) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity))).slice(0, 500);
+                const originScore = Number.isFinite(origin.score) ? origin.score : -Infinity;
+                const candidates = (fundUniverseState.records || []).filter(r => r.category === origin.category && r.isin !== origin.isin && Number.isFinite(r.score) && r.score > originScore).sort((a, b) => ((Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity)) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity))).slice(0, 500);
                 select.innerHTML = candidates.length ? candidates.map(r => '<option value="' + escapeHtml(r.isin) + '">' + escapeHtml(r.isin + ' - ' + r.name + ' (Score ' + fmtScore(r.score) + ', TER ' + fmtPercentPoint(r.ter) + ')') + '</option>').join('') : '<option value="">Sin candidatos en la categoria</option>';
                 if (candidates.some(r => r.isin === current)) select.value = current;
             }
@@ -2660,8 +2847,138 @@
                 const selected = [origin].concat(comparisons || []).concat(proposed ? [proposed] : []).filter(Boolean);
                 const traces = [{ x: categoryRecords.map(r => r[xKey]), y: categoryRecords.map(r => r[yKey]), mode: 'markers', type: 'scatter', name: 'Universo categoria', text: categoryRecords.map(r => r.name + '<br>' + r.isin), marker: { size: categoryRecords.map(sizeFor), color: '#cbd5e1', opacity: 0.35, line: { color: '#94a3b8', width: 0.3 } }, hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' }, { x: [avg(xKey)], y: [avg(yKey)], mode: 'markers+text', type: 'scatter', name: 'Media categoria', text: ['Media categoria'], textposition: 'top center', marker: { size: 16, color: '#111827', symbol: 'diamond' } }];
                 const colors = ['#2563eb', '#64748b', '#94a3b8', '#0f766e', '#7c3aed', '#dc2626'];
-                selected.forEach((r, idx) => { if (!Number.isFinite(r[xKey]) || !Number.isFinite(r[yKey])) return; const role = idx === 0 ? 'Origen' : (proposed && r.isin === proposed.isin ? 'Propuesto' : 'Comparacion'); traces.push({ x: [r[xKey]], y: [r[yKey]], mode: 'markers+text', type: 'scatter', name: role, text: [role], textposition: 'top center', marker: { size: Math.max(16, sizeFor(r)), color: colors[idx % colors.length], line: { color: '#0f172a', width: 1.2 } }, hovertemplate: '<b>' + escapeHtml(r.name) + '</b><br>' + escapeHtml(r.isin) + '<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' }); });
+                selected.forEach((r, idx) => {
+                    if (!Number.isFinite(r[xKey]) || !Number.isFinite(r[yKey])) return;
+                    const isProposed = proposed && r.isin === proposed.isin;
+                    const role = idx === 0 ? 'Origen' : (isProposed ? 'Propuesto' : `Comparación ${idx}`);
+                    traces.push({ x: [r[xKey]], y: [r[yKey]], mode: 'markers+text', type: 'scatter', name: `${role}: ${r.isin}`, text: [role], textposition: 'top center', marker: { size: Math.max(16, sizeFor(r)), color: colors[idx % colors.length], line: { color: '#0f172a', width: 1.2 } }, hovertemplate: '<b>' + escapeHtml(r.name) + '</b><br>' + escapeHtml(r.isin) + '<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' });
+                });
                 Plotly.newPlot(el, traces, { title: 'Universo ' + (origin.category || ''), xaxis: { title: metricLabel(xKey), zeroline: false }, yaxis: { title: metricLabel(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff' }, { responsive: true });
+            }
+
+            function parseFundProposalInput(text) {
+                const rows = [];
+                String(text || '').split(/\r?\n/).forEach(line => {
+                    const parts = line.split(/[;\t,]/).map(x => x.trim()).filter(Boolean);
+                    if (!parts.length) return;
+                    const isin = normalizeIsin(parts[0]);
+                    const weight = parseFundWeight(parts[1]);
+                    if (isLikelyIsin(isin) && Number.isFinite(weight) && weight > 0) rows.push({ isin, weight });
+                });
+                const total = rows.reduce((acc, r) => acc + r.weight, 0);
+                if (total > 0) rows.forEach(r => r.weight = r.weight / total * 100);
+                return rows;
+            }
+
+            function analyzeFundProposalPortfolio() {
+                const status = document.getElementById('fundProposalStatus');
+                if (!fundUniverseState?.records?.length) { if (status) status.innerText = 'Carga primero el universo/ranking interno.'; return; }
+                const parsed = parseFundProposalInput(document.getElementById('fundProposalPortfolioInput')?.value || '');
+                if (!parsed.length) { if (status) status.innerText = 'Introduce al menos un ISIN con peso.'; return; }
+                fundProposalState.rows = parsed.map(row => {
+                    const current = fundUniverseState.isinIndex.get(row.isin) || searchFundUniverseRecords(row.isin, 1)[0] || null;
+                    const recs = current ? getBetterFundRecommendations(current, 5000) : [];
+                    const proposed = recs[0] || current;
+                    return { ...row, current, proposed, recommendations: recs, missing: !current };
+                });
+                fundProposalState.reportHtml = '';
+                renderFundProposalPortfolio();
+            }
+
+            function setFundProposalRecommendation(index, isin) {
+                const row = fundProposalState.rows[index];
+                if (!row) return;
+                row.proposed = isin === '__original__' ? row.current : fundUniverseState.isinIndex.get(normalizeIsin(isin)) || row.proposed;
+                renderFundProposalPortfolio();
+            }
+
+            function fundProposalWeighted(metric, side = 'current') {
+                const rows = fundProposalState.rows || [];
+                const valid = rows.filter(r => r[side] && Number.isFinite(r[side][metric]) && Number.isFinite(r.weight));
+                const total = valid.reduce((acc, r) => acc + r.weight, 0);
+                return total > 0 ? valid.reduce((acc, r) => acc + r[side][metric] * r.weight, 0) / total : NaN;
+            }
+
+            function renderFundProposalPortfolio() {
+                const body = document.getElementById('fundProposalTableBody');
+                const status = document.getElementById('fundProposalStatus');
+                if (!body) return;
+                const rows = fundProposalState.rows || [];
+                const currentScore = fundProposalWeighted('score', 'current');
+                const newScore = fundProposalWeighted('score', 'proposed');
+                const currentTer = fundProposalWeighted('ter', 'current');
+                const newTer = fundProposalWeighted('ter', 'proposed');
+                setText('proposalCurrentScore', fmtScore(currentScore));
+                setText('proposalNewScore', fmtScore(newScore));
+                setText('proposalCurrentTer', fmtPercentPoint(currentTer));
+                setText('proposalNewTer', fmtPercentPoint(newTer));
+                if (status) {
+                    const missing = rows.filter(r => r.missing).length;
+                    const improved = rows.filter(r => r.current && r.proposed && r.current.isin !== r.proposed.isin).length;
+                    status.innerText = `${rows.length} fondos analizados · ${improved} propuestas aplicadas · ${missing} sin match.`;
+                }
+                body.innerHTML = rows.length ? rows.map((row, idx) => {
+                    const current = row.current;
+                    const proposed = row.proposed;
+                    const options = [`<option value="__original__">Mantener actual</option>`].concat((row.recommendations || []).slice(0, 300).map(r => `<option value="${escapeHtml(r.isin)}" ${proposed?.isin === r.isin ? 'selected' : ''}>${escapeHtml(r.isin)} - ${escapeHtml(r.name)} (Score ${fmtScore(r.score)}, TER ${fmtPercentPoint(r.ter)})</option>`)).join('');
+                    return `<tr class="${proposed && current && proposed.isin !== current.isin ? 'bg-emerald-50' : ''}">
+                        <td class="px-3 py-2 font-mono">${escapeHtml(row.isin)}</td>
+                        <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)}</b>` : '<span class="text-red-600 font-bold">Sin match</span>'}</td>
+                        <td class="px-3 py-2">${escapeHtml(current?.category || '-')}</td>
+                        <td class="px-3 py-2 text-right font-bold">${row.weight.toFixed(2)}%</td>
+                        <td class="px-3 py-2 text-right">${fmtScore(current?.score)}</td>
+                        <td class="px-3 py-2 text-right">${fmtPercentPoint(current?.ter)}</td>
+                        <td class="px-3 py-2">${proposed ? `${escapeHtml(proposed.name)}<br><span class="font-mono text-[11px] text-slate-400">${escapeHtml(proposed.isin)}</span>` : '-'}</td>
+                        <td class="px-3 py-2 text-right font-bold text-emerald-800">${fmtScore(proposed?.score)}</td>
+                        <td class="px-3 py-2 text-right">${fmtPercentPoint(proposed?.ter)}</td>
+                        <td class="px-3 py-2"><select onchange="setFundProposalRecommendation(${idx}, this.value)" class="w-80 max-w-full rounded border border-slate-300 bg-white p-1 text-xs">${options}</select></td>
+                    </tr>`;
+                }).join('') : '<tr><td colspan="10" class="px-3 py-6 text-center text-slate-400">Introduce una cartera para analizar.</td></tr>';
+                renderFundProposalChart();
+            }
+
+            function renderFundProposalChart() {
+                const el = document.getElementById('fundProposalChart');
+                if (!el || !window.Plotly) return;
+                const pairs = (fundProposalState.rows || []).filter(r => r.current && r.proposed);
+                if (!pairs.length) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin propuestas para graficar.</div>'; return; }
+                const traces = [];
+                const seenCats = new Set();
+                pairs.forEach(pair => {
+                    const cat = pair.current.category || pair.proposed.category || '';
+                    if (!cat || seenCats.has(cat)) return;
+                    seenCats.add(cat);
+                    const universe = (fundUniverseState.records || []).filter(r => r.category === cat && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
+                    traces.push({ x: universe.map(r => r.ret5), y: universe.map(r => r.risk5), mode: 'markers', type: 'scatter', name: `Universo ${cat}`, text: universe.map(r => r.name), marker: { color: '#cbd5e1', size: 7, opacity: 0.28 }, hovertemplate: '<b>%{text}</b><br>Ret 5Y %{x:.2f}%<br>Risk 5Y %{y:.2f}%<extra></extra>' });
+                    const avgRet = getMean(universe.map(r => r.ret5).filter(Number.isFinite));
+                    const avgRisk = getMean(universe.map(r => r.risk5).filter(Number.isFinite));
+                    traces.push({ x: [avgRet], y: [avgRisk], mode: 'markers+text', type: 'scatter', name: `Media ${cat}`, text: ['Media categoría'], textposition: 'top center', marker: { color: '#111827', symbol: 'diamond', size: 14 } });
+                });
+                traces.push({ x: pairs.map(r => r.current.ret5), y: pairs.map(r => r.current.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos actuales', text: pairs.map(r => r.current.name), textposition: 'top center', marker: { color: '#2563eb', size: pairs.map(r => Math.max(12, Math.min(32, 8 + (r.current.ter || 0) * 8))), line: { color: '#0f172a', width: 1 } } });
+                traces.push({ x: pairs.map(r => r.proposed.ret5), y: pairs.map(r => r.proposed.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos propuestos', text: pairs.map(r => r.proposed.name), textposition: 'bottom center', marker: { color: '#16a34a', size: pairs.map(r => Math.max(12, Math.min(32, 8 + (r.proposed.ter || 0) * 8))), line: { color: '#064e3b', width: 1 } } });
+                Plotly.newPlot(el, traces, { title: 'Propuesta: Retorno 5Y vs Riesgo 5Y (tamaño = TER)', xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 55, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
+            }
+
+            function generateFundProposalReport() {
+                if (!fundProposalState.rows?.length) analyzeFundProposalPortfolio();
+                const preview = document.getElementById('fundProposalReportPreview');
+                if (!preview || !fundProposalState.rows?.length) return;
+                const rows = fundProposalState.rows.map(row => `<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td>${row.weight.toFixed(2)}%</td><td>${fmtScore(row.current?.score)}</td><td>${fmtScore(row.proposed?.score)}</td><td>${fmtPercentPoint(row.current?.ter)}</td><td>${fmtPercentPoint(row.proposed?.ter)}</td></tr>`).join('');
+                const html = `<div class="space-y-4">
+                    <h3 class="text-xl font-black text-slate-900">Informe propuesta de fondos</h3>
+                    <p><b>Descripción:</b> compara la cartera actual contra una propuesta de fondos con mayor scoring dentro de la misma categoría, manteniendo los pesos introducidos.</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="rounded border p-3"><b>Score actual</b><br>${fmtScore(fundProposalWeighted('score', 'current'))}</div>
+                        <div class="rounded border p-3"><b>Score propuesto</b><br>${fmtScore(fundProposalWeighted('score', 'proposed'))}</div>
+                        <div class="rounded border p-3"><b>TER actual</b><br>${fmtPercentPoint(fundProposalWeighted('ter', 'current'))}</div>
+                        <div class="rounded border p-3"><b>TER propuesto</b><br>${fmtPercentPoint(fundProposalWeighted('ter', 'proposed'))}</div>
+                    </div>
+                    <table class="w-full text-xs border"><thead class="bg-slate-100"><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${rows}</tbody></table>
+                    <p class="text-xs text-slate-500"><b>Metodología:</b> score y TER ponderan por los pesos normalizados introducidos. Las propuestas se filtran por misma categoría y score superior al fondo origen.</p>
+                </div>`;
+                fundProposalState.reportHtml = html;
+                preview.innerHTML = html;
+                preview.classList.remove('hidden');
             }
             function sheetRowsFromHeader(workbook, sheetName, headerRowNumber = 1) {
                 const sheet = workbook.Sheets[sheetName];
@@ -3173,12 +3490,13 @@
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Carga primero el universo para ver la nube de puntos.</div>';
                     return;
                 }
-                ensureFundScreenerControls();
+                const filteredRows = records || filteredFundScreenerRecords();
+                ensureFundScreenerControls(filteredRows);
                 const category = document.getElementById('fundScreenerChartCategory')?.value || '';
                 const xKey = document.getElementById('fundScreenerXAxis')?.value || 'ret3';
                 const yKey = document.getElementById('fundScreenerYAxis')?.value || 'risk3';
                 const zKey = document.getElementById('fundScreenerZAxis')?.value || 'aum';
-                const source = (records || filteredFundScreenerRecords()).filter(r => (!category || r.category === category) && Number.isFinite(r[xKey]) && Number.isFinite(r[yKey]));
+                const source = filteredRows.filter(r => (!category || r.category === category) && Number.isFinite(r[xKey]) && Number.isFinite(r[yKey]));
                 if (!source.length) {
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin fondos con datos suficientes para los ejes seleccionados.</div>';
                     return;
@@ -3195,7 +3513,7 @@
                     text: source.map(r => `${r.name}<br>${r.isin}<br>${r.category}`),
                     customdata: source.map(r => [r.score, r.ter, r[zKey]]),
                     marker: { size: sizes, color: source.map(r => Number.isFinite(r.score) ? r.score : 0), colorscale: 'Blues', showscale: true, colorbar: { title: 'Score' }, opacity: 0.72, line: { color: '#0f172a', width: 0.4 } },
-                    hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<br>Score: %{customdata[0]:.2f}<br>TER: %{customdata[1]:.2f}%<br>Tamano: %{customdata[2]:.2f}<extra></extra>'
+                    hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<br>Score: %{customdata[0]:.2f}<br>TER: %{customdata[1]:.2f}%<br>Tamaño: %{customdata[2]:.2f}<extra></extra>'
                 }], {
                     title: `Screener fondos${category ? ' - ' + category : ''}`,
                     xaxis: { title: metricLabel(xKey), zeroline: false },
@@ -3204,6 +3522,224 @@
                     plot_bgcolor: '#ffffff',
                     paper_bgcolor: '#ffffff'
                 }, { responsive: true });
+            }
+
+            function assetClassScreenerColumns() {
+                return [
+                    { key: 'assetClass', label: 'Asset Class', type: 'text', width: '260px' },
+                    { key: 'funds', label: 'Nº Fondos', type: 'num' },
+                    { key: 'terMean', label: 'TER media', type: 'num', pct: true },
+                    { key: 'aumMean', label: 'AUM media', type: 'num' },
+                    { key: 'ret1Mean', label: 'Ret 1Y media', type: 'num', pct: true },
+                    { key: 'ret3Mean', label: 'Ret 3Y media', type: 'num', pct: true },
+                    { key: 'ret5Mean', label: 'Ret 5Y media', type: 'num', pct: true },
+                    { key: 'ret10Mean', label: 'Ret 10Y media', type: 'num', pct: true },
+                    { key: 'risk1Mean', label: 'Risk 1Y media', type: 'num', pct: true },
+                    { key: 'risk3Mean', label: 'Risk 3Y media', type: 'num', pct: true },
+                    { key: 'risk5Mean', label: 'Risk 5Y media', type: 'num', pct: true },
+                    { key: 'risk10Mean', label: 'Risk 10Y media', type: 'num', pct: true },
+                    { key: 'dd1Mean', label: 'MD 1Y media', type: 'num', pct: true },
+                    { key: 'dd3Mean', label: 'MD 3Y media', type: 'num', pct: true },
+                    { key: 'dd5Mean', label: 'MD 5Y media', type: 'num', pct: true },
+                    { key: 'dd10Mean', label: 'MD 10Y media', type: 'num', pct: true },
+                    { key: 'mrar5Mean', label: 'MRAR 5 media', type: 'num' },
+                    { key: 'mrar10Mean', label: 'MRAR 10 media', type: 'num' }
+                ];
+            }
+
+            function assetClassMetricConfigs() {
+                return assetClassScreenerColumns().filter(c => c.type === 'num');
+            }
+
+            function assetClassRawRows(workbook, sheetName) {
+                const sheet = workbook.Sheets[sheetName];
+                if (!sheet) return [];
+                const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false });
+                const headerIndex = aoa.findIndex(row => (row || []).some(cell => normalizeHeaderLabel(cell) === 'asset class'));
+                if (headerIndex < 0) return [];
+                const headers = (aoa[headerIndex] || []).map(h => String(h || '').trim());
+                return aoa.slice(headerIndex + 1).map(row => {
+                    const obj = {};
+                    headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
+                    return obj;
+                }).filter(row => String(row['Asset Class'] || '').trim());
+            }
+
+            function parseAssetClassMetric(row, header, percentLike = false) {
+                const key = Object.keys(row || {}).find(k => normalizeHeaderLabel(k) === normalizeHeaderLabel(header));
+                const value = parseRankingNumber(key ? row[key] : row[header]);
+                if (!Number.isFinite(value)) return NaN;
+                return percentLike ? value / 100 : value;
+            }
+
+            function assetClassMetricTriple(row, base, keyPrefix, percentLike = true) {
+                return {
+                    [`${keyPrefix}Mean`]: parseAssetClassMetric(row, `${base} (Media)`, percentLike),
+                    [`${keyPrefix}Min`]: parseAssetClassMetric(row, `${base} (Min)`, percentLike),
+                    [`${keyPrefix}Max`]: parseAssetClassMetric(row, `${base} (Max)`, percentLike)
+                };
+            }
+
+            async function importAssetClassScreenerFile(file) {
+                if (!file) return;
+                if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la página.');
+                const status = document.getElementById('assetClassScreenerStatus');
+                if (status) status.innerText = 'Leyendo asset class...';
+                const workbook = await readWorkbook(file);
+                const sheetName = findSheet(workbook, ['Análisis por Asset Class', 'Analisis por Asset Class', 'Asset Class']) || workbook.SheetNames[0];
+                const rows = assetClassRawRows(workbook, sheetName).map(row => ({
+                    assetClass: String(row['Asset Class'] || '').trim(),
+                    funds: parseRankingNumber(Object.entries(row).find(([k]) => /fondos/i.test(normalizeHeaderLabel(k)))?.[1]),
+                    ...assetClassMetricTriple(row, 'KIID Ongoing Charge*', 'ter', true),
+                    ...assetClassMetricTriple(row, 'AUM*', 'aum', false),
+                    ...assetClassMetricTriple(row, 'Return 1Y*', 'ret1', true),
+                    ...assetClassMetricTriple(row, 'Return 3Y*', 'ret3', true),
+                    ...assetClassMetricTriple(row, 'Return 5Y*', 'ret5', true),
+                    ...assetClassMetricTriple(row, 'Return 10Y*', 'ret10', true),
+                    ...assetClassMetricTriple(row, 'Risk 1Y*', 'risk1', true),
+                    ...assetClassMetricTriple(row, 'Risk 3Y*', 'risk3', true),
+                    ...assetClassMetricTriple(row, 'Risk 5Y*', 'risk5', true),
+                    ...assetClassMetricTriple(row, 'Risk 10Y*', 'risk10', true),
+                    ...assetClassMetricTriple(row, 'Max Drawdown 1Y*', 'dd1', true),
+                    ...assetClassMetricTriple(row, 'Max Drawdown 3Y*', 'dd3', true),
+                    ...assetClassMetricTriple(row, 'Max Drawdown 5Y*', 'dd5', true),
+                    ...assetClassMetricTriple(row, 'Max Drawdown 10Y*', 'dd10', true),
+                    ...assetClassMetricTriple(row, 'MRAR 5', 'mrar5', false),
+                    ...assetClassMetricTriple(row, 'MRAR 10', 'mrar10', false)
+                })).filter(r => r.assetClass);
+                assetClassScreenerState = { records: rows, fileName: file.name, sortKey: 'funds', sortDir: 'desc', initialized: false, limit: 300 };
+                if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} categorías cargadas (${file.name}).`;
+                renderAssetClassScreener();
+            }
+
+            function assetClassScreenerFilterValue(key) {
+                return document.querySelector(`[data-asset-class-filter="${key}"]`)?.value || '';
+            }
+
+            function filteredAssetClassScreenerRecords() {
+                const columns = assetClassScreenerColumns();
+                return (assetClassScreenerState.records || []).filter(record => columns.every(col => recordMatchesScreenerFilter(record, col, assetClassScreenerFilterValue(col.key))));
+            }
+
+            function setAssetClassScreenerSort(key) {
+                if (assetClassScreenerState.sortKey === key) assetClassScreenerState.sortDir = assetClassScreenerState.sortDir === 'asc' ? 'desc' : 'asc';
+                else { assetClassScreenerState.sortKey = key; assetClassScreenerState.sortDir = 'desc'; }
+                assetClassScreenerState.initialized = false;
+                renderAssetClassScreener();
+            }
+
+            function ensureAssetClassScreenerControls() {
+                const metricOptions = assetClassMetricConfigs().map(c => `<option value="${c.key}">${escapeHtml(c.label)}</option>`).join('');
+                [['assetClassScreenerXAxis', 'ret5Mean'], ['assetClassScreenerYAxis', 'risk5Mean'], ['assetClassScreenerZAxis', 'funds']].forEach(([id, fallback]) => {
+                    const el = document.getElementById(id);
+                    if (el && !el.options.length) { el.innerHTML = metricOptions; el.value = fallback; }
+                });
+                const cat = document.getElementById('assetClassReturnCategory');
+                if (cat && assetClassScreenerState.records.length) {
+                    const current = cat.value;
+                    const options = assetClassScreenerState.records.map(r => r.assetClass).sort((a, b) => a.localeCompare(b));
+                    cat.innerHTML = options.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+                    cat.value = options.includes(current) ? current : options[0] || '';
+                }
+            }
+
+            function formatAssetClassValue(value, column) {
+                if (!Number.isFinite(value)) return '-';
+                if (column?.pct) return value.toFixed(2) + '%';
+                return value.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+            }
+
+            function renderAssetClassScreener() {
+                const head = document.getElementById('assetClassScreenerHead');
+                const body = document.getElementById('assetClassScreenerBody');
+                const status = document.getElementById('assetClassScreenerStatus');
+                if (!head || !body) return;
+                ensureAssetClassScreenerControls();
+                const columns = assetClassScreenerColumns();
+                if (!assetClassScreenerState.initialized) {
+                    head.innerHTML = `<tr>${columns.map(c => `<th style="min-width:${c.width || '95px'}" class="px-2 py-2 text-left cursor-pointer select-none" onclick="setAssetClassScreenerSort('${c.key}')">${escapeHtml(c.label)} ${assetClassScreenerState.sortKey === c.key ? (assetClassScreenerState.sortDir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr>
+                        <tr class="bg-white">${columns.map(c => `<th class="px-2 py-1"><input data-asset-class-filter="${c.key}" oninput="renderAssetClassScreener()" class="w-full p-1 border border-slate-200 rounded text-[11px] normal-case font-normal" placeholder="${c.type === 'num' ? '>3, <1, 2..4' : 'contiene...'}" value="${escapeHtml(assetClassScreenerFilterValue(c.key))}"></th>`).join('')}</tr>`;
+                    assetClassScreenerState.initialized = true;
+                }
+                if (!assetClassScreenerState.records.length) {
+                    body.innerHTML = `<tr><td colspan="${columns.length}" class="px-3 py-8 text-center text-slate-400">Sube el Excel de asset class para ver el screener.</td></tr>`;
+                    renderAssetClassScreenerCharts();
+                    return;
+                }
+                const rows = filteredAssetClassScreenerRecords().sort((a, b) => {
+                    const col = columns.find(c => c.key === assetClassScreenerState.sortKey);
+                    const av = a[assetClassScreenerState.sortKey], bv = b[assetClassScreenerState.sortKey];
+                    const dir = assetClassScreenerState.sortDir === 'asc' ? 1 : -1;
+                    if (col?.type === 'num') return ((Number.isFinite(av) ? av : -Infinity) - (Number.isFinite(bv) ? bv : -Infinity)) * dir;
+                    return String(av || '').localeCompare(String(bv || '')) * dir;
+                });
+                const visible = rows.slice(0, assetClassScreenerState.limit);
+                body.innerHTML = visible.map(record => `<tr class="hover:bg-emerald-50">${columns.map(col => {
+                    const value = record[col.key];
+                    if (col.type === 'num') return `<td class="px-2 py-1 text-right font-semibold">${formatAssetClassValue(value, col)}</td>`;
+                    return `<td class="px-2 py-1 font-semibold">${escapeHtml(value || '-')}</td>`;
+                }).join('')}</tr>`).join('');
+                if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} categorías encontradas de ${assetClassScreenerState.records.length.toLocaleString('es-ES')}. Mostrando ${visible.length.toLocaleString('es-ES')}.`;
+                renderAssetClassScreenerCharts(rows);
+            }
+
+            function clearAssetClassScreenerFilters() {
+                document.querySelectorAll('[data-asset-class-filter]').forEach(input => { input.value = ''; });
+                renderAssetClassScreener();
+            }
+
+            function renderAssetClassScreenerCharts(records = null) {
+                ensureAssetClassScreenerControls();
+                const rows = records || filteredAssetClassScreenerRecords();
+                renderAssetClassScatter(rows);
+                renderAssetClassReturnRangeChart();
+            }
+
+            function renderAssetClassScatter(rows) {
+                const el = document.getElementById('assetClassScreenerScatter');
+                if (!el) return;
+                if (!window.Plotly || !assetClassScreenerState.records.length) {
+                    el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sube el Excel de asset class.</div>';
+                    return;
+                }
+                const xKey = document.getElementById('assetClassScreenerXAxis')?.value || 'ret5Mean';
+                const yKey = document.getElementById('assetClassScreenerYAxis')?.value || 'risk5Mean';
+                const zKey = document.getElementById('assetClassScreenerZAxis')?.value || 'funds';
+                const source = (rows || []).filter(r => Number.isFinite(r[xKey]) && Number.isFinite(r[yKey]));
+                if (!source.length) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin datos suficientes para los ejes seleccionados.</div>'; return; }
+                const zVals = source.map(r => Number.isFinite(r[zKey]) ? Math.max(0, r[zKey]) : 1);
+                const zMin = Math.min(...zVals), zMax = Math.max(...zVals);
+                const sizes = zVals.map(v => zMax > zMin ? 10 + ((v - zMin) / (zMax - zMin)) * 32 : 16);
+                const label = key => assetClassMetricConfigs().find(c => c.key === key)?.label || key;
+                Plotly.newPlot(el, [{
+                    x: source.map(r => r[xKey]),
+                    y: source.map(r => r[yKey]),
+                    mode: 'markers',
+                    type: 'scatter',
+                    text: source.map(r => `${r.assetClass}<br>Fondos: ${r.funds || '-'}`),
+                    marker: { size: sizes, color: source.map(r => r.ret5Mean || 0), colorscale: 'Blues', showscale: true, colorbar: { title: 'Ret 5Y' }, opacity: 0.75, line: { color: '#0f172a', width: 0.4 } },
+                    hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>'
+                }], { title: 'Nube de asset classes', xaxis: { title: label(xKey), zeroline: false }, yaxis: { title: label(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 70, b: 60 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
+            }
+
+            function renderAssetClassReturnRangeChart() {
+                const el = document.getElementById('assetClassReturnRangeChart');
+                if (!el) return;
+                const selected = document.getElementById('assetClassReturnCategory')?.value || '';
+                const record = assetClassScreenerState.records.find(r => r.assetClass === selected);
+                if (!window.Plotly || !record) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Selecciona una categoría.</div>'; return; }
+                const horizons = [{ label: '1Y', ret: 'ret1', risk: 'risk1' }, { label: '3Y', ret: 'ret3', risk: 'risk3' }, { label: '5Y', ret: 'ret5', risk: 'risk5' }, { label: '10Y', ret: 'ret10', risk: 'risk10' }];
+                const valid = horizons.filter(h => Number.isFinite(record[`${h.ret}Mean`]) || Number.isFinite(record[`${h.risk}Mean`]));
+                if (!valid.length) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin retornos para esta categoría.</div>'; return; }
+                Plotly.newPlot(el, [
+                    { x: valid.map(h => h.label), y: valid.map(h => {
+                        const min = Number.isFinite(record[`${h.ret}Min`]) ? record[`${h.ret}Min`] : 0;
+                        const max = Number.isFinite(record[`${h.ret}Max`]) ? record[`${h.ret}Max`] : min;
+                        return Math.max(0, max - min);
+                    }), type: 'bar', name: 'Rango min-max', marker: { color: '#bfdbfe' }, base: valid.map(h => Number.isFinite(record[`${h.ret}Min`]) ? record[`${h.ret}Min`] : 0), customdata: valid.map(h => [record[`${h.ret}Min`], record[`${h.ret}Max`]]), hovertemplate: 'Min %{customdata[0]:.2f}%<br>Max %{customdata[1]:.2f}%<extra></extra>' },
+                    { x: valid.map(h => h.label), y: valid.map(h => record[`${h.ret}Mean`]), mode: 'markers+text', type: 'scatter', name: 'Retorno medio', text: valid.map(h => formatAssetClassValue(record[`${h.ret}Mean`], { pct: true })), textposition: 'top center', marker: { color: '#1d4ed8', size: 12 } },
+                    { x: valid.map(h => h.label), y: valid.map(h => record[`${h.risk}Mean`]), mode: 'markers+text', type: 'scatter', name: 'Volatilidad media', text: valid.map(h => formatAssetClassValue(record[`${h.risk}Mean`], { pct: true })), textposition: 'bottom center', marker: { color: '#dc2626', size: 11, symbol: 'circle' } }
+                ], { title: `Retorno, dispersión y riesgo: ${record.assetClass}`, yaxis: { title: '%' }, margin: { t: 55, l: 55, r: 25, b: 50 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
             }
 
             function renderFundAddOptions() {
@@ -3556,15 +4092,7 @@
             }
 
             function fundRecommendationSelectHtml(idx, records, placeholder) {
-                if (!records?.length) return '<div class="text-xs text-slate-400">Sin alternativas mejores</div>';
-                const listId = `fundRecommendationList-${idx}-${normalizeHeaderLabel(placeholder).replace(/\s+/g, '-')}`;
-                const options = records.map(r => {
-                    const ter = Number.isFinite(r.ter) ? `${r.ter.toFixed(2)}% TER` : 'TER -';
-                    const score = Number.isFinite(r.score) ? `Score ${r.score.toFixed(2)}` : 'Score -';
-                    return `<option value="${escapeHtml(r.isin)} | ${score} | ${ter} | ${escapeHtml(r.name)}"></option>`;
-                }).join('');
-                return `<input list="${listId}" onchange="applyFundRecommendation(${idx}, this.value.split(' | ')[0])" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="${escapeHtml(placeholder)}">
-                    <datalist id="${listId}">${options}</datalist>`;
+                return wideFundOptionPanel(records || [], isin => `applyFundRecommendation(${idx}, '${escapeHtml(isin)}')`, placeholder);
             }
 
             function getApprovedFundRecommendations(anchor, limit = 5000) {
@@ -4793,15 +5321,8 @@
             }
 
             function aggregateRecommendationSelectHtml(idx, items, placeholder) {
-                if (!items?.length || idx < 0) return `<span class="text-slate-400">Sin alternativas mejores</span>`;
-                const listId = `aggregateRecommendationList-${idx}-${normalizeHeaderLabel(placeholder).replace(/\s+/g, '-')}`;
-                const options = items.map(item => {
-                    const rec = item.universe || item;
-                    const label = item.approved ? approvedRecommendationLabel(item) : universeRecommendationLabel(rec);
-                    return `<option value="${escapeHtml(rec.isin)} | ${label}${item.source ? ` - ${escapeHtml(item.source)}` : ''}"></option>`;
-                }).join('');
-                return `<input list="${listId}" onchange="applyAggregateRecord(${idx}, this.value.split(' | ')[0])" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="${escapeHtml(placeholder)}...">
-                    <datalist id="${listId}">${options}</datalist>`;
+                if (idx < 0) return `<span class="text-slate-400">Sin alternativas mejores</span>`;
+                return wideFundOptionPanel(items || [], isin => `applyAggregateRecord(${idx}, '${escapeHtml(isin)}')`, placeholder);
             }
 
             function aggregateManualProxySelectHtml(result, idx) {
@@ -9584,7 +10105,7 @@
             }
             function renderGeneralMetrics(d, ticker) {
                 const tbody = document.getElementById('metricsTableBody');
-                tbody.innerHTML = [["Frecuencia usada", frequencyLabel(currentDataFrequency)], ["Valor Inicial", `€${fmtNum(d.initialValue)}`], ["Valor Final", `€${fmtNum(d.finalValue)}`], ["Rentabilidad Total", fmtPct(d.totalRet)], ["CAGR (Anual)", fmtPct(d.cagr)], ["Volatilidad (Anual)", fmtPct(d.volAnn)], ["Mejor Periodo", `${fmtPct(d.bestDay)} (${fmtDate(d.bestDayDate)})`], ["Peor Periodo", `${fmtPct(d.worstDay)} (${fmtDate(d.worstDayDate)})`], ["Racha Positiva Max", `${d.bestPosStreakInfo.len} periodos (${fmtDate(d.bestPosStreakInfo.start)} - ${fmtDate(d.bestPosStreakInfo.end)})`], ["Racha Negativa Max", `${d.bestNegStreakInfo.len} periodos (${fmtDate(d.bestNegStreakInfo.start)} - ${fmtDate(d.bestNegStreakInfo.end)})`], ["% Time Underwater", fmtPct(d.drawdownQuality?.timeUnderwater)]].map((r, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors"><td class="px-4 py-3 font-medium">${r[0]}</td><td class="px-4 py-3 text-right text-gray-700">${r[1]}</td></tr>`).join('');
+                tbody.innerHTML = [["Frecuencia usada", frequencyLabel(currentDataFrequency)], ["Valor Inicial", `€${fmtNum(d.initialValue)}`], ["Valor Final", `€${fmtNum(d.finalValue)}`], ["Rentabilidad Total", fmtPct(d.totalRet)], ["CAGR (Anual)", fmtPct(d.cagr)], ["Volatilidad (Anual)", fmtPct(d.volAnn)], ["Mejor Periodo", `${fmtPct(d.bestDay)} (${fmtDate(d.bestDayDate)})`], ["Peor Periodo", `${fmtPct(d.worstDay)} (${fmtDate(d.worstDayDate)})`], ["Racha Positiva Max", `${d.bestPosStreakInfo.len} periodos (${fmtDate(d.bestPosStreakInfo.start)} - ${fmtDate(d.bestPosStreakInfo.end)})`], ["Racha Negativa Max", `${d.bestNegStreakInfo.len} periodos (${fmtDate(d.bestNegStreakInfo.start)} - ${fmtDate(d.bestNegStreakInfo.end)})`], ["% Time Underwater técnico", fmtPct(d.drawdownQuality?.timeUnderwater)], ["% Time Underwater >2%", fmtPct(d.drawdownQuality?.material2)], ["Drawdown medio bajo agua", fmtPct(d.drawdownQuality?.averageUnderwaterDrawdown)]].map((r, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors"><td class="px-4 py-3 font-medium">${r[0]}</td><td class="px-4 py-3 text-right text-gray-700">${r[1]}</td></tr>`).join('');
                 const dates = d.returnsDates.map(x => x.toISOString().split('T')[0]);
                 const m = d.meanRet, s = d.sigma;
 
@@ -10076,21 +10597,26 @@
                 const drawdowns = (dd.drawdowns || []).filter(Number.isFinite);
                 const underwater = drawdowns.filter(v => v < -1e-10).length;
                 const timeUnderwater = drawdowns.length ? underwater / drawdowns.length : 0;
+                const material1 = drawdowns.length ? drawdowns.filter(v => v < -0.01).length / drawdowns.length : 0;
+                const material2 = drawdowns.length ? drawdowns.filter(v => v < -0.02).length / drawdowns.length : 0;
+                const material5 = drawdowns.length ? drawdowns.filter(v => v < -0.05).length / drawdowns.length : 0;
+                const underwaterValues = drawdowns.filter(v => v < -1e-10);
+                const averageUnderwaterDrawdown = underwaterValues.length ? getMean(underwaterValues) : 0;
                 const ulcerIndex = drawdowns.length ? Math.sqrt(drawdowns.reduce((acc, v) => acc + Math.pow(Math.min(0, v) * 100, 2), 0) / drawdowns.length) : 0;
                 let path = 0;
                 for (let i = 1; i < rows.length; i++) path += Math.abs(rows[i].price - rows[i - 1].price);
                 const kaufmanEfficiency = rows.length > 1 && path > 0 ? Math.abs(rows[rows.length - 1].price - rows[0].price) / path : 0;
-                const timeReading = timeUnderwater < 0.30 ? 'Tendencia persistente: poco tiempo bajo maximos previos.' : timeUnderwater <= 0.70 ? 'Zona intermedia: alterna tendencia y periodos de recuperacion.' : 'Elevado tiempo bajo agua: riesgo de lateralidad persistente.';
-                const ulcerReading = ulcerIndex < 5 ? 'Caidas poco persistentes o poco profundas.' : ulcerIndex < 12 ? 'Dolor historico moderado.' : 'Caidas persistentes/profundas; exige mayor tolerancia.';
+                const timeReading = material2 < 0.30 ? 'Tendencia persistente: poco tiempo en drawdown material (>2%).' : material2 <= 0.70 ? 'Zona intermedia: alterna tendencia y periodos de recuperación.' : 'Elevado tiempo en drawdown material; riesgo de lateralidad persistente.';
+                const ulcerReading = ulcerIndex < 5 ? 'Caídas poco persistentes o poco profundas.' : ulcerIndex < 12 ? 'Dolor histórico moderado.' : 'Caídas persistentes/profundas; exige mayor tolerancia.';
                 const efficiencyReading = kaufmanEfficiency > 0.55 ? 'Movimiento direccional eficiente.' : kaufmanEfficiency > 0.25 ? 'Tendencia con ruido relevante.' : 'Trayectoria poco eficiente o muy lateral.';
-                return { timeUnderwater, ulcerIndex, kaufmanEfficiency, timeReading, ulcerReading, efficiencyReading, freq };
+                return { timeUnderwater, material1, material2, material5, averageUnderwaterDrawdown, ulcerIndex, kaufmanEfficiency, timeReading, ulcerReading, efficiencyReading, freq };
             }
 
             function formatDurationWithContext(days) {
                 const d = Math.max(0, Math.round(days || 0));
-                if (d >= 365) return d + ' dias (' + (d / 365.25).toFixed(1) + ' anos)';
-                if (d >= 30) return d + ' dias (' + (d / 30.44).toFixed(1) + ' meses)';
-                return d + ' dias';
+                if (d >= 365) return d + ' días (' + (d / 365.25).toFixed(1) + ' años)';
+                if (d >= 30) return d + ' días (' + (d / 30.44).toFixed(1) + ' meses)';
+                return d + ' días';
             }
             function calculateEpisodes(d, cm) {
                 const e = [];
@@ -10667,6 +11193,11 @@
             }
 
             function renderDrawdownSpaghettiChart(d, dd, ticker) {
+                const spaghettiEl = document.getElementById('ddSpaghettiChart');
+                if (spaghettiEl) {
+                    try { Plotly.purge('ddSpaghettiChart'); } catch (e) { }
+                    spaghettiEl.innerHTML = '';
+                }
                 const currentDD = dd.drawdowns[dd.drawdowns.length - 1];
                 // If drawdown is too small, skip drawing spaghetti
                 if (currentDD > -0.02) {
@@ -10781,12 +11312,16 @@
                 const body = document.getElementById('drawdownQualityTableBody');
                 if (!body || !metrics) return;
                 body.innerHTML = [
-                    ['% Time Underwater', fmtPct(metrics.timeUnderwater), metrics.timeReading],
+                    ['% Time Underwater técnico', fmtPct(metrics.timeUnderwater), 'Observaciones con drawdown negativo, incluyendo micro-caídas.'],
+                    ['% Time Underwater >1%', fmtPct(metrics.material1), 'Tiempo en drawdown superior al 1%.'],
+                    ['% Time Underwater >2%', fmtPct(metrics.material2), metrics.timeReading],
+                    ['% Time Underwater >5%', fmtPct(metrics.material5), 'Tiempo en drawdown material severo.'],
+                    ['Drawdown medio bajo agua', fmtPct(metrics.averageUnderwaterDrawdown), 'Promedio de drawdown solo en observaciones bajo máximo previo.'],
                     ['Ulcer Index', `${metrics.ulcerIndex.toFixed(2)}`, metrics.ulcerReading],
                     ['Kaufman Efficiency Ratio', metrics.kaufmanEfficiency.toFixed(2), metrics.efficiencyReading]
                 ].map((row, i) => `<tr class="${i % 2 ? 'bg-gray-50' : 'bg-white'}"><td class="px-4 py-3 font-bold">${row[0]}</td><td class="px-4 py-3 text-right font-semibold">${row[1]}</td><td class="px-4 py-3">${row[2]}</td></tr>`).join('');
                 const note = document.getElementById('drawdownQualityNote');
-                if (note) note.innerHTML = `<b>Metodologia:</b> % Time Underwater mide la proporcion de observaciones en drawdown; en series diarias aproxima dias de mercado bajo agua y en series ${frequencyLabel(metrics.freq).toLowerCase()} se interpreta como periodos bajo agua. Ulcer Index es la raiz media cuadratica de los drawdowns negativos. Kaufman Efficiency Ratio compara el desplazamiento neto contra el recorrido total del precio.`;
+                if (note) note.innerHTML = `<b>Metodología:</b> Time Underwater = N(DD &lt; umbral) / N observaciones, con DD = precio / máximo acumulado - 1. Drawdown medio bajo agua = promedio(DD | DD &lt; 0). Ulcer Index = sqrt(media((min(DD,0) * 100)^2)). Kaufman Efficiency = abs(precio final - precio inicial) / suma(abs(cambios de precio)). En series ${frequencyLabel(metrics.freq).toLowerCase()} se interpreta como proporción de periodos bajo agua.`;
             }
             function renderYearlyTable(d) { document.getElementById('annualTableBody').innerHTML = d.map(i => `<tr><td class="px-4">${i.range}</td><td class="px-4 text-right font-bold ${i.return > 0 ? 'text-green-600' : 'text-red-500'}">${fmtPct(i.return)}</td><td class="px-4 text-right">${fmtPct(i.volatility)}</td></tr>`).join(''); }
 
