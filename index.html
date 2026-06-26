@@ -1227,6 +1227,28 @@
                             </table>
                         </div>
                     </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                            <div>
+                                <h4 class="font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">Comparacion por metricas del universo</h4>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Compara fondos contra el universo/ranking cargado. La tabla colorea cuartiles por categoria y marca mejor/peor frente al fondo propuesto.</p>
+                            </div>
+                            <button onclick="renderFundUniverseMetricComparison()" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-rotate mr-1"></i>Actualizar comparacion</button>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo origen</label><input id="fundUniverseCompareOriginInput" list="fundUniverseCompareFundList" oninput="onFundUniverseCompareOriginChange()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm" placeholder="ISIN o nombre"></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo comparacion</label><div class="flex gap-2 mt-1"><input id="fundUniverseCompareAddInput" list="fundUniverseCompareFundList" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Anadir ISIN/nombre"><button onclick="addFundUniverseComparisonFund()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold">Anadir</button></div></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo propuesto</label><select id="fundUniverseCompareProposedSelect" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"><option value="">Selecciona fondo origen</option></select></div>
+                        </div>
+                        <datalist id="fundUniverseCompareFundList"></datalist><div id="fundUniverseCompareChips" class="flex flex-wrap gap-2 mb-4"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Eje X</label><select id="fundUniverseCompareXAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Eje Y</label><select id="fundUniverseCompareYAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Tamano burbuja</label><select id="fundUniverseCompareZAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
+                        </div>
+                        <div id="fundUniverseCompareStatus" class="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Carga primero el universo/ranking interno desde Scoring de Cartera.</div><div id="fundUniverseCompareChart" class="w-full h-[480px] border border-slate-100 rounded mb-4"></div>
+                        <div class="overflow-x-auto border border-slate-100 rounded"><table class="min-w-[1100px] w-full text-xs text-slate-600"><thead id="fundUniverseCompareHead" class="bg-slate-100 text-[11px] uppercase text-slate-500"></thead><tbody id="fundUniverseCompareBody" class="divide-y divide-slate-100"></tbody></table></div>
+                    </div>
                 </div>
 
                 <div id="portfolioSubtabContent-screener" class="portfolio-subtab-content hidden mt-6 space-y-4">
@@ -1417,6 +1439,7 @@
             let fundManualTargetIndex = -1;
             let fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
             let fundScreenerState = { sortKey: 'score', sortDir: 'desc', initialized: false, limit: 300 };
+            let fundUniverseCompareState = { comparisons: [] };
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
             let approvedFundsState = { records: [], isinIndex: new Map(), fileName: '' };
             let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), universeToken: new Map(), approvedToken: new Map(), approvedUniverse: new Map() };
@@ -2489,6 +2512,8 @@
                 const corr = getCorrelation(assetReturns, benchReturns);
                 const assetDD = maxDrawdownFromPrices(rowsAll.map(r => r.asset));
                 const benchDD = maxDrawdownFromPrices(rowsAll.map(r => r.bench));
+                const assetQuality = calculateDrawdownQualityMetrics(rowsAll.map(r => ({ date: r.date, price: r.asset })));
+                const benchQuality = calculateDrawdownQualityMetrics(rowsAll.map(r => ({ date: r.date, price: r.bench })));
                 const metricsBody = document.getElementById('fundCompareMetricsBody');
                 if (metricsBody) {
                     const metrics = [
@@ -2499,12 +2524,145 @@
                         ['Tracking error anualizado', fmtPct(trackingError)],
                         ['Information ratio', Number.isFinite(infoRatio) ? infoRatio.toFixed(2) : '-'],
                         ['Max drawdown activo', fmtPct(assetDD)],
-                        ['Max drawdown bench', fmtPct(benchDD)]
+                        ['Max drawdown bench', fmtPct(benchDD)],
+                        ['% Time Underwater activo', fmtPct(assetQuality.timeUnderwater)],
+                        ['% Time Underwater bench', fmtPct(benchQuality.timeUnderwater)]
                     ];
                     metricsBody.innerHTML = metrics.map(([label, value]) => `<tr><td class="px-3 py-2 font-bold text-slate-700">${label}</td><td class="px-3 py-2 text-right">${value}</td></tr>`).join('');
                 }
             }
 
+
+
+            function fundUniverseMetricConfigs(includeNone = false) {
+                const base = [
+                    { key: 'score', label: 'Score', pct: false, lowerBetter: false }, { key: 'ter', label: 'TER', pct: true, lowerBetter: true }, { key: 'aum', label: 'AUM', pct: false, lowerBetter: false },
+                    { key: 'ret1', label: 'Ret 1Y', pct: true, lowerBetter: false }, { key: 'ret3', label: 'Ret 3Y', pct: true, lowerBetter: false }, { key: 'ret5', label: 'Ret 5Y', pct: true, lowerBetter: false }, { key: 'ret10', label: 'Ret 10Y', pct: true, lowerBetter: false },
+                    { key: 'risk1', label: 'Risk 1Y', pct: true, lowerBetter: true }, { key: 'risk3', label: 'Risk 3Y', pct: true, lowerBetter: true }, { key: 'risk5', label: 'Risk 5Y', pct: true, lowerBetter: true }, { key: 'risk10', label: 'Risk 10Y', pct: true, lowerBetter: true },
+                    { key: 'dd1', label: 'MD 1Y', pct: true, lowerBetter: false }, { key: 'dd3', label: 'MD 3Y', pct: true, lowerBetter: false }, { key: 'dd5', label: 'MD 5Y', pct: true, lowerBetter: false }, { key: 'dd10', label: 'MD 10Y', pct: true, lowerBetter: false }
+                ];
+                return includeNone ? [{ key: '', label: 'Ninguno', pct: false, lowerBetter: false }].concat(base) : base;
+            }
+
+            function formatUniverseMetricValue(value, cfg) {
+                if (!Number.isFinite(value)) return '-';
+                return cfg && cfg.pct ? value.toFixed(2) + '%' : value.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+            }
+
+            function resolveFundUniverseInput(raw) {
+                const text = String(raw || '').trim();
+                if (!text || !fundUniverseState?.records?.length) return null;
+                const first = normalizeIsin(text.split('|')[0]);
+                if (first && fundUniverseState.isinIndex?.has(first)) return fundUniverseState.isinIndex.get(first);
+                const q = normalizeHeaderLabel(text);
+                return fundUniverseState.records.find(r => normalizeHeaderLabel((r.isin || '') + ' ' + (r.name || '') + ' ' + (r.category || '')).includes(q)) || null;
+            }
+
+            function fundUniverseRecordOption(record) {
+                return record.isin + ' | ' + record.name + ' | Score ' + fmtScore(record.score) + ' | TER ' + fmtPercentPoint(record.ter);
+            }
+
+            function populateFundUniverseCompareControls() {
+                const list = document.getElementById('fundUniverseCompareFundList');
+                if (list && fundUniverseState?.records?.length) list.innerHTML = fundUniverseState.records.slice(0, 5000).map(r => '<option value="' + escapeHtml(fundUniverseRecordOption(r)) + '"></option>').join('');
+                const metricOptions = fundUniverseMetricConfigs().map(m => '<option value="' + m.key + '">' + escapeHtml(m.label) + '</option>').join('');
+                [['fundUniverseCompareXAxis', 'ret3'], ['fundUniverseCompareYAxis', 'risk3']].forEach(([id, fallback]) => { const el = document.getElementById(id); if (el && !el.options.length) { el.innerHTML = metricOptions; el.value = fallback; } });
+                const z = document.getElementById('fundUniverseCompareZAxis');
+                if (z && !z.options.length) { z.innerHTML = fundUniverseMetricConfigs(true).map(m => '<option value="' + m.key + '">' + escapeHtml(m.label) + '</option>').join(''); z.value = 'aum'; }
+                updateFundUniverseProposedOptions();
+                renderFundUniverseComparisonChips();
+            }
+
+            function onFundUniverseCompareOriginChange() { updateFundUniverseProposedOptions(true); renderFundUniverseMetricComparison(); }
+
+            function updateFundUniverseProposedOptions(reset = false) {
+                const select = document.getElementById('fundUniverseCompareProposedSelect');
+                if (!select) return;
+                const origin = resolveFundUniverseInput(document.getElementById('fundUniverseCompareOriginInput')?.value);
+                if (!origin) { select.innerHTML = '<option value="">Selecciona fondo origen</option>'; return; }
+                const current = reset ? '' : select.value;
+                const candidates = (fundUniverseState.records || []).filter(r => r.category === origin.category && r.isin !== origin.isin).sort((a, b) => ((Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity)) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity))).slice(0, 500);
+                select.innerHTML = candidates.length ? candidates.map(r => '<option value="' + escapeHtml(r.isin) + '">' + escapeHtml(r.isin + ' - ' + r.name + ' (Score ' + fmtScore(r.score) + ', TER ' + fmtPercentPoint(r.ter) + ')') + '</option>').join('') : '<option value="">Sin candidatos en la categoria</option>';
+                if (candidates.some(r => r.isin === current)) select.value = current;
+            }
+
+            function addFundUniverseComparisonFund() {
+                const input = document.getElementById('fundUniverseCompareAddInput');
+                const record = resolveFundUniverseInput(input?.value);
+                if (!record) return alert('Selecciona un fondo valido del universo.');
+                if (!fundUniverseCompareState.comparisons.includes(record.isin)) fundUniverseCompareState.comparisons.push(record.isin);
+                if (input) input.value = '';
+                renderFundUniverseComparisonChips();
+                renderFundUniverseMetricComparison();
+            }
+
+            function removeFundUniverseComparisonFund(isin) {
+                fundUniverseCompareState.comparisons = fundUniverseCompareState.comparisons.filter(x => x !== isin);
+                renderFundUniverseComparisonChips();
+                renderFundUniverseMetricComparison();
+            }
+
+            function renderFundUniverseComparisonChips() {
+                const el = document.getElementById('fundUniverseCompareChips');
+                if (!el) return;
+                const chips = fundUniverseCompareState.comparisons.map(isin => fundUniverseState?.isinIndex?.get(isin)).filter(Boolean);
+                el.innerHTML = chips.length ? chips.map(r => '<span class="inline-flex items-center gap-2 px-2 py-1 rounded bg-slate-100 border border-slate-200 text-xs"><b>' + escapeHtml(r.isin) + '</b> ' + escapeHtml(r.name) + ' <button onclick="removeFundUniverseComparisonFund(\'' + escapeHtml(r.isin) + '\')" class="text-red-600 font-bold">x</button></span>').join('') : '<span class="text-xs text-slate-400">Sin fondos de comparacion anadidos.</span>';
+            }
+
+            function universeComparisonCell(record, metric, proposed) {
+                const value = record && record[metric.key];
+                if (!Number.isFinite(value)) return '<td class="px-3 py-2 text-right text-slate-400">-</td>';
+                const proposedValue = proposed && proposed[metric.key];
+                const q = metricQuartile(record, metric.key);
+                const qCls = q === 1 ? 'bg-emerald-100 text-emerald-900' : q === 2 ? 'bg-lime-100 text-lime-900' : q === 3 ? 'bg-orange-100 text-orange-900' : q === 4 ? 'bg-red-100 text-red-900' : 'bg-slate-50 text-slate-700';
+                let relCls = '';
+                if (proposed && record.isin !== proposed.isin && Number.isFinite(proposedValue)) {
+                    const better = metric.lowerBetter ? value < proposedValue : value > proposedValue;
+                    const equal = Math.abs(value - proposedValue) < 1e-9;
+                    relCls = equal ? 'ring-1 ring-slate-200' : better ? 'ring-2 ring-emerald-500' : 'ring-2 ring-red-400';
+                }
+                return '<td class="px-3 py-2 text-right"><span class="inline-flex min-w-[88px] justify-between gap-2 rounded px-2 py-1 font-bold ' + qCls + ' ' + relCls + '"><span>' + formatUniverseMetricValue(value, metric) + '</span><span class="text-[10px] opacity-70">' + (q ? ('Q' + q) : '') + '</span></span></td>';
+            }
+
+            function renderFundUniverseMetricComparison() {
+                populateFundUniverseCompareControls();
+                const status = document.getElementById('fundUniverseCompareStatus'), head = document.getElementById('fundUniverseCompareHead'), body = document.getElementById('fundUniverseCompareBody'), chart = document.getElementById('fundUniverseCompareChart');
+                if (!fundUniverseState?.records?.length) { if (status) status.textContent = 'Carga primero el universo/ranking interno desde Scoring de Cartera.'; if (chart) chart.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin universo cargado.</div>'; if (head) head.innerHTML = ''; if (body) body.innerHTML = ''; return; }
+                const origin = resolveFundUniverseInput(document.getElementById('fundUniverseCompareOriginInput')?.value);
+                const proposed = fundUniverseState.isinIndex?.get(document.getElementById('fundUniverseCompareProposedSelect')?.value || '');
+                if (!origin) { if (status) status.textContent = 'Selecciona un fondo origen para comparar contra su categoria.'; if (chart) chart.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Selecciona un fondo origen.</div>'; if (head) head.innerHTML = ''; if (body) body.innerHTML = ''; return; }
+                const comparisons = fundUniverseCompareState.comparisons.map(isin => fundUniverseState.isinIndex?.get(isin)).filter(Boolean);
+                const columns = [origin].concat(comparisons).concat(proposed ? [proposed] : []);
+                const labels = ['Fondo origen'].concat(comparisons.map((_, i) => 'Comparacion ' + (i + 1))).concat(proposed ? ['Fondo propuesto'] : []);
+                const metrics = fundUniverseMetricConfigs();
+                if (head) head.innerHTML = '<tr><th class="px-3 py-2 text-left">Metrica</th>' + labels.map(l => '<th class="px-3 py-2 text-left">' + escapeHtml(l) + '</th>').join('') + '</tr>';
+                if (body) {
+                    const identity = '<tr class="bg-slate-50"><td class="px-3 py-2 font-bold">Fondo</td>' + columns.map(r => '<td class="px-3 py-2"><div class="font-bold text-slate-900">' + escapeHtml(r.name) + '</div><div class="font-mono text-[11px] text-slate-500">' + escapeHtml(r.isin) + '</div><div class="text-[11px] text-slate-500">' + escapeHtml(r.category || '-') + '</div></td>').join('') + '</tr>';
+                    body.innerHTML = identity + metrics.map(metric => '<tr><td class="px-3 py-2 font-bold text-slate-700">' + escapeHtml(metric.label) + '</td>' + columns.map(r => universeComparisonCell(r, metric, proposed)).join('') + '</tr>').join('');
+                }
+                if (status) status.textContent = 'Categoria origen: ' + (origin.category || 'Sin categoria') + '. Universo categoria: ' + (fundUniverseState.records || []).filter(r => r.category === origin.category).length + ' fondos.';
+                renderFundUniverseMetricScatter(origin, comparisons, proposed);
+            }
+
+            function renderFundUniverseMetricScatter(origin, comparisons, proposed) {
+                const el = document.getElementById('fundUniverseCompareChart');
+                if (!el || !window.Plotly || !origin) return;
+                const xKey = document.getElementById('fundUniverseCompareXAxis')?.value || 'ret3';
+                const yKey = document.getElementById('fundUniverseCompareYAxis')?.value || 'risk3';
+                const zKey = document.getElementById('fundUniverseCompareZAxis')?.value || 'aum';
+                const metricLabel = key => fundUniverseMetricConfigs(true).find(m => m.key === key)?.label || key;
+                const categoryRecords = (fundUniverseState.records || []).filter(r => r.category === origin.category && Number.isFinite(r[xKey]) && Number.isFinite(r[yKey]));
+                if (!categoryRecords.length) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin datos suficientes para los ejes seleccionados.</div>'; return; }
+                const zVals = categoryRecords.map(r => zKey && Number.isFinite(r[zKey]) ? Math.max(0, r[zKey]) : 1);
+                const zMin = Math.min(...zVals), zMax = Math.max(...zVals);
+                const sizeFor = r => !zKey ? 14 : (zMax > zMin ? 8 + ((Math.max(0, r[zKey] || 0) - zMin) / (zMax - zMin)) * 24 : 14);
+                const avg = key => getMean(categoryRecords.map(r => r[key]).filter(Number.isFinite));
+                const selected = [origin].concat(comparisons || []).concat(proposed ? [proposed] : []).filter(Boolean);
+                const traces = [{ x: categoryRecords.map(r => r[xKey]), y: categoryRecords.map(r => r[yKey]), mode: 'markers', type: 'scatter', name: 'Universo categoria', text: categoryRecords.map(r => r.name + '<br>' + r.isin), marker: { size: categoryRecords.map(sizeFor), color: '#cbd5e1', opacity: 0.35, line: { color: '#94a3b8', width: 0.3 } }, hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' }, { x: [avg(xKey)], y: [avg(yKey)], mode: 'markers+text', type: 'scatter', name: 'Media categoria', text: ['Media categoria'], textposition: 'top center', marker: { size: 16, color: '#111827', symbol: 'diamond' } }];
+                const colors = ['#2563eb', '#64748b', '#94a3b8', '#0f766e', '#7c3aed', '#dc2626'];
+                selected.forEach((r, idx) => { if (!Number.isFinite(r[xKey]) || !Number.isFinite(r[yKey])) return; const role = idx === 0 ? 'Origen' : (proposed && r.isin === proposed.isin ? 'Propuesto' : 'Comparacion'); traces.push({ x: [r[xKey]], y: [r[yKey]], mode: 'markers+text', type: 'scatter', name: role, text: [role], textposition: 'top center', marker: { size: Math.max(16, sizeFor(r)), color: colors[idx % colors.length], line: { color: '#0f172a', width: 1.2 } }, hovertemplate: '<b>' + escapeHtml(r.name) + '</b><br>' + escapeHtml(r.isin) + '<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' }); });
+                Plotly.newPlot(el, traces, { title: 'Universo ' + (origin.category || ''), xaxis: { title: metricLabel(xKey), zeroline: false }, yaxis: { title: metricLabel(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff' }, { responsive: true });
+            }
             function sheetRowsFromHeader(workbook, sheetName, headerRowNumber = 1) {
                 const sheet = workbook.Sheets[sheetName];
                 if (!sheet) return [];
@@ -2696,12 +2854,15 @@
                         ret1: parseRankingNumber(fundCol(row, ['Return 1Y*'])),
                         ret3: parseRankingNumber(fundCol(row, ['Return 3Y*'])),
                         ret5: parseRankingNumber(fundCol(row, ['Return 5Y*'])),
+                        ret10: parseRankingNumber(fundCol(row, ['Return 10Y*', 'Return 10Y', 'Ret 10Y', 'Rentabilidad 10Y'])),
                         risk1: parseRankingNumber(fundCol(row, ['Risk 1Y*', 'Risk 1Y', 'Riesgo 1Y', 'Vol 1Y'])),
                         risk3: parseRankingNumber(fundCol(row, ['Risk 3Y*', 'Risk 3Y', 'Riesgo 3Y', 'Vol 3Y'])),
                         risk5: parseRankingNumber(fundCol(row, ['Risk 5Y*', 'Risk 5Y', 'Riesgo 5Y', 'Vol 5Y'])),
+                        risk10: parseRankingNumber(fundCol(row, ['Risk 10Y*', 'Risk 10Y', 'Riesgo 10Y', 'Vol 10Y'])),
                         dd1: parseRankingNumber(fundCol(row, ['Max Drawdown 1Y*', 'Max Drawdown 1Y', 'MD 1Y', 'MDD 1Y'])),
                         dd3: parseRankingNumber(fundCol(row, ['Max Drawdown 3Y*', 'Max Drawdown 3Y', 'MD 3Y', 'MDD 3Y'])),
-                        dd5: parseRankingNumber(fundCol(row, ['Max Drawdown 5Y*', 'Max Drawdown 5Y', 'MD 5Y', 'MDD 5Y']))
+                        dd5: parseRankingNumber(fundCol(row, ['Max Drawdown 5Y*', 'Max Drawdown 5Y', 'MD 5Y', 'MDD 5Y'])),
+                        dd10: parseRankingNumber(fundCol(row, ['Max Drawdown 10Y*', 'Max Drawdown 10Y', 'MD 10Y', 'MDD 10Y']))
                     };
                 }).filter(r => r.isin && r.name);
                 const isinIndex = new Map();
@@ -2716,6 +2877,7 @@
                 document.getElementById('fundUniverseStatus').innerText = `${records.length.toLocaleString('es-ES')} fondos (${file.name})`;
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
                 try { renderFundUniverseScreener(); } catch (e) { console.warn('fund screener render failed', e); }
+                try { populateFundUniverseCompareControls(); renderFundUniverseMetricComparison(); } catch (e) { console.warn('fund universe compare render failed', e); }
                 if (fundPortfolioRows.length) runFundScoringAnalysis();
             }
 
@@ -2726,12 +2888,15 @@
                     ret1: { field: 'ret1', lowerBetter: false },
                     ret3: { field: 'ret3', lowerBetter: false },
                     ret5: { field: 'ret5', lowerBetter: false },
+                    ret10: { field: 'ret10', lowerBetter: false },
                     risk1: { field: 'risk1', lowerBetter: true },
                     risk3: { field: 'risk3', lowerBetter: true },
                     risk5: { field: 'risk5', lowerBetter: true },
+                    risk10: { field: 'risk10', lowerBetter: true },
                     dd1: { field: 'dd1', lowerBetter: false },
                     dd3: { field: 'dd3', lowerBetter: false },
-                    dd5: { field: 'dd5', lowerBetter: false }
+                    dd5: { field: 'dd5', lowerBetter: false },
+                    dd10: { field: 'dd10', lowerBetter: false }
                 };
                 const byCat = {};
                 records.forEach(r => {
@@ -2879,17 +3044,30 @@
                     { key: 'ret1', label: 'Ret 1Y', type: 'num', pct: true },
                     { key: 'ret3', label: 'Ret 3Y', type: 'num', pct: true },
                     { key: 'ret5', label: 'Ret 5Y', type: 'num', pct: true },
+                    { key: 'ret10', label: 'Ret 10Y', type: 'num', pct: true },
                     { key: 'risk1', label: 'Risk 1Y', type: 'num', pct: true },
                     { key: 'risk3', label: 'Risk 3Y', type: 'num', pct: true },
                     { key: 'risk5', label: 'Risk 5Y', type: 'num', pct: true },
+                    { key: 'risk10', label: 'Risk 10Y', type: 'num', pct: true },
                     { key: 'dd1', label: 'MD 1Y', type: 'num', pct: true },
                     { key: 'dd3', label: 'MD 3Y', type: 'num', pct: true },
                     { key: 'dd5', label: 'MD 5Y', type: 'num', pct: true },
+                    { key: 'dd10', label: 'MD 10Y', type: 'num', pct: true },
                     { key: 'aum', label: 'AUM', type: 'num' }
                 ];
             }
 
-            function ensureFundScreenerControls() {
+            function updateFundScreenerCategoryOptions(records = null) {
+                const categorySelect = document.getElementById('fundScreenerChartCategory');
+                if (!categorySelect || !fundUniverseState?.records?.length) return;
+                const current = categorySelect.value;
+                const source = records || fundUniverseState.records;
+                const categories = [...new Set(source.map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+                categorySelect.innerHTML = `<option value="">Todas</option>${categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}`;
+                categorySelect.value = categories.includes(current) ? current : '';
+            }
+
+            function ensureFundScreenerControls(records = null) {
                 const metrics = fundScreenerColumns().filter(c => c.type === 'num');
                 const metricOptions = metrics.map(c => `<option value="${c.key}">${escapeHtml(c.label)}</option>`).join('');
                 [['fundScreenerXAxis', 'ret3'], ['fundScreenerYAxis', 'risk3'], ['fundScreenerZAxis', 'aum']].forEach(([id, fallback]) => {
@@ -2899,13 +3077,7 @@
                         el.value = fallback;
                     }
                 });
-                const categorySelect = document.getElementById('fundScreenerChartCategory');
-                if (categorySelect && fundUniverseState?.records?.length) {
-                    const current = categorySelect.value;
-                    const categories = [...new Set(fundUniverseState.records.map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-                    categorySelect.innerHTML = `<option value="">Todas</option>${categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}`;
-                    if (categories.includes(current)) categorySelect.value = current;
-                }
+                updateFundScreenerCategoryOptions(records);
             }
 
             function fundScreenerFilterValue(key) {
@@ -2964,7 +3136,7 @@
                     fundScreenerState.initialized = true;
                 }
                 if (!fundUniverseState?.records?.length) {
-                    body.innerHTML = '<tr><td colspan="16" class="px-3 py-8 text-center text-slate-400">Carga primero el universo/ranking interno desde Scoring de Cartera.</td></tr>';
+                    body.innerHTML = `<tr><td colspan="${columns.length}" class="px-3 py-8 text-center text-slate-400">Carga primero el universo/ranking interno desde Scoring de Cartera.</td></tr>`;
                     if (status) status.innerText = 'Sin universo cargado.';
                     renderFundScreenerChart();
                     return;
@@ -2976,6 +3148,7 @@
                     if (col?.type === 'num') return ((Number.isFinite(av) ? av : -Infinity) - (Number.isFinite(bv) ? bv : -Infinity)) * dir;
                     return String(av || '').localeCompare(String(bv || '')) * dir;
                 });
+                updateFundScreenerCategoryOptions(rows);
                 const visible = rows.slice(0, fundScreenerState.limit);
                 body.innerHTML = visible.map(record => `<tr class="hover:bg-blue-50">
                     ${columns.map(col => {
@@ -7032,6 +7205,16 @@
                             </div>
                         </div>
 
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-slate-700 pl-3">Calidad de tendencia y lateralidad</h3>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="min-w-full text-sm text-left text-gray-600">
+                                    <thead class="text-xs text-gray-700 uppercase bg-slate-50"><tr><th class="px-4 py-3">Metrica</th><th class="px-4 py-3 text-right">Valor</th><th class="px-4 py-3">Lectura</th></tr></thead>
+                                    <tbody id="drawdownQualityTableBody" class="divide-y divide-gray-100"></tbody>
+                                </table>
+                            </div>
+                            <p id="drawdownQualityNote" class="text-xs text-gray-500 mt-3"></p>
+                        </div>
                         <div class="border-t-4 border-gray-300 pt-6 mt-8">
                             <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2"><i
                                     class="fa-solid fa-money-bill-trend-up text-green-600"></i> Estrategia: Buy the Dip
@@ -8042,6 +8225,7 @@
                     renderDrawdownChart(rawData, ddData, ticker);
                     renderDrawdownSpaghettiChart(rawData, ddData, ticker);
                     renderDrawdownTable(episodes);
+                    renderDrawdownQualityTable(calculateDrawdownQualityMetrics(rawData, ddData, currentDataFrequency));
                     renderYearlyTable(yearlyStats);
                     renderTechnicalChart(rawData, techData, ticker);
                     renderGeneralMetrics(generalData, ticker);
@@ -9395,11 +9579,12 @@
                     else if (returns[i] < 0) { if (currNeg === 0) negStart = returnsDates[i]; currNeg++; currPos = 0; if (currNeg > bestNegStreakInfo.len) bestNegStreakInfo = { len: currNeg, start: negStart, end: returnsDates[i] }; }
                     else { currPos = 0; currNeg = 0; }
                 }
-                return { returns, returnsDates, maReturns, meanRet, sigma, var95, initialValue, finalValue, totalRet: (prices[prices.length - 1] / prices[0]) - 1, cagr, volAnn: sigma * Math.sqrt(periodsPerYear(freq)), bestDay, worstDay, bestDayDate: returnsDates[returns.indexOf(bestDay)], worstDayDate: returnsDates[returns.indexOf(worstDay)], bestPosStreakInfo, bestNegStreakInfo };
+                const drawdownQuality = calculateDrawdownQualityMetrics(data, calculateDrawdownData(data), freq);
+                return { returns, returnsDates, maReturns, meanRet, sigma, var95, initialValue, finalValue, totalRet: (prices[prices.length - 1] / prices[0]) - 1, cagr, volAnn: sigma * Math.sqrt(periodsPerYear(freq)), bestDay, worstDay, bestDayDate: returnsDates[returns.indexOf(bestDay)], worstDayDate: returnsDates[returns.indexOf(worstDay)], bestPosStreakInfo, bestNegStreakInfo, drawdownQuality };
             }
             function renderGeneralMetrics(d, ticker) {
                 const tbody = document.getElementById('metricsTableBody');
-                tbody.innerHTML = [["Frecuencia usada", frequencyLabel(currentDataFrequency)], ["Valor Inicial", `€${fmtNum(d.initialValue)}`], ["Valor Final", `€${fmtNum(d.finalValue)}`], ["Rentabilidad Total", fmtPct(d.totalRet)], ["CAGR (Anual)", fmtPct(d.cagr)], ["Volatilidad (Anual)", fmtPct(d.volAnn)], ["Mejor Periodo", `${fmtPct(d.bestDay)} (${fmtDate(d.bestDayDate)})`], ["Peor Periodo", `${fmtPct(d.worstDay)} (${fmtDate(d.worstDayDate)})`], ["Racha Positiva Max", `${d.bestPosStreakInfo.len} periodos (${fmtDate(d.bestPosStreakInfo.start)} - ${fmtDate(d.bestPosStreakInfo.end)})`], ["Racha Negativa Max", `${d.bestNegStreakInfo.len} periodos (${fmtDate(d.bestNegStreakInfo.start)} - ${fmtDate(d.bestNegStreakInfo.end)})`]].map((r, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors"><td class="px-4 py-3 font-medium">${r[0]}</td><td class="px-4 py-3 text-right text-gray-700">${r[1]}</td></tr>`).join('');
+                tbody.innerHTML = [["Frecuencia usada", frequencyLabel(currentDataFrequency)], ["Valor Inicial", `€${fmtNum(d.initialValue)}`], ["Valor Final", `€${fmtNum(d.finalValue)}`], ["Rentabilidad Total", fmtPct(d.totalRet)], ["CAGR (Anual)", fmtPct(d.cagr)], ["Volatilidad (Anual)", fmtPct(d.volAnn)], ["Mejor Periodo", `${fmtPct(d.bestDay)} (${fmtDate(d.bestDayDate)})`], ["Peor Periodo", `${fmtPct(d.worstDay)} (${fmtDate(d.worstDayDate)})`], ["Racha Positiva Max", `${d.bestPosStreakInfo.len} periodos (${fmtDate(d.bestPosStreakInfo.start)} - ${fmtDate(d.bestPosStreakInfo.end)})`], ["Racha Negativa Max", `${d.bestNegStreakInfo.len} periodos (${fmtDate(d.bestNegStreakInfo.start)} - ${fmtDate(d.bestNegStreakInfo.end)})`], ["% Time Underwater", fmtPct(d.drawdownQuality?.timeUnderwater)]].map((r, i) => `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors"><td class="px-4 py-3 font-medium">${r[0]}</td><td class="px-4 py-3 text-right text-gray-700">${r[1]}</td></tr>`).join('');
                 const dates = d.returnsDates.map(x => x.toISOString().split('T')[0]);
                 const m = d.meanRet, s = d.sigma;
 
@@ -9885,6 +10070,28 @@
                 return r;
             }
             function calculateDrawdownData(d) { let max = -Infinity, dd = [], cMax = [], mDD = 0, mDate = d[0].date; d.forEach(i => { if (i.price > max) max = i.price; cMax.push(max); const v = i.price / max - 1; dd.push(v); if (v < mDD) { mDD = v; mDate = i.date; } }); return { drawdowns: dd, cumulativeMax: cMax, maxDD: mDD, maxDDDate: mDate, dates: d.map(i => i.date) }; }
+            function calculateDrawdownQualityMetrics(data, ddData = null, freq = currentDataFrequency) {
+                const rows = (data || []).filter(r => r && Number.isFinite(r.price));
+                const dd = ddData || (rows.length ? calculateDrawdownData(rows) : { drawdowns: [] });
+                const drawdowns = (dd.drawdowns || []).filter(Number.isFinite);
+                const underwater = drawdowns.filter(v => v < -1e-10).length;
+                const timeUnderwater = drawdowns.length ? underwater / drawdowns.length : 0;
+                const ulcerIndex = drawdowns.length ? Math.sqrt(drawdowns.reduce((acc, v) => acc + Math.pow(Math.min(0, v) * 100, 2), 0) / drawdowns.length) : 0;
+                let path = 0;
+                for (let i = 1; i < rows.length; i++) path += Math.abs(rows[i].price - rows[i - 1].price);
+                const kaufmanEfficiency = rows.length > 1 && path > 0 ? Math.abs(rows[rows.length - 1].price - rows[0].price) / path : 0;
+                const timeReading = timeUnderwater < 0.30 ? 'Tendencia persistente: poco tiempo bajo maximos previos.' : timeUnderwater <= 0.70 ? 'Zona intermedia: alterna tendencia y periodos de recuperacion.' : 'Elevado tiempo bajo agua: riesgo de lateralidad persistente.';
+                const ulcerReading = ulcerIndex < 5 ? 'Caidas poco persistentes o poco profundas.' : ulcerIndex < 12 ? 'Dolor historico moderado.' : 'Caidas persistentes/profundas; exige mayor tolerancia.';
+                const efficiencyReading = kaufmanEfficiency > 0.55 ? 'Movimiento direccional eficiente.' : kaufmanEfficiency > 0.25 ? 'Tendencia con ruido relevante.' : 'Trayectoria poco eficiente o muy lateral.';
+                return { timeUnderwater, ulcerIndex, kaufmanEfficiency, timeReading, ulcerReading, efficiencyReading, freq };
+            }
+
+            function formatDurationWithContext(days) {
+                const d = Math.max(0, Math.round(days || 0));
+                if (d >= 365) return d + ' dias (' + (d / 365.25).toFixed(1) + ' anos)';
+                if (d >= 30) return d + ' dias (' + (d / 30.44).toFixed(1) + ' meses)';
+                return d + ' dias';
+            }
             function calculateEpisodes(d, cm) {
                 const e = [];
                 let i = 0;
@@ -10568,7 +10775,19 @@
                 Plotly.newPlot('ddSpaghettiChart', traces, layout, { responsive: true });
             }
 
-            function renderDrawdownTable(e) { document.getElementById('drawdownTableBody').innerHTML = e.map((i, k) => `<tr><td class="px-4">#${k + 1}</td><td class="px-4 text-red-600 font-bold">${fmtPct(i.drawdown)}</td><td class="px-4">${fmtDate(i.start)}</td><td class="px-4">${fmtDate(i.end)}</td><td class="px-4">${i.recovery ? fmtDate(i.recovery) : '-'}</td><td class="px-4">${Math.round(i.length)}</td><td class="px-4">${Math.round(i.underwater)}</td></tr>`).join(''); }
+            function renderDrawdownTable(e) { document.getElementById('drawdownTableBody').innerHTML = e.map((i, k) => `<tr><td class="px-4">#${k + 1}</td><td class="px-4 text-red-600 font-bold">${fmtPct(i.drawdown)}</td><td class="px-4">${fmtDate(i.start)}</td><td class="px-4">${fmtDate(i.end)}</td><td class="px-4">${i.recovery ? fmtDate(i.recovery) : '-'}</td><td class="px-4">${formatDurationWithContext(i.length)}</td><td class="px-4">${formatDurationWithContext(i.underwater)}</td></tr>`).join(''); }
+
+            function renderDrawdownQualityTable(metrics) {
+                const body = document.getElementById('drawdownQualityTableBody');
+                if (!body || !metrics) return;
+                body.innerHTML = [
+                    ['% Time Underwater', fmtPct(metrics.timeUnderwater), metrics.timeReading],
+                    ['Ulcer Index', `${metrics.ulcerIndex.toFixed(2)}`, metrics.ulcerReading],
+                    ['Kaufman Efficiency Ratio', metrics.kaufmanEfficiency.toFixed(2), metrics.efficiencyReading]
+                ].map((row, i) => `<tr class="${i % 2 ? 'bg-gray-50' : 'bg-white'}"><td class="px-4 py-3 font-bold">${row[0]}</td><td class="px-4 py-3 text-right font-semibold">${row[1]}</td><td class="px-4 py-3">${row[2]}</td></tr>`).join('');
+                const note = document.getElementById('drawdownQualityNote');
+                if (note) note.innerHTML = `<b>Metodologia:</b> % Time Underwater mide la proporcion de observaciones en drawdown; en series diarias aproxima dias de mercado bajo agua y en series ${frequencyLabel(metrics.freq).toLowerCase()} se interpreta como periodos bajo agua. Ulcer Index es la raiz media cuadratica de los drawdowns negativos. Kaufman Efficiency Ratio compara el desplazamiento neto contra el recorrido total del precio.`;
+            }
             function renderYearlyTable(d) { document.getElementById('annualTableBody').innerHTML = d.map(i => `<tr><td class="px-4">${i.range}</td><td class="px-4 text-right font-bold ${i.return > 0 ? 'text-green-600' : 'text-red-500'}">${fmtPct(i.return)}</td><td class="px-4 text-right">${fmtPct(i.volatility)}</td></tr>`).join(''); }
 
             window.onload = () => {
