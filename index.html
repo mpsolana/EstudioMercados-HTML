@@ -1236,9 +1236,10 @@
                             <button onclick="renderFundUniverseMetricComparison()" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-rotate mr-1"></i>Actualizar comparacion</button>
                         </div>
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-                            <div><label class="text-xs uppercase font-bold text-slate-500">Filtro categoria</label><select id="fundUniverseCompareCategoryFilter" onchange="onFundUniverseCompareFilterChange()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"><option value="">Todas las categorias</option></select></div>
-                            <div><label class="text-xs uppercase font-bold text-slate-500">Filtro gestora / entidad</label><select id="fundUniverseCompareManagerFilter" onchange="onFundUniverseCompareFilterChange()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"><option value="">Todas las gestoras</option></select></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Filtro categoria</label><input id="fundUniverseCompareCategoryFilter" onfocus="renderFundUniverseCompareFilterPanel('category')" oninput="renderFundUniverseCompareFilterPanel('category')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="Todas las categorias"><div id="fundUniverseCompareCategoryPanel" class="hidden absolute z-40 mt-1 w-full max-h-72 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Filtro gestora / entidad</label><input id="fundUniverseCompareManagerFilter" onfocus="renderFundUniverseCompareFilterPanel('manager')" oninput="renderFundUniverseCompareFilterPanel('manager')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="Todas las gestoras"><div id="fundUniverseCompareManagerPanel" class="hidden absolute z-40 mt-1 w-full max-h-72 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
                         </div>
+                        <div id="fundUniverseCompareFilterNotice" class="hidden mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700"></div>
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
                             <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo origen</label><input id="fundUniverseCompareOriginInput" onfocus="renderFundUniverseSearchPanel('origin')" oninput="renderFundUniverseSearchPanel('origin')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm" placeholder="ISIN o nombre"><div id="fundUniverseCompareOriginPanel" class="hidden absolute z-40 mt-1 w-[min(960px,95vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
                             <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo comparacion</label><div class="flex gap-2 mt-1"><input id="fundUniverseCompareAddInput" onfocus="renderFundUniverseSearchPanel('add')" oninput="renderFundUniverseSearchPanel('add')" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Añadir ISIN/nombre"><button onclick="addFundUniverseComparisonFund()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold">Añadir</button></div><div id="fundUniverseCompareAddPanel" class="hidden absolute z-40 mt-1 w-[min(960px,95vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
@@ -2678,9 +2679,13 @@
 
             function fundUniverseCompareFilters() {
                 return {
-                    category: document.getElementById('fundUniverseCompareCategoryFilter')?.value || '',
-                    manager: document.getElementById('fundUniverseCompareManagerFilter')?.value || ''
+                    category: document.getElementById('fundUniverseCompareCategoryFilter')?.dataset.value || '',
+                    manager: document.getElementById('fundUniverseCompareManagerFilter')?.dataset.value || ''
                 };
+            }
+
+            function fundUniverseCompareManager(record) {
+                return String(record?.manager || record?.provider || record?.entity || '').trim();
             }
 
             function fundRecordMatchesCompareFilters(record, filters = fundUniverseCompareFilters(), opts = {}) {
@@ -2688,26 +2693,73 @@
                 const selectedCategory = normalizeHeaderLabel(filters.category || '');
                 const selectedManager = normalizeHeaderLabel(filters.manager || '');
                 const recordCategory = normalizeHeaderLabel(record.category || '');
-                const recordManager = normalizeHeaderLabel(record.manager || record.provider || record.entity || '');
+                const recordManager = normalizeHeaderLabel(fundUniverseCompareManager(record));
                 if (selectedCategory && recordCategory !== selectedCategory) return false;
                 if (selectedManager && !recordManager.includes(selectedManager)) return false;
                 if (opts.fallbackCategory && !selectedCategory && normalizeHeaderLabel(opts.fallbackCategory) && recordCategory !== normalizeHeaderLabel(opts.fallbackCategory)) return false;
                 return true;
             }
 
+            function getFundUniverseCompareFilteredRecords(filters = fundUniverseCompareFilters(), ignore = '') {
+                const effective = { category: ignore === 'category' ? '' : (filters.category || ''), manager: ignore === 'manager' ? '' : (filters.manager || '') };
+                return (fundUniverseState?.records || []).filter(r => fundRecordMatchesCompareFilters(r, effective));
+            }
+
             function populateFundUniverseCompareFilters() {
-                if (!fundUniverseState?.records?.length) return;
-                const categorySelect = document.getElementById('fundUniverseCompareCategoryFilter');
-                const managerSelect = document.getElementById('fundUniverseCompareManagerFilter');
-                const fillSelect = (select, values, emptyLabel) => {
-                    if (!select) return;
-                    const current = select.value;
-                    const unique = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
-                    select.innerHTML = `<option value="">${emptyLabel}</option>` + unique.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-                    if (unique.includes(current)) select.value = current;
-                };
-                fillSelect(categorySelect, fundUniverseState.records.map(r => r.category || ''), 'Todas las categorias');
-                fillSelect(managerSelect, fundUniverseState.records.map(r => r.manager || r.provider || r.entity || ''), 'Todas las gestoras');
+                refreshFundUniverseCompareFilterOptions();
+            }
+
+            function setFundUniverseCompareNotice(message = '') {
+                const el = document.getElementById('fundUniverseCompareFilterNotice');
+                if (!el) return;
+                el.textContent = message;
+                el.classList.toggle('hidden', !message);
+            }
+
+            function refreshFundUniverseCompareFilterOptions(changedFilter = '') {
+                if (!fundUniverseState?.records?.length) return { categories: [], managers: [] };
+                const filters = fundUniverseCompareFilters();
+                const categories = [...new Set(getFundUniverseCompareFilteredRecords(filters, 'category').map(r => r.category || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+                const managers = [...new Set(getFundUniverseCompareFilteredRecords(filters, 'manager').map(fundUniverseCompareManager).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+                const catInput = document.getElementById('fundUniverseCompareCategoryFilter');
+                const managerInput = document.getElementById('fundUniverseCompareManagerFilter');
+                let notice = '';
+                if (catInput?.dataset.value && !categories.includes(catInput.dataset.value)) {
+                    notice = 'La categoria seleccionada ya no existe para la gestora activa; se ha limpiado el filtro de categoria.';
+                    catInput.dataset.value = '';
+                    catInput.value = '';
+                }
+                if (managerInput?.dataset.value && !managers.includes(managerInput.dataset.value)) {
+                    notice = 'La gestora seleccionada ya no existe para la categoria activa; se ha limpiado el filtro de gestora.';
+                    managerInput.dataset.value = '';
+                    managerInput.value = '';
+                }
+                setFundUniverseCompareNotice(notice);
+                return { categories, managers };
+            }
+
+            function renderFundUniverseCompareFilterPanel(type) {
+                const inputId = type === 'category' ? 'fundUniverseCompareCategoryFilter' : 'fundUniverseCompareManagerFilter';
+                const panelId = type === 'category' ? 'fundUniverseCompareCategoryPanel' : 'fundUniverseCompareManagerPanel';
+                const input = document.getElementById(inputId);
+                const panel = document.getElementById(panelId);
+                if (!input || !panel) return;
+                const opts = refreshFundUniverseCompareFilterOptions(type);
+                const values = type === 'category' ? opts.categories : opts.managers;
+                const q = normalizeHeaderLabel(input.value || '');
+                const filtered = values.filter(v => !q || normalizeHeaderLabel(v).includes(q)).slice(0, 250);
+                const allLabel = type === 'category' ? 'Todas las categorias' : 'Todas las gestoras';
+                panel.classList.remove('hidden');
+                panel.innerHTML = `<button type="button" onclick='selectFundUniverseCompareFilter(${JSON.stringify(type)}, "")' class="block w-full px-3 py-2 text-left font-bold text-blue-700 hover:bg-blue-50">${allLabel}</button>` +
+                    (filtered.length ? filtered.map(v => `<button type="button" onclick='selectFundUniverseCompareFilter(${JSON.stringify(type)}, ${JSON.stringify(v)})' class="block w-full px-3 py-2 text-left hover:bg-slate-50">${escapeHtml(v)}</button>`).join('') : '<div class="px-3 py-2 text-slate-400">Sin opciones compatibles.</div>');
+            }
+
+            function selectFundUniverseCompareFilter(type, value) {
+                const input = document.getElementById(type === 'category' ? 'fundUniverseCompareCategoryFilter' : 'fundUniverseCompareManagerFilter');
+                const panel = document.getElementById(type === 'category' ? 'fundUniverseCompareCategoryPanel' : 'fundUniverseCompareManagerPanel');
+                if (input) { input.dataset.value = value || ''; input.value = value || ''; }
+                if (panel) panel.classList.add('hidden');
+                onFundUniverseCompareFilterChange(type);
             }
 
             function searchFundUniverseRecords(query, limit = 40, category = '', manager = '') {
@@ -2807,10 +2859,11 @@
 
             function onFundUniverseCompareOriginChange() { updateFundUniverseProposedOptions(true); renderFundUniverseMetricComparison(); }
 
-            function onFundUniverseCompareFilterChange() {
+            function onFundUniverseCompareFilterChange(changedFilter = '') {
+                refreshFundUniverseCompareFilterOptions(changedFilter);
                 updateFundUniverseProposedOptions(true);
-                renderFundUniverseSearchPanel('origin');
-                renderFundUniverseSearchPanel('add');
+                document.getElementById('fundUniverseCompareOriginPanel')?.classList.add('hidden');
+                document.getElementById('fundUniverseCompareAddPanel')?.classList.add('hidden');
                 renderFundUniverseMetricComparison();
             }
 
@@ -2938,6 +2991,36 @@
                 return rows;
             }
 
+            function sameFundAum(a, b) {
+                if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return false;
+                if (Math.round(a) === Math.round(b)) return true;
+                return Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b)) <= 0.001;
+            }
+
+            function findCheaperShareClasses(record) {
+                if (!record || !Number.isFinite(record.aum) || !Number.isFinite(record.ter) || !fundUniverseState?.records?.length) return [];
+                const recordBase = baseFundName(record.name || '');
+                return fundUniverseState.records
+                    .filter(candidate => candidate.isin !== record.isin)
+                    .filter(candidate => Number.isFinite(candidate.ter) && candidate.ter < record.ter)
+                    .filter(candidate => sameFundAum(candidate.aum, record.aum))
+                    .map(candidate => {
+                        const sameCategory = normalizeHeaderLabel(candidate.category || '') === normalizeHeaderLabel(record.category || '');
+                        const similarity = tokenSimilarity(recordBase, baseFundName(candidate.name || ''));
+                        return { record: candidate, sameCategory, similarity };
+                    })
+                    .filter(item => item.sameCategory || item.similarity >= 0.65)
+                    .sort((a, b) => (a.record.ter - b.record.ter) || ((b.similarity || 0) - (a.similarity || 0)))
+                    .map(item => item.record);
+            }
+
+            function cheaperShareClassBadge(row) {
+                const best = row?.cheaperClasses?.[0];
+                if (!best || !row.current) return '';
+                const annual = Number.isFinite(row.weight) && Number.isFinite(row.current.ter) && Number.isFinite(best.ter) ? FUND_PROPOSAL_SAVING_CAPITAL * (row.weight / 100) * (row.current.ter - best.ter) / 100 : NaN;
+                return `<div class="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800"><b>Clase mas barata:</b> ${escapeHtml(best.isin)} · TER ${fmtPercentPoint(best.ter)}${Number.isFinite(annual) ? ` · ahorro ${formatEur(annual)}/año` : ''}</div>`;
+            }
+
             function analyzeFundProposalPortfolio() {
                 const status = document.getElementById('fundProposalStatus');
                 if (!fundUniverseState?.records?.length) { if (status) status.innerText = 'Carga primero el universo/ranking interno.'; return; }
@@ -2947,7 +3030,8 @@
                     const current = fundUniverseState.isinIndex.get(row.isin) || searchFundUniverseRecords(row.isin, 1)[0] || null;
                     const recs = current ? getBetterFundRecommendations(current, 5000) : [];
                     const proposed = recs[0] || current;
-                    return { ...row, current, proposed, recommendations: recs, missing: !current };
+                    const cheaperClasses = current ? findCheaperShareClasses(current) : [];
+                    return { ...row, current, proposed, recommendations: recs, cheaperClasses, missing: !current };
                 });
                 fundProposalState.reportHtml = '';
                 renderFundProposalPortfolio();
@@ -3049,7 +3133,8 @@
                 if (status) {
                     const missing = rows.filter(r => r.missing).length;
                     const improved = rows.filter(r => r.current && r.proposed && r.current.isin !== r.proposed.isin).length;
-                    status.innerText = `${rows.length} fondos analizados · ${improved} propuestas aplicadas · ${missing} sin match.`;
+                    const cheaper = rows.filter(r => r.cheaperClasses?.length).length;
+                    status.innerText = `${rows.length} fondos analizados · ${improved} propuestas por score · ${cheaper} con clase mas barata · ${missing} sin match.`;
                 }
                 body.innerHTML = rows.length ? rows.map((row, idx) => {
                     const current = row.current;
@@ -3057,7 +3142,7 @@
                     const options = [`<option value="__original__">Mantener actual</option>`].concat((row.recommendations || []).slice(0, 300).map(r => `<option value="${escapeHtml(r.isin)}" ${proposed?.isin === r.isin ? 'selected' : ''}>${escapeHtml(r.isin)} - ${escapeHtml(r.name)} (Score ${fmtScore(r.score)}, TER ${fmtPercentPoint(r.ter)})</option>`)).join('');
                     return `<tr class="${proposed && current && proposed.isin !== current.isin ? 'bg-emerald-50' : ''}">
                         <td class="px-3 py-2 font-mono">${escapeHtml(row.isin)}</td>
-                        <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)}</b>` : '<span class="text-red-600 font-bold">Sin match</span>'}</td>
+                        <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)}</b>${cheaperShareClassBadge(row)}` : '<span class="text-red-600 font-bold">Sin match</span>'}</td>
                         <td class="px-3 py-2">${escapeHtml(current?.category || '-')}</td>
                         <td class="px-3 py-2 text-right font-bold">${row.weight.toFixed(2)}%</td>
                         <td class="px-3 py-2 text-right">${fmtScore(current?.score)}</td>
@@ -3094,27 +3179,6 @@
                 Plotly.newPlot(el, traces, { title: 'Propuesta: Retorno 5Y vs Riesgo 5Y (tamaño = TER)', xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 55, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
             }
 
-            function generateFundProposalReport() {
-                if (!fundProposalState.rows?.length) analyzeFundProposalPortfolio();
-                const preview = document.getElementById('fundProposalReportPreview');
-                if (!preview || !fundProposalState.rows?.length) return;
-                const rows = fundProposalState.rows.map(row => `<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td>${row.weight.toFixed(2)}%</td><td>${fmtScore(row.current?.score)}</td><td>${fmtScore(row.proposed?.score)}</td><td>${fmtPercentPoint(row.current?.ter)}</td><td>${fmtPercentPoint(row.proposed?.ter)}</td></tr>`).join('');
-                const html = `<div class="space-y-4">
-                    <h3 class="text-xl font-black text-slate-900">Informe propuesta de fondos</h3>
-                    <p><b>Descripción:</b> compara la cartera actual contra una propuesta de fondos con mayor scoring dentro de la misma categoría, manteniendo los pesos introducidos.</p>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div class="rounded border p-3"><b>Score actual</b><br>${fmtScore(fundProposalWeighted('score', 'current'))}</div>
-                        <div class="rounded border p-3"><b>Score propuesto</b><br>${fmtScore(fundProposalWeighted('score', 'proposed'))}</div>
-                        <div class="rounded border p-3"><b>TER actual</b><br>${fmtPercentPoint(fundProposalWeighted('ter', 'current'))}</div>
-                        <div class="rounded border p-3"><b>TER propuesto</b><br>${fmtPercentPoint(fundProposalWeighted('ter', 'proposed'))}</div>
-                    </div>
-                    <table class="w-full text-xs border"><thead class="bg-slate-100"><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${rows}</tbody></table>
-                    <p class="text-xs text-slate-500"><b>Metodología:</b> score y TER ponderan por los pesos normalizados introducidos. Las propuestas se filtran por misma categoría y score superior al fondo origen.</p>
-                </div>`;
-                fundProposalState.reportHtml = html;
-                preview.innerHTML = html;
-                preview.classList.remove('hidden');
-            }
             function fundProposalMetricReportCell(record, metric, proposed) {
                 const value = record && record[metric.key];
                 if (!Number.isFinite(value)) return '<td class="num muted">-</td>';
@@ -3125,7 +3189,7 @@
                 if (proposed && record.isin !== proposed.isin && Number.isFinite(proposedValue)) {
                     const better = metric.lowerBetter ? value < proposedValue : value > proposedValue;
                     const equal = Math.abs(value - proposedValue) < 1e-9;
-                    rel = equal ? '' : better ? ' style="outline:1.5px solid #16a34a"' : ' style="outline:1.5px solid #dc2626"';
+                    rel = equal ? '' : better ? ' style="outline:1.4px solid #16a34a"' : ' style="outline:1.4px solid #dc2626"';
                 }
                 return `<td class="num ${qCls}"${rel}>${formatUniverseMetricValue(value, metric)}</td>`;
             }
@@ -3134,7 +3198,7 @@
                 const current = row.current;
                 const proposed = row.proposed;
                 if (!current || !proposed) return '<p class="method-note"><b>Incidencia:</b> no hay datos suficientes en el universo para construir la comparativa de metricas.</p>';
-                const metrics = fundUniverseMetricConfigs().filter(m => ['score','ter','ret1','ret3','ret5','risk1','risk3','risk5','dd1','dd3','dd5'].includes(m.key));
+                const metrics = fundUniverseMetricConfigs().filter(m => ['score', 'ter', 'ret1', 'ret3', 'ret5', 'risk1', 'risk3', 'risk5', 'dd1', 'dd3', 'dd5'].includes(m.key));
                 return `<table class="scoring-report-table"><colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup><thead><tr><th>Metrica</th><th>Fondo actual</th><th>Fondo propuesto</th></tr></thead><tbody>
                     <tr><td><b>Nombre</b></td><td>${escapeHtml(current.name || '-')}<br><span class="muted">${escapeHtml(current.isin || '-')}</span></td><td>${escapeHtml(proposed.name || '-')}<br><span class="muted">${escapeHtml(proposed.isin || '-')}</span></td></tr>
                     <tr><td><b>Categoria</b></td><td>${escapeHtml(current.category || '-')}</td><td>${escapeHtml(proposed.category || '-')}</td></tr>
@@ -3144,36 +3208,82 @@
 
             async function buildFundProposalPairChartImage(row) {
                 if (!window.Plotly || !row?.current || !row?.proposed) return '';
-                const current = row.current;
-                const proposed = row.proposed;
-                const category = current.category || proposed.category || '';
-                const universe = (fundUniverseState.records || []).filter(r => r.category === category && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
-                if (!universe.length || !Number.isFinite(current.ret5) || !Number.isFinite(current.risk5) || !Number.isFinite(proposed.ret5) || !Number.isFinite(proposed.risk5)) return '';
+                const category = row.current.category || row.proposed.category || '';
+                const universe = (fundUniverseState.records || []).filter(r => (!category || r.category === category) && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
+                if (!universe.length || !Number.isFinite(row.current.ret5) || !Number.isFinite(row.current.risk5)) return '';
                 const tmp = document.createElement('div');
+                tmp.style.width = '760px';
+                tmp.style.height = '430px';
                 tmp.style.position = 'fixed';
                 tmp.style.left = '-10000px';
                 tmp.style.top = '0';
-                tmp.style.width = '980px';
-                tmp.style.height = '520px';
                 document.body.appendChild(tmp);
-                const sizeFromTer = r => Math.max(14, Math.min(34, 10 + (Number.isFinite(r.ter) ? r.ter * 8 : 0)));
                 const avgRet = getMean(universe.map(r => r.ret5).filter(Number.isFinite));
                 const avgRisk = getMean(universe.map(r => r.risk5).filter(Number.isFinite));
+                const traces = [
+                    { x: universe.map(r => r.ret5), y: universe.map(r => r.risk5), mode: 'markers', type: 'scatter', name: 'Universo categoria', text: universe.map(r => r.name), marker: { color: '#cbd5e1', size: 7, opacity: 0.28 }, hovertemplate: '<b>%{text}</b><br>Ret 5Y %{x:.2f}%<br>Risk 5Y %{y:.2f}%<extra></extra>' },
+                    { x: [avgRet], y: [avgRisk], mode: 'markers+text', type: 'scatter', name: 'Media categoria', text: ['Media'], textposition: 'top center', marker: { color: '#111827', symbol: 'diamond', size: 14 } },
+                    { x: [row.current.ret5], y: [row.current.risk5], mode: 'markers+text', type: 'scatter', name: 'Actual', text: ['Actual'], textposition: 'top center', marker: { color: '#2563eb', size: 15, line: { color: '#0f172a', width: 1 } } }
+                ];
+                if (Number.isFinite(row.proposed.ret5) && Number.isFinite(row.proposed.risk5)) traces.push({ x: [row.proposed.ret5], y: [row.proposed.risk5], mode: 'markers+text', type: 'scatter', name: 'Propuesto', text: ['Propuesto'], textposition: 'bottom center', marker: { color: '#16a34a', size: 16, line: { color: '#064e3b', width: 1 } } });
                 try {
-                    await Plotly.newPlot(tmp, [
-                        { x: universe.map(r => r.ret5), y: universe.map(r => r.risk5), mode: 'markers', type: 'scatter', name: 'Universo categoria', text: universe.map(r => r.name), marker: { color: '#cbd5e1', size: 7, opacity: 0.28 } },
-                        { x: [avgRet], y: [avgRisk], mode: 'markers+text', type: 'scatter', name: 'Media categoria', text: ['Media'], textposition: 'top center', marker: { color: '#111827', symbol: 'diamond', size: 16 } },
-                        { x: [current.ret5], y: [current.risk5], mode: 'markers+text', type: 'scatter', name: 'Actual', text: ['Actual'], textposition: 'top center', marker: { color: '#2563eb', size: sizeFromTer(current), line: { color: '#0f172a', width: 1.2 } } },
-                        { x: [proposed.ret5], y: [proposed.risk5], mode: 'markers+text', type: 'scatter', name: 'Propuesto', text: ['Propuesto'], textposition: 'bottom center', marker: { color: '#16a34a', size: sizeFromTer(proposed), line: { color: '#064e3b', width: 1.2 } } }
-                    ], { title: `Ret 5Y vs Risk 5Y - ${category}`, xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 55, l: 65, r: 25, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { staticPlot: true, displayModeBar: false });
-                    return await Plotly.toImage(tmp, { format: 'png', width: 980, height: 520, scale: 1.5 });
+                    await Plotly.newPlot(tmp, traces, { title: `${row.isin} - Retorno 5Y vs Riesgo 5Y`, xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 50, l: 60, r: 20, b: 55 }, legend: { orientation: 'h', y: -0.2 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { staticPlot: true, displayModeBar: false });
+                    return await Plotly.toImage(tmp, { format: 'png', width: 760, height: 430, scale: 2 });
                 } catch (err) {
-                    console.warn('proposal pair chart failed', err);
+                    console.warn('No se pudo capturar nube de propuesta', err);
                     return '';
                 } finally {
-                    try { Plotly.purge(tmp); } catch (_) {}
+                    try { Plotly.purge(tmp); } catch (err) {}
                     tmp.remove();
                 }
+            }
+
+            function fundProposalCheaperOpportunitiesRows() {
+                return (fundProposalState.rows || []).filter(row => row.current && row.cheaperClasses?.length).map(row => {
+                    const best = row.cheaperClasses[0];
+                    const annual = FUND_PROPOSAL_SAVING_CAPITAL * (row.weight / 100) * (row.current.ter - best.ter) / 100;
+                    return `<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current.name || '-')}</td><td>${escapeHtml(best.isin || '-')}</td><td>${escapeHtml(best.name || '-')}</td><td class="num">${fmtPercentPoint(row.current.ter)}</td><td class="num">${fmtPercentPoint(best.ter)}</td><td class="num">${formatEur(annual)}</td></tr>`;
+                }).join('');
+            }
+
+            function fundProposalReportStyles() {
+                return `<style>
+                    .proposal-report{width:182mm;max-width:182mm;padding:0 10mm 12mm}
+                    .proposal-report .cover{margin:0 -10mm 14px;padding:14mm 10mm 11mm}
+                    .proposal-report .block{break-inside:auto;page-break-inside:auto;margin-bottom:10px;padding:10px}
+                    .proposal-report figure{break-inside:avoid;page-break-inside:avoid;padding:7px}
+                    .proposal-report figure img{max-height:105mm}
+                    .proposal-report table{font-size:7.8px;line-height:1.15}
+                    .proposal-report th{font-size:6.8px;padding:4px 3px}
+                    .proposal-report td{padding:4px 3px;word-break:normal;overflow-wrap:break-word}
+                    .proposal-report .summary{gap:7px;margin-bottom:10px}
+                    .proposal-report .summary div{padding:8px}
+                    .proposal-report .summary strong{font-size:14px}
+                    .proposal-report h2{font-size:13px;margin-bottom:8px}
+                    .proposal-report p{font-size:9.5px;line-height:1.42}
+                    .proposal-report .analysis-note,.proposal-report .method-note{font-size:9px;padding:6px 7px}
+                </style>`;
+            }
+
+            function buildFundProposalReportBodyHtml({ savings, currentScore, newScore, currentTer, newTer, savingsImage, overviewImage, changes, cheaperRows, pairSections }) {
+                return `<main class="report proposal-report">
+                    <section class="cover"><div><div class="eyebrow">Analyzer</div><h1>Informe propuesta de fondos</h1><p>Analisis ejecutivo de sustituciones, mejora de scoring y ahorro estimado por TER.</p></div><div class="stamp">${new Date().toLocaleDateString('es-ES')}</div></section>
+                    <section class="summary compact-summary">
+                        <div><span>Score actual</span><strong>${fmtScore(currentScore)}</strong></div><div><span>Score propuesto</span><strong>${fmtScore(newScore)}</strong></div><div><span>TER actual</span><strong>${fmtPercentPoint(currentTer)}</strong></div><div><span>TER propuesto</span><strong>${fmtPercentPoint(newTer)}</strong></div>
+                        <div><span>Mejora score</span><strong>${Number.isFinite(newScore - currentScore) ? (newScore - currentScore).toFixed(2) : '-'}</strong></div><div><span>Ahorro anual</span><strong>${formatEur(savings.annualSaving)}</strong></div><div><span>Ahorro 5 años</span><strong>${formatEur(savings.compounded[4])}</strong></div><div><span>Ahorro 15 años</span><strong>${formatEur(savings.compounded[14])}</strong></div>
+                    </section>
+                    <section class="block"><h2>Resumen ejecutivo</h2><p class="indented">La propuesta mantiene los pesos introducidos y sustituye cada fondo por alternativas de la misma categoria con score superior cuando existen candidatos. El ahorro por TER se simula sobre una cartera de ${formatEur(FUND_PROPOSAL_SAVING_CAPITAL)} para aislar el efecto del menor coste anual.</p></section>
+                    <section class="block"><h2>Cambios propuestos</h2><table class="scoring-report-table"><thead><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${changes}</tbody></table><p class="method-note"><b>Metodologia:</b> score y TER se ponderan por los pesos normalizados. Las sustituciones no modifican la cartera original; solo afectan a esta simulacion.</p></section>
+                    <section class="block"><h2>Incidencias y oportunidades de coste</h2>${cheaperRows ? `<table class="scoring-report-table"><thead><tr><th>ISIN origen</th><th>Clase actual</th><th>ISIN barato</th><th>Clase barata</th><th>TER actual</th><th>TER barato</th><th>Ahorro anual</th></tr></thead><tbody>${cheaperRows}</tbody></table>` : '<p class="method-note">No se han detectado clases mas baratas del mismo fondo usando AUM y similitud de nombre.</p>'}<p class="method-note"><b>Metodologia:</b> se considera misma clase/fondo cuando el AUM coincide o difiere menos del 0,1%, reforzado por categoria o similitud de nombre base.</p></section>
+                    <section class="block"><h2>Ahorro estimado por TER</h2>${savingsImage ? `<figure><figcaption>Ahorro simple y efecto compuesto por menor coste</figcaption><img src="${savingsImage}" alt="Ahorro TER"></figure>` : '<p class="method-note">Sin grafica disponible.</p>'}<p class="method-note"><b>Formula:</b> ahorro anual simple = capital x (TER actual - TER propuesto). Efecto compuesto n años = capital x ((1 - TER propuesto)^n - (1 - TER actual)^n).</p></section>
+                    ${overviewImage ? `<section class="block"><h2>Mapa global de la propuesta</h2><figure><figcaption>Retorno 5Y vs riesgo 5Y, tamaño por TER</figcaption><img src="${overviewImage}" alt="Mapa global propuesta"></figure></section>` : ''}
+                    ${pairSections.join('')}
+                    <footer>Informe generado por Analyzer. Los datos dependen del universo/ranking cargado por el usuario.</footer>
+                </main>`;
+            }
+
+            function buildFundProposalReportDocumentHtml(bodyHtml) {
+                return `<!DOCTYPE html><html><head><meta charset="UTF-8">${portfolioReportStyles()}${fundProposalReportStyles()}</head><body>${bodyHtml}</body></html>`;
             }
 
             async function generateFundProposalReport() {
@@ -3191,47 +3301,40 @@
                 const savingsImage = await capturePlotlyReportImage('fundProposalSavingsChart');
                 const overviewImage = await capturePlotlyReportImage('fundProposalChart');
                 const rows = fundProposalState.rows || [];
-                const changes = rows.map(row => `<tr>
-                    <td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td>
-                    <td class="num">${row.weight.toFixed(2)}%</td><td class="num">${fmtScore(row.current?.score)}</td><td class="num">${fmtScore(row.proposed?.score)}</td><td class="num">${fmtPercentPoint(row.current?.ter)}</td><td class="num">${fmtPercentPoint(row.proposed?.ter)}</td>
-                </tr>`).join('');
+                const changes = rows.map(row => `<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td class="num">${row.weight.toFixed(2)}%</td><td class="num">${fmtScore(row.current?.score)}</td><td class="num">${fmtScore(row.proposed?.score)}</td><td class="num">${fmtPercentPoint(row.current?.ter)}</td><td class="num">${fmtPercentPoint(row.proposed?.ter)}</td></tr>`).join('');
+                const cheaperRows = fundProposalCheaperOpportunitiesRows();
                 const pairSections = [];
                 for (const row of rows) {
                     const pairImage = await buildFundProposalPairChartImage(row);
                     const scoreDelta = row.current && row.proposed && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
                     const terDelta = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
-                    pairSections.push(`<section class="block">
-                        <h2>${escapeHtml(row.isin)} - Analisis de sustitucion</h2>
-                        <p class="analysis-note"><b>Descripcion:</b> ${row.current && row.proposed ? `se compara ${escapeHtml(row.current.name || row.isin)} frente a ${escapeHtml(row.proposed.name || '-')}. La mejora de score es ${Number.isFinite(scoreDelta) ? scoreDelta.toFixed(2) : '-'} y el diferencial de TER es ${Number.isFinite(terDelta) ? terDelta.toFixed(2) + ' pp' : '-'}.` : 'no hay match suficiente para proponer una sustitucion automatica.'}</p>
-                        ${fundProposalMetricReportTable(row)}
-                        ${pairImage ? `<figure><figcaption>Nube categoria: retorno 5Y, riesgo 5Y y TER</figcaption><img src="${pairImage}" alt="Nube comparativa ${escapeHtml(row.isin)}"></figure>` : '<p class="method-note"><b>Incidencia:</b> la nube no se ha generado por falta de metricas 5Y suficientes.</p>'}
-                    </section>`);
+                    const bestCheap = row.cheaperClasses?.[0];
+                    const cheapText = bestCheap ? ` Clase mas barata detectada: ${escapeHtml(bestCheap.isin)} (${fmtPercentPoint(bestCheap.ter)} TER).` : ' No se detecta clase mas barata equivalente.';
+                    pairSections.push(`<section class="block"><h2>${escapeHtml(row.isin)} - Analisis de sustitucion</h2><p class="analysis-note"><b>Descripcion:</b> ${row.current && row.proposed ? `se compara ${escapeHtml(row.current.name || row.isin)} frente a ${escapeHtml(row.proposed.name || '-')}. La mejora de score es ${Number.isFinite(scoreDelta) ? scoreDelta.toFixed(2) : '-'} y el diferencial de TER de la propuesta es ${Number.isFinite(terDelta) ? terDelta.toFixed(2) + ' pp' : '-'}.${cheapText}` : 'no hay match suficiente para proponer una sustitucion automatica.'}</p>${fundProposalMetricReportTable(row)}${pairImage ? `<figure><figcaption>Nube categoria: retorno 5Y, riesgo 5Y y TER</figcaption><img src="${pairImage}" alt="Nube comparativa ${escapeHtml(row.isin)}"></figure>` : '<p class="method-note"><b>Incidencia:</b> la nube no se ha generado por falta de metricas 5Y suficientes.</p>'}</section>`);
                 }
-                const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${portfolioReportStyles()}</head><body><main class="report">
-                    <section class="cover"><div><div class="eyebrow">Analyzer</div><h1>Informe propuesta de fondos</h1><p>Analisis ejecutivo de sustituciones, mejora de scoring y ahorro estimado por TER.</p></div><div class="stamp">${new Date().toLocaleDateString('es-ES')}</div></section>
-                    <section class="summary compact-summary">
-                        <div><span>Score actual</span><strong>${fmtScore(currentScore)}</strong></div><div><span>Score propuesto</span><strong>${fmtScore(newScore)}</strong></div><div><span>TER actual</span><strong>${fmtPercentPoint(currentTer)}</strong></div><div><span>TER propuesto</span><strong>${fmtPercentPoint(newTer)}</strong></div>
-                        <div><span>Mejora score</span><strong>${Number.isFinite(newScore - currentScore) ? (newScore - currentScore).toFixed(2) : '-'}</strong></div><div><span>Ahorro anual</span><strong>${formatEur(savings.annualSaving)}</strong></div><div><span>Ahorro 5 años</span><strong>${formatEur(savings.compounded[4])}</strong></div><div><span>Ahorro 15 años</span><strong>${formatEur(savings.compounded[14])}</strong></div>
-                    </section>
-                    <section class="block"><h2>Resumen ejecutivo</h2><p class="indented">La propuesta mantiene los pesos introducidos y sustituye cada fondo por alternativas de la misma categoria con score superior cuando existen candidatos. El ahorro por TER se simula sobre una cartera de ${formatEur(FUND_PROPOSAL_SAVING_CAPITAL)} para aislar el efecto del menor coste anual.</p></section>
-                    <section class="block"><h2>Cambios propuestos</h2><table class="scoring-report-table"><thead><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${changes}</tbody></table><p class="method-note"><b>Metodologia:</b> score y TER se ponderan por los pesos normalizados. Las sustituciones no modifican la cartera original; solo afectan a esta simulacion.</p></section>
-                    <section class="block"><h2>Ahorro estimado por TER</h2>${savingsImage ? `<figure><figcaption>Ahorro simple y efecto compuesto por menor coste</figcaption><img src="${savingsImage}" alt="Ahorro TER"></figure>` : '<p class="method-note">Sin grafica disponible.</p>'}<p class="method-note"><b>Formula:</b> ahorro anual simple = capital x (TER actual - TER propuesto). Efecto compuesto n años = capital x ((1 - TER propuesto)^n - (1 - TER actual)^n).</p></section>
-                    ${overviewImage ? `<section class="block"><h2>Mapa global de la propuesta</h2><figure><figcaption>Retorno 5Y vs riesgo 5Y, tamaño por TER</figcaption><img src="${overviewImage}" alt="Mapa global propuesta"></figure></section>` : ''}
-                    ${pairSections.join('')}
-                    <footer>Informe generado por Analyzer. Los datos dependen del universo/ranking cargado por el usuario.</footer>
-                </main></body></html>`;
-                fundProposalState.reportHtml = html;
-                preview.innerHTML = html;
+                const bodyHtml = buildFundProposalReportBodyHtml({ savings, currentScore, newScore, currentTer, newTer, savingsImage, overviewImage, changes, cheaperRows, pairSections });
+                fundProposalState.reportBodyHtml = bodyHtml;
+                fundProposalState.reportHtml = buildFundProposalReportDocumentHtml(bodyHtml);
+                preview.innerHTML = portfolioReportStyles() + fundProposalReportStyles() + bodyHtml;
                 preview.classList.remove('hidden');
             }
 
             async function downloadFundProposalReportPdf() {
-                if (!fundProposalState.reportHtml) await generateFundProposalReport();
-                if (!fundProposalState.reportHtml) return;
-                const el = document.createElement('div');
-                el.innerHTML = fundProposalState.reportHtml;
+                if (!fundProposalState.reportBodyHtml) await generateFundProposalReport();
+                if (!fundProposalState.reportBodyHtml) return;
                 if (!window.html2pdf) return downloadBlob(fundProposalState.reportHtml, 'Informe_Propuesta_Fondos.html', 'text/html;charset=utf-8');
-                await html2pdf().set({ margin: 8, filename: 'Informe_Propuesta_Fondos.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'fixed';
+                wrapper.style.left = '-10000px';
+                wrapper.style.top = '0';
+                wrapper.innerHTML = portfolioReportStyles() + fundProposalReportStyles() + fundProposalState.reportBodyHtml;
+                document.body.appendChild(wrapper);
+                const report = wrapper.querySelector('.report') || wrapper;
+                try {
+                    await html2pdf().set({ margin: [5, 5, 5, 5], filename: 'Informe_Propuesta_Fondos.pdf', pagebreak: { mode: ['css', 'legacy'], avoid: ['figure', '.summary'] }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(report).save();
+                } finally {
+                    wrapper.remove();
+                }
             }
 
             function sheetRowsFromHeader(workbook, sheetName, headerRowNumber = 1) {
