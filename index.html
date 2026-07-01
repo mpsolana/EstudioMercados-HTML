@@ -1236,14 +1236,15 @@
                             <button onclick="renderFundUniverseMetricComparison()" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-rotate mr-1"></i>Actualizar comparacion</button>
                         </div>
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Filtro categoria</label><input id="fundUniverseCompareCategoryFilter" onfocus="renderFundUniverseCompareFilterPanel('category')" oninput="renderFundUniverseCompareFilterPanel('category')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="Todas las categorias"><div id="fundUniverseCompareCategoryPanel" class="hidden absolute z-40 mt-1 w-full max-h-72 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
-                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Filtro gestora / entidad</label><input id="fundUniverseCompareManagerFilter" onfocus="renderFundUniverseCompareFilterPanel('manager')" oninput="renderFundUniverseCompareFilterPanel('manager')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="Todas las gestoras"><div id="fundUniverseCompareManagerPanel" class="hidden absolute z-40 mt-1 w-full max-h-72 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Filtro categoria</label><input id="fundUniverseCompareCategoryFilter" onfocus="renderFundUniverseCompareFilterPanel('category')" oninput="scheduleFundUniverseCompareFilterPanel('category')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="Todas las categorias"><div id="fundUniverseCompareCategoryPanel" class="hidden absolute z-40 mt-1 w-full max-h-72 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Filtro gestora / entidad</label><input id="fundUniverseCompareManagerFilter" onfocus="renderFundUniverseCompareFilterPanel('manager')" oninput="scheduleFundUniverseCompareFilterPanel('manager')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="Todas las gestoras"><div id="fundUniverseCompareManagerPanel" class="hidden absolute z-40 mt-1 w-full max-h-72 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
                         </div>
                         <div id="fundUniverseCompareFilterNotice" class="hidden mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700"></div>
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
-                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo origen</label><input id="fundUniverseCompareOriginInput" onfocus="renderFundUniverseSearchPanel('origin')" oninput="renderFundUniverseSearchPanel('origin')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm" placeholder="ISIN o nombre"><div id="fundUniverseCompareOriginPanel" class="hidden absolute z-40 mt-1 w-[min(960px,95vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
-                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo comparacion</label><div class="flex gap-2 mt-1"><input id="fundUniverseCompareAddInput" onfocus="renderFundUniverseSearchPanel('add')" oninput="renderFundUniverseSearchPanel('add')" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Añadir ISIN/nombre"><button onclick="addFundUniverseComparisonFund()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold">Añadir</button></div><div id="fundUniverseCompareAddPanel" class="hidden absolute z-40 mt-1 w-[min(960px,95vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
-                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo propuesto</label><select id="fundUniverseCompareProposedSelect" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"><option value="">Selecciona fondo origen</option></select></div>
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-3">
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo origen</label><input id="fundUniverseCompareOriginInput" onfocus="renderFundUniverseSearchPanel('origin')" oninput="scheduleFundUniverseSearchPanel('origin')" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm" placeholder="ISIN o nombre"><div id="fundUniverseCompareOriginPanel" class="hidden absolute z-40 mt-1 w-[min(960px,95vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
+                            <div class="relative"><label class="text-xs uppercase font-bold text-slate-500">Fondo comparacion</label><div class="flex gap-2 mt-1"><input id="fundUniverseCompareAddInput" onfocus="renderFundUniverseSearchPanel('add')" oninput="scheduleFundUniverseSearchPanel('add')" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="Añadir ISIN/nombre"><button onclick="addFundUniverseComparisonFund()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold">Añadir</button></div><div id="fundUniverseCompareAddPanel" class="hidden absolute z-40 mt-1 w-[min(960px,95vw)] max-h-80 overflow-auto rounded border border-slate-200 bg-white shadow-xl text-xs"></div></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Fondo propuesto</label><div id="fundUniverseCompareProposedBox" class="mt-1"></div></div>
+                            <div><label class="text-xs uppercase font-bold text-slate-500">Comparar contra</label><select id="fundUniverseCompareBenchmarkSelect" onchange="setFundUniverseCompareBenchmark(this.value)" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"><option value="proposed">Fondo propuesto</option></select></div>
                         </div>
                         <datalist id="fundUniverseCompareFundList"></datalist><div id="fundUniverseCompareChips" class="flex flex-wrap gap-2 mb-4"></div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
@@ -1526,7 +1527,7 @@
             let fundManualTargetIndex = -1;
             let fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
             let fundScreenerState = { sortKey: 'score', sortDir: 'desc', initialized: false, limit: 300 };
-            let fundUniverseCompareState = { comparisons: [] };
+            let fundUniverseCompareState = { comparisons: [], proposedIsin: '', compareAgainst: 'proposed' };
             let assetClassScreenerState = { records: [], fileName: '', sortKey: 'funds', sortDir: 'desc', initialized: false, limit: 300 };
             let fundProposalState = { rows: [], reportHtml: '' };
             let aggregatePositionsState = { rows: [], aggregated: [], fileName: '', hasAmounts: false };
@@ -1534,6 +1535,7 @@
             let aggregateFastIndex = { universeBase: new Map(), approvedBase: new Map(), universeToken: new Map(), approvedToken: new Map(), approvedUniverse: new Map() };
             let aggregateScoringResults = [];
             const openFigiLookupCache = new Map();
+            const fundRecommendationCache = new Map();
             const aggregateRecommendationCache = new Map();
             let aggregateSantaluciaSort = { key: 'weight', dir: 'desc' };
             let marketsPortfolioAssetsState = { assets: [], data: {}, range: '10Y', sortKey: 'name', sortDir: 'asc' };
@@ -2762,6 +2764,17 @@
                 onFundUniverseCompareFilterChange(type);
             }
 
+            const fundUiDebounceTimers = {};
+            function scheduleFundUniverseCompareFilterPanel(type) {
+                clearTimeout(fundUiDebounceTimers[`filter-${type}`]);
+                fundUiDebounceTimers[`filter-${type}`] = setTimeout(() => renderFundUniverseCompareFilterPanel(type), 90);
+            }
+
+            function scheduleFundUniverseSearchPanel(kind) {
+                clearTimeout(fundUiDebounceTimers[`search-${kind}`]);
+                fundUiDebounceTimers[`search-${kind}`] = setTimeout(() => renderFundUniverseSearchPanel(kind), 110);
+            }
+
             function searchFundUniverseRecords(query, limit = 40, category = '', manager = '') {
                 if (!fundUniverseState?.records?.length) return [];
                 const q = normalizeHeaderLabel(query);
@@ -2822,27 +2835,75 @@
                 });
             }
 
-            function wideFundOptionPanel(items, selectCall, placeholder, maxRows = 250) {
-                if (!items?.length) return '<div class="text-xs text-slate-400">Sin alternativas mejores</div>';
-                const panelId = `fundWidePanel-${Math.random().toString(36).slice(2)}`;
-                const rows = items.slice(0, maxRows).map(item => {
-                    const rec = item.universe || item;
-                    const source = item.source ? `<span class="ml-1 rounded bg-slate-100 px-1 text-[10px] uppercase text-slate-500">${escapeHtml(item.source)}</span>` : '';
+            function normalizeFundComboItem(item) {
+                const rec = item?.universe || item?.record || item || {};
+                return { ...rec, source: item?.source || rec.source || '' };
+            }
+
+            function closeCompactFundComboboxes(exceptId = '') {
+                document.querySelectorAll('[data-compact-fund-panel]').forEach(panel => {
+                    if (panel.id !== exceptId) panel.classList.add('hidden');
+                });
+            }
+
+            function toggleCompactFundCombobox(panelId) {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                const willOpen = panel.classList.contains('hidden');
+                closeCompactFundComboboxes(panelId);
+                panel.classList.toggle('hidden', !willOpen);
+                if (willOpen) {
+                    const input = panel.querySelector('input');
+                    if (input) setTimeout(() => input.focus(), 0);
+                }
+            }
+
+            function filterCompactFundCombobox(input, panelId) {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                const q = normalizeHeaderLabel(input?.value || '');
+                let visible = 0;
+                panel.querySelectorAll('[data-option-search]').forEach(row => {
+                    const match = !q || normalizeHeaderLabel(row.getAttribute('data-option-search')).includes(q);
+                    row.classList.toggle('hidden', !match);
+                    if (match) visible += 1;
+                });
+                const empty = panel.querySelector('[data-empty]');
+                if (empty) empty.classList.toggle('hidden', visible > 0);
+            }
+
+            function renderCompactFundCombobox(items, selectCall, placeholder, options = {}) {
+                const normalized = (items || []).map(normalizeFundComboItem).filter(r => r && (r.isin || r.name));
+                if (!normalized.length) return `<div class="text-xs text-slate-400">${escapeHtml(options.emptyLabel || 'Sin alternativas mejores')}</div>`;
+                const maxRows = options.maxRows || 150;
+                const panelId = options.id || `fundComboPanel-${Math.random().toString(36).slice(2)}`;
+                const selected = options.selected ? normalizeFundComboItem(options.selected) : null;
+                const buttonText = selected?.isin ? `${selected.isin} · ${selected.name || ''}` : (options.buttonText || 'Seleccionar fondo');
+                const rows = normalized.slice(0, maxRows).map(rec => {
+                    const source = rec.source ? `<span class="ml-1 rounded bg-slate-100 px-1 text-[10px] uppercase text-slate-500">${escapeHtml(rec.source)}</span>` : '';
                     const search = `${rec.isin || ''} ${rec.name || ''} ${rec.manager || ''} ${rec.category || ''}`;
-                    return `<button type="button" data-option-search="${escapeHtml(search)}" onclick="${selectCall(rec.isin)}" class="grid w-full grid-cols-[105px_minmax(230px,1fr)_minmax(150px,230px)_60px_70px] gap-2 px-2 py-2 text-left hover:bg-blue-50 border-b border-slate-100 last:border-0">
-                        <span class="font-mono font-bold">${escapeHtml(rec.isin || '-')}</span>
-                        <span>${escapeHtml(rec.name || '-')} ${source}</span>
-                        <span>${escapeHtml(rec.category || '-')}</span>
+                    return `<button type="button" data-option-search="${escapeHtml(search)}" onclick="${selectCall(rec.isin)}; closeCompactFundComboboxes();" class="grid w-full grid-cols-[98px_minmax(180px,1fr)_58px_64px] gap-2 px-2 py-2 text-left hover:bg-blue-50 border-b border-slate-100 last:border-0">
+                        <span class="font-mono font-bold text-slate-700">${escapeHtml(rec.isin || '-')}</span>
+                        <span class="min-w-0"><b class="block truncate text-slate-900">${escapeHtml(rec.name || '-')}</b><span class="block truncate text-[10px] text-slate-400">${escapeHtml(rec.category || '-')} ${source}</span></span>
                         <span class="text-right font-bold text-blue-800">${fmtScore(rec.score)}</span>
-                        <span class="text-right font-bold">${fmtPercentPoint(rec.ter)}</span>
+                        <span class="text-right font-bold text-slate-700">${fmtPercentPoint(rec.ter)}</span>
                     </button>`;
                 }).join('');
-                return `<div class="rounded border border-slate-200 bg-white">
-                    <input oninput="filterOptionPanel(this, '${panelId}')" class="w-full border-b border-slate-200 p-2 text-xs" placeholder="${escapeHtml(placeholder)}">
-                    <div class="grid grid-cols-[105px_minmax(230px,1fr)_minmax(150px,230px)_60px_70px] gap-2 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase text-slate-500"><span>ISIN</span><span>Nombre</span><span>Categoría</span><span class="text-right">Score</span><span class="text-right">TER</span></div>
-                    <div id="${panelId}" class="max-h-64 min-w-[620px] overflow-auto">${rows}</div>
-                    ${items.length > maxRows ? `<div class="px-2 py-1 text-[11px] text-slate-400">Mostrando ${maxRows} de ${items.length}. Usa el buscador para acotar.</div>` : ''}
+                return `<div class="relative">
+                    <button type="button" onclick="toggleCompactFundCombobox('${panelId}')" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-left text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+                        <span class="block truncate">${escapeHtml(buttonText)}</span>
+                    </button>
+                    <div id="${panelId}" data-compact-fund-panel class="hidden absolute right-0 z-50 mt-1 w-[min(560px,92vw)] rounded border border-slate-200 bg-white shadow-2xl">
+                        <input oninput="filterCompactFundCombobox(this, '${panelId}')" class="w-full border-b border-slate-200 p-2 text-xs" placeholder="${escapeHtml(placeholder || 'Buscar ISIN o nombre...')}">
+                        <div class="grid grid-cols-[98px_minmax(180px,1fr)_58px_64px] gap-2 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase text-slate-500"><span>ISIN</span><span>Nombre</span><span class="text-right">Score</span><span class="text-right">TER</span></div>
+                        <div class="max-h-64 overflow-auto">${rows}<div data-empty class="hidden p-3 text-xs text-slate-400">Sin resultados con ese filtro.</div></div>
+                        ${normalized.length > maxRows ? `<div class="px-2 py-1 text-[11px] text-slate-400">Mostrando ${maxRows} de ${normalized.length}. Escribe para acotar.</div>` : ''}
+                    </div>
                 </div>`;
+            }
+
+            function wideFundOptionPanel(items, selectCall, placeholder, maxRows = 250) {
+                return renderCompactFundCombobox(items || [], selectCall, placeholder, { maxRows });
             }
 
             function populateFundUniverseCompareControls() {
@@ -2868,21 +2929,70 @@
             }
 
             function updateFundUniverseProposedOptions(reset = false) {
-                const select = document.getElementById('fundUniverseCompareProposedSelect');
-                if (!select) return;
+                const box = document.getElementById('fundUniverseCompareProposedBox');
+                if (!box) return;
                 const origin = resolveFundUniverseInput(document.getElementById('fundUniverseCompareOriginInput')?.value);
-                if (!origin) { select.innerHTML = '<option value="">Selecciona fondo origen</option>'; return; }
-                const current = reset ? '' : select.value;
+                if (!origin) { box.innerHTML = '<div class="rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-400">Selecciona fondo origen</div>'; updateFundUniverseCompareBenchmarkOptions(); return; }
+                if (reset) fundUniverseCompareState.proposedIsin = '';
                 const originScore = Number.isFinite(origin.score) ? origin.score : -Infinity;
                 const filters = fundUniverseCompareFilters();
                 const fallbackCategory = filters.category || origin.category;
-                const candidates = (fundUniverseState.records || [])
+                const categoryCandidates = (fundUniverseState.records || [])
                     .filter(r => r.isin !== origin.isin && Number.isFinite(r.score) && r.score > originScore)
                     .filter(r => fundRecordMatchesCompareFilters(r, { category: filters.category, manager: filters.manager }, { fallbackCategory }))
                     .sort((a, b) => ((Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity)) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity))).slice(0, 500);
-                const filterText = [fallbackCategory ? `categoria ${fallbackCategory}` : '', filters.manager ? `gestora ${filters.manager}` : ''].filter(Boolean).join(' + ');
-                select.innerHTML = candidates.length ? candidates.map(r => '<option value="' + escapeHtml(r.isin) + '">' + escapeHtml(r.isin + ' - ' + r.name + ' (Score ' + fmtScore(r.score) + ', TER ' + fmtPercentPoint(r.ter) + ')') + '</option>').join('') : `<option value="">Sin candidatos con ${escapeHtml(filterText || 'los filtros')}</option>`;
-                if (candidates.some(r => r.isin === current)) select.value = current;
+                if (!fundUniverseCompareState.proposedIsin && categoryCandidates.length) fundUniverseCompareState.proposedIsin = categoryCandidates[0].isin;
+                const selected = fundUniverseState.isinIndex?.get(fundUniverseCompareState.proposedIsin) || categoryCandidates[0] || null;
+                if (selected && selected.isin !== fundUniverseCompareState.proposedIsin) fundUniverseCompareState.proposedIsin = selected.isin;
+                const allSearchable = (fundUniverseState.records || [])
+                    .filter(r => r.isin !== origin.isin && Number.isFinite(r.score))
+                    .sort((a, b) => ((Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity)) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity)));
+                const seen = new Set();
+                const candidates = categoryCandidates.concat(allSearchable).filter(r => {
+                    if (seen.has(r.isin)) return false;
+                    seen.add(r.isin);
+                    return true;
+                });
+                box.innerHTML = renderCompactFundCombobox(candidates, isin => `setFundUniverseCompareProposed('${escapeHtml(isin)}')`, 'Buscar propuesto por ISIN o nombre...', { id: 'fundUniverseCompareProposedPanel', selected, buttonText: selected ? `${selected.isin} · ${selected.name}` : 'Sin propuesta compatible', maxRows: 150, emptyLabel: 'Sin candidatos' });
+                updateFundUniverseCompareBenchmarkOptions();
+            }
+
+            function setFundUniverseCompareProposed(isin) {
+                fundUniverseCompareState.proposedIsin = normalizeIsin(isin);
+                updateFundUniverseProposedOptions(false);
+                renderFundUniverseMetricComparison();
+            }
+
+            function fundUniverseCompareSelectedProposed() {
+                return fundUniverseState?.isinIndex?.get(fundUniverseCompareState.proposedIsin || '') || null;
+            }
+
+            function updateFundUniverseCompareBenchmarkOptions() {
+                const select = document.getElementById('fundUniverseCompareBenchmarkSelect');
+                if (!select) return;
+                const origin = resolveFundUniverseInput(document.getElementById('fundUniverseCompareOriginInput')?.value);
+                const proposed = fundUniverseCompareSelectedProposed();
+                const comparisons = fundUniverseCompareState.comparisons.map(isin => fundUniverseState?.isinIndex?.get(isin)).filter(Boolean);
+                const options = [];
+                if (proposed) options.push({ value: 'proposed', label: `Propuesto · ${proposed.isin}` });
+                if (origin) options.push({ value: 'origin', label: `Origen · ${origin.isin}` });
+                comparisons.forEach((r, i) => options.push({ value: `comparison:${r.isin}`, label: `Comparación ${i + 1} · ${r.isin}` }));
+                const valid = options.some(o => o.value === fundUniverseCompareState.compareAgainst);
+                if (!valid) fundUniverseCompareState.compareAgainst = proposed ? 'proposed' : (origin ? 'origin' : '');
+                select.innerHTML = options.length ? options.map(o => `<option value="${escapeHtml(o.value)}" ${o.value === fundUniverseCompareState.compareAgainst ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('') : '<option value="">Selecciona fondos</option>';
+            }
+
+            function setFundUniverseCompareBenchmark(value) {
+                fundUniverseCompareState.compareAgainst = value || 'proposed';
+                renderFundUniverseMetricComparison();
+            }
+
+            function fundUniverseCompareBenchmarkRecord(origin, comparisons, proposed) {
+                const key = fundUniverseCompareState.compareAgainst || 'proposed';
+                if (key === 'proposed') return proposed || null;
+                if (key === 'origin') return origin || null;
+                if (key.startsWith('comparison:')) return comparisons.find(r => r.isin === key.split(':')[1]) || null;
+                return proposed || origin || null;
             }
 
             function addFundUniverseComparisonFund() {
@@ -2907,6 +3017,7 @@
                 if (!el) return;
                 const chips = fundUniverseCompareState.comparisons.map(isin => fundUniverseState?.isinIndex?.get(isin)).filter(Boolean);
                 el.innerHTML = chips.length ? chips.map(r => '<span class="inline-flex items-center gap-2 px-2 py-1 rounded bg-slate-100 border border-slate-200 text-xs"><b>' + escapeHtml(r.isin) + '</b> ' + escapeHtml(r.name) + ' <button onclick="removeFundUniverseComparisonFund(\'' + escapeHtml(r.isin) + '\')" class="text-red-600 font-bold">x</button></span>').join('') : '<span class="text-xs text-slate-400">Sin fondos de comparacion anadidos.</span>';
+                updateFundUniverseCompareBenchmarkOptions();
             }
 
             function universeComparisonCell(record, metric, proposed) {
@@ -2929,23 +3040,26 @@
                 const status = document.getElementById('fundUniverseCompareStatus'), head = document.getElementById('fundUniverseCompareHead'), body = document.getElementById('fundUniverseCompareBody'), chart = document.getElementById('fundUniverseCompareChart');
                 if (!fundUniverseState?.records?.length) { if (status) status.textContent = 'Carga primero el universo/ranking interno desde Scoring de Cartera.'; if (chart) chart.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin universo cargado.</div>'; if (head) head.innerHTML = ''; if (body) body.innerHTML = ''; return; }
                 const origin = resolveFundUniverseInput(document.getElementById('fundUniverseCompareOriginInput')?.value);
-                const proposed = fundUniverseState.isinIndex?.get(document.getElementById('fundUniverseCompareProposedSelect')?.value || '');
+                const proposed = fundUniverseCompareSelectedProposed();
                 if (!origin) { if (status) status.textContent = 'Selecciona un fondo origen para comparar contra su categoria.'; if (chart) chart.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Selecciona un fondo origen.</div>'; if (head) head.innerHTML = ''; if (body) body.innerHTML = ''; return; }
                 const filters = fundUniverseCompareFilters();
                 const originMatchesFilters = fundRecordMatchesCompareFilters(origin, filters);
                 const comparisons = fundUniverseCompareState.comparisons.map(isin => fundUniverseState.isinIndex?.get(isin)).filter(Boolean);
+                updateFundUniverseCompareBenchmarkOptions();
+                const benchmark = fundUniverseCompareBenchmarkRecord(origin, comparisons, proposed);
                 const columns = [origin].concat(comparisons).concat(proposed ? [proposed] : []);
                 const labels = ['Fondo origen'].concat(comparisons.map((_, i) => 'Comparacion ' + (i + 1))).concat(proposed ? ['Fondo propuesto'] : []);
                 const metrics = fundUniverseMetricConfigs();
                 if (head) head.innerHTML = '<tr><th class="px-3 py-2 text-left">Metrica</th>' + labels.map(l => '<th class="px-3 py-2 text-left">' + escapeHtml(l) + '</th>').join('') + '</tr>';
                 if (body) {
                     const identity = '<tr class="bg-slate-50"><td class="px-3 py-2 font-bold">Fondo</td>' + columns.map(r => '<td class="px-3 py-2"><div class="font-bold text-slate-900">' + escapeHtml(r.name) + '</div><div class="font-mono text-[11px] text-slate-500">' + escapeHtml(r.isin) + '</div><div class="text-[11px] text-slate-500">' + escapeHtml(r.category || '-') + '</div></td>').join('') + '</tr>';
-                    body.innerHTML = identity + metrics.map(metric => '<tr><td class="px-3 py-2 font-bold text-slate-700">' + escapeHtml(metric.label) + '</td>' + columns.map(r => universeComparisonCell(r, metric, proposed)).join('') + '</tr>').join('');
+                    body.innerHTML = identity + metrics.map(metric => '<tr><td class="px-3 py-2 font-bold text-slate-700">' + escapeHtml(metric.label) + '</td>' + columns.map(r => universeComparisonCell(r, metric, benchmark)).join('') + '</tr>').join('');
                 }
                 if (status) {
                     const activeFilters = [filters.category ? `categoria: ${filters.category}` : '', filters.manager ? `gestora: ${filters.manager}` : ''].filter(Boolean).join(' · ');
                     const compatibleCount = (fundUniverseState.records || []).filter(r => fundRecordMatchesCompareFilters(r, { category: filters.category || origin.category, manager: filters.manager })).length;
-                    status.textContent = `${originMatchesFilters ? '' : 'Aviso: el fondo origen no cumple los filtros activos. '}Categoria origen: ${origin.category || 'Sin categoria'}. ${activeFilters ? `Filtros: ${activeFilters}. ` : ''}Universo compatible: ${compatibleCount} fondos.`;
+                    const outOfCategory = proposed && origin.category && normalizeHeaderLabel(proposed.category || '') !== normalizeHeaderLabel(origin.category || '');
+                    status.textContent = `${originMatchesFilters ? '' : 'Aviso: el fondo origen no cumple los filtros activos. '}${outOfCategory ? 'Aviso: el fondo propuesto seleccionado pertenece a otra categoria. ' : ''}Categoria origen: ${origin.category || 'Sin categoria'}. ${activeFilters ? `Filtros: ${activeFilters}. ` : ''}Universo compatible: ${compatibleCount} fondos. Comparativa contra: ${benchmark?.isin || '-'}.`;
                 }
                 renderFundUniverseMetricScatter(origin, comparisons, proposed);
             }
@@ -3042,7 +3156,27 @@
                 if (!row) return;
                 row.proposed = isin === '__original__' ? row.current : fundUniverseState.isinIndex.get(normalizeIsin(isin)) || row.proposed;
                 fundProposalState.reportHtml = '';
+                fundProposalState.reportBodyHtml = '';
                 renderFundProposalPortfolio();
+            }
+
+            function fundProposalActionHtml(row, idx) {
+                if (!row.current) return '<span class="text-slate-400">Sin match</span>';
+                const approved = getApprovedFundRecommendations(row.current, 5000);
+                const universe = row.recommendations || getBetterFundRecommendations(row.current, 5000);
+                const reset = row.proposed && row.current && row.proposed.isin !== row.current.isin ? `<button onclick="setFundProposalRecommendation(${idx}, '__original__')" class="mt-1 px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-700">Volver actual</button>` : '';
+                return `<div class="space-y-1 min-w-[240px]">
+                    <div><div class="mb-0.5 text-[10px] font-bold uppercase text-emerald-700">Aprobados (${approved.length})</div>${renderCompactFundCombobox(approved, isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar aprobado...', { id: `fundProposalApproved-${idx}`, selected: row.proposed, maxRows: 120, emptyLabel: 'Sin aprobados mejores' })}</div>
+                    <div><div class="mb-0.5 text-[10px] font-bold uppercase text-blue-700">Universo (${universe.length})</div>${renderCompactFundCombobox(universe, isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar universo...', { id: `fundProposalUniverse-${idx}`, selected: row.proposed, maxRows: 120, emptyLabel: 'Sin universo mejor' })}</div>
+                    ${reset}
+                </div>`;
+            }
+
+            function setProposalKpiTone(id, signal) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.remove('text-emerald-800', 'text-red-700', 'text-slate-900');
+                el.classList.add(!Number.isFinite(signal) ? 'text-slate-900' : signal >= 0 ? 'text-emerald-800' : 'text-red-700');
             }
 
             function fundProposalWeighted(metric, side = 'current') {
@@ -3130,6 +3264,12 @@
                 setText('proposalAnnualTerSaving', formatEur(savings.annualSaving));
                 setText('proposalSaving5y', formatEur(savings.compounded[4]));
                 setText('proposalSaving15y', formatEur(savings.compounded[14]));
+                setProposalKpiTone('proposalNewScore', Number.isFinite(newScore) && Number.isFinite(currentScore) ? newScore - currentScore : NaN);
+                setProposalKpiTone('proposalNewTer', Number.isFinite(currentTer) && Number.isFinite(newTer) ? currentTer - newTer : NaN);
+                setProposalKpiTone('proposalScoreDelta', Number.isFinite(newScore) && Number.isFinite(currentScore) ? newScore - currentScore : NaN);
+                setProposalKpiTone('proposalAnnualTerSaving', savings.annualSaving);
+                setProposalKpiTone('proposalSaving5y', savings.compounded[4]);
+                setProposalKpiTone('proposalSaving15y', savings.compounded[14]);
                 if (status) {
                     const missing = rows.filter(r => r.missing).length;
                     const improved = rows.filter(r => r.current && r.proposed && r.current.isin !== r.proposed.isin).length;
@@ -3139,7 +3279,10 @@
                 body.innerHTML = rows.length ? rows.map((row, idx) => {
                     const current = row.current;
                     const proposed = row.proposed;
-                    const options = [`<option value="__original__">Mantener actual</option>`].concat((row.recommendations || []).slice(0, 300).map(r => `<option value="${escapeHtml(r.isin)}" ${proposed?.isin === r.isin ? 'selected' : ''}>${escapeHtml(r.isin)} - ${escapeHtml(r.name)} (Score ${fmtScore(r.score)}, TER ${fmtPercentPoint(r.ter)})</option>`)).join('');
+                    const scoreSignal = current && proposed && Number.isFinite(current.score) && Number.isFinite(proposed.score) ? proposed.score - current.score : NaN;
+                    const terSignal = current && proposed && Number.isFinite(current.ter) && Number.isFinite(proposed.ter) ? current.ter - proposed.ter : NaN;
+                    const scoreCls = !Number.isFinite(scoreSignal) ? '' : scoreSignal >= 0 ? 'text-emerald-800' : 'text-red-700';
+                    const terCls = !Number.isFinite(terSignal) ? '' : terSignal >= 0 ? 'text-emerald-800' : 'text-red-700';
                     return `<tr class="${proposed && current && proposed.isin !== current.isin ? 'bg-emerald-50' : ''}">
                         <td class="px-3 py-2 font-mono">${escapeHtml(row.isin)}</td>
                         <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)}</b>${cheaperShareClassBadge(row)}` : '<span class="text-red-600 font-bold">Sin match</span>'}</td>
@@ -3148,9 +3291,9 @@
                         <td class="px-3 py-2 text-right">${fmtScore(current?.score)}</td>
                         <td class="px-3 py-2 text-right">${fmtPercentPoint(current?.ter)}</td>
                         <td class="px-3 py-2">${proposed ? `${escapeHtml(proposed.name)}<br><span class="font-mono text-[11px] text-slate-400">${escapeHtml(proposed.isin)}</span>` : '-'}</td>
-                        <td class="px-3 py-2 text-right font-bold text-emerald-800">${fmtScore(proposed?.score)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(proposed?.ter)}</td>
-                        <td class="px-3 py-2"><select onchange="setFundProposalRecommendation(${idx}, this.value)" class="w-80 max-w-full rounded border border-slate-300 bg-white p-1 text-xs">${options}</select></td>
+                        <td class="px-3 py-2 text-right font-bold ${scoreCls}">${fmtScore(proposed?.score)}</td>
+                        <td class="px-3 py-2 text-right font-bold ${terCls}">${fmtPercentPoint(proposed?.ter)}</td>
+                        <td class="px-3 py-2">${fundProposalActionHtml(row, idx)}</td>
                     </tr>`;
                 }).join('') : '<tr><td colspan="10" class="px-3 py-6 text-center text-slate-400">Introduce una cartera para analizar.</td></tr>';
                 renderFundProposalSavingsChart();
@@ -3248,29 +3391,37 @@
 
             function fundProposalReportStyles() {
                 return `<style>
-                    .proposal-report{width:182mm;max-width:182mm;padding:0 10mm 12mm}
-                    .proposal-report .cover{margin:0 -10mm 14px;padding:14mm 10mm 11mm}
-                    .proposal-report .block{break-inside:auto;page-break-inside:auto;margin-bottom:10px;padding:10px}
-                    .proposal-report figure{break-inside:avoid;page-break-inside:avoid;padding:7px}
-                    .proposal-report figure img{max-height:105mm}
-                    .proposal-report table{font-size:7.8px;line-height:1.15}
-                    .proposal-report th{font-size:6.8px;padding:4px 3px}
-                    .proposal-report td{padding:4px 3px;word-break:normal;overflow-wrap:break-word}
-                    .proposal-report .summary{gap:7px;margin-bottom:10px}
-                    .proposal-report .summary div{padding:8px}
-                    .proposal-report .summary strong{font-size:14px}
-                    .proposal-report h2{font-size:13px;margin-bottom:8px}
-                    .proposal-report p{font-size:9.5px;line-height:1.42}
-                    .proposal-report .analysis-note,.proposal-report .method-note{font-size:9px;padding:6px 7px}
+                    .proposal-print-root{width:184mm;max-width:184mm;margin:0 auto;background:#fff;color:#152238;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+                    .proposal-report{padding:0 8mm 10mm}
+                    .proposal-report .cover{margin:0 -8mm 8mm;padding:12mm 8mm 10mm;background:#0b1f3a;color:#fff;break-inside:avoid;page-break-inside:avoid}
+                    .proposal-report .block{break-inside:auto;page-break-inside:auto;margin:0 0 7mm;padding:5mm;border:1px solid #d8e1ec;border-radius:4px;background:#fff}
+                    .proposal-report .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:0 0 7mm;break-inside:avoid;page-break-inside:avoid}
+                    .proposal-report .summary div{padding:6px;border:1px solid #d8e1ec;background:#f7fafc}
+                    .proposal-report .summary strong{font-size:12px}
+                    .proposal-report h1{font-size:22px;line-height:1.1;margin:0 0 5px}
+                    .proposal-report h2{font-size:12.5px;margin:0 0 6px;color:#0b1f3a}
+                    .proposal-report p{font-size:8.8px;line-height:1.35;margin:0 0 5px}
+                    .proposal-report figure{margin:4mm 0 0;padding:4mm;border:1px solid #e2e8f0;break-inside:avoid;page-break-inside:avoid}
+                    .proposal-report figure img{display:block;width:100%;max-width:100%;max-height:92mm;object-fit:contain}
+                    .proposal-report figcaption{font-size:8px;color:#64748b;margin-bottom:3px}
+                    .proposal-report table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:7.1px;line-height:1.12}
+                    .proposal-report th{font-size:6.6px;padding:3px 2px;background:#0b1f3a;color:#fff;text-transform:uppercase}
+                    .proposal-report td{padding:3px 2px;border-bottom:1px solid #e6edf5;word-break:normal;overflow-wrap:break-word;vertical-align:top}
+                    .proposal-report td.num,.proposal-report .num{text-align:right;white-space:nowrap}
+                    .proposal-report .analysis-note,.proposal-report .method-note{font-size:8.2px;line-height:1.35;padding:5px 6px;background:#f8fafc;border-left:3px solid #c69c2d;margin-top:5px}
+                    .proposal-report .q1{background:#d8f8e4;color:#115e35;font-weight:700}.proposal-report .q2{background:#ecfbd0;color:#365314;font-weight:700}.proposal-report .q3{background:#ffedd5;color:#7c2d12;font-weight:700}.proposal-report .q4{background:#fee2e2;color:#7f1d1d;font-weight:700}
+                    .proposal-report .report-good{color:#047857!important;font-weight:800}.proposal-report .report-bad{color:#b91c1c!important;font-weight:800}.proposal-report tr.report-bad-row td{background:#fff1f2}
+                    .proposal-report footer{font-size:7.5px;color:#64748b;border-top:1px solid #d8e1ec;padding-top:4mm;margin-top:6mm}
+                    .proposal-report .page-break-before{break-before:page;page-break-before:always}
                 </style>`;
             }
 
             function buildFundProposalReportBodyHtml({ savings, currentScore, newScore, currentTer, newTer, savingsImage, overviewImage, changes, cheaperRows, pairSections }) {
-                return `<main class="report proposal-report">
+                return `<main class="report proposal-report proposal-print-root">
                     <section class="cover"><div><div class="eyebrow">Analyzer</div><h1>Informe propuesta de fondos</h1><p>Analisis ejecutivo de sustituciones, mejora de scoring y ahorro estimado por TER.</p></div><div class="stamp">${new Date().toLocaleDateString('es-ES')}</div></section>
                     <section class="summary compact-summary">
-                        <div><span>Score actual</span><strong>${fmtScore(currentScore)}</strong></div><div><span>Score propuesto</span><strong>${fmtScore(newScore)}</strong></div><div><span>TER actual</span><strong>${fmtPercentPoint(currentTer)}</strong></div><div><span>TER propuesto</span><strong>${fmtPercentPoint(newTer)}</strong></div>
-                        <div><span>Mejora score</span><strong>${Number.isFinite(newScore - currentScore) ? (newScore - currentScore).toFixed(2) : '-'}</strong></div><div><span>Ahorro anual</span><strong>${formatEur(savings.annualSaving)}</strong></div><div><span>Ahorro 5 años</span><strong>${formatEur(savings.compounded[4])}</strong></div><div><span>Ahorro 15 años</span><strong>${formatEur(savings.compounded[14])}</strong></div>
+                        <div><span>Score actual</span><strong>${fmtScore(currentScore)}</strong></div><div><span>Score propuesto</span><strong class="${proposalReportToneClass(newScore - currentScore)}">${fmtScore(newScore)}</strong></div><div><span>TER actual</span><strong>${fmtPercentPoint(currentTer)}</strong></div><div><span>TER propuesto</span><strong class="${proposalReportToneClass(currentTer - newTer)}">${fmtPercentPoint(newTer)}</strong></div>
+                        <div><span>Mejora score</span><strong class="${proposalReportToneClass(newScore - currentScore)}">${Number.isFinite(newScore - currentScore) ? (newScore - currentScore).toFixed(2) : '-'}</strong></div><div><span>Ahorro anual</span><strong class="${proposalReportToneClass(savings.annualSaving)}">${formatEur(savings.annualSaving)}</strong></div><div><span>Ahorro 5 años</span><strong class="${proposalReportToneClass(savings.compounded[4])}">${formatEur(savings.compounded[4])}</strong></div><div><span>Ahorro 15 años</span><strong class="${proposalReportToneClass(savings.compounded[14])}">${formatEur(savings.compounded[14])}</strong></div>
                     </section>
                     <section class="block"><h2>Resumen ejecutivo</h2><p class="indented">La propuesta mantiene los pesos introducidos y sustituye cada fondo por alternativas de la misma categoria con score superior cuando existen candidatos. El ahorro por TER se simula sobre una cartera de ${formatEur(FUND_PROPOSAL_SAVING_CAPITAL)} para aislar el efecto del menor coste anual.</p></section>
                     <section class="block"><h2>Cambios propuestos</h2><table class="scoring-report-table"><thead><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${changes}</tbody></table><p class="method-note"><b>Metodologia:</b> score y TER se ponderan por los pesos normalizados. Las sustituciones no modifican la cartera original; solo afectan a esta simulacion.</p></section>
@@ -3286,10 +3437,25 @@
                 return `<!DOCTYPE html><html><head><meta charset="UTF-8">${portfolioReportStyles()}${fundProposalReportStyles()}</head><body>${bodyHtml}</body></html>`;
             }
 
+            function proposalReportToneClass(signal) {
+                if (!Number.isFinite(signal)) return '';
+                return signal >= 0 ? 'report-good' : 'report-bad';
+            }
+
+            function setFundProposalBusy(label = '', busy = true) {
+                const status = document.getElementById('fundProposalStatus');
+                if (!status) return;
+                status.classList.toggle('border-blue-200', busy);
+                status.classList.toggle('bg-blue-50', busy);
+                status.classList.toggle('text-blue-800', busy);
+                if (label) status.innerText = label;
+            }
+
             async function generateFundProposalReport() {
                 if (!fundProposalState.rows?.length) analyzeFundProposalPortfolio();
                 const preview = document.getElementById('fundProposalReportPreview');
                 if (!preview || !fundProposalState.rows?.length) return;
+                setFundProposalBusy('Generando informe propuesta...', true);
                 renderFundProposalSavingsChart();
                 renderFundProposalChart();
                 await waitForUiFrame();
@@ -3301,10 +3467,18 @@
                 const savingsImage = await capturePlotlyReportImage('fundProposalSavingsChart');
                 const overviewImage = await capturePlotlyReportImage('fundProposalChart');
                 const rows = fundProposalState.rows || [];
-                const changes = rows.map(row => `<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td class="num">${row.weight.toFixed(2)}%</td><td class="num">${fmtScore(row.current?.score)}</td><td class="num">${fmtScore(row.proposed?.score)}</td><td class="num">${fmtPercentPoint(row.current?.ter)}</td><td class="num">${fmtPercentPoint(row.proposed?.ter)}</td></tr>`).join('');
+                const changes = rows.map(row => {
+                    const scoreSignal = row.current && row.proposed && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
+                    const terSignal = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
+                    const bad = (Number.isFinite(scoreSignal) && scoreSignal < 0) || (Number.isFinite(terSignal) && terSignal < 0);
+                    return `<tr class="${bad ? 'report-bad-row' : ''}"><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td class="num">${row.weight.toFixed(2)}%</td><td class="num">${fmtScore(row.current?.score)}</td><td class="num ${proposalReportToneClass(scoreSignal)}">${fmtScore(row.proposed?.score)}</td><td class="num">${fmtPercentPoint(row.current?.ter)}</td><td class="num ${proposalReportToneClass(terSignal)}">${fmtPercentPoint(row.proposed?.ter)}</td></tr>`;
+                }).join('');
                 const cheaperRows = fundProposalCheaperOpportunitiesRows();
                 const pairSections = [];
-                for (const row of rows) {
+                for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i];
+                    setFundProposalBusy(`Generando epigrafe ${i + 1}/${rows.length}...`, true);
+                    await waitForUiFrame();
                     const pairImage = await buildFundProposalPairChartImage(row);
                     const scoreDelta = row.current && row.proposed && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
                     const terDelta = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
@@ -3317,6 +3491,7 @@
                 fundProposalState.reportHtml = buildFundProposalReportDocumentHtml(bodyHtml);
                 preview.innerHTML = portfolioReportStyles() + fundProposalReportStyles() + bodyHtml;
                 preview.classList.remove('hidden');
+                setFundProposalBusy('Informe propuesta generado. Puedes exportarlo a PDF.', false);
             }
 
             async function downloadFundProposalReportPdf() {
@@ -3324,14 +3499,25 @@
                 if (!fundProposalState.reportBodyHtml) return;
                 if (!window.html2pdf) return downloadBlob(fundProposalState.reportHtml, 'Informe_Propuesta_Fondos.html', 'text/html;charset=utf-8');
                 const wrapper = document.createElement('div');
-                wrapper.style.position = 'fixed';
-                wrapper.style.left = '-10000px';
+                setFundProposalBusy('Preparando PDF propuesta...', true);
+                wrapper.style.position = 'absolute';
+                wrapper.style.left = '0';
                 wrapper.style.top = '0';
+                wrapper.style.width = '190mm';
+                wrapper.style.zIndex = '-1';
+                wrapper.style.pointerEvents = 'none';
+                wrapper.style.background = '#fff';
                 wrapper.innerHTML = portfolioReportStyles() + fundProposalReportStyles() + fundProposalState.reportBodyHtml;
                 document.body.appendChild(wrapper);
-                const report = wrapper.querySelector('.report') || wrapper;
+                const report = wrapper.querySelector('.proposal-print-root') || wrapper.querySelector('.report') || wrapper;
                 try {
-                    await html2pdf().set({ margin: [5, 5, 5, 5], filename: 'Informe_Propuesta_Fondos.pdf', pagebreak: { mode: ['css', 'legacy'], avoid: ['figure', '.summary'] }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(report).save();
+                    await waitForUiFrame();
+                    await html2pdf().set({ margin: [6, 6, 6, 6], filename: 'Informe_Propuesta_Fondos.pdf', pagebreak: { mode: ['css', 'legacy'], before: ['.page-break-before'], avoid: ['figure', '.summary'] }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true } }).from(report).save();
+                    setFundProposalBusy('PDF propuesta generado.', false);
+                } catch (err) {
+                    console.warn('PDF propuesta falló; se descarga HTML fallback', err);
+                    downloadBlob(fundProposalState.reportHtml, 'Informe_Propuesta_Fondos.html', 'text/html;charset=utf-8');
+                    setFundProposalBusy('No se pudo generar PDF; se ha descargado HTML.', false);
                 } finally {
                     wrapper.remove();
                 }
@@ -3547,6 +3733,7 @@
                 fundUniverseState = { records, isinIndex, quartiles: buildFundQuartiles(records), fileName: file.name };
                 fundScreenerState.initialized = false;
                 rebuildAggregateFastIndex();
+                fundRecommendationCache.clear();
                 aggregateRecommendationCache.clear();
                 document.getElementById('fundUniverseStatus').innerText = `${records.length.toLocaleString('es-ES')} fondos (${file.name})`;
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
@@ -4455,6 +4642,8 @@
             function getApprovedFundRecommendations(anchor, limit = 5000) {
                 const category = normalizeHeaderLabel(anchor?.category || '');
                 if (!category || !approvedFundsState?.records?.length || !fundUniverseState?.records?.length) return [];
+                const cacheKey = `approved|${anchor.isin || ''}|${category}|${Number.isFinite(anchor.score) ? anchor.score : 'na'}|${approvedFundsState.records.length}|${fundUniverseState.records.length}|${limit}`;
+                if (fundRecommendationCache.has(cacheKey)) return fundRecommendationCache.get(cacheKey);
                 const anchorScore = Number.isFinite(anchor.score) ? anchor.score : -Infinity;
                 const deduped = new Map();
                 approvedFundsState.records.forEach(ap => {
@@ -4465,19 +4654,25 @@
                     const prev = deduped.get(rec.isin);
                     if (!prev || rec.score > prev.score) deduped.set(rec.isin, rec);
                 });
-                return [...deduped.values()]
+                const records = [...deduped.values()]
                     .sort((a, b) => (b.score - a.score) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity)))
                     .slice(0, limit);
+                fundRecommendationCache.set(cacheKey, records);
+                return records;
             }
 
             function getBetterFundRecommendations(anchor, limit = 5) {
                 const category = anchor?.category || '';
                 if (!category || !fundUniverseState?.records?.length) return [];
+                const cacheKey = `universe|${anchor.isin || ''}|${normalizeHeaderLabel(category)}|${Number.isFinite(anchor.score) ? anchor.score : 'na'}|${fundUniverseState.records.length}|${limit}`;
+                if (fundRecommendationCache.has(cacheKey)) return fundRecommendationCache.get(cacheKey);
                 const anchorScore = Number.isFinite(anchor.score) ? anchor.score : -Infinity;
-                return fundUniverseState.records
+                const records = fundUniverseState.records
                     .filter(r => r.isin !== anchor.isin && r.category === category && Number.isFinite(r.score) && r.score > anchorScore)
                     .sort((a, b) => (b.score - a.score) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity)))
                     .slice(0, limit);
+                fundRecommendationCache.set(cacheKey, records);
+                return records;
             }
 
             function fundResolvedRecord(result) {
@@ -4867,6 +5062,7 @@
                 approvedFundsState = { records, isinIndex, fileName: file.name };
                 rebuildAggregateFastIndex();
                 aggregateScoringResults = [];
+                fundRecommendationCache.clear();
                 aggregateRecommendationCache.clear();
                 rebuildAggregateFastIndex();
                 if (status) status.innerText = `${records.length.toLocaleString('es-ES')} fondos aprobados (${file.name})`;
