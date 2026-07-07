@@ -1663,18 +1663,15 @@
 
             function filterAlignedRowsByRange(rows, range = 'ALL') {
                 if (!rows?.length || range === 'ALL') return rows || [];
-                const series = rows.map(r => ({ date: r.date, price: r.asset, bench: r.bench }));
-                let filtered = filterSeriesByRange(series, range).map(r => ({ date: r.date, asset: r.price, bench: r.bench }));
                 const monthsByRange = { '1M': 1, '3M': 3, '6M': 6, '1Y': 12, '3Y': 36, '5Y': 60 };
                 const months = monthsByRange[range];
-                if (filtered.length < 2 && Number.isFinite(months)) {
-                    const freq = inferDataFrequency(rows.map(r => ({ date: r.date, price: r.asset })));
-                    if (freq !== 'D') {
-                        const needed = Math.min(rows.length, periodsForMonths(months, freq) + 1);
-                        filtered = rows.slice(-needed);
-                    }
+                const freq = inferDataFrequency(rows.map(r => ({ date: r.date, price: r.asset })));
+                if (Number.isFinite(months) && freq !== 'D') {
+                    const needed = Math.min(rows.length, periodsForMonths(months, freq) + 1);
+                    return rows.slice(-needed);
                 }
-                return filtered;
+                const series = rows.map(r => ({ date: r.date, price: r.asset, bench: r.bench }));
+                return filterSeriesByRange(series, range).map(r => ({ date: r.date, asset: r.price, bench: r.bench }));
             }
 
             function exactAlignedSeriesRows(assetSeries, benchSeries) {
@@ -1708,39 +1705,18 @@
                 }).filter(Boolean).sort((a, b) => a.date - b.date);
             }
 
-            function asOfAlignedSeriesRows(assetSeries, benchSeries) {
-                const assets = (assetSeries || []).filter(d => d?.date && d.price > 0).slice().sort((a, b) => a.date - b.date);
-                const benches = (benchSeries || []).filter(d => d?.date && d.price > 0).slice().sort((a, b) => a.date - b.date);
-                if (!assets.length || !benches.length) return [];
-                const assetFreq = inferDataFrequency(assets);
-                const benchFreq = inferDataFrequency(benches);
-                const maxLagDays = assetFreq === 'D' && benchFreq === 'D' ? 7 : 45;
-                const rows = [];
-                let ai = 0;
-                benches.forEach(bench => {
-                    while (ai + 1 < assets.length && assets[ai + 1].date <= bench.date) ai++;
-                    const asset = assets[ai];
-                    const lagDays = (bench.date - asset.date) / 86400000;
-                    if (lagDays >= 0 && lagDays <= maxLagDays) rows.push({ date: bench.date, asset: asset.price, bench: bench.price });
-                });
-                return rows;
-            }
-
             function alignedSeriesRows(assetSeries, benchSeries, range = 'ALL') {
                 const exactRows = exactAlignedSeriesRows(assetSeries, benchSeries);
                 const assetFreq = inferDataFrequency(assetSeries || []);
                 const benchFreq = inferDataFrequency(benchSeries || []);
                 const canUseCalendarMonth = assetFreq !== 'D' || benchFreq !== 'D';
                 const monthRows = canUseCalendarMonth ? calendarMonthAlignedSeriesRows(assetSeries, benchSeries) : [];
-                const asOfRows = asOfAlignedSeriesRows(assetSeries, benchSeries);
                 const exactFiltered = filterAlignedRowsByRange(exactRows, range);
                 const monthFiltered = filterAlignedRowsByRange(monthRows, range);
-                const asOfFiltered = filterAlignedRowsByRange(asOfRows, range);
                 if (canUseCalendarMonth && monthFiltered.length >= Math.max(2, exactFiltered.length)) return monthFiltered;
                 if (exactFiltered.length >= 2) return exactFiltered;
                 if (monthFiltered.length >= 2) return monthFiltered;
-                if (asOfFiltered.length >= 2) return asOfFiltered;
-                return [exactFiltered, monthFiltered, asOfFiltered].sort((a, b) => b.length - a.length)[0] || [];
+                return [exactFiltered, monthFiltered].sort((a, b) => b.length - a.length)[0] || [];
             }
 
             function benchmarkRowsForComparedAssets(assets, bench, range = 'ALL') {
@@ -1764,15 +1740,15 @@
                     subset = rows.filter(r => r.date >= start);
                 }
                 else if (Number.isFinite(months)) {
-                    start = new Date(end);
-                    start.setMonth(start.getMonth() - months);
-                    subset = rows.filter(r => r.date >= start);
-                    if (subset.length < 2) {
-                        const freq = inferDataFrequency(rows.map(r => ({ date: r.date, price: r.asset })));
-                        if (freq !== 'D') {
-                            const needed = Math.min(rows.length, periodsForMonths(months, freq) + 1);
-                            subset = rows.slice(-needed);
-                        }
+                    const freq = inferDataFrequency(rows.map(r => ({ date: r.date, price: r.asset })));
+                    if (freq !== 'D') {
+                        const needed = periodsForMonths(months, freq) + 1;
+                        if (rows.length < needed) return null;
+                        subset = rows.slice(-needed);
+                    } else {
+                        start = new Date(end);
+                        start.setMonth(start.getMonth() - months);
+                        subset = rows.filter(r => r.date >= start);
                     }
                 }
                 if (subset.length < 2) return null;
