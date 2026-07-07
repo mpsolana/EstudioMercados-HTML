@@ -1104,6 +1104,12 @@
                                     <option value="">Carga una hoja bench</option>
                                 </select>
                             </div>
+                            <div class="flex-1">
+                                <label class="text-xs uppercase font-bold text-slate-500">Activo tablas</label>
+                                <select id="massiveCompareAssetSelect" onchange="setMassiveCompareAsset(this.value)" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                                    <option value="">Selecciona un benchmark</option>
+                                </select>
+                            </div>
                             <div class="flex flex-wrap gap-1 text-xs">
                                 <button onclick="setMassiveCompareRange('3M')" class="massive-fund-range-btn px-2 py-1 rounded bg-slate-100 hover:bg-slate-200" data-range="3M">3M</button>
                                 <button onclick="setMassiveCompareRange('6M')" class="massive-fund-range-btn px-2 py-1 rounded bg-slate-100 hover:bg-slate-200" data-range="6M">6M</button>
@@ -1521,6 +1527,7 @@
             let portfolioChartRange = 'ALL';
             let fundCompareRange = 'ALL';
             let massiveFundCompareRange = 'ALL';
+            let massiveFundCompareAssetKey = '';
             let fundUniverseState = null;
             let fundPortfolioRows = [];
             let fundScoringResults = [];
@@ -1642,13 +1649,24 @@
                 renderMassiveFundComparison();
             }
 
+            function setMassiveCompareAsset(assetKey) {
+                massiveFundCompareAssetKey = assetKey || '';
+                renderMassiveFundComparison();
+            }
+
             function normalizeBase100(series) {
                 if (!series?.length || !(series[0].price > 0)) return [];
                 const base = series[0].price;
                 return series.map(d => ({ date: d.date, price: (d.price / base) * 100 }));
             }
 
-            function alignedSeriesRows(assetSeries, benchSeries, range = 'ALL') {
+            function filterAlignedRowsByRange(rows, range = 'ALL') {
+                if (!rows?.length || range === 'ALL') return rows || [];
+                const series = rows.map(r => ({ date: r.date, price: r.asset, bench: r.bench }));
+                return filterSeriesByRange(series, range).map(r => ({ date: r.date, asset: r.price, bench: r.bench }));
+            }
+
+            function exactAlignedSeriesRows(assetSeries, benchSeries) {
                 const assetMap = new Map((assetSeries || []).map(d => [d.date.toISOString().slice(0, 10), d.price]));
                 const rows = (benchSeries || [])
                     .map(d => {
@@ -1656,9 +1674,52 @@
                         return assetMap.has(key) ? { date: d.date, asset: assetMap.get(key), bench: d.price } : null;
                     })
                     .filter(Boolean);
-                if (rows.length < 2) return [];
-                const filtered = filterSeriesByRange(rows.map(r => ({ date: r.date, price: r.asset, bench: r.bench })), range);
-                return filtered.map(r => ({ date: r.date, asset: r.price, bench: r.bench }));
+                return rows.sort((a, b) => a.date - b.date);
+            }
+
+            function latestByCalendarMonth(series) {
+                const map = new Map();
+                (series || []).forEach(d => {
+                    if (!d?.date || !(d.price > 0)) return;
+                    const key = d.date.toISOString().slice(0, 7);
+                    const prev = map.get(key);
+                    if (!prev || d.date > prev.date) map.set(key, d);
+                });
+                return map;
+            }
+
+            function calendarMonthAlignedSeriesRows(assetSeries, benchSeries) {
+                const assetMap = latestByCalendarMonth(assetSeries);
+                const benchMap = latestByCalendarMonth(benchSeries);
+                return [...benchMap.entries()].map(([key, bench]) => {
+                    const asset = assetMap.get(key);
+                    return asset ? { date: bench.date, asset: asset.price, bench: bench.price } : null;
+                }).filter(Boolean).sort((a, b) => a.date - b.date);
+            }
+
+            function alignedSeriesRows(assetSeries, benchSeries, range = 'ALL') {
+                const exactRows = exactAlignedSeriesRows(assetSeries, benchSeries);
+                const assetFreq = inferDataFrequency(assetSeries || []);
+                const benchFreq = inferDataFrequency(benchSeries || []);
+                const canUseCalendarMonth = assetFreq !== 'D' || benchFreq !== 'D';
+                const monthRows = canUseCalendarMonth ? calendarMonthAlignedSeriesRows(assetSeries, benchSeries) : [];
+                const exactFiltered = filterAlignedRowsByRange(exactRows, range);
+                const monthFiltered = filterAlignedRowsByRange(monthRows, range);
+                if (canUseCalendarMonth && monthFiltered.length >= Math.max(2, exactFiltered.length)) return monthFiltered;
+                if (exactFiltered.length >= 2) return exactFiltered;
+                if (monthFiltered.length >= 2) return monthFiltered;
+                return exactFiltered.length ? exactFiltered : monthFiltered;
+            }
+
+            function benchmarkRowsForComparedAssets(assets, bench, range = 'ALL') {
+                const byDate = new Map();
+                (assets || []).forEach(asset => {
+                    alignedSeriesRows(asset.data, bench.data, range).forEach(r => {
+                        const key = r.date.toISOString().slice(0, 10);
+                        byDate.set(key, { date: r.date, price: r.bench });
+                    });
+                });
+                return [...byDate.values()].sort((a, b) => a.date - b.date);
             }
 
             function periodReturnFromRows(rows, months) {
@@ -2383,24 +2444,8 @@
                 renderFundComparisonTables(rowsAll, asset.label, bench.label);
             }
 
-            function renderMassiveFundComparison() {
-                updateRangeButtons('.massive-fund-range-btn', massiveFundCompareRange);
-                const benchKey = document.getElementById('massiveCompareBenchSelect')?.value;
-                const bench = loadedPortfolio?.benchmarks?.[benchKey];
+            function massiveComparisonAssetsForBench(benchKey) {
                 const category = String(benchCategoryMeta(benchKey)?.assetClass || '').trim();
-                const notice = document.getElementById('massiveFundCompareNotice');
-                if (!bench) {
-                    if (notice) notice.textContent = 'Carga una cartera con hojas prices, weights, bench y bench categ para activar el comparador masivo.';
-                    Plotly.purge('massiveFundCompareChart');
-                    ['massiveFundComparePeriodBody', 'massiveFundCompareAnnualBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
-                    return;
-                }
-                if (!category) {
-                    if (notice) notice.textContent = 'El benchmark seleccionado no tiene categoria en la hoja bench categ.';
-                    Plotly.purge('massiveFundCompareChart');
-                    ['massiveFundComparePeriodBody', 'massiveFundCompareAnnualBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
-                    return;
-                }
                 const categoryKey = normalizeAssetClassKey(category);
                 const priceSeries = loadedPortfolio?.priceSeries || {};
                 const entries = loadedPortfolio?.entries || [];
@@ -2410,26 +2455,83 @@
                     key,
                     assetClass: series.assetClass || entryClassByTicker.get(String(key).toUpperCase()) || ''
                 }));
-                const assets = candidates.filter(s => normalizeAssetClassKey(s.assetClass) === categoryKey);
-                if (!assets.length) {
-                    const available = [...new Set(candidates.map(s => s.assetClass).filter(Boolean))].slice(0, 8).join(', ');
-                    if (notice) notice.textContent = `No hay activos en prices/weights con asset_class "${category}". Categorias disponibles: ${available || 'ninguna'}.`;
-                    Plotly.purge('massiveFundCompareChart');
-                    ['massiveFundComparePeriodBody', 'massiveFundCompareAnnualBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+                return {
+                    category,
+                    candidates,
+                    assets: candidates.filter(s => normalizeAssetClassKey(s.assetClass) === categoryKey)
+                };
+            }
+
+            function syncMassiveAssetSelect(assets) {
+                const select = document.getElementById('massiveCompareAssetSelect');
+                if (!select) return null;
+                if (!assets?.length) {
+                    select.innerHTML = '<option value="">Sin activos disponibles</option>';
+                    select.disabled = true;
+                    massiveFundCompareAssetKey = '';
+                    return null;
+                }
+                const current = massiveFundCompareAssetKey || select.value;
+                select.disabled = false;
+                select.innerHTML = assets.map(asset => `<option value="${escapeHtml(asset.key)}">${escapeHtml(asset.label || asset.key)}</option>`).join('');
+                const selected = assets.find(asset => asset.key === current) || assets[0];
+                select.value = selected.key;
+                massiveFundCompareAssetKey = selected.key;
+                return selected;
+            }
+
+            function clearMassiveComparisonOutputs(message) {
+                const assetSelect = document.getElementById('massiveCompareAssetSelect');
+                if (assetSelect) {
+                    assetSelect.innerHTML = '<option value="">Selecciona un benchmark</option>';
+                    assetSelect.disabled = true;
+                }
+                massiveFundCompareAssetKey = '';
+                if (message) {
+                    const notice = document.getElementById('massiveFundCompareNotice');
+                    if (notice) notice.textContent = message;
+                }
+                Plotly.purge('massiveFundCompareChart');
+                ['massiveFundComparePeriodBody', 'massiveFundCompareAnnualBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+            }
+
+            function renderMassiveFundComparison() {
+                updateRangeButtons('.massive-fund-range-btn', massiveFundCompareRange);
+                const benchKey = document.getElementById('massiveCompareBenchSelect')?.value;
+                const bench = loadedPortfolio?.benchmarks?.[benchKey];
+                const notice = document.getElementById('massiveFundCompareNotice');
+                if (!bench) {
+                    clearMassiveComparisonOutputs('Carga una cartera con hojas prices, weights, bench y bench categ para activar el comparador masivo.');
                     return;
                 }
+                const { category, candidates, assets } = massiveComparisonAssetsForBench(benchKey);
+                if (!category) {
+                    clearMassiveComparisonOutputs('El benchmark seleccionado no tiene categoria en la hoja bench categ.');
+                    return;
+                }
+                if (!assets.length) {
+                    const available = [...new Set(candidates.map(s => s.assetClass).filter(Boolean))].slice(0, 8).join(', ');
+                    clearMassiveComparisonOutputs(`No hay activos en prices/weights con asset_class "${category}". Categorias disponibles: ${available || 'ninguna'}.`);
+                    return;
+                }
+                const selectedAsset = syncMassiveAssetSelect(assets);
+                const visibleAssetRows = assets.map((asset, index) => ({
+                    asset,
+                    index,
+                    rows: alignedSeriesRows(asset.data, bench.data, massiveFundCompareRange)
+                })).filter(item => item.rows.length >= 2);
                 const traces = [];
-                const benchVisible = normalizeBase100(sliceSeriesByRange(bench.data, massiveFundCompareRange));
+                const benchVisible = normalizeBase100(benchmarkRowsForComparedAssets(visibleAssetRows.map(item => item.asset), bench, massiveFundCompareRange));
                 if (benchVisible.length) traces.push({ x: benchVisible.map(d => d.date), y: benchVisible.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 2.8, dash: 'dot' } });
-                assets.forEach((asset, index) => {
-                    const rowsVisible = alignedSeriesRows(asset.data, bench.data, massiveFundCompareRange);
-                    if (rowsVisible.length < 2) return;
+                visibleAssetRows.forEach(({ asset, index, rows }) => {
+                    const rowsVisible = rows;
                     const norm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.asset })));
                     traces.push({ x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: asset.label, line: { color: massiveComparisonColor(index), width: 1.8 } });
                 });
-                if (!traces.length) {
+                if (!visibleAssetRows.length || traces.length < 2) {
                     if (notice) notice.textContent = `Sin fechas comunes suficientes para ${category}.`;
                     Plotly.purge('massiveFundCompareChart');
+                    renderMassiveFundComparisonTables(selectedAsset ? [selectedAsset] : [], bench);
                     return;
                 }
                 Plotly.newPlot('massiveFundCompareChart', traces, {
@@ -2442,13 +2544,13 @@
                     paper_bgcolor: '#ffffff'
                 }, { responsive: true });
                 const missingDates = assets.filter(asset => alignedSeriesRows(asset.data, bench.data, massiveFundCompareRange).length < 2).length;
-                if (notice) notice.textContent = `Benchmark ${bench.label}. Categoría ${category}. Activos comparados: ${assets.length}${missingDates ? `; ${missingDates} sin fechas comunes suficientes en el horizonte.` : ''}.`;
-                renderMassiveFundComparisonTables(assets, bench);
+                if (notice) notice.textContent = `Benchmark ${bench.label}. Categoria ${category}. Activos comparados: ${assets.length}${selectedAsset ? `. Tablas: ${selectedAsset.label || selectedAsset.key}` : ''}${missingDates ? `; ${missingDates} sin fechas comunes suficientes en el horizonte.` : ''}.`;
+                renderMassiveFundComparisonTables(selectedAsset ? [selectedAsset] : [], bench);
             }
 
             function renderMassiveFundComparisonTables(assets, bench) {
                 const horizons = [
-                    { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
+                    { label: '1M', months: 1 }, { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
                     { label: 'YTD', months: 'YTD' }, { label: '3A', months: 36 }, { label: '5A', months: 60 }, { label: 'Inicio', months: null }
                 ];
                 const periodBody = document.getElementById('massiveFundComparePeriodBody');
@@ -2458,7 +2560,14 @@
                         const aligned = alignedSeriesRows(asset.data, bench.data, 'ALL');
                         horizons.forEach(h => {
                             const ret = periodReturnFromRows(aligned, h.months);
-                            if (!ret) return;
+                            if (!ret) {
+                                rows.push(`<tr>
+                                <td class="px-3 py-2 font-bold text-slate-800">${escapeHtml(asset.label)}</td>
+                                <td class="px-3 py-2">${h.label}</td>
+                                <td class="px-3 py-2 text-right text-slate-400" colspan="3">Sin datos suficientes</td>
+                            </tr>`);
+                                return;
+                            }
                             const alpha = ret.asset - ret.bench;
                             rows.push(`<tr>
                                 <td class="px-3 py-2 font-bold text-slate-800">${escapeHtml(asset.label)}</td>
@@ -6201,6 +6310,7 @@
                 if (range === 'YTD') start.setMonth(0, 1);
                 else if (range === '1M') start.setMonth(start.getMonth() - 1);
                 else if (range === '3M') start.setMonth(start.getMonth() - 3);
+                else if (range === '6M') start.setMonth(start.getMonth() - 6);
                 else if (range === '1Y') start.setFullYear(start.getFullYear() - 1);
                 else if (range === '3Y') start.setFullYear(start.getFullYear() - 3);
                 else if (range === '5Y') start.setFullYear(start.getFullYear() - 5);
@@ -7495,12 +7605,16 @@
             }
 
             function massiveComparisonTraces(assets, bench, range = 'ALL') {
+                const visibleAssetRows = (assets || []).map((asset, index) => ({
+                    asset,
+                    index,
+                    rows: alignedSeriesRows(asset.data, bench.data, range)
+                })).filter(item => item.rows.length >= 2);
                 const traces = [];
-                const benchVisible = normalizeBase100(sliceSeriesByRange(bench.data, range));
+                const benchVisible = normalizeBase100(benchmarkRowsForComparedAssets(visibleAssetRows.map(item => item.asset), bench, range));
                 if (benchVisible.length) traces.push({ x: benchVisible.map(d => d.date), y: benchVisible.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 3, dash: 'dot' } });
-                assets.forEach((asset, index) => {
-                    const rowsVisible = alignedSeriesRows(asset.data, bench.data, range);
-                    if (rowsVisible.length < 2) return;
+                visibleAssetRows.forEach(({ asset, index, rows }) => {
+                    const rowsVisible = rows;
                     const norm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.asset })));
                     traces.push({ x: norm.map(d => d.date), y: norm.map(d => d.price), mode: 'lines', name: asset.label, line: { color: massiveComparisonColor(index), width: 1.9 } });
                 });
@@ -7509,7 +7623,7 @@
 
             function buildMassiveComparisonTablesHtml(assets, bench) {
                 const horizons = [
-                    { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
+                    { label: '1M', months: 1 }, { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
                     { label: 'YTD', months: 'YTD' }, { label: '3A', months: 36 }, { label: '5A', months: 60 }, { label: 'Inicio', months: null }
                 ];
                 const periodRows = [];
@@ -7518,7 +7632,10 @@
                     const aligned = alignedSeriesRows(asset.data, bench.data, 'ALL');
                     horizons.forEach(h => {
                         const ret = periodReturnFromRows(aligned, h.months);
-                        if (!ret) return;
+                        if (!ret) {
+                            periodRows.push(`<tr><td>${escapeHtml(asset.label)}</td><td>${h.label}</td><td colspan="3">Sin datos suficientes</td></tr>`);
+                            return;
+                        }
                         const alpha = ret.asset - ret.bench;
                         periodRows.push(`<tr><td>${escapeHtml(asset.label)}</td><td>${h.label}</td><td class="num ${ret.asset >= 0 ? 'good' : 'bad'}">${fmtPct(ret.asset)}</td><td class="num ${ret.bench >= 0 ? 'good' : 'bad'}">${fmtPct(ret.bench)}</td><td class="num ${alpha >= 0 ? 'good' : 'bad'}">${fmtPct(alpha)}</td></tr>`);
                     });
@@ -7812,30 +7929,13 @@
                 // Monetary historic series: selected capital corresponds to the final backtest date.
                 const lastIndexValue = indexBase10[indexBase10.length - 1] || 10;
                 const histBalances = indexBase10.map(idx => capital * (idx / lastIndexValue));
-
-                // If EUR conversion available, convert prices/balances to EUR using latest EURUSD rate
-                let eurFactor = null; // divisor: price_in_eur = price_usd / eurFactor (eurFactor = USD per EUR)
-                if (globalCurrenciesData && globalCurrenciesData['EURUSD=X'] && globalCurrenciesData['EURUSD=X'].length) {
-                    const eurSeries = globalCurrenciesData['EURUSD=X'];
-                    const eurLast = eurSeries[eurSeries.length - 1].price;
-                    if (eurLast && !isNaN(eurLast) && eurLast > 0) eurFactor = eurLast;
-                } else {
-                    // try to fetch latest EURUSD on demand for the full period
-                    try {
-                        const sd = fullDates[0].toISOString().split('T')[0];
-                        const ed = fullDates[fullDates.length - 1].toISOString().split('T')[0];
-                        const eurData = await fetchYahooData('EURUSD=X', sd, ed).catch(() => []);
-                        if (eurData && eurData.length) { const eurLast = eurData[eurData.length - 1].price; if (eurLast > 0) eurFactor = eurLast; }
-                    } catch (e) { /* ignore */ }
-                }
-                const currencyLabel = eurFactor ? 'EUR' : 'native';
-                const histBalancesDisplay = eurFactor ? histBalances.map(v => v / eurFactor) : histBalances.slice();
+                const histBalancesDisplay = histBalances.slice();
 
                 // Short-term (1y forward) and Long-term (daily) simulations setup
                 const monthlyCheckpointSteps = Array.from({ length: 13 }, (_, m) => m === 0 ? 0 : Math.max(1, Math.round((m / 12) * stepsPerYear)));
 
                 const lastMonetary = capital;
-                const lastMonetaryDisplay = eurFactor ? lastMonetary / eurFactor : lastMonetary;
+                const lastMonetaryDisplay = lastMonetary;
 
                 // 1) First graphic: 12 months array
                 const monthlySamples = Array.from({ length: 13 }, () => []);
@@ -7913,7 +8013,7 @@
                     const color = ['#06b6d4', '#0ea5a4', '#60a5fa', '#34d399', '#1e40af'][p];
                     traces.push({ x: monthsX, y, mode: 'lines', name, line: { color, dash: p === 2 ? 'solid' : 'dot' } });
                 }
-                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y normalizado a capital final + proyección 12 meses`, margin: { t: 40 }, xaxis: { title: 'Fecha' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
+                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y normalizado a capital inicial de proyeccion + 12 meses`, margin: { t: 40 }, xaxis: { title: 'Fecha' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
 
                 // Drawdown histogram
                 Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v => v * 100), type: 'histogram', marker: { color: '#ef4444' }, nbinsx: 20 }], { title: `Histograma Máx Drawdown (Simulado ${Math.round(histYears)}y) (%)`, xaxis: { title: 'Max. Drawdown (%)' } }, { responsive: true });
@@ -7968,7 +8068,7 @@
                 const daysElapsed = (fullDates[fullDates.length - 1] - fullDates[0]) / 86400000;
                 const cagrFull = Math.pow(lastFullPrice / firstFullPrice, 365.25 / daysElapsed) - 1;
                 const volAnnFull = stdLogFull * Math.sqrt(stepsPerYear);
-                const histMetricsHtml = `<div>Hist. CAGR: <strong>${fmtPct(cagrFull)}</strong> — Vol ann: <strong>${fmtPct(volAnnFull)}</strong> — Frecuencia: <strong>${frequencyLabel(freq)}</strong> — Data points: ${nFull}</div><div class="text-xs text-slate-500 mt-1">El backtest visual se normaliza para terminar en el capital indicado; la proyección 12M parte desde ese patrimonio final.</div>`;
+                const histMetricsHtml = `<div>Hist. CAGR: <strong>${fmtPct(cagrFull)}</strong> — Vol ann: <strong>${fmtPct(volAnnFull)}</strong> — Frecuencia: <strong>${frequencyLabel(freq)}</strong> — Data points: ${nFull}</div><div class="text-xs text-slate-500 mt-1">El backtest visual se normaliza para terminar exactamente en el capital indicado; la proyeccion 12M parte desde ese mismo capital.</div>`;
                 document.getElementById('forecastStatus').innerHTML = `Simulaciones completadas. ${histMetricsHtml}`;
             }
 
