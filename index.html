@@ -1139,6 +1139,7 @@
                                 <tbody id="massiveFundComparePeriodBody" class="divide-y divide-slate-100"></tbody>
                             </table>
                         </div>
+                        <p class="mt-2 text-[11px] text-slate-500">1M, 3M, 6M, YTD y 1A muestran rentabilidad acumulada. 3A y 5A se muestran anualizadas.</p>
                     </div>
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                         <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-3">Rentabilidad y alfa por año natural</h4>
@@ -1207,6 +1208,7 @@
                                     <tbody id="fundComparePeriodBody" class="divide-y divide-slate-100"></tbody>
                                 </table>
                             </div>
+                            <p class="mt-2 text-[11px] text-slate-500">1M, 3M, 6M, YTD y 1A muestran rentabilidad acumulada. 3A y 5A se muestran anualizadas.</p>
                         </div>
                         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                             <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-blue-600 pl-3">Metricas relativas</h4>
@@ -1726,7 +1728,9 @@
                 }
                 if (range === 'YTD') {
                     const y = rows[rows.length - 1].date.getUTCFullYear();
-                    return rows.filter(r => r.date.getUTCFullYear() === y);
+                    const prevYearIdx = rows.map(r => r.date.getUTCFullYear()).lastIndexOf(y - 1);
+                    const currentYearRows = rows.filter(r => r.date.getUTCFullYear() === y);
+                    return prevYearIdx >= 0 ? [rows[prevYearIdx], ...currentYearRows] : currentYearRows;
                 }
                 if (Number.isFinite(months)) {
                     const start = rangeStartDate(rows[rows.length - 1].date, range);
@@ -1752,7 +1756,14 @@
                 if (subset.length < 2) return null;
                 const first = subset[0], last = subset[subset.length - 1];
                 if (!(first.asset > 0) || !(first.bench > 0)) return null;
-                return { asset: last.asset / first.asset - 1, bench: last.bench / first.bench - 1, start: first.date, end: last.date };
+                let asset = last.asset / first.asset - 1;
+                let bench = last.bench / first.bench - 1;
+                const annualized = Number.isFinite(months) && months > 12;
+                if (annualized) {
+                    asset = Math.pow(1 + asset, 12 / months) - 1;
+                    bench = Math.pow(1 + bench, 12 / months) - 1;
+                }
+                return { asset, bench, annualized, start: first.date, end: last.date };
             }
 
             function maxDrawdownFromPrices(values) {
@@ -7682,7 +7693,7 @@
                         annualRows.push(`<tr><td>${escapeHtml(asset.label)}</td><td>${year}</td><td class="num ${ret.asset >= 0 ? 'good' : 'bad'}">${fmtPct(ret.asset)}</td><td class="num ${ret.bench >= 0 ? 'good' : 'bad'}">${fmtPct(ret.bench)}</td><td class="num ${alpha >= 0 ? 'good' : 'bad'}">${fmtPct(alpha)}</td></tr>`);
                     });
                 });
-                return `<div class="table-block"><h3>Rentabilidad y alfa por periodo</h3><table><thead><tr><th>Activo</th><th>Periodo</th><th>Activo</th><th>Bench</th><th>Alfa</th></tr></thead><tbody>${periodRows.join('') || '<tr><td colspan="5">Sin datos suficientes.</td></tr>'}</tbody></table></div>
+                return `<div class="table-block"><h3>Rentabilidad y alfa por periodo</h3><table><thead><tr><th>Activo</th><th>Periodo</th><th>Activo</th><th>Bench</th><th>Alfa</th></tr></thead><tbody>${periodRows.join('') || '<tr><td colspan="5">Sin datos suficientes.</td></tr>'}</tbody></table><p class="method-note">1M, 3M, 6M, YTD y 1A muestran rentabilidad acumulada. 3A y 5A se muestran anualizadas.</p></div>
                     <div class="table-block"><h3>Rentabilidad y alfa por año natural</h3><table><thead><tr><th>Activo</th><th>Año</th><th>Activo</th><th>Bench</th><th>Alfa</th></tr></thead><tbody>${annualRows.join('') || '<tr><td colspan="5">Sin datos suficientes.</td></tr>'}</tbody></table></div>`;
             }
 
