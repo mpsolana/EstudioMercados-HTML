@@ -1717,24 +1717,31 @@
                 return filterAlignedRowsByRange(rows, range);
             }
 
+            function comparisonRangeToMonths(range) {
+                return ({ '1M': 1, '3M': 3, '6M': 6, '1Y': 12, '3Y': 36, '5Y': 60 })[range];
+            }
+
+            function comparisonRangeFromMonths(months) {
+                return ({ 1: '1M', 3: '3M', 6: '6M', 12: '1Y', 36: '3Y', 60: '5Y' })[months] || 'ALL';
+            }
+
+            function alignedRowsFrequency(rows) {
+                return inferDataFrequency((rows || []).map(r => ({ date: r.date, price: r.asset })));
+            }
+
             function filterAlignedRowsByRange(rows, range = 'ALL') {
                 if (!rows?.length || range === 'ALL') return rows || [];
-                const monthsByRange = { '1M': 1, '3M': 3, '6M': 6, '1Y': 12, '3Y': 36, '5Y': 60 };
-                const months = monthsByRange[range];
-                const freq = inferDataFrequency(rows.map(r => ({ date: r.date, price: r.asset })));
-                if (Number.isFinite(months) && freq !== 'D') {
-                    const needed = periodsForMonths(months, freq) + 1;
-                    return rows.length >= needed ? rows.slice(-needed) : [];
-                }
                 if (range === 'YTD') {
-                    const y = rows[rows.length - 1].date.getUTCFullYear();
-                    const prevYearIdx = rows.map(r => r.date.getUTCFullYear()).lastIndexOf(y - 1);
-                    const currentYearRows = rows.filter(r => r.date.getUTCFullYear() === y);
+                    const lastYear = rows[rows.length - 1].date.getUTCFullYear();
+                    const prevYearIdx = rows.map(r => r.date.getUTCFullYear()).lastIndexOf(lastYear - 1);
+                    const currentYearRows = rows.filter(r => r.date.getUTCFullYear() === lastYear);
                     return prevYearIdx >= 0 ? [rows[prevYearIdx], ...currentYearRows] : currentYearRows;
                 }
+                const months = comparisonRangeToMonths(range);
                 if (Number.isFinite(months)) {
-                    const start = rangeStartDate(rows[rows.length - 1].date, range);
-                    return start ? rows.filter(r => r.date >= start) : rows;
+                    const freq = alignedRowsFrequency(rows);
+                    const needed = periodsForMonths(months, freq) + 1;
+                    return rows.length >= needed ? rows.slice(-needed) : [];
                 }
                 return rows;
             }
@@ -1752,7 +1759,7 @@
 
             function periodReturnFromRows(rows, months) {
                 if (!rows?.length) return null;
-                const subset = months === null || months === undefined ? rows : filterAlignedRowsByRange(rows, months === 'YTD' ? 'YTD' : ({ 1: '1M', 3: '3M', 6: '6M', 12: '1Y', 36: '3Y', 60: '5Y' })[months] || 'ALL');
+                const subset = months === null || months === undefined ? rows : filterAlignedRowsByRange(rows, months === 'YTD' ? 'YTD' : comparisonRangeFromMonths(months));
                 if (subset.length < 2) return null;
                 const first = subset[0], last = subset[subset.length - 1];
                 if (!(first.asset > 0) || !(first.bench > 0)) return null;
