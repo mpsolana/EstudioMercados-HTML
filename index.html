@@ -725,6 +725,33 @@
                     </div>
                 </div>
 
+                <div class="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-900 border-l-4 border-blue-700 pl-3">Carga de datos de scoring</h3>
+                            <p class="text-xs text-slate-500 mt-1 pl-3">Carga una vez universo, aprobados, cartera y posiciones agregadas. Las subpestañas reutilizan estos mismos datos para scoring e informes.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <label class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800 cursor-pointer">
+                                <i class="fa-solid fa-database mr-1"></i>Subir universo
+                                <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importFundUniverseFile(this.files[0])">
+                            </label>
+                            <label class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800 cursor-pointer">
+                                <i class="fa-solid fa-circle-check mr-1"></i>Subir aprobados
+                                <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importApprovedFundsFile(this.files[0])">
+                            </label>
+                            <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
+                                <i class="fa-solid fa-briefcase mr-1"></i>Subir cartera scoring
+                                <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importFundScoringPortfolioFile(this.files[0])">
+                            </label>
+                            <label class="px-3 py-2 bg-sky-700 text-white rounded text-xs font-bold hover:bg-sky-800 cursor-pointer">
+                                <i class="fa-solid fa-file-import mr-1"></i>Subir posiciones
+                                <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple class="hidden" onchange="importAggregatePositionsFile(this.files)">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mt-6 flex flex-wrap gap-2 border-b border-slate-200">
                     <button id="portfolioSubtab-main" onclick="showPortfolioSubtab('main')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-blue-700 border-b-2 border-blue-700">Cartera y análisis</button>
@@ -831,18 +858,6 @@
                                 <p class="text-xs text-slate-500 mt-1 pl-3">Cruza ISINs de cartera contra el ranking interno, resuelve clases equivalentes y calcula score/TER ponderado.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
-                                <label class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800 cursor-pointer">
-                                    <i class="fa-solid fa-database mr-1"></i>Subir universo
-                                    <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importFundUniverseFile(this.files[0])">
-                                </label>
-                                <label class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800 cursor-pointer">
-                                    <i class="fa-solid fa-circle-check mr-1"></i>Subir aprobados
-                                    <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importApprovedFundsFile(this.files[0])">
-                                </label>
-                                <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
-                                    <i class="fa-solid fa-briefcase mr-1"></i>Subir cartera
-                                    <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importFundScoringPortfolioFile(this.files[0])">
-                                </label>
                                 <button onclick="safeAsyncUiAction('Ejecutando scoring...', async () => runFundScoringAnalysis(), 'fundScoringStatus')" class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800">
                                     <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Analizar
                                 </button>
@@ -1000,14 +1015,6 @@
                                 <p class="text-xs text-slate-500 mt-1 pl-3">Importa posiciones globales y fondos aprobados para detectar fondos deficientes, exposicion agregada y alternativas de traspaso.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
-                                <label class="px-3 py-2 bg-sky-700 text-white rounded text-xs font-bold hover:bg-sky-800 cursor-pointer">
-                                    <i class="fa-solid fa-file-import mr-1"></i>Subir posiciones
-                                    <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple class="hidden" onchange="importAggregatePositionsFile(this.files)">
-                                </label>
-                                <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
-                                    <i class="fa-solid fa-circle-check mr-1"></i>Subir fondos aprobados
-                                    <input id="approvedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importApprovedFundsFile(this.files[0])">
-                                </label>
                                 <button onclick="safeAsyncUiAction('Analizando posiciones agregadas...', async () => runAggregateScoringAnalysis(), 'aggregateScoringStatus')" class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800">
                                     <i class="fa-solid fa-layer-group mr-1"></i>Analizar agregado
                                 </button>
@@ -6063,7 +6070,7 @@
                 if (!aggregateRecommendationCache.has(key)) {
                     aggregateRecommendationCache.set(key, {
                         approved: bestAggregateApprovedRecommendation(record || { isin: result?.position?.isin, category, score }, category, score),
-                        universe: getBetterFundRecommendations({ ...(record || {}), category, score, isin: record?.isin || result?.position?.isin || '' }, 5000)
+                        universe: getBetterFundRecommendations({ ...(record || {}), category, score, isin: record?.isin || result?.position?.isin || '' }, 120)
                     });
                 }
                 return aggregateRecommendationCache.get(key);
@@ -6111,7 +6118,7 @@
 
             function aggregateRecommendationSelectHtml(idx, items, placeholder) {
                 if (idx < 0) return `<span class="text-slate-400">Sin alternativas</span>`;
-                return wideFundOptionPanel(items || [], isin => `applyAggregateRecord(${idx}, '${escapeHtml(isin)}')`, placeholder);
+                return wideFundOptionPanel(items || [], isin => `applyAggregateRecord(${idx}, '${escapeHtml(isin)}')`, placeholder, 40);
             }
 
             function aggregateManualProxySelectHtml(result, idx) {
