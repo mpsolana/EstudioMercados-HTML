@@ -748,6 +748,10 @@
                                 <i class="fa-solid fa-file-import mr-1"></i>Subir posiciones
                                 <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple class="hidden" onchange="importAggregatePositionsFile(this.files)">
                             </label>
+                            <label class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800 cursor-pointer">
+                                <i class="fa-solid fa-chart-pie mr-1"></i>Subir asset class
+                                <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importAssetClassScreenerFile(this.files[0])">
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -1364,10 +1368,6 @@
                                 <p class="text-xs text-slate-500 mt-1 pl-3">Carga el Excel de análisis por asset class para filtrar métricas medias, mínimos y máximos por categoría.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
-                                <label class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800 cursor-pointer">
-                                    <i class="fa-solid fa-file-excel mr-1"></i>Subir asset class
-                                    <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importAssetClassScreenerFile(this.files[0])">
-                                </label>
                                 <button onclick="renderAssetClassScreener()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50">Actualizar</button>
                                 <button onclick="clearAssetClassScreenerFilters()" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50">Limpiar filtros</button>
                             </div>
@@ -7452,6 +7452,96 @@
                 </style>`;
             }
 
+            function managerReportStyles() {
+                return `<style>
+                    .manager-report{padding-bottom:12mm}
+                    .manager-report .block{break-inside:auto;page-break-inside:auto;margin-bottom:12px}
+                    .manager-report figure{break-inside:avoid-page;page-break-inside:avoid;padding:8px;margin:8px 0 10px}
+                    .manager-report figure img{width:100%!important;max-width:100%!important;height:auto!important;max-height:96mm!important;object-fit:contain!important}
+                    .manager-report .table-block{break-inside:auto;page-break-inside:auto;margin-top:10px}
+                    .manager-report table{page-break-inside:auto}
+                    .manager-report tr{page-break-inside:avoid;page-break-after:auto}
+                    .manager-report .scoring-report-table{font-size:6.6px}
+                    .manager-report .scoring-report-table th{font-size:6.1px;padding:3px 2px}
+                    .manager-report .scoring-report-table td{padding:3px 2px}
+                    .manager-report .wide-report-table{font-size:7.5px}
+                    .manager-report .summary{break-inside:avoid-page;page-break-inside:avoid}
+                    @media print{
+                        .manager-report .block{break-inside:auto;page-break-inside:auto}
+                        .manager-report figure{break-inside:avoid-page;page-break-inside:avoid}
+                        .manager-report .table-block{break-inside:auto;page-break-inside:auto}
+                    }
+                </style>`;
+            }
+
+            function reportWordSizingStyles() {
+                return `<style>
+                    body{background:#ffffff!important}
+                    .report{width:680px!important;max-width:680px!important;margin:0 auto!important;padding:0 28px 32px!important}
+                    .cover{margin:0 -28px 18px!important;padding:42px 28px 32px!important}
+                    figure{width:100%!important;max-width:100%!important;margin:10px 0!important;padding:8px!important}
+                    figure img,img{display:block!important;width:620px!important;max-width:620px!important;height:auto!important;border:1px solid #e2e8f0!important}
+                    table{width:100%!important;max-width:100%!important;table-layout:fixed!important}
+                    th,td{word-break:break-word!important;overflow-wrap:anywhere!important}
+                    .block,.table-block{width:100%!important;max-width:100%!important}
+                </style>`;
+            }
+
+            function parseReportDocument(html) {
+                return new DOMParser().parseFromString(String(html || ''), 'text/html');
+            }
+
+            function normalizeReportImages(root, widthPx = 620) {
+                (root?.querySelectorAll?.('img') || []).forEach(img => {
+                    img.setAttribute('width', String(widthPx));
+                    img.removeAttribute('height');
+                    img.style.width = `${widthPx}px`;
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
+                    img.style.objectFit = 'contain';
+                });
+            }
+
+            function createReportExportWrapper(html, extraStyles = '') {
+                const doc = parseReportDocument(html);
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'absolute';
+                wrapper.style.left = '0';
+                wrapper.style.top = '0';
+                wrapper.style.width = '190mm';
+                wrapper.style.zIndex = '0';
+                wrapper.style.pointerEvents = 'none';
+                wrapper.style.background = '#ffffff';
+                wrapper.setAttribute('aria-hidden', 'true');
+                wrapper.innerHTML = `${doc.head.innerHTML}${extraStyles}${doc.body.innerHTML}`;
+                document.body.appendChild(wrapper);
+                normalizeReportImages(wrapper, 720);
+                return wrapper;
+            }
+
+            async function waitForReportImages(root, timeoutMs = 2500) {
+                const images = Array.from(root?.querySelectorAll?.('img') || []);
+                if (!images.length) return;
+                await Promise.race([
+                    Promise.all(images.map(img => img.complete ? Promise.resolve() : new Promise(resolve => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    }))),
+                    new Promise(resolve => setTimeout(resolve, timeoutMs))
+                ]);
+            }
+
+            function managerReportHtmlForWord() {
+                const doc = parseReportDocument(managerReportHtml);
+                doc.head.insertAdjacentHTML('beforeend', managerReportStyles() + reportWordSizingStyles());
+                normalizeReportImages(doc.body, 620);
+                doc.body.querySelectorAll('figure img').forEach(img => {
+                    img.style.width = '620px';
+                    img.style.maxWidth = '620px';
+                });
+                return `<!doctype html>${doc.documentElement.outerHTML}`;
+            }
+
             async function downloadPortfolioReportPdf() {
                 if (!portfolioReportHtml) await generatePortfolioReport();
                 if (!portfolioReportHtml) return;
@@ -7783,8 +7873,8 @@
                     setManagerReportProgress(62, 'Construyendo comparadores por benchmark...');
                     const massiveSections = await buildManagerMassiveComparisonSections();
                     setManagerReportProgress(88, 'Maquetando informe gestora...');
-                    managerReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe Gestora</title>${portfolioReportStyles()}</head><body>
-                    <section class="report">
+                    managerReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe Gestora</title>${portfolioReportStyles()}${managerReportStyles()}</head><body>
+                    <section class="report manager-report">
                         <header class="cover">
                             <div>
                                 <div class="eyebrow">Informe Gestora</div>
@@ -7816,18 +7906,35 @@
                 if (!managerReportHtml) return;
                 setManagerReportProgress(92, 'Exportando PDF...');
                 await waitForUiFrame();
-                const el = document.createElement('div');
-                el.innerHTML = managerReportHtml;
                 if (!window.html2pdf) return downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
-                await html2pdf().set({ margin: 8, filename: 'Informe_Gestora.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
-                setManagerReportProgress(100, 'PDF gestora generado');
+                const wrapper = createReportExportWrapper(managerReportHtml, managerReportStyles());
+                const report = wrapper.querySelector('.manager-report') || wrapper.querySelector('.report') || wrapper;
+                try {
+                    await waitForUiFrame();
+                    await waitForReportImages(report, 3000);
+                    await html2pdf().set({
+                        margin: [7, 7, 7, 7],
+                        filename: 'Informe_Gestora.pdf',
+                        pagebreak: { mode: ['css', 'legacy'], avoid: ['figure', '.summary'] },
+                        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
+                    }).from(report).save();
+                    setManagerReportProgress(100, 'PDF gestora generado');
+                } catch (err) {
+                    console.warn('manager pdf failed; downloading HTML fallback', err);
+                    downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
+                    setManagerReportProgress(100, 'No se pudo generar PDF; descargado HTML');
+                } finally {
+                    wrapper.remove();
+                }
             }
 
             async function downloadManagerReportWord() {
                 if (!managerReportHtml) await generateManagerReport();
                 if (!managerReportHtml) return;
-                if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(managerReportHtml), 'Informe_Gestora.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                return downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
+                const wordHtml = managerReportHtmlForWord();
+                if (window.htmlDocx?.asBlob) return downloadBlob(window.htmlDocx.asBlob(wordHtml), 'Informe_Gestora.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                return downloadBlob(wordHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
             }
 
             // Small helper: sample covariance
