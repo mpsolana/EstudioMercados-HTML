@@ -1404,7 +1404,7 @@
                         <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
                             <div>
                                 <h3 class="font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">Distribución de activos</h3>
-                                <p class="text-xs text-slate-500 mt-1 pl-3">Optimiza pesos sobre rentabilidades históricas respetando la frecuencia detectada. Por defecto usa las clases de activo cargadas en Mercados; también puedes subir un Excel/CSV con columnas date + activos.</p>
+                                <p class="text-xs text-slate-500 mt-1 pl-3">Optimiza pesos sobre rentabilidades mensuales históricas. Por defecto usa las clases de activo cargadas en Mercados; también puedes subir un Excel/CSV con columnas date + activos.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 <button onclick="loadAssetAllocationFromMarkets('assets')" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-database mr-1"></i>Usar activos</button>
@@ -1472,7 +1472,7 @@
                                 <tbody id="assetAllocationStatsBody" class="divide-y divide-slate-100"></tbody>
                             </table>
                         </div>
-                        <p class="text-xs text-slate-400 mt-3">Hasta 1 año se muestra rentabilidad acumulada; por encima de 1 año se muestra rentabilidad anualizada. El cálculo usa ventanas móviles según la frecuencia detectada del Excel y pesos normalizados.</p>
+                        <p class="text-xs text-slate-400 mt-3">Para 1 año o más se muestra rentabilidad anualizada, siguiendo la lógica del Excel de ejemplo. El cálculo usa ventanas móviles mensuales y los pesos normalizados.</p>
                     </div>
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                         <h4 class="font-bold text-slate-800 mb-3 border-l-4 border-indigo-500 pl-3">Evolucion de la asignacion</h4>
@@ -1736,12 +1736,6 @@
                 return inferDataFrequency((rows || []).map(r => ({ date: r.date, price: r.asset })));
             }
 
-            function shiftComparisonBucketKey(date, freq, offset) {
-                const key = comparisonBucketKey(date, freq);
-                if (freq === 'A' || freq === 'Q' || freq === 'M') return shiftedAllocationDateKey(key, freq, offset);
-                return key;
-            }
-
             function filterAlignedRowsByRange(rows, range = 'ALL') {
                 if (!rows?.length || range === 'ALL') return rows || [];
                 if (range === 'YTD') {
@@ -1753,16 +1747,8 @@
                 const months = comparisonRangeToMonths(range);
                 if (Number.isFinite(months)) {
                     const freq = alignedRowsFrequency(rows);
-                    const minMonthsByFreq = { Q: 3, A: 12 };
-                    if (minMonthsByFreq[freq] && months < minMonthsByFreq[freq]) return [];
                     const needed = periodsForMonths(months, freq) + 1;
-                    if (rows.length < needed) return [];
-                    const subset = rows.slice(-needed);
-                    if (freq !== 'D') {
-                        const expectedStartKey = shiftComparisonBucketKey(rows[rows.length - 1].date, freq, -periodsForMonths(months, freq));
-                        if (comparisonBucketKey(subset[0].date, freq) !== expectedStartKey) return [];
-                    }
-                    return subset;
+                    return rows.length >= needed ? rows.slice(-needed) : [];
                 }
                 return rows;
             }
@@ -6517,96 +6503,52 @@
                 rows.forEach(row => {
                     const date = parseFlexibleAllocationDate(firstValue(row, ['date', 'fecha']) || Object.values(row)[0]);
                     if (!date) return;
+                    const dateKey = date.toISOString().slice(0, 7);
                     Object.keys(row).forEach(key => {
                         if (['date', 'fecha'].includes(key.toLowerCase())) return;
                         const value = parseNumber(row[key]);
                         if (!Number.isFinite(value)) return;
                         if (!valueMap[key]) valueMap[key] = [];
-                        valueMap[key].push({ date, value });
+                        valueMap[key].push({ date, dateKey, value });
                     });
                 });
                 const series = {};
                 Object.entries(valueMap).forEach(([name, values]) => {
                     values.sort((a, b) => a.date - b.date);
                     if (values.length < 2) return;
-                    const freq = inferDataFrequency(values.map(v => ({ date: v.date, price: v.value })));
                     const absMedian = median(values.map(v => Math.abs(v.value)));
                     if (absMedian > 1.5) {
                         series[name] = [];
                         for (let i = 1; i < values.length; i++) {
-                            if (values[i - 1].value > 0) {
-                                series[name].push({ date: values[i].date, dateKey: allocationDateKey(values[i].date, freq), ret: values[i].value / values[i - 1].value - 1 });
-                            }
+                            if (values[i - 1].value > 0) series[name].push({ date: values[i].date, dateKey: values[i].dateKey, ret: values[i].value / values[i - 1].value - 1 });
                         }
                     } else {
-                        series[name] = values.map(v => ({ date: v.date, dateKey: allocationDateKey(v.date, freq), ret: Math.abs(v.value) > 1 ? v.value / 100 : v.value }));
+                        series[name] = values.map(v => ({ date: v.date, dateKey: v.dateKey, ret: Math.abs(v.value) > 1 ? v.value / 100 : v.value }));
                     }
-                    series[name].frequency = freq;
                 });
                 return series;
             }
 
             function setupAssetAllocationState(series, labels, sourceLabel) {
-                const keys = Object.keys(series).filter(k => series[k]?.length >= 2);
-                if (!keys.length) return alert('No encuentro series suficientes. Usa columnas date + activos con rentabilidades o precios.');
-                const frequency = commonAssetAllocationFrequency(keys, series);
-                keys.forEach(key => { series[key] = resampleAllocationReturns(series[key], frequency); });
-                const minPeriods = Math.min(12, periodsPerYear(frequency));
-                const validKeys = keys.filter(k => series[k]?.length >= minPeriods);
-                if (!validKeys.length) return alert('No encuentro historico suficiente. Usa columnas date + activos con rentabilidades o precios.');
-                const aligned = alignAssetAllocationReturns(validKeys, series);
-                if (aligned.dates.length < minPeriods) return alert('Las series no tienen historico comun suficiente.');
-                const equal = 1 / validKeys.length;
-                assetAllocationState = { keys: validKeys, labels, sourceLabel, frequency, dates: aligned.dates, returns: aligned.returns, weights: Object.fromEntries(validKeys.map(k => [k, equal])) };
+                const keys = Object.keys(series).filter(k => series[k]?.length >= 12);
+                if (!keys.length) return alert('No encuentro series mensuales suficientes. Usa columnas date + activos con rentabilidades o precios.');
+                const aligned = alignAssetAllocationReturns(keys, series);
+                if (aligned.dates.length < 12) return alert('Las series no tienen historico comun suficiente.');
+                const equal = 1 / keys.length;
+                assetAllocationState = { keys, labels, sourceLabel, dates: aligned.dates, returns: aligned.returns, weights: Object.fromEntries(keys.map(k => [k, equal])) };
                 renderAssetAllocationWeights();
                 updateAssetAllocationAnalysis();
             }
 
             function monthlyReturnsFromPrices(data) {
-                return priceReturnsByAllocationFrequency(data, 'M');
-            }
-
-            function allocationDateKey(date, freq) {
-                return comparisonBucketKey(date, freq || 'M');
-            }
-
-            function commonAssetAllocationFrequency(keys, series) {
-                const rank = { D: 0, M: 1, Q: 2, A: 3 };
-                return (keys || []).reduce((best, key) => {
-                    const freq = series[key]?.frequency || inferDataFrequency(series[key] || []);
-                    return (rank[freq] || 0) > (rank[best] || 0) ? freq : best;
-                }, 'D');
-            }
-
-            function priceReturnsByAllocationFrequency(data, freq = 'M') {
                 if (!data || data.length < 2) return [];
-                const grouped = new Map();
-                cleanPriceSeries(data).forEach(d => grouped.set(allocationDateKey(d.date, freq), d));
-                const rows = Array.from(grouped.entries()).map(([dateKey, d]) => ({ ...d, dateKey })).sort((a, b) => a.date - b.date);
+                const monthEnd = new Map();
+                data.forEach(d => monthEnd.set(d.date.toISOString().slice(0, 7), d));
+                const rows = Array.from(monthEnd.values()).sort((a, b) => a.date - b.date);
                 const out = [];
                 for (let i = 1; i < rows.length; i++) {
-                    if (rows[i - 1].price > 0) out.push({ date: rows[i].date, dateKey: rows[i].dateKey, ret: rows[i].price / rows[i - 1].price - 1 });
+                    if (rows[i - 1].price > 0) out.push({ date: rows[i].date, dateKey: rows[i].date.toISOString().slice(0, 7), ret: rows[i].price / rows[i - 1].price - 1 });
                 }
-                out.frequency = freq;
-                return out;
-            }
-
-            function resampleAllocationReturns(rows, targetFreq) {
-                if (!rows?.length) return [];
-                const sourceFreq = rows.frequency || inferDataFrequency(rows);
-                if (sourceFreq === targetFreq) return rows.map(r => ({ ...r, dateKey: allocationDateKey(r.date, targetFreq) }));
-                const grouped = new Map();
-                rows.forEach(r => {
-                    const key = allocationDateKey(r.date, targetFreq);
-                    if (!grouped.has(key)) grouped.set(key, []);
-                    grouped.get(key).push(r);
-                });
-                const out = [...grouped.entries()].map(([dateKey, items]) => {
-                    items.sort((a, b) => a.date - b.date);
-                    const growth = items.reduce((acc, item) => acc * (1 + (item.ret || 0)), 1);
-                    return { date: items[items.length - 1].date, dateKey, ret: growth - 1 };
-                }).sort((a, b) => a.date - b.date);
-                out.frequency = targetFreq;
                 return out;
             }
 
@@ -6686,91 +6628,34 @@
             function updateAssetAllocationAnalysis() {
                 if (!assetAllocationState) return;
                 const keys = assetAllocationState.keys;
-                const frequency = assetAllocationState.frequency || 'M';
                 const rawSum = keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
                 const weights = Object.fromEntries(keys.map(k => [k, rawSum ? (assetAllocationState.weights[k] || 0) / rawSum : 1 / keys.length]));
                 const portfolioReturns = assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * (assetAllocationState.returns[k][i] || 0), 0));
                 const threshold = (parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0) || 0) / 100;
                 const thresholdDirection = document.getElementById('assetAllocationThresholdDirection')?.value === 'gt' ? 'gt' : 'lt';
-                const horizons = assetAllocationHorizonDefinitions(frequency);
-                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.periods, h.months, h.label, threshold, thresholdDirection, assetAllocationState.dates, frequency)).filter(Boolean);
+                const horizons = [{ label: '1 mes', months: 1 }, { label: '3 meses', months: 3 }, { label: '1 año', months: 12 }, { label: '3 años', months: 36 }, { label: '5 años', months: 60 }, { label: '10 años', months: 120 }, { label: '15 años', months: 180 }];
+                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold, thresholdDirection)).filter(Boolean);
                 document.getElementById('assetAllocationWeightSum').innerText = fmtPct(rawSum);
-                document.getElementById('assetAllocationSource').innerText = `${assetAllocationState.sourceLabel} · Frecuencia ${frequencyLabel(frequency).toLowerCase()}`;
+                document.getElementById('assetAllocationSource').innerText = assetAllocationState.sourceLabel;
                 document.getElementById('assetAllocationHistory').innerText = `${assetAllocationState.dates[0]} / ${assetAllocationState.dates[assetAllocationState.dates.length - 1]}`;
                 renderAssetAllocationStats(rows);
                 renderAssetAllocationCharts(rows, portfolioReturns);
             }
 
-            function assetAllocationHorizonDefinitions(freq = 'M') {
-                const defs = [];
-                if (freq === 'D') defs.push({ label: '1 semana', months: 0.25, periods: 5 });
-                if (freq === 'D' || freq === 'M') {
-                    defs.push({ label: '1 mes', months: 1, periods: periodsForMonths(1, freq) });
-                    defs.push({ label: '3 meses', months: 3, periods: periodsForMonths(3, freq) });
-                    defs.push({ label: '6 meses', months: 6, periods: periodsForMonths(6, freq) });
-                } else if (freq === 'Q') {
-                    defs.push({ label: '3 meses', months: 3, periods: 1 });
-                    defs.push({ label: '6 meses', months: 6, periods: 2 });
-                }
-                [
-                    { label: '1 año', months: 12 },
-                    { label: '3 años', months: 36 },
-                    { label: '5 años', months: 60 },
-                    { label: '10 años', months: 120 },
-                    { label: '15 años', months: 180 }
-                ].forEach(h => defs.push({ ...h, periods: periodsForMonths(h.months, freq) }));
-                const seen = new Set();
-                return defs.filter(h => {
-                    if (!Number.isFinite(h.periods) || h.periods < 1 || seen.has(h.periods)) return false;
-                    seen.add(h.periods);
-                    return true;
-                });
-            }
-
-            function shiftedAllocationDateKey(dateKey, freq, offset) {
-                if (freq === 'A') return String(Number(dateKey) + offset);
-                if (freq === 'Q') {
-                    const match = String(dateKey).match(/^(\d{4})-Q([1-4])$/);
-                    if (!match) return '';
-                    const total = Number(match[1]) * 4 + (Number(match[2]) - 1) + offset;
-                    const y = Math.floor(total / 4);
-                    const q = (total % 4 + 4) % 4;
-                    return `${y}-Q${q + 1}`;
-                }
-                if (freq === 'M') {
-                    const match = String(dateKey).match(/^(\d{4})-(\d{2})$/);
-                    if (!match) return '';
-                    const total = Number(match[1]) * 12 + (Number(match[2]) - 1) + offset;
-                    const y = Math.floor(total / 12);
-                    const m = (total % 12 + 12) % 12;
-                    return `${y}-${String(m + 1).padStart(2, '0')}`;
-                }
-                return String(dateKey || '');
-            }
-
-            function allocationReturnWindowIsContiguous(dateKeys, endIdx, periods, freq) {
-                if (freq === 'D' || !dateKeys?.length) return true;
-                const startIdx = endIdx - periods + 1;
-                if (startIdx < 0) return false;
-                return String(dateKeys[startIdx]) === shiftedAllocationDateKey(dateKeys[endIdx], freq, -(periods - 1));
-            }
-
-            function calculateAssetAllocationHorizon(returns, periods, months, label, threshold, thresholdDirection = 'lt', dateKeys = [], freq = 'M') {
-                if (!Number.isFinite(periods) || returns.length < periods) return null;
+            function calculateAssetAllocationHorizon(returns, months, label, threshold, thresholdDirection = 'lt') {
+                if (returns.length < months) return null;
                 const samples = [];
                 const drawdowns = [];
-                for (let i = periods - 1; i < returns.length; i++) {
-                    if (!allocationReturnWindowIsContiguous(dateKeys, i, periods, freq)) continue;
+                for (let i = months - 1; i < returns.length; i++) {
                     let growth = 1;
-                    for (let j = i - periods + 1; j <= i; j++) growth *= (1 + returns[j]);
+                    for (let j = i - months + 1; j <= i; j++) growth *= (1 + returns[j]);
                     const total = growth - 1;
-                    const displayReturn = months > 12 ? Math.pow(1 + total, 12 / months) - 1 : total;
-                    samples.push(displayReturn);
-                    drawdowns.push(rollingWindowMaxDrawdownFromReturns(returns, i - periods + 1, periods));
+                    const annualized = Math.pow(1 + total, 12 / months) - 1;
+                    samples.push(adjustAnnualizedReturnForHorizon(annualized, months));
+                    drawdowns.push(rollingWindowMaxDrawdownFromReturns(returns, i - months + 1, months));
                 }
-                if (!samples.length) return null;
                 const probThreshold = samples.filter(v => thresholdDirection === 'gt' ? v > threshold : v < threshold).length / samples.length;
-                return { label, months, periods, annualized: months > 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probThreshold, thresholdDirection, threshold, count: samples.length };
+                return { label, months, annualized: months >= 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probThreshold, thresholdDirection, threshold, count: samples.length };
             }
 
             function renderAssetAllocationStats(rows) {
@@ -6822,7 +6707,7 @@
                 const values = [100];
                 portfolioReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const dates = ['Inicio'].concat(assetAllocationState.dates);
-                Plotly.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: `Evolución ${frequencyLabel(assetAllocationState.frequency || 'M').toLowerCase()} de la asignación`, margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
+                Plotly.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'Evolución mensual de la asignación', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
             }
 
             function parseFlexibleAllocationDate(value) {
@@ -7301,7 +7186,7 @@
                     {
                         title: 'Rentabilidades históricas y esperadas',
                         note: 'Rango histórico por plazo, escenarios de distribución de activos, rentabilidades móviles y distribución anual.',
-                        method: `Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de probabilidad ${allocationThresholdText}. Hasta 1 año se expresa rentabilidad acumulada; por encima de 1 año se expresa rentabilidad anualizada.`,
+                        method: `Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de probabilidad ${allocationThresholdText}. Para plazos de un año o más se expresa la rentabilidad anualizada.`,
                         items: [
                             { type: 'chart', id: 'assetAllocationScenarioChart', title: 'Rango max/media/min por plazo' },
                             { type: 'table', id: 'assetAllocationStatsBody', title: 'Escenarios por plazo' },
@@ -7400,7 +7285,7 @@
                 if (id === 'drawdownTableBody' || id === 'drawdownDurationTableBody') return 'Episodios calculados desde máximos acumulados, valle y recuperación posterior.';
                 if (id.includes('Corr')) return 'Correlaciones sobre retornos alineados de los activos; la matriz del informe queda fijada en frecuencia anual.';
                 if (id.includes('drawdown') || id === 'drawdownChart' || id === 'ddSpaghettiChart') return 'Drawdown calculado como caída desde máximos acumulados y recuperación al recuperar el máximo previo.';
-                if (id.startsWith('assetAllocation')) return 'Ventanas móviles sobre retornos de la cartera cargada, respetando la frecuencia detectada y con pesos normalizados.';
+                if (id.startsWith('assetAllocation')) return 'Ventanas móviles sobre retornos mensuales/periodificados de la cartera cargada, con pesos normalizados.';
                 return 'Cálculo derivado de la misma serie de cartera ya analizada en la pestaña Análisis Individual, respetando la frecuencia detectada.';
             }
 
