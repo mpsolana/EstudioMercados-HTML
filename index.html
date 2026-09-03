@@ -2260,7 +2260,7 @@
             function sheetRows(workbook, sheetName) {
                 const sheet = workbook.Sheets[sheetName];
                 if (!sheet) return [];
-                return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false }).map(row => {
+                return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true }).map(row => {
                     const normalized = {};
                     Object.keys(row).forEach(key => normalized[String(key).trim().toLowerCase()] = row[key]);
                     return normalized;
@@ -2292,6 +2292,14 @@
                     if (parsed) return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
                 }
                 if (!value) return null;
+                const text = String(value).trim();
+                if (/^\d+(\.\d+)?$/.test(text)) {
+                    const serial = Number(text);
+                    if (serial >= 20000 && serial <= 80000) {
+                        const parsed = XLSX.SSF.parse_date_code(serial);
+                        if (parsed) return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+                    }
+                }
                 const date = new Date(value);
                 return Number.isNaN(date.getTime()) ? null : date;
             }
