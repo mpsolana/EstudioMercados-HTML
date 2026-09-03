@@ -13,12 +13,13 @@ export default async function handler(req, res) {
     }
 
     const { series_id, api_key, file_type = 'json', sort_order = 'asc' } = req.query;
+    const resolvedApiKey = api_key || process.env.FRED_API_KEY || process.env.FRED_API_TOKEN;
 
-    if (!series_id || !api_key) {
-        return res.status(400).json({ error: 'Faltan parámetros: series_id, api_key' });
+    if (!series_id || !resolvedApiKey) {
+        return res.status(400).json({ error: 'Faltan parámetros: series_id y FRED_API_KEY en el entorno' });
     }
 
-    const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(series_id)}&api_key=${encodeURIComponent(api_key)}&file_type=${encodeURIComponent(file_type)}&sort_order=${encodeURIComponent(sort_order)}`;
+    const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(series_id)}&api_key=${encodeURIComponent(resolvedApiKey)}&file_type=${encodeURIComponent(file_type)}&sort_order=${encodeURIComponent(sort_order)}`;
 
     try {
         const response = await fetch(fredUrl, {
