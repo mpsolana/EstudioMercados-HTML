@@ -734,23 +734,28 @@
                         <div class="flex flex-wrap gap-2">
                             <label class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800 cursor-pointer">
                                 <i class="fa-solid fa-database mr-1"></i>Subir universo
-                                <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importFundUniverseFile(this.files[0])">
+                                <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importScoringData('universe', this.files[0], importFundUniverseFile)">
+                                <span id="scoringDataStatus-universe" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
                             </label>
                             <label class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800 cursor-pointer">
                                 <i class="fa-solid fa-circle-check mr-1"></i>Subir aprobados
-                                <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importApprovedFundsFile(this.files[0])">
+                                <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importScoringData('approved', this.files[0], importApprovedFundsFile)">
+                                <span id="scoringDataStatus-approved" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
                             </label>
                             <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
                                 <i class="fa-solid fa-briefcase mr-1"></i>Subir cartera scoring
-                                <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importFundScoringPortfolioFile(this.files[0])">
+                                <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importScoringData('portfolio', this.files[0], importFundScoringPortfolioFile)">
+                                <span id="scoringDataStatus-portfolio" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
                             </label>
                             <label class="px-3 py-2 bg-sky-700 text-white rounded text-xs font-bold hover:bg-sky-800 cursor-pointer">
                                 <i class="fa-solid fa-file-import mr-1"></i>Subir posiciones
-                                <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple class="hidden" onchange="importAggregatePositionsFile(this.files)">
+                                <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple class="hidden" onchange="importScoringData('positions', this.files, importAggregatePositionsFile)">
+                                <span id="scoringDataStatus-positions" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
                             </label>
                             <label class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800 cursor-pointer">
                                 <i class="fa-solid fa-chart-pie mr-1"></i>Subir asset class
-                                <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importAssetClassScreenerFile(this.files[0])">
+                                <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importScoringData('assetClass', this.files[0], importAssetClassScreenerFile)">
+                                <span id="scoringDataStatus-assetClass" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
                             </label>
                         </div>
                     </div>
@@ -3339,11 +3344,18 @@
                 const colors = ['#2563eb', '#64748b', '#94a3b8', '#0f766e', '#7c3aed', '#dc2626'];
                 selected.forEach((r, idx) => {
                     if (!Number.isFinite(r[xKey]) || !Number.isFinite(r[yKey])) return;
-                    const isProposed = proposed && r.isin === proposed.isin;
+                    const isProposed = proposed && idx === selected.length - 1 && idx > 0;
                     const role = idx === 0 ? 'Origen' : (isProposed ? 'Propuesto' : `Comparación ${idx}`);
-                    traces.push({ x: [r[xKey]], y: [r[yKey]], mode: 'markers+text', type: 'scatter', name: `${role}: ${r.isin}`, text: [role], textposition: 'top center', marker: { size: Math.max(16, sizeFor(r)), color: colors[idx % colors.length], line: { color: '#0f172a', width: 1.2 } }, hovertemplate: '<b>' + escapeHtml(r.name) + '</b><br>' + escapeHtml(r.isin) + '<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' });
+                    const nameLines = [];
+                    String(r.name || 'Sin nombre').split(/\s+/).forEach(word => {
+                        const last = nameLines.length - 1;
+                        if (last >= 0 && (nameLines[last] + ' ' + word).length <= 32) nameLines[last] += ' ' + word;
+                        else nameLines.push(word);
+                    });
+                    const label = `${escapeHtml(role)}: ${escapeHtml(r.isin)}<br>${nameLines.map(escapeHtml).join('<br>')}`;
+                    traces.push({ x: [r[xKey]], y: [r[yKey]], mode: 'markers+text', type: 'scatter', name: label, text: [label], textfont: { size: 10 }, textposition: `${r[yKey] > avg(yKey) ? 'bottom' : 'top'} ${r[xKey] < avg(xKey) ? 'right' : 'left'}`, marker: { size: Math.max(16, sizeFor(r)), color: colors[idx % colors.length], line: { color: '#0f172a', width: 1.2 } }, hovertemplate: '<b>' + escapeHtml(r.name) + '</b><br>' + escapeHtml(r.isin) + '<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' });
                 });
-                Plotly.newPlot(el, traces, { title: 'Universo ' + (scatterCategory || ''), xaxis: { title: metricLabel(xKey), zeroline: false }, yaxis: { title: metricLabel(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff' }, { responsive: true });
+                Plotly.newPlot(el, traces, { title: 'Universo ' + (scatterCategory || ''), xaxis: { title: metricLabel(xKey), zeroline: false }, yaxis: { title: metricLabel(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.28 }, plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff' }, { responsive: true });
             }
 
             function parseFundProposalInput(text) {
@@ -3955,6 +3967,36 @@
                 return Math.min(1, (jaccard * 0.52) + (coverageA * 0.24) + (coverageB * 0.12) + contains + prefix + coreBonus);
             }
 
+            function renderScoringDataStatus() {
+                const counts = {
+                    universe: fundUniverseState?.records?.length || 0,
+                    approved: approvedFundsState?.records?.length || 0,
+                    portfolio: fundPortfolioRows.length,
+                    positions: aggregatePositionsState?.rows?.length || 0,
+                    assetClass: assetClassScreenerState?.records?.length || 0
+                };
+                Object.entries(counts).forEach(([key, count]) => {
+                    const badge = document.getElementById(`scoringDataStatus-${key}`);
+                    if (!badge) return;
+                    badge.dataset.loaded = String(count > 0);
+                    badge.innerHTML = `<i aria-hidden="true" class="fa-solid ${count ? 'fa-circle-check' : 'fa-clock'} mr-1"></i>${count ? `Cargado (${count.toLocaleString('es-ES')})` : 'Pendiente'}`;
+                });
+            }
+
+            async function importScoringData(key, files, importer) {
+                if (!files || (files instanceof FileList && !files.length)) return;
+                const badge = document.getElementById(`scoringDataStatus-${key}`);
+                if (badge) badge.textContent = 'Cargando...';
+                try {
+                    await importer(files);
+                    renderScoringDataStatus();
+                } catch (error) {
+                    renderScoringDataStatus();
+                    if (badge) badge.textContent += ' - Error de carga';
+                    console.error('Error al importar datos de scoring:', error);
+                }
+            }
+
             async function importFundUniverseFile(file) {
                 if (!file) return;
                 if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
@@ -4005,6 +4047,7 @@
                     if (!prev || (Number.isFinite(r.score) && r.score > (prev.score || -Infinity))) isinIndex.set(r.isin, r);
                 });
                 fundUniverseState = { records, isinIndex, quartiles: buildFundQuartiles(records), fileName: file.name };
+                renderScoringDataStatus();
                 fundScreenerState.initialized = false;
                 rebuildAggregateFastIndex();
                 fundRecommendationCache.clear();
@@ -4139,6 +4182,7 @@
             function setFundPortfolioRows(rows, sourceLabel = 'texto', meta = {}) {
                 const normalized = normalizeFundPortfolioEntriesForScoring(rows);
                 fundPortfolioRows = normalized.rows.map(r => ({ ...r, initialWeight: Number.isFinite(r.initialWeight) ? r.initialWeight : r.weight }));
+                renderScoringDataStatus();
                 const total = fundPortfolioRows.reduce((acc, r) => acc + r.weight, 0);
                 const duplicateCount = meta.duplicates ?? normalized.duplicates;
                 const invalidCount = meta.invalid ?? normalized.invalid;
@@ -4161,6 +4205,7 @@
                 fundPortfolioRows = [];
                 fundScoringResults = [];
                 fundScoringSourceState = { signature: '', autoSynced: false, manual: false };
+                renderScoringDataStatus();
                 document.getElementById('fundPortfolioPaste').value = '';
                 const fileInput = document.getElementById('fundPortfolioFileInput');
                 if (fileInput) fileInput.value = '';
@@ -4427,6 +4472,7 @@
                     ...assetClassMetricTriple(row, 'MRAR 10', 'mrar10', false)
                 })).filter(r => r.assetClass);
                 assetClassScreenerState = { records: rows, fileName: file.name, sortKey: 'funds', sortDir: 'desc', initialized: false, limit: 300 };
+                renderScoringDataStatus();
                 if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} categorías cargadas (${file.name}).`;
                 renderAssetClassScreener();
             }
@@ -5284,6 +5330,7 @@
                 }
                 const parsed = parseAggregatePositionRows(rows);
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
+                renderScoringDataStatus();
                 aggregatePositionsState.notice = parseNotice;
                 aggregateScoringResults = [];
                 if (status) status.innerText = aggregatePositionsState.aggregated.length
@@ -5332,6 +5379,7 @@
                     if (!current || r.name.length > current.name.length) isinIndex.set(r.isin, r);
                 });
                 approvedFundsState = { records, isinIndex, fileName: file.name };
+                renderScoringDataStatus();
                 rebuildAggregateFastIndex();
                 aggregateScoringResults = [];
                 fundRecommendationCache.clear();
