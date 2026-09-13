@@ -1291,6 +1291,8 @@
                                 <label class="text-xs uppercase font-bold text-slate-500">Cartera actual (ISIN, peso)</label>
                                 <textarea id="fundProposalPortfolioInput" class="mt-1 w-full h-40 p-3 border border-slate-300 rounded text-xs font-mono" placeholder="LU0133091248, 15&#10;ES0170156022, 20"></textarea>
                                 <p class="text-[11px] text-slate-400 mt-2">Acepta coma, punto y coma o tabulador. Los pesos se normalizan a 100.</p>
+                                <label for="fundProposalCapital" class="mt-3 block text-xs uppercase font-bold text-slate-500">AUM de origen (EUR)</label>
+                                <input id="fundProposalCapital" type="number" min="0" step="any" value="100000" oninput="updateFundProposalCapital()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm">
                             </div>
                             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Score actual</div><div id="proposalCurrentScore" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
@@ -3384,7 +3386,7 @@
             function cheaperShareClassBadge(row) {
                 const best = row?.cheaperClasses?.[0];
                 if (!best || !row.current) return '';
-                const annual = Number.isFinite(row.weight) && Number.isFinite(row.current.ter) && Number.isFinite(best.ter) ? FUND_PROPOSAL_SAVING_CAPITAL * (row.weight / 100) * (row.current.ter - best.ter) / 100 : NaN;
+                const annual = Number.isFinite(row.weight) && Number.isFinite(row.current.ter) && Number.isFinite(best.ter) ? fundProposalCapital() * (row.weight / 100) * (row.current.ter - best.ter) / 100 : NaN;
                 return `<div class="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800"><b>Clase mas barata:</b> ${escapeHtml(best.isin)} · TER ${fmtPercentPoint(best.ter)}${Number.isFinite(annual) ? ` · ahorro ${formatEur(annual)}/año` : ''}</div>`;
             }
 
@@ -3417,10 +3419,12 @@
                 if (!row.current) return '<span class="text-slate-400">Sin match</span>';
                 const approved = getApprovedFundRecommendations(row.current, 5000);
                 const universe = row.recommendations || getBetterFundRecommendations(row.current, 5000);
+                const fullUniverse = fundUniverseState.records || [];
                 const reset = row.proposed && row.current && row.proposed.isin !== row.current.isin ? `<button onclick="setFundProposalRecommendation(${idx}, '__original__')" class="mt-1 px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-700">Volver actual</button>` : '';
                 return `<div class="space-y-1 min-w-[240px]">
                     <div><div class="mb-0.5 text-[10px] font-bold uppercase text-emerald-700">Aprobados (${approved.length})</div>${renderCompactFundCombobox(approved, isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar aprobado...', { id: `fundProposalApproved-${idx}`, selected: row.proposed, maxRows: 120, emptyLabel: 'Sin aprobados de la categoria' })}</div>
                     <div><div class="mb-0.5 text-[10px] font-bold uppercase text-blue-700">Universo (${universe.length})</div>${renderCompactFundCombobox(universe, isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar universo...', { id: `fundProposalUniverse-${idx}`, selected: row.proposed, maxRows: 120, emptyLabel: 'Sin universo de la categoria' })}</div>
+                    <div><div class="mb-0.5 text-[10px] font-bold uppercase text-slate-700">Universo completo (${fullUniverse.length})</div>${renderCompactFundCombobox(fullUniverse, isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar ISIN, nombre o categoria...', { id: `fundProposalFullUniverse-${idx}`, selected: row.proposed, maxRows: fullUniverse.length, emptyLabel: 'Sin universo cargado' })}</div>
                     ${reset}
                 </div>`;
             }
@@ -3439,17 +3443,30 @@
                 return total > 0 ? valid.reduce((acc, r) => acc + r[side][metric] * r.weight, 0) / total : NaN;
             }
 
-            const FUND_PROPOSAL_SAVING_CAPITAL = 100000;
+            function fundProposalCapital() {
+                const input = document.getElementById('fundProposalCapital');
+                const capital = input?.valueAsNumber;
+                return Number.isFinite(capital) && capital >= 0 ? capital : NaN;
+            }
+
+            function updateFundProposalCapital() {
+                const input = document.getElementById('fundProposalCapital');
+                input?.setCustomValidity(Number.isFinite(fundProposalCapital()) ? '' : 'Introduce un AUM igual o mayor que cero.');
+                fundProposalState.reportHtml = '';
+                fundProposalState.reportBodyHtml = '';
+                document.getElementById('fundProposalReportPreview')?.classList.add('hidden');
+                renderFundProposalPortfolio();
+            }
 
             function fundProposalSavingsData() {
                 const currentTer = fundProposalWeighted('ter', 'current');
                 const proposedTer = fundProposalWeighted('ter', 'proposed');
                 const deltaTer = Number.isFinite(currentTer) && Number.isFinite(proposedTer) ? currentTer - proposedTer : NaN;
-                const annualSaving = Number.isFinite(deltaTer) ? FUND_PROPOSAL_SAVING_CAPITAL * deltaTer / 100 : NaN;
+                const annualSaving = Number.isFinite(deltaTer) ? fundProposalCapital() * deltaTer / 100 : NaN;
                 const years = Array.from({ length: 15 }, (_, i) => i + 1);
                 const simple = years.map(() => Number.isFinite(annualSaving) ? annualSaving : NaN);
                 const compounded = years.map(y => Number.isFinite(currentTer) && Number.isFinite(proposedTer)
-                    ? FUND_PROPOSAL_SAVING_CAPITAL * (Math.pow(1 - proposedTer / 100, y) - Math.pow(1 - currentTer / 100, y))
+                    ? fundProposalCapital() * (Math.pow(1 - proposedTer / 100, y) - Math.pow(1 - currentTer / 100, y))
                     : NaN);
                 return { currentTer, proposedTer, deltaTer, annualSaving, years, simple, compounded };
             }
@@ -3488,7 +3505,7 @@
                         hovertemplate: '%{x}<br>Efecto compuesto: %{y:,.0f} EUR<extra></extra>'
                     }
                 ], {
-                    title: `Simulacion ahorro TER sobre ${formatEur(FUND_PROPOSAL_SAVING_CAPITAL)}`,
+                    title: `Simulacion ahorro TER sobre ${formatEur(fundProposalCapital())}`,
                     barmode: 'group',
                     yaxis: { title: 'EUR', zeroline: true, gridcolor: '#e2e8f0' },
                     xaxis: { title: 'Horizonte' },
@@ -3527,7 +3544,7 @@
                     const missing = rows.filter(r => r.missing).length;
                     const improved = rows.filter(r => r.current && r.proposed && r.current.isin !== r.proposed.isin).length;
                     const cheaper = rows.filter(r => r.cheaperClasses?.length).length;
-                    status.innerText = `${rows.length} fondos analizados · ${improved} propuestas por score · ${cheaper} con clase mas barata · ${missing} sin match.`;
+                    status.innerText = `${rows.length} fondos analizados · ${improved} sustituciones propuestas · ${cheaper} con clase mas barata · ${missing} sin match.${Number.isFinite(fundProposalCapital()) ? '' : ' Introduce un AUM de origen valido para calcular el ahorro.'}`;
                 }
                 body.innerHTML = rows.length ? rows.map((row, idx) => {
                     const current = row.current;
@@ -3637,7 +3654,7 @@
             function fundProposalCheaperOpportunitiesRows() {
                 return (fundProposalState.rows || []).filter(row => row.current && row.cheaperClasses?.length).map(row => {
                     const best = row.cheaperClasses[0];
-                    const annual = FUND_PROPOSAL_SAVING_CAPITAL * (row.weight / 100) * (row.current.ter - best.ter) / 100;
+                    const annual = fundProposalCapital() * (row.weight / 100) * (row.current.ter - best.ter) / 100;
                     return `<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current.name || '-')}</td><td>${escapeHtml(best.isin || '-')}</td><td>${escapeHtml(best.name || '-')}</td><td class="num">${fmtPercentPoint(row.current.ter)}</td><td class="num">${fmtPercentPoint(best.ter)}</td><td class="num">${formatEur(annual)}</td></tr>`;
                 }).join('');
             }
@@ -3676,7 +3693,7 @@
                         <div><span>Score actual</span><strong>${fmtScore(currentScore)}</strong></div><div><span>Score propuesto</span><strong class="${proposalReportToneClass(newScore - currentScore)}">${fmtScore(newScore)}</strong></div><div><span>TER actual</span><strong>${fmtPercentPoint(currentTer)}</strong></div><div><span>TER propuesto</span><strong class="${proposalReportToneClass(currentTer - newTer)}">${fmtPercentPoint(newTer)}</strong></div>
                         <div><span>Mejora score</span><strong class="${proposalReportToneClass(newScore - currentScore)}">${Number.isFinite(newScore - currentScore) ? (newScore - currentScore).toFixed(2) : '-'}</strong></div><div><span>Ahorro anual</span><strong class="${proposalReportToneClass(savings.annualSaving)}">${formatEur(savings.annualSaving)}</strong></div><div><span>Ahorro 5 años</span><strong class="${proposalReportToneClass(savings.compounded[4])}">${formatEur(savings.compounded[4])}</strong></div><div><span>Ahorro 15 años</span><strong class="${proposalReportToneClass(savings.compounded[14])}">${formatEur(savings.compounded[14])}</strong></div>
                     </section>
-                    <section class="block"><h2>Resumen ejecutivo</h2><p class="indented">La propuesta mantiene los pesos introducidos y sustituye cada fondo por alternativas de la misma categoria con score superior cuando existen candidatos. El ahorro por TER se simula sobre una cartera de ${formatEur(FUND_PROPOSAL_SAVING_CAPITAL)} para aislar el efecto del menor coste anual.</p></section>
+                    <section class="block"><h2>Resumen ejecutivo</h2><p class="indented">La propuesta mantiene los pesos introducidos. Las alternativas automaticas son de la misma categoria y mayor score; las selecciones manuales pueden incluir otras categorias y cualquier scoring. El ahorro por TER se calcula sobre el AUM de origen de ${formatEur(fundProposalCapital())} indicado por el usuario.</p></section>
                     <section class="block"><h2>Cambios propuestos</h2><table class="scoring-report-table"><thead><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${changes}</tbody></table><p class="method-note"><b>Metodologia:</b> score y TER se ponderan por los pesos normalizados. Las sustituciones no modifican la cartera original; solo afectan a esta simulacion.</p></section>
                     <section class="block"><h2>Incidencias y oportunidades de coste</h2>${cheaperRows ? `<table class="scoring-report-table"><thead><tr><th>ISIN origen</th><th>Clase actual</th><th>ISIN barato</th><th>Clase barata</th><th>TER actual</th><th>TER barato</th><th>Ahorro anual</th></tr></thead><tbody>${cheaperRows}</tbody></table>` : '<p class="method-note">No se han detectado clases mas baratas del mismo fondo usando AUM y similitud de nombre.</p>'}<p class="method-note"><b>Metodologia:</b> se considera misma clase/fondo cuando el AUM coincide o difiere menos del 0,1%, reforzado por categoria o similitud de nombre base.</p></section>
                     <section class="block"><h2>Ahorro estimado por TER</h2>${savingsImage ? `<figure><figcaption>Ahorro simple y efecto compuesto por menor coste</figcaption><img src="${savingsImage}" alt="Ahorro TER"></figure>` : '<p class="method-note">Sin grafica disponible.</p>'}<p class="method-note"><b>Formula:</b> ahorro anual simple = capital x (TER actual - TER propuesto). Efecto compuesto n años = capital x ((1 - TER propuesto)^n - (1 - TER actual)^n).</p></section>
@@ -3705,6 +3722,10 @@
             }
 
             async function generateFundProposalReport() {
+                if (!Number.isFinite(fundProposalCapital())) {
+                    document.getElementById('fundProposalCapital')?.reportValidity();
+                    return;
+                }
                 if (!fundProposalState.rows?.length) analyzeFundProposalPortfolio();
                 const preview = document.getElementById('fundProposalReportPreview');
                 if (!preview || !fundProposalState.rows?.length) return;
