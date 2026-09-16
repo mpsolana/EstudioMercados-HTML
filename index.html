@@ -9513,6 +9513,8 @@
                     updateStatus('Actualizando vistas de mercados...');
                     filterMarketsSection('indices', 'YTD');
                     filterMarketsSection('assets', 'YTD');
+                    updateStatus('Descargando volatilidad y divisas (10 años)...');
+                    await loadMarketsExtras();
                     updateStatus('Datos de mercados cargados.');
                 } catch (e) {
                     console.error('Error cargando mercados:', e);
@@ -12401,8 +12403,6 @@
                 updateVersionTimestamp();
                 // Ensure top-level section classes/active buttons are synced
                 switchSection('mercados');
-                // 3. Load VIX, MOVE and currency data for markets charts
-                loadMarketsExtras();
             };
         </script>
     </div>
