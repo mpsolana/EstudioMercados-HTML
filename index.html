@@ -725,37 +725,47 @@
                     </div>
                 </div>
 
-                <div class="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-                        <div>
-                            <h3 class="font-bold text-slate-900 border-l-4 border-blue-700 pl-3">Carga de datos de scoring</h3>
-                            <p class="text-xs text-slate-500 mt-1 pl-3">Carga una vez universo, aprobados, cartera y posiciones agregadas. Las subpestañas reutilizan estos mismos datos para scoring e informes.</p>
+                <div class="mt-6 bg-white border border-slate-200 rounded p-4">
+                    <h3 class="font-bold text-slate-900 border-l-4 border-blue-700 pl-3 mb-3">Carga de datos de scoring</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                        <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
+                            <div class="text-[11px] uppercase font-bold text-slate-500">Universo</div>
+                            <div id="scoringDataStatus-universe" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
+                            <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
+                                <i class="fa-solid fa-database" aria-hidden="true"></i>Subir archivo
+                                <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" hidden style="display:none" onchange="importScoringData('universe', this.files[0], importFundUniverseFile)">
+                            </label>
                         </div>
-                        <div class="flex flex-wrap gap-2">
-                            <label class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800 cursor-pointer">
-                                <i class="fa-solid fa-database mr-1"></i>Subir universo
-                                <input id="fundUniverseFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importScoringData('universe', this.files[0], importFundUniverseFile)">
-                                <span id="scoringDataStatus-universe" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
+                        <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
+                            <div class="text-[11px] uppercase font-bold text-slate-500">Aprobados</div>
+                            <div id="scoringDataStatus-approved" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
+                            <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
+                                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>Subir archivo
+                                <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" hidden style="display:none" onchange="importScoringData('approved', this.files[0], importApprovedFundsFile)">
                             </label>
-                            <label class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800 cursor-pointer">
-                                <i class="fa-solid fa-circle-check mr-1"></i>Subir aprobados
-                                <input id="fundApprovedFundsFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importScoringData('approved', this.files[0], importApprovedFundsFile)">
-                                <span id="scoringDataStatus-approved" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
+                        </div>
+                        <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
+                            <div class="text-[11px] uppercase font-bold text-slate-500">Cartera scoring</div>
+                            <div id="scoringDataStatus-portfolio" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
+                            <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
+                                <i class="fa-solid fa-briefcase" aria-hidden="true"></i>Subir archivo
+                                <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" hidden style="display:none" onchange="importScoringData('portfolio', this.files[0], importFundScoringPortfolioFile)">
                             </label>
-                            <label class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800 cursor-pointer">
-                                <i class="fa-solid fa-briefcase mr-1"></i>Subir cartera scoring
-                                <input id="fundPortfolioFileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importScoringData('portfolio', this.files[0], importFundScoringPortfolioFile)">
-                                <span id="scoringDataStatus-portfolio" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
+                        </div>
+                        <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
+                            <div class="text-[11px] uppercase font-bold text-slate-500">Posiciones</div>
+                            <div id="scoringDataStatus-positions" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
+                            <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
+                                <i class="fa-solid fa-file-import" aria-hidden="true"></i>Subir archivo
+                                <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple hidden style="display:none" onchange="importScoringData('positions', this.files, importAggregatePositionsFile)">
                             </label>
-                            <label class="px-3 py-2 bg-sky-700 text-white rounded text-xs font-bold hover:bg-sky-800 cursor-pointer">
-                                <i class="fa-solid fa-file-import mr-1"></i>Subir posiciones
-                                <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple class="hidden" onchange="importScoringData('positions', this.files, importAggregatePositionsFile)">
-                                <span id="scoringDataStatus-positions" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
-                            </label>
-                            <label class="px-3 py-2 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800 cursor-pointer">
-                                <i class="fa-solid fa-chart-pie mr-1"></i>Subir asset class
-                                <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="importScoringData('assetClass', this.files[0], importAssetClassScreenerFile)">
-                                <span id="scoringDataStatus-assetClass" role="status" aria-live="polite" class="block mt-1 text-[10px] font-normal">Pendiente</span>
+                        </div>
+                        <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
+                            <div class="text-[11px] uppercase font-bold text-slate-500">Asset class</div>
+                            <div id="scoringDataStatus-assetClass" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
+                            <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
+                                <i class="fa-solid fa-chart-pie" aria-hidden="true"></i>Subir archivo
+                                <input id="assetClassScreenerFileInput" type="file" accept=".xlsx,.xls" hidden style="display:none" onchange="importScoringData('assetClass', this.files[0], importAssetClassScreenerFile)">
                             </label>
                         </div>
                     </div>
@@ -805,7 +815,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <h4 class="font-bold">Composición Cartera (Pesos)</h4>
                         </div>
-                        <div id="portfolioCompositionChart" class="w-full h-[320px]"></div>
+                        <div class="overflow-x-auto"><div id="portfolioCompositionChart" class="w-full min-w-[520px] h-[480px]"></div></div>
                     </div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <div class="flex items-center justify-between mb-2">
@@ -818,7 +828,7 @@
                                 <option value="A">Anual (~252d)</option>
                             </select>
                         </div>
-                        <div id="portfolioCorrMatrixChart" class="w-full h-[320px]"></div>
+                        <div class="overflow-x-auto"><div id="portfolioCorrMatrixChart" class="w-full min-w-[520px] h-[520px]"></div></div>
                     </div>
                 </div>
 
@@ -827,7 +837,7 @@
                         <h4 class="font-bold border-l-4 border-indigo-600 pl-3">Rolling Correlation (Dinámica)</h4>
                         <div id="portfolioRollingCorrNote" class="text-xs text-slate-500"></div>
                     </div>
-                    <div id="portfolioRollingCorrChart" class="w-full h-[420px]"></div>
+                    <div class="overflow-x-auto"><div id="portfolioRollingCorrChart" class="w-full min-w-[640px] h-[520px]"></div></div>
                 </div>
 
                 <div class="mt-4 text-xs text-gray-500">
@@ -3428,7 +3438,7 @@
             }
 
             function fundProposalActionHtml(row, idx) {
-                if (!row.current) return '<span class="text-slate-400">Sin match</span>';
+                if (!row.current) return `<div class="min-w-[240px]"><div class="mb-1 text-[10px] font-bold uppercase text-slate-700">Universo completo</div>${renderCompactFundCombobox(fundUniverseState.records || [], isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar ISIN, nombre o categoria...', { id: `fundProposalFullUniverse-${idx}`, selected: row.proposed, maxRows: fundUniverseState.records.length })}${row.proposed ? `<button class="mt-1 text-xs text-slate-600 underline" onclick="setFundProposalRecommendation(${idx}, '__original__')">Quitar propuesta</button>` : ''}</div>`;
                 const approved = getApprovedFundRecommendations(row.current, 5000);
                 const universe = row.recommendations || getBetterFundRecommendations(row.current, 5000);
                 const fullUniverse = fundUniverseState.records || [];
@@ -3474,6 +3484,9 @@
                 const currentTer = fundProposalWeighted('ter', 'current');
                 const proposedTer = fundProposalWeighted('ter', 'proposed');
                 const deltaTer = Number.isFinite(currentTer) && Number.isFinite(proposedTer) ? currentTer - proposedTer : NaN;
+                if (fundProposalState.rows.some(row => !row.current || !row.proposed || !Number.isFinite(row.current.ter) || !Number.isFinite(row.proposed.ter))) {
+                    return { currentTer, proposedTer, deltaTer: NaN, annualSaving: NaN, years: Array.from({ length: 15 }, (_, i) => i + 1), simple: Array(15).fill(NaN), compounded: Array(15).fill(NaN) };
+                }
                 const annualSaving = Number.isFinite(deltaTer) ? fundProposalCapital() * deltaTer / 100 : NaN;
                 const years = Array.from({ length: 15 }, (_, i) => i + 1);
                 const simple = years.map(() => Number.isFinite(annualSaving) ? annualSaving : NaN);
@@ -8026,12 +8039,12 @@
 
             // Render portfolio composition as a Pie chart
             function renderPortfolioComposition(entries) {
-                const labels = entries.map(e => portfolioEntryLabel(e));
+                const labels = entries.map(e => String(portfolioEntryLabel(e)).match(/.{1,26}(?:\s|$)|.{1,26}/g).map(escapeHtml).join('<br>'));
                 const tickers = entries.map(e => e.ticker);
                 const values = entries.map(e => (e.weight || 0));
                 const colors = ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#475569', '#64748b', '#94a3b8'];
                 const trace = [{ labels, values, customdata: tickers, type: 'pie', hole: 0.35, marker: { colors }, hovertemplate: '%{label}<br>Ticker: %{customdata}<br>Peso: %{percent}<extra></extra>' }];
-                const layout = { title: 'Composición de la Cartera (Pesos)', margin: { t: 40, l: 20, r: 20, b: 20 }, legend: { orientation: 'h', y: -0.15 } };
+                const layout = { height: 480, margin: { t: 20, l: 20, r: 220, b: 20 }, legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 10 } } };
                 Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
             }
 
@@ -8089,7 +8102,7 @@
             function renderPortfolioCorrMatrix(labels, z, freqLabel, windowSize, sampleSize) {
                 const text = z.map(row => row.map(val => Number.isFinite(val) ? val.toFixed(2) : '-'));
                 const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#0f172a'], [0.5, '#94a3b8'], [1, '#ffffff']], zmin: -1, zmax: 1, text, hoverinfo: 'x+y+z', texttemplate: '%{text}', textfont: { color: '#111827', size: 11 } }];
-                const layout = { title: `Matriz de Correlación (Cartera) - ${document.getElementById('portfolioCorrFreq')?.selectedOptions[0]?.text || ''} · ventana ${windowSize} periodo(s), muestra ${sampleSize}`, margin: { t: 55, l: 80, r: 40, b: 80 }, xaxis: { automargin: true }, yaxis: { automargin: true } };
+                const layout = { height: Math.max(520, labels.length * 30 + 160), title: { text: `Ventana ${windowSize} periodo(s) · muestra ${sampleSize}`, font: { size: 12 } }, margin: { t: 45, l: 170, r: 45, b: 55 }, xaxis: { tickmode: 'array', tickvals: labels, ticktext: labels.map((_, i) => String(i + 1)), tickangle: 0 }, yaxis: { tickfont: { size: 10 }, tickmode: 'array', tickvals: labels, ticktext: labels.map((label, i) => `${i + 1}. ${String(label).slice(0, 19)}${String(label).length > 19 ? '…' : ''}`), autorange: 'reversed' } };
                 Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
             }
 
@@ -8122,14 +8135,15 @@
                             if (!allByIndex.has(key)) allByIndex.set(key, []);
                             allByIndex.get(key).push(corr);
                         }
-                        traces.push({ x, y, mode: 'lines', name: `${portfolioLabelForTicker(tickers[i])} / ${portfolioLabelForTicker(tickers[j])}`, line: { width: 1, color: '#94a3b8' }, opacity: 0.35, hovertemplate: '%{y:.2f}<extra>%{fullData.name}</extra>' });
+                        const pairName = `${portfolioLabelForTicker(tickers[i])} / ${portfolioLabelForTicker(tickers[j])}`;
+                        traces.push({ x, y, mode: 'lines', name: `${i + 1} / ${j + 1}: ${escapeHtml(pairName.slice(0, 26))}…`, customdata: x.map(() => pairName), line: { width: 1, color: '#94a3b8' }, opacity: 0.35, hovertemplate: '%{customdata}<br>%{y:.2f}<extra></extra>' });
                         pairCount++;
                     }
                 }
                 const avgX = [...allByIndex.keys()];
                 const avgY = avgX.map(k => getMean(allByIndex.get(k)));
                 traces.unshift({ x: avgX, y: avgY, mode: 'lines', name: 'Media pares', line: { width: 3, color: '#1d4ed8' }, hovertemplate: 'Media: %{y:.2f}<extra></extra>' });
-                Plotly.newPlot(chart, traces, { title: `Rolling correlation de activos (${rollingWindow} periodo(s))`, yaxis: { range: [-1, 1], title: 'Correlación' }, xaxis: { title: 'Fecha' }, margin: { t: 45, l: 55, r: 20, b: 45 }, showlegend: true, legend: { orientation: 'h', y: -0.25 } }, { responsive: true });
+                Plotly.newPlot(chart, traces, { height: 520, title: { text: `Rolling correlation (${rollingWindow} periodo(s))`, font: { size: 14 } }, yaxis: { range: [-1, 1], title: 'Correlación' }, xaxis: { title: 'Fecha' }, margin: { t: 45, l: 55, r: 230, b: 55 }, showlegend: true, legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 9 } } }, { responsive: true });
                 if (note) note.textContent = `${pairCount} pares calculados; línea azul = media de pares.`;
             }
             // --- FORECAST / MONTECARLO SIMULATIONS ---
