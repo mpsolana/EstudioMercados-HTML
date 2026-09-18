@@ -1,0 +1,153 @@
+const PortfolioWorkspace = { scope: 'individual', step: 'data', tool: 'main', revision: 1, snapshots: {}, engine: 'audit-1' };
+function portfolioCalculationSettings() {
+    const value = (id, fallback) => document.getElementById(id)?.value ?? fallback;
+    return { rebalance: value('portfolioRebalance', 'period'), costBps: Number(value('portfolioCostBps', 0)), riskFreeAnnual: Number(value('portfolioRiskFree', 0)) / 100, currency: value('portfolioBaseCurrency', 'EUR'), pricesInBase: document.getElementById('portfolioPricesInBase')?.checked || false, frequencyOverride: value('portfolioDataFrequency','auto'), simulation: { method:value('mcMethod','normal'), seed:Number(value('mcSeed',12345)), initialShock:Number(value('mcStress',0)) } };
+}
+function portfolioHistoryStale() {
+    if (!loadedPortfolio?.calculationSettings) return false;
+    const current = portfolioCalculationSettings();
+    return ['rebalance','costBps','currency','pricesInBase','frequencyOverride'].some(key => current[key] !== loadedPortfolio.calculationSettings[key]);
+}
+async function portfolioConvertCurrencies(seriesMap, entries, start, end) {
+    const settings = portfolioCalculationSettings();
+    if (settings.pricesInBase) return;
+    for (const entry of entries) {
+        const meta = MarketData.metadata.get(entry.ticker);
+        if (!meta?.currency) throw new Error(`${entry.ticker}: divisa no disponible. Confirma que los precios ya estan en la moneda base.`);
+        if (meta.currency === settings.currency) continue;
+        let source = meta.currency, scale = 1;
+        if (source === 'GBp' || source === 'GBX') { source = 'GBP'; scale = .01; }
+        const pair = `${source}${settings.currency}=X`;
+        const fx = source === settings.currency ? null : await fetchYahooData(pair, start, end);
+        seriesMap[entry.ticker] = seriesMap[entry.ticker].map(point => {
+            const rate = fx ? getAlignedValueOnOrBefore(fx, point.date) : 1;
+            if (!(rate > 0)) throw new Error(`Falta cambio ${pair} para ${point.date.toISOString().slice(0, 10)}.`);
+            return { date: point.date, price: point.price * scale * rate };
+        });
+        entry.originalCurrency = meta.currency; entry.currency = settings.currency;
+    }
+}
+function invalidatePortfolioReports() {
+    PortfolioWorkspace.revision++;
+    portfolioReportHtml = ''; managerReportHtml = '';
+    fundProposalState.reportHtml = ''; fundProposalState.reportBodyHtml = '';
+    PortfolioWorkspace.snapshots = {};
+    ['portfolioReportPreview', 'managerReportPreview', 'fundProposalReportPreview'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.textContent = 'Datos modificados. Genera un nuevo informe.';
+    });
+}
+function portfolioWorkflowRefresh() {
+    const w = PortfolioWorkspace;
+    document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
+    const show = id => { const el = document.getElementById(id); if (el) { el.hidden = false; el.classList.remove('hidden'); } };
+    if (w.step === 'data') show('workspaceData');
+    if (w.step === 'diagnosis') show(w.scope === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
+    if (w.step === 'proposal') show(w.scope === 'aggregate' ? 'workspaceAggregate' : 'workspaceProposal');
+    if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : 'workspaceIndividualReports');
+    document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope !== 'individual';
+    document.getElementById('workspaceReportOptions').hidden = w.step !== 'report';
+    document.querySelectorAll('[data-workspace-step]').forEach(b => b.setAttribute('aria-current', b.dataset.workspaceStep === w.step ? 'step' : 'false'));
+    document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
+    document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = el.dataset.workspaceOnly !== w.scope);
+    const rows = fundProposalState.rows || [];
+    const coverage = FinanceCore.weighted(rows, 'ter', 'current').coverage;
+    document.getElementById('workspaceContext').textContent = `${w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : 'Cartera individual'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
+    document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length} · Cartera scoring: ${fundPortfolioRows.length} posiciones · Agregado: ${aggregatePositionsState.rows.length} posiciones.\n${rows.length ? `Cobertura TER de la propuesta: ${(coverage * 100).toFixed(1)} %. ` : ''}Score orientativo: compara fondos dentro de la misma categoria. Historicos: ${loadedPortfolio?.sourceLabel || 'pendientes'}.`;
+    if (portfolioHistoryStale()) document.getElementById('workspaceQuality').textContent += '\nHipotesis modificadas: vuelve a cargar o importar la cartera antes de utilizar el backtest.';
+    const unadjusted = (loadedPortfolio?.entries || []).filter(e => MarketData.metadata.get(e.ticker)?.priceType === 'close');
+    if (unadjusted.length) document.getElementById('workspaceQuality').textContent += `\n${unadjusted.length} activos con cierre sin ajuste: no equivalen necesariamente a retorno total.`;
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+}
+function portfolioSnapshot(kind) {
+    const reportOptions = { charts: document.getElementById('reportIncludeCharts').checked, details: document.getElementById('reportIncludeDetails').checked, final: document.getElementById('reportFinal').checked };
+    const rows = kind === 'aggregate' ? aggregateScoringResults.map(r => ({ weight:r.position.weight, current:aggregateStaticRecord(r), proposed:aggregateEffectiveRecord(r) })) : fundProposalState.rows;
+    return JSON.parse(JSON.stringify({ id: `${kind}-${Date.now()}`, kind, revision: PortfolioWorkspace.revision, engine: PortfolioWorkspace.engine, createdAt: new Date().toISOString(), settings: portfolioCalculationSettings(), reportOptions, capital: kind === 'aggregate' ? null : fundProposalCapital(), source: { universe: fundUniverseState?.fileName || '', approved: approvedFundsState.fileName || '', portfolio: kind === 'aggregate' ? '' : loadedPortfolio?.sourceLabel || '', aggregate: kind === 'aggregate' ? aggregatePositionsState.fileName || '' : '' }, portfolio: kind === 'aggregate' ? null : loadedPortfolio, aggregate: kind === 'aggregate' ? {positions:aggregatePositionsState.rows,results:aggregateScoringResults} : null, proposal: kind === 'aggregate' ? [] : fundProposalState.rows.map(r => ({ isin:r.isin, weight:r.weight, current:r.current, proposed:r.proposed })), coverage: { currentTer: FinanceCore.weighted(rows, 'ter', 'current').coverage, proposedTer: FinanceCore.weighted(rows, 'ter', 'proposed').coverage }, dataSources: kind === 'aggregate' ? [] : [...MarketData.metadata.entries()] }));
+}
+function initializePortfolioWorkspace() {
+    const simulationControls = document.createElement('div'); simulationControls.className = 'workspace-settings';
+    simulationControls.innerHTML = '<label>Modelo de escenarios<select id="mcMethod"><option value="normal">Lognormal independiente</option><option value="bootstrap">Bootstrap por bloques de 5 periodos</option></select></label><label>Semilla reproducible<input id="mcSeed" type="number" value="12345" min="1"></label><p class="text-xs">Escenarios estadisticos, no predicciones. No incluyen impuestos, costes ni cambios estructurales. Los bloques conservan solo dependencia local.</p>';
+    document.getElementById('mcYears')?.parentElement.append(simulationControls);
+    simulationControls.insertAdjacentHTML('beforeend','<label>Estres inicial hipotetico<select id="mcStress"><option value="0">Sin shock</option><option value="-0.1">Caida inicial 10%</option><option value="-0.2">Caida inicial 20%</option><option value="-0.35">Caida inicial 35%</option></select></label>');
+    const root = document.querySelector('#section-cartera > .container > .bg-white');
+    if (!root) return;
+    root.classList.add('portfolio-workspace');
+    const header = root.firstElementChild; header.hidden = true;
+    const shell = document.createElement('div');
+    shell.innerHTML = `<div class="workspace-heading"><div><h2>Analisis de carteras</h2><small id="workspaceContext"></small></div><div class="workspace-scope"><button data-workspace-scope="individual">Cartera individual</button><button data-workspace-scope="aggregate">Posiciones agregadas</button></div></div><nav class="workspace-steps" aria-label="Proceso de analisis"><button data-workspace-step="data">01 Datos</button><button data-workspace-step="diagnosis">02 Diagnostico</button><button data-workspace-step="proposal">03 Propuesta</button><button data-workspace-step="report">04 Informe</button></nav><div id="workspaceTools" class="workspace-tools"></div><div id="workspaceQuality" class="workspace-status" role="status"></div><section id="workspaceData" class="workspace-panel" data-workspace-panel></section><section id="workspaceIndividualReports" class="workspace-panel" data-workspace-panel></section><section id="workspaceManagerReports" class="workspace-panel" data-workspace-panel></section>`;
+    root.prepend(shell);
+    const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
+    reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
+    reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);
+    const data = document.getElementById('workspaceData');
+    const importGrid = document.getElementById('portfolioExcelInput').closest('.grid').parentElement.parentElement;
+    const clientControls = root.querySelector('button[onclick="generatePortfolioReport()"]')?.closest('.rounded-lg');
+    const managerControls = root.querySelector('button[onclick="generateManagerReport()"]')?.closest('.rounded-lg');
+    if (clientControls) document.getElementById('workspaceIndividualReports').append(clientControls);
+    if (managerControls) document.getElementById('workspaceManagerReports').append(managerControls);
+    data.append(importGrid); importGrid.dataset.workspaceOnly = 'individual';
+    const builder = document.getElementById('portfolioBuilder'); data.append(builder); builder.dataset.workspaceOnly = 'individual';
+    const manualActions = document.getElementById('loadPortfolioBtn').parentElement;
+    manualActions.classList.add('workspace-manual-actions');
+    for (const [selector, icon, label] of [['[onclick="addPortfolioRow()"]','plus','Agregar activo'],['[onclick="normalizeWeights()"]','scale-balanced','Normalizar pesos'],['#analyzePortfolioBtn','rotate','Recalcular analisis']]) {
+        const button = manualActions.querySelector(selector); button.innerHTML = `<i class="fa-solid fa-${icon}" aria-hidden="true"></i>`;
+        button.title = label; button.setAttribute('aria-label',label); button.classList.add('workspace-icon');
+    }
+    document.getElementById('loadPortfolioBtn').textContent = 'Cargar y analizar';
+    const upload = document.getElementById('fundUniverseFileInput').closest('.mt-6'); data.append(upload);
+    document.getElementById('fundPortfolioFileInput').closest('.min-w-0').dataset.workspaceOnly = 'individual';
+    document.getElementById('aggregatePositionsFileInput').closest('.min-w-0').dataset.workspaceOnly = 'aggregate';
+    const settings = document.createElement('div'); settings.className = 'workspace-settings'; settings.dataset.workspaceOnly = 'individual';
+    settings.innerHTML = `<label>Rebalanceo<select id="portfolioRebalance"><option value="period">Cada observacion (pesos constantes)</option><option value="monthly">Mensual</option><option value="hold">Comprar y mantener</option></select></label><label>Coste por volumen negociado (pb)<input id="portfolioCostBps" type="number" min="0" max="1000" value="0"></label><label>Tipo libre de riesgo anual (%)<input id="portfolioRiskFree" type="number" min="-99" step="0.1" value="0"></label><label>Moneda base<select id="portfolioBaseCurrency"><option>EUR</option><option>USD</option><option>GBP</option></select></label><label><input id="portfolioPricesInBase" type="checkbox"> Historicos propios ya expresados en moneda base</label>`;
+    data.prepend(settings);
+    const unit = document.createElement('label'); unit.className = 'workspace-context'; unit.innerHTML = 'Unidad de pesos de scoring y propuesta <select id="fundWeightUnit"><option value="percent">Porcentaje (0-100)</option><option value="fraction">Fraccion (0-1)</option><option value="amount">Importes (se normalizan)</option></select>'; data.prepend(unit);
+    const oldNav = document.getElementById('portfolioSubtab-main').parentElement; oldNav.hidden = true;
+    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', massive:'Comparador masivo', screener:'Screener' };
+    document.getElementById('workspaceTools').innerHTML = Object.entries(tools).map(([key,label]) => `<button data-workspace-tool="${key}">${label}</button>`).join('');
+    for (const id of ['portfolioReportPreview','managerReportPreview']) {
+        const target = document.getElementById(id); document.getElementById(id === 'portfolioReportPreview' ? 'workspaceIndividualReports' : 'workspaceManagerReports').append(target.parentElement);
+    }
+    const aggregate = document.getElementById('aggregatePositionsStatus').closest('.grid').parentElement;
+    aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
+    root.querySelectorAll('.portfolio-subtab-content').forEach(el => { el.dataset.workspacePanel = ''; el.classList.add('workspace-panel'); });
+    const proposalPreview = document.getElementById('fundProposalReportPreview'); document.getElementById('workspaceIndividualReports').append(proposalPreview);
+    const reportActions = document.createElement('div'); reportActions.className='workspace-tools'; reportActions.innerHTML='<button onclick="generateFundProposalReport()">Generar informe de propuesta</button><button onclick="downloadFundProposalReportPdf()">Imprimir / PDF propuesta</button><button onclick="downloadPortfolioSnapshot()">Descargar trazabilidad JSON</button>';
+    document.getElementById('workspaceIndividualReports').prepend(reportActions);
+    root.querySelectorAll('#portfolioSubtabContent-funds button').forEach(button => { if (/generateFundProposalReport|downloadFundProposalReportPdf/.test(button.getAttribute('onclick') || '')) button.hidden = true; });
+    const proposal = document.getElementById('fundProposalStatus').parentElement;
+    proposal.id = 'workspaceProposal'; proposal.dataset.workspacePanel = ''; proposal.classList.add('workspace-panel'); root.append(proposal);
+    root.addEventListener('click', event => {
+        const b = event.target.closest('button'); if (!b) return;
+        if (b.dataset.workspaceScope) { PortfolioWorkspace.scope = b.dataset.workspaceScope; PortfolioWorkspace.step = 'data'; }
+        if (b.dataset.workspaceStep) PortfolioWorkspace.step = b.dataset.workspaceStep;
+        if (b.dataset.workspaceTool) { PortfolioWorkspace.tool = b.dataset.workspaceTool; showPortfolioSubtab(b.dataset.workspaceTool); }
+        if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
+    });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel]')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
+        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await original(...args); } catch(error) { alert(error.message); } finally { portfolioWorkflowRefresh(); } };
+    }
+    for (const name of ['setFundProposalRecommendation','setFundPortfolioRows','clearFundScoringState','setAggregateManualCategory','setAggregateManualBucket','setAggregateManualScore','applyAggregateRecord','resetAggregateRecord']) {
+        const original = window[name]; window[name] = (...args) => { invalidatePortfolioReports(); const result = original(...args); portfolioWorkflowRefresh(); return result; };
+    }
+    for (const [name, kind, previewId] of [['generatePortfolioReport','individual','portfolioReportPreview'],['generateManagerReport','aggregate','managerReportPreview'],['generateFundProposalReport','proposal','fundProposalReportPreview']]) {
+        const original = window[name]; window[name] = async (...args) => {
+            if (kind === 'individual' && portfolioHistoryStale()) { alert('Vuelve a cargar o importar la cartera con las nuevas hipotesis antes de generar el informe.'); PortfolioWorkspace.step = 'data'; portfolioWorkflowRefresh(); return; }
+            if (kind === 'aggregate') managerReportHtml = ''; else if (kind === 'individual') portfolioReportHtml = ''; else fundProposalState.reportHtml = '';
+            const revision = PortfolioWorkspace.revision; await original(...args);
+            if (revision !== PortfolioWorkspace.revision) { invalidatePortfolioReports(); return; }
+            const snapshot = portfolioSnapshot(kind);
+            let html = kind === 'aggregate' ? managerReportHtml : kind === 'individual' ? portfolioReportHtml : fundProposalState.reportHtml;
+            if (!html) return;
+            html = ReportDesign.prepare(html, snapshot);
+            if (kind === 'aggregate') managerReportHtml = html; else if (kind === 'individual') portfolioReportHtml = html; else fundProposalState.reportHtml = html;
+            PortfolioWorkspace.snapshots[kind] = JSON.parse(JSON.stringify(snapshot));
+            ReportDesign.preview(document.getElementById(previewId), html);
+            PortfolioWorkspace.step = 'report'; portfolioWorkflowRefresh();
+        };
+    }
+    portfolioWorkflowRefresh();
+}
+function downloadPortfolioSnapshot() {
+    downloadBlob(JSON.stringify(PortfolioWorkspace.snapshots, null, 2), 'Trazabilidad_cartera.json', 'application/json');
+}
+initializePortfolioWorkspace();

@@ -5,6 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="docTitle">Analyzer v13</title>
+    <script src="assets/finance-core.js"></script>
+    <script src="assets/simulation-engine.js"></script>
+    <script src="assets/market-data.js"></script>
+    <script src="assets/fund-selector.js"></script>
+    <script src="assets/report-design.js"></script>
+    <script defer src="assets/portfolio-workspace.js"></script>
+    <link rel="stylesheet" href="assets/portfolio-workspace.css">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -615,6 +622,8 @@
                                 <select id="portfolioDataFrequency" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
                                     <option value="auto">Auto detectar</option>
                                     <option value="D">Diaria</option>
+                                    <option value="C">Diaria natural (365)</option>
+                                    <option value="W">Semanal</option>
                                     <option value="M">Mensual</option>
                                     <option value="Q">Trimestral</option>
                                     <option value="A">Anual</option>
@@ -841,13 +850,10 @@
                 </div>
 
                 <div class="mt-4 text-xs text-gray-500">
-                    <strong>Nota (metodología):</strong> Para construir la serie de la cartera se calculan los retornos
-                    simples diarios de cada activo $r_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1$, la rentabilidad diaria de la
-                    cartera es $r_{p,t}=\sum_i w_i\,r_{i,t}$. La evolución acumulada se obtiene por capitalización:
-                    $V_{t}=V_0\prod_{s\le t}(1+r_{p,s})$. La volatilidad de la cartera se calcula usando la matriz de
-                    covarianzas diarias: $\sigma_p=\sqrt{w^T \Sigma_{daily} w}\times\sqrt{252}$ (annualizada). El
-                    periodo analizado queda acotado por el activo con menos historial (se informará la fecha de inicio
-                    usada).
+                    <strong>Metodologia:</strong> Retornos simples sobre el historial comun, capitalizados con
+                    los pesos que resultan del rebalanceo elegido y sus costes. Volatilidad muestral de los retornos
+                    de cartera, anualizada segun su frecuencia. Sharpe con exceso aritmetico sobre el tipo libre
+                    de riesgo. CAGR solo para historiales de al menos un ano. No incluye impuestos ni flujos externos.
                 </div>
                 <div class="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="px-5 py-3 bg-slate-900 text-white flex items-center justify-between">
@@ -1695,7 +1701,7 @@
             }
 
             function comparisonFrequency(assetSeries, benchSeries) {
-                const rank = { D: 0, M: 1, Q: 2, A: 3 };
+                const rank = { C: 0, D: 0, W: 1, M: 2, Q: 3, A: 4 };
                 const assetFreq = inferDataFrequency(assetSeries || []);
                 const benchFreq = inferDataFrequency(benchSeries || []);
                 return (rank[assetFreq] || 0) >= (rank[benchFreq] || 0) ? assetFreq : benchFreq;
@@ -1707,6 +1713,10 @@
                 if (freq === 'A') return `${y}`;
                 if (freq === 'Q') return `${y}-Q${Math.floor(m / 3) + 1}`;
                 if (freq === 'M') return `${y}-${String(m + 1).padStart(2, '0')}`;
+                if (freq === 'W') {
+                    const monday = new Date(Date.UTC(y, m, date.getUTCDate() - (date.getUTCDay() + 6) % 7));
+                    return monday.toISOString().slice(0, 10);
+                }
                 return date.toISOString().slice(0, 10);
             }
 
@@ -1839,62 +1849,9 @@
                 };
             }
 
-            function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
-                if (!portfolioData?.length) return;
-                const x = portfolioData.map(d => d.date);
-                const y = portfolioData.map(d => d.price);
-                const benchmark = selectedPortfolioBenchmark();
-                const comparison = benchmark ? alignPortfolioWithBenchmark(portfolioData, benchmark.data) : null;
-                const chartX = comparison?.x || x;
-                const chartY = comparison?.portfolio || y;
-                const rsi = calculateRSI(chartY, 14);
-                const traces = [
-                    { x: chartX, y: chartY, mode: 'lines', name: benchmark ? 'Cartera (Base 100)' : (mode === 'real' ? 'Cartera real' : 'Backtest'), line: { color: '#2563eb', width: 2.2 } },
-                    { x, y: movingAverageValues(y, 50), mode: 'lines', name: 'Media móvil 50', line: { color: '#f59e0b', width: 1.8 } },
-                    { x, y: rsi, yaxis: 'y2', mode: 'lines', name: 'RSI 14', line: { color: '#7c3aed', width: 1.7 } }
-                ];
-                Plotly.newPlot('portfolioChart', traces, {
-                    title: mode === 'real' ? 'Evolución real de la cartera' : 'Evolución cartera (Backtest)',
-                    margin: { t: 40, l: 60, r: 20, b: 40 },
-                    yaxis: { title: 'Patrimonio', domain: [0.33, 1] },
-                    yaxis2: { title: 'RSI', domain: [0, 0.22], range: [0, 100] },
-                    legend: { orientation: 'h', y: -0.18 },
-                    shapes: [
-                        { type: 'line', x0: x[0], x1: x[x.length - 1], y0: 70, y1: 70, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } },
-                        { type: 'line', x0: x[0], x1: x[x.length - 1], y0: 30, y1: 30, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } }
-                    ]
-                }, { responsive: true });
-            }
 
-            function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
-                if (!portfolioData?.length) return;
-                const x = portfolioData.map(d => d.date);
-                const y = portfolioData.map(d => d.price);
-                const benchmark = selectedPortfolioBenchmark();
-                const comparison = benchmark ? alignPortfolioWithBenchmark(portfolioData, benchmark.data) : null;
-                const chartX = comparison?.x || x;
-                const chartY = comparison?.portfolio || y;
-                const rsi = calculateRSI(chartY, 14);
-                const traces = [
-                    { x: chartX, y: chartY, mode: 'lines', name: benchmark ? 'Cartera (Base 100)' : (mode === 'real' ? 'Cartera real' : 'Backtest'), line: { color: '#2563eb', width: 2.2 } },
-                    { x: chartX, y: movingAverageValues(chartY, 50), mode: 'lines', name: 'Media movil 50', line: { color: '#f59e0b', width: 1.8 } },
-                    { x: chartX, y: rsi, yaxis: 'y2', mode: 'lines', name: 'RSI 14', line: { color: '#7c3aed', width: 1.7 } }
-                ];
-                if (comparison) traces.splice(1, 0, { x: comparison.x, y: comparison.benchmark, mode: 'lines', name: `${benchmark.label} (Base 100)`, line: { color: '#0f172a', width: 2, dash: 'dot' } });
-                const note = document.getElementById('portfolioBenchmarkNote');
-                if (note) note.textContent = comparison ? `Comparacion base 100 desde ${comparison.x[0].toISOString().slice(0, 10)}` : (benchmark ? 'Benchmark sin fechas comunes suficientes.' : '');
-                Plotly.newPlot('portfolioChart', traces, {
-                    title: comparison ? 'Evolucion cartera vs benchmark (Base 100)' : (mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)'),
-                    margin: { t: 40, l: 60, r: 20, b: 40 },
-                    yaxis: { title: comparison ? 'Base 100' : 'Patrimonio', domain: [0.33, 1] },
-                    yaxis2: { title: 'RSI', domain: [0, 0.22], range: [0, 100] },
-                    legend: { orientation: 'h', y: -0.18 },
-                    shapes: [
-                        { type: 'line', x0: chartX[0], x1: chartX[chartX.length - 1], y0: 70, y1: 70, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } },
-                        { type: 'line', x0: chartX[0], x1: chartX[chartX.length - 1], y0: 30, y1: 30, yref: 'y2', line: { color: '#94a3b8', width: 1, dash: 'dot' } }
-                    ]
-                }, { responsive: true });
-            }
+
+
 
             function renderPortfolioBacktestChart(portfolioData, mode = 'backtest') {
                 if (!portfolioData?.length) return;
@@ -1942,30 +1899,15 @@
             }
 
             function inferDataFrequency(data) {
-                if (!Array.isArray(data) || data.length < 3) return 'D';
-                const gaps = [];
-                for (let i = 1; i < data.length; i++) {
-                    const gap = (data[i].date - data[i - 1].date) / 86400000;
-                    if (Number.isFinite(gap) && gap > 0) gaps.push(gap);
-                }
-                if (!gaps.length) return 'D';
-                gaps.sort((a, b) => a - b);
-                const medianGap = gaps[Math.floor(gaps.length / 2)];
-                if (medianGap >= 250) return 'A';
-                if (medianGap >= 70) return 'Q';
-                if (medianGap >= 18) return 'M';
-                return 'D';
+                return FinanceCore.frequency(data || []);
             }
 
             function periodsPerYear(freq) {
-                if (freq === 'A') return 1;
-                if (freq === 'Q') return 4;
-                if (freq === 'M') return 12;
-                return 252;
+                return FinanceCore.annualPeriods[freq] || 252;
             }
 
             function frequencyLabel(freq) {
-                return ({ D: 'Diaria', M: 'Mensual', Q: 'Trimestral', A: 'Anual' })[freq] || 'Diaria';
+                return ({ D: 'Diaria bursatil', C: 'Diaria natural', W: 'Semanal', M: 'Mensual', Q: 'Trimestral', A: 'Anual' })[freq] || 'Diaria';
             }
 
             function periodsForMonths(months, freq = currentDataFrequency) {
@@ -2169,11 +2111,13 @@
 
                 const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
                 if (pricesSheet) {
+                    if (!portfolioCalculationSettings().pricesInBase) throw new Error('Confirma que los historicos propios estan expresados en la moneda base.');
                     const seriesMap = priceSheetToSeriesMap(workbook, pricesSheet, entries);
                     if (entries.every(e => (seriesMap[e.ticker] || []).length >= 2)) {
                         computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks, seriesMapToComparable(seriesMap, entries), benchCategories);
                         return;
                     }
+                    throw new Error('La hoja de precios contiene historicos incompletos. Corrige los datos antes de calcular la cartera.');
                 }
                 document.getElementById('portfolioNotice').innerText = 'Pesos importados. Descargando historicos desde Yahoo...';
                 await loadPortfolioSeries();
@@ -2193,6 +2137,7 @@
             function importRealPortfolioWorkbook(workbook, fileName) {
                 const sheetName = findSheet(workbook, ['portfolio', 'real', 'evolucion', 'nav', 'patrimonio']) || workbook.SheetNames[0];
                 const rows = sheetRows(workbook, sheetName);
+                if (rows.slice(1).some(row => parseNumber(firstValue(row, ['cash_flow', 'flujo', 'aportacion'])))) throw new Error('Hay flujos externos. Importa un NAV ajustado por flujos; no se interpreta el patrimonio bruto como rentabilidad.');
                 const portfolioData = rows.map(row => ({
                     date: parseExcelDate(firstValue(row, ['date', 'fecha'])),
                     price: parseNumber(firstValue(row, ['value', 'valor', 'nav', 'patrimonio', 'cartera']))
@@ -2211,6 +2156,8 @@
 
             function computeImportedBacktestPortfolio(entries, seriesMap, sourceLabel, benchmarks = {}, priceSeries = {}, benchCategories = {}) {
                 const validTickers = entries.map(e => e.ticker).filter(t => seriesMap[t]?.length);
+                if (validTickers.length !== entries.length) throw new Error('Historicos incompletos: faltan precios para uno o mas fondos. No se sustituye su retorno por cero.');
+                validTickers.forEach(t => FinanceCore.validateSeries(seriesMap[t], t));
                 const maps = {};
                 validTickers.forEach(t => { maps[t] = new Map(seriesMap[t].map(d => [d.date.toISOString().slice(0, 10), d.price])); });
                 const baseTicker = validTickers.sort((a, b) => seriesMap[b].length - seriesMap[a].length)[0];
@@ -2222,10 +2169,7 @@
                     returns[t] = [];
                     for (let i = 1; i < prices.length; i++) returns[t].push((prices[i] / prices[i - 1]) - 1);
                 });
-                const portReturns = [];
-                for (let i = 0; i < commonDates.length - 1; i++) {
-                    portReturns.push(entries.reduce((acc, e) => acc + (e.weight || 0) * (returns[e.ticker]?.[i] || 0), 0));
-                }
+                const portReturns = FinanceCore.portfolioPath(entries, commonDates, returns, portfolioCalculationSettings());
                 const values = [1000];
                 portReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const portfolioData = commonDates.map((date, i) => ({ date: new Date(date), price: values[i] }));
@@ -2233,15 +2177,16 @@
             }
 
             function finalizeImportedPortfolio({ entries, commonDates, portfolioData, returns, corrTickers, sourceLabel, mode, benchmarks = {}, priceSeries = {}, benchCategories = {} }) {
+                FinanceCore.validateSeries(portfolioData, sourceLabel);
                 const frequency = selectedPortfolioFrequency(portfolioData);
                 const portfolioReturns = priceReturns(portfolioData);
                 const firstPrice = portfolioData[0].price;
                 const lastPrice = portfolioData[portfolioData.length - 1].price;
                 const daysElapsed = (portfolioData[portfolioData.length - 1].date - portfolioData[0].date) / 86400000;
-                const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
+                const cagr = FinanceCore.cagr(portfolioData);
                 const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(periodsPerYear(frequency));
                 const ddData = calculateDrawdownData(portfolioData);
-                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries, benchCategories };
+                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries, benchCategories, calculationSettings: portfolioCalculationSettings() };
                 portfolioImportMode = mode;
                 syncFundScoringPortfolioFromEntries(entries, sourceLabel, { auto: true });
                 populatePortfolioBenchmarkSelect();
@@ -2322,9 +2267,8 @@
             }
 
             function normalizeEntryWeights(entries) {
-                let total = entries.reduce((acc, e) => acc + (Number(e.weight) || 0), 0);
-                if (!total) total = entries.length;
-                entries.forEach(e => e.weight = total ? (Number(e.weight) || 0) / total : 1 / entries.length);
+                const normalized = FinanceCore.normalizeWeights(entries);
+                entries.splice(0, entries.length, ...normalized);
             }
 
             function setPortfolioRows(entries) {
@@ -3080,22 +3024,7 @@
             }
 
             function isFundApprovedRecord(record) {
-                if (!record || !approvedFundsState?.records?.length) return false;
-                const isin = normalizeIsin(record.isin || '');
-                const cacheKey = `${isin}|${approvedFundsState.records.length}|${fundUniverseState?.records?.length || 0}`;
-                if (approvedRecordCache.has(cacheKey)) return approvedRecordCache.get(cacheKey);
-                let approved = !!(isin && approvedFundsState.isinIndex?.has(isin));
-                if (!approved) {
-                    const base = baseFundName(record.name || '');
-                    approved = (approvedFundsState.records || []).some(ap => {
-                        if (normalizeIsin(ap.isin || '') === isin) return true;
-                        const rec = fundUniverseState?.isinIndex?.get(ap.isin) || universeRecordForApproved(ap);
-                        if (rec?.isin === isin) return true;
-                        return base && tokenSimilarity(base, ap.name || rec?.name || '') >= 0.72;
-                    });
-                }
-                approvedRecordCache.set(cacheKey, approved);
-                return approved;
+                return Boolean(record?.isin && approvedFundsState?.isinIndex?.has(normalizeIsin(record.isin)));
             }
 
             function approvedFundBadge(record) {
@@ -3104,7 +3033,10 @@
 
             function closeCompactFundComboboxes(exceptId = '') {
                 document.querySelectorAll('[data-compact-fund-panel]').forEach(panel => {
-                    if (panel.id !== exceptId) panel.classList.add('hidden');
+                    if (panel.id !== exceptId) {
+                        panel.classList.add('hidden');
+                        panel.parentElement.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'false');
+                    }
                 });
             }
 
@@ -3114,6 +3046,7 @@
                 const willOpen = panel.classList.contains('hidden');
                 closeCompactFundComboboxes(panelId);
                 panel.classList.toggle('hidden', !willOpen);
+                panel.parentElement.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', String(willOpen));
                 if (willOpen) {
                     const input = panel.querySelector('input');
                     if (input) setTimeout(() => input.focus(), 0);
@@ -3121,48 +3054,11 @@
             }
 
             function filterCompactFundCombobox(input, panelId) {
-                const panel = document.getElementById(panelId);
-                if (!panel) return;
-                const q = normalizeHeaderLabel(input?.value || '');
-                let visible = 0;
-                panel.querySelectorAll('[data-option-search]').forEach(row => {
-                    const match = !q || normalizeHeaderLabel(row.getAttribute('data-option-search')).includes(q);
-                    row.classList.toggle('hidden', !match);
-                    if (match) visible += 1;
-                });
-                const empty = panel.querySelector('[data-empty]');
-                if (empty) empty.classList.toggle('hidden', visible > 0);
+                FundSelector.search(input?.value || '', panelId);
             }
 
             function renderCompactFundCombobox(items, selectCall, placeholder, options = {}) {
-                const normalized = (items || []).map(normalizeFundComboItem).filter(r => r && (r.isin || r.name));
-                if (!normalized.length) return `<div class="text-xs text-slate-400">${escapeHtml(options.emptyLabel || 'Sin alternativas')}</div>`;
-                const maxRows = options.maxRows || 150;
-                const panelId = options.id || `fundComboPanel-${Math.random().toString(36).slice(2)}`;
-                const selected = options.selected ? normalizeFundComboItem(options.selected) : null;
-                const buttonText = selected?.isin ? `${selected.isin} · ${selected.name || ''}` : (options.buttonText || 'Seleccionar fondo');
-                const rows = normalized.slice(0, maxRows).map(rec => {
-                    const source = rec.source ? `<span class="ml-1 rounded bg-slate-100 px-1 text-[10px] uppercase text-slate-500">${escapeHtml(rec.source)}</span>` : '';
-                    const approved = approvedFundBadge(rec);
-                    const search = `${rec.isin || ''} ${rec.name || ''} ${rec.manager || ''} ${rec.category || ''}`;
-                    return `<button type="button" data-option-search="${escapeHtml(search)}" onclick="${selectCall(rec.isin)}; closeCompactFundComboboxes();" class="grid w-full grid-cols-[98px_minmax(180px,1fr)_58px_64px] gap-2 px-2 py-2 text-left hover:bg-blue-50 border-b border-slate-100 last:border-0">
-                        <span class="font-mono font-bold text-slate-700">${escapeHtml(rec.isin || '-')}</span>
-                        <span class="min-w-0"><b class="block truncate text-slate-900">${escapeHtml(rec.name || '-')} ${approved}</b><span class="block truncate text-[10px] text-slate-400">${escapeHtml(rec.category || '-')} ${source}</span></span>
-                        <span class="text-right font-bold text-blue-800">${fmtScore(rec.score)}</span>
-                        <span class="text-right font-bold text-slate-700">${fmtPercentPoint(rec.ter)}</span>
-                    </button>`;
-                }).join('');
-                return `<div class="relative">
-                    <button type="button" onclick="toggleCompactFundCombobox('${panelId}')" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-left text-[11px] font-bold text-slate-700 hover:bg-slate-50">
-                        <span class="block truncate">${escapeHtml(buttonText)}</span>
-                    </button>
-                    <div id="${panelId}" data-compact-fund-panel class="hidden absolute right-0 z-50 mt-1 w-[min(560px,92vw)] rounded border border-slate-200 bg-white shadow-2xl">
-                        <input oninput="filterCompactFundCombobox(this, '${panelId}')" class="w-full border-b border-slate-200 p-2 text-xs" placeholder="${escapeHtml(placeholder || 'Buscar ISIN o nombre...')}">
-                        <div class="grid grid-cols-[98px_minmax(180px,1fr)_58px_64px] gap-2 bg-slate-50 px-2 py-1 text-[10px] font-bold uppercase text-slate-500"><span>ISIN</span><span>Nombre</span><span class="text-right">Score</span><span class="text-right">TER</span></div>
-                        <div class="max-h-64 overflow-auto">${rows}<div data-empty class="hidden p-3 text-xs text-slate-400">Sin resultados con ese filtro.</div></div>
-                        ${normalized.length > maxRows ? `<div class="px-2 py-1 text-[11px] text-slate-400">Mostrando ${maxRows} de ${normalized.length}. Escribe para acotar.</div>` : ''}
-                    </div>
-                </div>`;
+                return FundSelector.render(items, selectCall, placeholder, options);
             }
 
             function wideFundOptionPanel(items, selectCall, placeholder, maxRows = 250) {
@@ -3371,11 +3267,12 @@
             function parseFundProposalInput(text) {
                 const rows = [];
                 String(text || '').split(/\r?\n/).forEach(line => {
-                    const parts = line.split(/[;\t,]/).map(x => x.trim()).filter(Boolean);
+                    const parts = line.split(line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',').map(x => x.trim()).filter(Boolean);
                     if (!parts.length) return;
                     const isin = normalizeIsin(parts[0]);
                     const weight = parseFundWeight(parts[1]);
-                    if (isLikelyIsin(isin) && Number.isFinite(weight) && weight > 0) rows.push({ isin, weight });
+                    if (!isLikelyIsin(isin) || !Number.isFinite(weight) || weight <= 0) throw new Error('ISIN o peso no valido en la propuesta: ' + line);
+                    rows.push({ isin, weight });
                 });
                 const total = rows.reduce((acc, r) => acc + r.weight, 0);
                 if (total > 0) rows.forEach(r => r.weight = r.weight / total * 100);
@@ -3389,20 +3286,11 @@
             }
 
             function findCheaperShareClasses(record) {
-                if (!record || !Number.isFinite(record.aum) || !Number.isFinite(record.ter) || !fundUniverseState?.records?.length) return [];
-                const recordBase = baseFundName(record.name || '');
-                return fundUniverseState.records
-                    .filter(candidate => candidate.isin !== record.isin)
-                    .filter(candidate => Number.isFinite(candidate.ter) && candidate.ter < record.ter)
-                    .filter(candidate => sameFundAum(candidate.aum, record.aum))
-                    .map(candidate => {
-                        const sameCategory = normalizeHeaderLabel(candidate.category || '') === normalizeHeaderLabel(record.category || '');
-                        const similarity = tokenSimilarity(recordBase, baseFundName(candidate.name || ''));
-                        return { record: candidate, sameCategory, similarity };
-                    })
-                    .filter(item => item.sameCategory || item.similarity >= 0.65)
-                    .sort((a, b) => (a.record.ter - b.record.ter) || ((b.similarity || 0) - (a.similarity || 0)))
-                    .map(item => item.record);
+                if (!record || !Number.isFinite(record.ter)) return [];
+                return (fundUniverseState?.records || []).filter(candidate =>
+                    candidate.isin !== record.isin && FinanceCore.sameFund(record, candidate) &&
+                    Number.isFinite(candidate.ter) && candidate.ter < record.ter
+                ).sort((a, b) => a.ter - b.ter);
             }
 
             function cheaperShareClassBadge(row) {
@@ -3459,10 +3347,15 @@
             }
 
             function fundProposalWeighted(metric, side = 'current') {
+                if (metric === 'score' && !fundProposalScoresComparable()) return NaN;
                 const rows = fundProposalState.rows || [];
                 const valid = rows.filter(r => r[side] && Number.isFinite(r[side][metric]) && Number.isFinite(r.weight));
                 const total = valid.reduce((acc, r) => acc + r.weight, 0);
                 return total > 0 ? valid.reduce((acc, r) => acc + r[side][metric] * r.weight, 0) / total : NaN;
+            }
+
+            function fundProposalScoresComparable() {
+                return fundProposalState.rows.every(r => r.current && r.proposed && Number.isFinite(r.current.score) && Number.isFinite(r.proposed.score) && r.current.category && r.current.category === r.proposed.category);
             }
 
             function fundProposalCapital() {
@@ -3505,8 +3398,8 @@
                     return;
                 }
                 const positive = data.annualSaving >= 0;
-                const simpleColor = positive ? '#16a34a' : '#f59e0b';
-                const compColor = positive ? '#14532d' : '#dc2626';
+                const simpleColor = positive ? '#7c8e9f' : '#b7791f';
+                const compColor = positive ? '#215a90' : '#b42318';
                 const labels = data.years.map(y => `${y}A`);
                 Plotly.newPlot(el, [
                     {
@@ -3516,7 +3409,7 @@
                         name: 'Ahorro anual simple',
                         marker: { color: simpleColor },
                         text: data.simple.map(formatEur),
-                        textposition: 'outside',
+                        textposition: 'none',
                         hovertemplate: '%{x}<br>Ahorro anual simple: %{y:,.0f} EUR<extra></extra>'
                     },
                     {
@@ -3526,7 +3419,7 @@
                         name: 'Efecto acumulado compuesto',
                         marker: { color: compColor },
                         text: data.compounded.map(formatEur),
-                        textposition: 'outside',
+                        textposition: 'none',
                         hovertemplate: '%{x}<br>Efecto compuesto: %{y:,.0f} EUR<extra></extra>'
                     }
                 ], {
@@ -3569,12 +3462,12 @@
                     const missing = rows.filter(r => r.missing).length;
                     const improved = rows.filter(r => r.current && r.proposed && r.current.isin !== r.proposed.isin).length;
                     const cheaper = rows.filter(r => r.cheaperClasses?.length).length;
-                    status.innerText = `${rows.length} fondos analizados · ${improved} sustituciones propuestas · ${cheaper} con clase mas barata · ${missing} sin match.${Number.isFinite(fundProposalCapital()) ? '' : ' Introduce un AUM de origen valido para calcular el ahorro.'}`;
+                    status.innerText = `${rows.length} fondos analizados · ${improved} sustituciones propuestas · ${cheaper} con clase mas barata · ${missing} sin match.${Number.isFinite(fundProposalCapital()) ? '' : ' Introduce un AUM de origen valido para calcular el ahorro.'}${fundProposalScoresComparable() ? '' : ' Score agregado no comparable: categorias distintas o fondos sin identificar.'} Cobertura TER origen ${(FinanceCore.weighted(rows, 'ter', 'current').coverage * 100).toFixed(1)}%, propuesta ${(FinanceCore.weighted(rows, 'ter', 'proposed').coverage * 100).toFixed(1)}%.`;
                 }
                 body.innerHTML = rows.length ? rows.map((row, idx) => {
                     const current = row.current;
                     const proposed = row.proposed;
-                    const scoreSignal = current && proposed && Number.isFinite(current.score) && Number.isFinite(proposed.score) ? proposed.score - current.score : NaN;
+                    const scoreSignal = current && proposed && current.category === proposed.category && Number.isFinite(current.score) && Number.isFinite(proposed.score) ? proposed.score - current.score : NaN;
                     const terSignal = current && proposed && Number.isFinite(current.ter) && Number.isFinite(proposed.ter) ? current.ter - proposed.ter : NaN;
                     const scoreCls = !Number.isFinite(scoreSignal) ? '' : scoreSignal >= 0 ? 'text-emerald-800' : 'text-red-700';
                     const terCls = !Number.isFinite(terSignal) ? '' : terSignal >= 0 ? 'text-emerald-800' : 'text-red-700';
@@ -3607,13 +3500,15 @@
                     if (!cat || seenCats.has(cat)) return;
                     seenCats.add(cat);
                     const universe = (fundUniverseState.records || []).filter(r => r.category === cat && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
+                    if (!universe.length) return;
                     traces.push({ x: universe.map(r => r.ret5), y: universe.map(r => r.risk5), mode: 'markers', type: 'scatter', name: `Universo ${cat}`, text: universe.map(r => r.name), marker: { color: '#cbd5e1', size: 7, opacity: 0.28 }, hovertemplate: '<b>%{text}</b><br>Ret 5Y %{x:.2f}%<br>Risk 5Y %{y:.2f}%<extra></extra>' });
                     const avgRet = getMean(universe.map(r => r.ret5).filter(Number.isFinite));
                     const avgRisk = getMean(universe.map(r => r.risk5).filter(Number.isFinite));
-                    traces.push({ x: [avgRet], y: [avgRisk], mode: 'markers+text', type: 'scatter', name: `Media ${cat}`, text: ['Media categoría'], textposition: 'top center', marker: { color: '#111827', symbol: 'diamond', size: 14 } });
+                    traces.push({ x: [avgRet], y: [avgRisk], mode: 'markers', type: 'scatter', name: `Media ${cat}`, text: ['Media categoría'], marker: { color: '#111827', symbol: 'diamond', size: 14 } });
                 });
                 traces.push({ x: pairs.map(r => r.current.ret5), y: pairs.map(r => r.current.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos actuales', text: pairs.map(r => r.current.name), textposition: 'top center', marker: { color: '#2563eb', size: pairs.map(r => Math.max(12, Math.min(32, 8 + (r.current.ter || 0) * 8))), line: { color: '#0f172a', width: 1 } } });
-                traces.push({ x: pairs.map(r => r.proposed.ret5), y: pairs.map(r => r.proposed.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos propuestos', text: pairs.map(r => r.proposed.name), textposition: 'bottom center', marker: { color: '#16a34a', size: pairs.map(r => Math.max(12, Math.min(32, 8 + (r.proposed.ter || 0) * 8))), line: { color: '#064e3b', width: 1 } } });
+                const changedPairs = pairs.filter(r => r.proposed.isin !== r.current.isin);
+                if (changedPairs.length) traces.push({ x: changedPairs.map(r => r.proposed.ret5), y: changedPairs.map(r => r.proposed.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos propuestos', text: changedPairs.map(r => r.proposed.name), textposition: 'bottom center', marker: { color: '#64748b', size: changedPairs.map(r => Math.max(12, Math.min(32, 8 + (r.proposed.ter || 0) * 8))), line: { color: '#263342', width: 1 } } });
                 Plotly.newPlot(el, traces, { title: 'Propuesta: Retorno 5Y vs Riesgo 5Y (tamaño = TER)', xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 55, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
             }
 
@@ -3624,7 +3519,7 @@
                 const q = metricQuartile(record, metric.key);
                 const qCls = q ? `q${q}` : '';
                 let rel = '';
-                if (proposed && record.isin !== proposed.isin && Number.isFinite(proposedValue)) {
+                if (proposed && record.category === proposed.category && record.isin !== proposed.isin && Number.isFinite(proposedValue)) {
                     const better = metric.lowerBetter ? value < proposedValue : value > proposedValue;
                     const equal = Math.abs(value - proposedValue) < 1e-9;
                     rel = equal ? '' : better ? ' style="outline:1.4px solid #16a34a"' : ' style="outline:1.4px solid #dc2626"';
@@ -3660,10 +3555,10 @@
                 const avgRisk = getMean(universe.map(r => r.risk5).filter(Number.isFinite));
                 const traces = [
                     { x: universe.map(r => r.ret5), y: universe.map(r => r.risk5), mode: 'markers', type: 'scatter', name: 'Universo categoria', text: universe.map(r => r.name), marker: { color: '#cbd5e1', size: 7, opacity: 0.28 }, hovertemplate: '<b>%{text}</b><br>Ret 5Y %{x:.2f}%<br>Risk 5Y %{y:.2f}%<extra></extra>' },
-                    { x: [avgRet], y: [avgRisk], mode: 'markers+text', type: 'scatter', name: 'Media categoria', text: ['Media'], textposition: 'top center', marker: { color: '#111827', symbol: 'diamond', size: 14 } },
+                    { x: [avgRet], y: [avgRisk], mode: 'markers', type: 'scatter', name: 'Media categoria', text: ['Media'], marker: { color: '#111827', symbol: 'diamond', size: 14 } },
                     { x: [row.current.ret5], y: [row.current.risk5], mode: 'markers+text', type: 'scatter', name: 'Actual', text: ['Actual'], textposition: 'top center', marker: { color: '#2563eb', size: 15, line: { color: '#0f172a', width: 1 } } }
                 ];
-                if (Number.isFinite(row.proposed.ret5) && Number.isFinite(row.proposed.risk5)) traces.push({ x: [row.proposed.ret5], y: [row.proposed.risk5], mode: 'markers+text', type: 'scatter', name: 'Propuesto', text: ['Propuesto'], textposition: 'bottom center', marker: { color: '#16a34a', size: 16, line: { color: '#064e3b', width: 1 } } });
+                if (row.proposed.isin !== row.current.isin && Number.isFinite(row.proposed.ret5) && Number.isFinite(row.proposed.risk5)) traces.push({ x: [row.proposed.ret5], y: [row.proposed.risk5], mode: 'markers+text', type: 'scatter', name: 'Propuesto', text: ['Propuesto'], textposition: 'bottom center', marker: { color: '#64748b', size: 16, line: { color: '#263342', width: 1 } } });
                 try {
                     await Plotly.newPlot(tmp, traces, { title: `${row.isin} - Retorno 5Y vs Riesgo 5Y`, xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 50, l: 60, r: 20, b: 55 }, legend: { orientation: 'h', y: -0.2 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { staticPlot: true, displayModeBar: false });
                     return await Plotly.toImage(tmp, { format: 'png', width: 760, height: 430, scale: 2 });
@@ -3720,7 +3615,7 @@
                     </section>
                     <section class="block"><h2>Resumen ejecutivo</h2><p class="indented">La propuesta mantiene los pesos introducidos. Las alternativas automaticas son de la misma categoria y mayor score; las selecciones manuales pueden incluir otras categorias y cualquier scoring. El ahorro por TER se calcula sobre el AUM de origen de ${formatEur(fundProposalCapital())} indicado por el usuario.</p></section>
                     <section class="block"><h2>Cambios propuestos</h2><table class="scoring-report-table"><thead><tr><th>ISIN</th><th>Actual</th><th>Propuesto</th><th>Peso</th><th>Score act.</th><th>Score prop.</th><th>TER act.</th><th>TER prop.</th></tr></thead><tbody>${changes}</tbody></table><p class="method-note"><b>Metodologia:</b> score y TER se ponderan por los pesos normalizados. Las sustituciones no modifican la cartera original; solo afectan a esta simulacion.</p></section>
-                    <section class="block"><h2>Incidencias y oportunidades de coste</h2>${cheaperRows ? `<table class="scoring-report-table"><thead><tr><th>ISIN origen</th><th>Clase actual</th><th>ISIN barato</th><th>Clase barata</th><th>TER actual</th><th>TER barato</th><th>Ahorro anual</th></tr></thead><tbody>${cheaperRows}</tbody></table>` : '<p class="method-note">No se han detectado clases mas baratas del mismo fondo usando AUM y similitud de nombre.</p>'}<p class="method-note"><b>Metodologia:</b> se considera misma clase/fondo cuando el AUM coincide o difiere menos del 0,1%, reforzado por categoria o similitud de nombre base.</p></section>
+                    <section class="block"><h2>Incidencias y oportunidades de coste</h2>${cheaperRows ? `<table class="scoring-report-table"><thead><tr><th>ISIN origen</th><th>Clase actual</th><th>ISIN barato</th><th>Clase barata</th><th>TER actual</th><th>TER barato</th><th>Ahorro anual</th></tr></thead><tbody>${cheaperRows}</tbody></table>` : '<p class="method-note">No hay clases equivalentes de menor TER verificables con los identificadores disponibles.</p>'}<p class="method-note"><b>Metodologia:</b> coincidencia explicita del identificador de subfondo, divisa y cobertura. El AUM y el nombre no acreditan equivalencia. Revisar acceso a la clase y costes de transaccion.</p></section>
                     <section class="block"><h2>Ahorro estimado por TER</h2>${savingsImage ? `<figure><figcaption>Ahorro simple y efecto compuesto por menor coste</figcaption><img src="${savingsImage}" alt="Ahorro TER"></figure>` : '<p class="method-note">Sin grafica disponible.</p>'}<p class="method-note"><b>Formula:</b> ahorro anual simple = capital x (TER actual - TER propuesto). Efecto compuesto n años = capital x ((1 - TER propuesto)^n - (1 - TER actual)^n).</p></section>
                     ${overviewImage ? `<section class="block"><h2>Mapa global de la propuesta</h2><figure><figcaption>Retorno 5Y vs riesgo 5Y, tamaño por TER</figcaption><img src="${overviewImage}" alt="Mapa global propuesta"></figure></section>` : ''}
                     ${pairSections.join('')}
@@ -3767,7 +3662,7 @@
                 const overviewImage = await capturePlotlyReportImage('fundProposalChart');
                 const rows = fundProposalState.rows || [];
                 const changes = rows.map(row => {
-                    const scoreSignal = row.current && row.proposed && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
+                    const scoreSignal = row.current && row.proposed && row.current.category === row.proposed.category && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
                     const terSignal = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
                     const bad = (Number.isFinite(scoreSignal) && scoreSignal < 0) || (Number.isFinite(terSignal) && terSignal < 0);
                     return `<tr class="${bad ? 'report-bad-row' : ''}"><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td class="num">${row.weight.toFixed(2)}%</td><td class="num">${fmtScore(row.current?.score)}</td><td class="num ${proposalReportToneClass(scoreSignal)}">${fmtScore(row.proposed?.score)}</td><td class="num">${fmtPercentPoint(row.current?.ter)}</td><td class="num ${proposalReportToneClass(terSignal)}">${fmtPercentPoint(row.proposed?.ter)}</td></tr>`;
@@ -3779,7 +3674,7 @@
                     setFundProposalBusy(`Generando epigrafe ${i + 1}/${rows.length}...`, true);
                     await waitForUiFrame();
                     const pairImage = await buildFundProposalPairChartImage(row);
-                    const scoreDelta = row.current && row.proposed && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
+                    const scoreDelta = row.current && row.proposed && row.current.category === row.proposed.category && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
                     const terDelta = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
                     const bestCheap = row.cheaperClasses?.[0];
                     const cheapText = bestCheap ? ` Clase mas barata detectada: ${escapeHtml(bestCheap.isin)} (${fmtPercentPoint(bestCheap.ter)} TER).` : ' No se detecta clase mas barata equivalente.';
@@ -3788,38 +3683,14 @@
                 const bodyHtml = buildFundProposalReportBodyHtml({ savings, currentScore, newScore, currentTer, newTer, savingsImage, overviewImage, changes, cheaperRows, pairSections });
                 fundProposalState.reportBodyHtml = bodyHtml;
                 fundProposalState.reportHtml = buildFundProposalReportDocumentHtml(bodyHtml);
-                preview.innerHTML = portfolioReportStyles() + fundProposalReportStyles() + bodyHtml;
+                ReportDesign.preview(preview, fundProposalState.reportHtml);
                 preview.classList.remove('hidden');
                 setFundProposalBusy('Informe propuesta generado. Puedes exportarlo a PDF.', false);
             }
 
             async function downloadFundProposalReportPdf() {
-                if (!fundProposalState.reportBodyHtml) await generateFundProposalReport();
-                if (!fundProposalState.reportBodyHtml) return;
-                if (!window.html2pdf) return downloadBlob(fundProposalState.reportHtml, 'Informe_Propuesta_Fondos.html', 'text/html;charset=utf-8');
-                const wrapper = document.createElement('div');
-                setFundProposalBusy('Preparando PDF propuesta...', true);
-                wrapper.style.position = 'absolute';
-                wrapper.style.left = '0';
-                wrapper.style.top = '0';
-                wrapper.style.width = '190mm';
-                wrapper.style.zIndex = '-1';
-                wrapper.style.pointerEvents = 'none';
-                wrapper.style.background = '#fff';
-                wrapper.innerHTML = portfolioReportStyles() + fundProposalReportStyles() + fundProposalState.reportBodyHtml;
-                document.body.appendChild(wrapper);
-                const report = wrapper.querySelector('.proposal-print-root') || wrapper.querySelector('.report') || wrapper;
-                try {
-                    await waitForUiFrame();
-                    await html2pdf().set({ margin: [6, 6, 6, 6], filename: 'Informe_Propuesta_Fondos.pdf', pagebreak: { mode: ['css', 'legacy'], before: ['.page-break-before'], avoid: ['figure', '.summary'] }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true } }).from(report).save();
-                    setFundProposalBusy('PDF propuesta generado.', false);
-                } catch (err) {
-                    console.warn('PDF propuesta falló; se descarga HTML fallback', err);
-                    downloadBlob(fundProposalState.reportHtml, 'Informe_Propuesta_Fondos.html', 'text/html;charset=utf-8');
-                    setFundProposalBusy('No se pudo generar PDF; se ha descargado HTML.', false);
-                } finally {
-                    wrapper.remove();
-                }
+                await generateFundProposalReport();
+                if (fundProposalState.reportHtml) await ReportDesign.printHtml(fundProposalState.reportHtml);
             }
 
             function sheetRowsFromHeader(workbook, sheetName, headerRowNumber = 1) {
@@ -4034,6 +3905,8 @@
                         normalizedName: normalizeFundName(name),
                         isin,
                         category,
+                        fundId: String(fundCol(row, ['Fund ID', 'Subfund ID', 'Id subfondo']) || '').trim(),
+                        hedging: String(fundCol(row, ['Hedging', 'Cobertura']) || '').trim().toLowerCase(),
                         score,
                         ter,
                         aum,
@@ -4152,45 +4025,32 @@
             }
 
             function parseFundPortfolioRows(rows) {
-                return rows.map(row => ({
+                return rows.filter(row => firstValue(row, ['isin', 'ISIN', 'ticker', 'symbol', 'codigo', 'código', 'fund isin'])).map(row => ({
                     isin: normalizeIsin(firstValue(row, ['isin', 'ISIN', 'ticker', 'symbol', 'codigo', 'código', 'fund isin'])),
                     weight: parseFundWeight(firstValue(row, ['peso', 'Peso', 'weight', 'Weight', 'peso (%)', 'Peso (%)', 'allocation']))
                 })).filter(r => r.isin && Number.isFinite(r.weight) && r.weight > 0);
             }
 
             function parseFundPortfolioText(text) {
-                return String(text || '').split(/\r?\n/).map(line => {
-                    const parts = line.split(/[;,\t]/).map(x => x.trim()).filter(Boolean);
+                return String(text || '').split(/\r?\n/).filter(line => line.trim() && !/^\s*(isin|ticker)[;,\t]/i.test(line)).map(line => {
+                    const parts = line.split(line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',').map(x => x.trim());
                     return { isin: normalizeIsin(parts[0]), weight: parseFundWeight(parts[1]) };
                 }).filter(r => r.isin && Number.isFinite(r.weight) && r.weight > 0);
             }
 
             function parseFundWeight(value) {
                 const n = parseNumber(value);
-                if (!Number.isFinite(n)) return NaN;
-                return n <= 1 && !String(value).includes('%') ? n * 100 : n;
+                if (!Number.isFinite(n) || n < 0) throw new Error('Peso no valido. Revisa la unidad y usa valores no negativos.');
+                const unit = document.getElementById('fundWeightUnit')?.value || 'percent';
+                if ((unit === 'fraction' && (n > 1 || String(value).includes('%'))) || (unit === 'percent' && n > 100)) throw new Error('Peso fuera del rango de la unidad seleccionada.');
+                return n;
             }
 
-            function setFundPortfolioRows(rows, sourceLabel = 'texto') {
-                fundPortfolioRows = rows.map(r => ({ ...r, initialWeight: Number.isFinite(r.initialWeight) ? r.initialWeight : r.weight }));
-                const total = rows.reduce((acc, r) => acc + r.weight, 0);
-                document.getElementById('fundPortfolioStatus').innerText = rows.length ? `${rows.length} ISINs · peso ${total.toFixed(2)}% (${sourceLabel})` : 'Sin filas validas';
-                document.getElementById('fundScoringStatus').innerText = rows.length ? 'Cartera lista' : 'Cartera vacia';
-                if (fundUniverseState && rows.length) runFundScoringAnalysis();
-            }
 
-            function loadFundPortfolioFromText() {
-                setFundPortfolioRows(parseFundPortfolioText(document.getElementById('fundPortfolioPaste')?.value || ''), 'texto pegado');
-            }
 
-            function clearFundScoringState() {
-                fundPortfolioRows = [];
-                fundScoringResults = [];
-                document.getElementById('fundPortfolioPaste').value = '';
-                document.getElementById('fundPortfolioStatus').innerText = 'Pendiente';
-                document.getElementById('fundScoringStatus').innerText = 'Sin ejecutar';
-                renderFundScoringResults();
-            }
+
+
+
 
             function setFundPortfolioRows(rows, sourceLabel = 'texto', meta = {}) {
                 const normalized = normalizeFundPortfolioEntriesForScoring(rows);
@@ -4994,16 +4854,7 @@
             }
 
             function getBetterFundRecommendations(anchor, limit = 5) {
-                const category = anchor?.category || '';
-                if (!category || !fundUniverseState?.records?.length) return [];
-                const cacheKey = `universe-all|${anchor.isin || ''}|${normalizeHeaderLabel(category)}|${fundUniverseState.records.length}|${limit}`;
-                if (fundRecommendationCache.has(cacheKey)) return fundRecommendationCache.get(cacheKey);
-                const records = fundUniverseState.records
-                    .filter(r => r.isin !== anchor.isin && normalizeHeaderLabel(r.category || '') === normalizeHeaderLabel(category) && Number.isFinite(r.score))
-                    .sort((a, b) => ((Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity)) || ((Number.isFinite(a.ter) ? a.ter : Infinity) - (Number.isFinite(b.ter) ? b.ter : Infinity)))
-                    .slice(0, limit);
-                fundRecommendationCache.set(cacheKey, records);
-                return records;
+                return FinanceCore.better(anchor, fundUniverseState?.records || []).slice(0, limit);
             }
 
             function fundResolvedRecord(result) {
@@ -5767,12 +5618,8 @@
             }
 
             function resolveApprovedFundFast(position) {
-                if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
-                const direct = approvedFundsState.isinIndex.get(position.isin);
-                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
-                const best = bestAggregateCandidate(position.name, aggregateFastIndex.approvedBase, aggregateFastIndex.approvedToken, 0.58);
-                if (best?.record) return { record: best.record, status: best.confidence >= 0.75 ? 'name-token-approved' : 'review-token-approved', confidence: best.confidence, candidates: [best], note: 'Clase aprobada equivalente por tokens de nombre' };
-                return { record: null, status: 'not-approved-fast', confidence: 0, candidates: [], note: 'Sin match local en aprobados' };
+                const record = approvedFundsState?.isinIndex?.get(normalizeIsin(position.isin));
+                return { record: record || null, status: record ? 'exact-isin' : 'not-approved', confidence: record ? 1 : 0, candidates: [] };
             }
 
             function resolveAggregateUniverseLocal(position, searchTerms = []) {
@@ -5786,14 +5633,7 @@
             }
 
             function resolveApprovedFundLocal(position, searchTerms = []) {
-                if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
-                const direct = approvedFundsState.isinIndex.get(position.isin);
-                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
-                const terms = [...searchTerms, position.name].filter(Boolean);
-                const candidates = fuzzyApprovedCandidates(terms);
-                const best = candidates[0];
-                if (!best || best.confidence < 0.58) return { record: null, status: 'not-approved', confidence: best?.confidence || 0, candidates, note: searchTerms[0] ? `OpenFIGI: ${searchTerms[0]}` : 'Sin match aprobados' };
-                return { record: best.record, status: best.confidence >= 0.75 ? 'equivalent-approved' : 'review-approved', confidence: best.confidence, candidates, note: searchTerms[0] ? `OpenFIGI: ${searchTerms[0]}` : 'Match aprobado por nombre' };
+                return resolveApprovedFundFast(position);
             }
 
             async function resolveAggregateUniverseMatch(position) {
@@ -5809,16 +5649,7 @@
             }
 
             async function resolveApprovedFundMatch(position) {
-                if (!approvedFundsState?.records?.length) return { record: null, status: 'no-approved-file', confidence: 0, candidates: [] };
-                const direct = approvedFundsState.isinIndex.get(position.isin);
-                if (direct) return { record: direct, status: 'direct', confidence: 1, candidates: [] };
-                const figiResults = await fetchOpenFigiIsin(position.isin);
-                const figiNames = openFigiSearchTerms(figiResults);
-                const searchTerms = figiNames.length ? figiNames : [position.name];
-                const candidates = fuzzyApprovedCandidates(searchTerms);
-                const best = candidates[0];
-                if (!best || best.confidence < 0.58) return { record: null, status: 'not-approved', confidence: best?.confidence || 0, candidates, note: figiNames[0] ? `OpenFIGI: ${figiNames[0]}` : 'Sin match aprobados' };
-                return { record: best.record, status: best.confidence >= 0.75 ? 'equivalent-approved' : 'review-approved', confidence: best.confidence, candidates, note: figiNames[0] ? `OpenFIGI: ${figiNames[0]}` : 'Match aprobado por nombre' };
+                return resolveApprovedFundFast(position);
             }
 
             function fuzzyApprovedCandidates(searchTerms) {
@@ -6186,14 +6017,7 @@
             }
 
             function universeRecordForApproved(approved) {
-                if (!approved) return null;
-                const direct = fundUniverseState?.isinIndex?.get(approved.isin);
-                if (direct) return direct;
-                const key = baseFundName(approved.name) || normalizeFundName(approved.name);
-                const byBase = aggregateFastIndex.universeBase.get(key);
-                if (byBase) return byBase;
-                const candidate = bestAggregateCandidate(approved.name, aggregateFastIndex.universeBase, aggregateFastIndex.universeToken, 0.65);
-                return candidate?.record || null;
+                return approved?.isin ? fundUniverseState?.isinIndex?.get(normalizeIsin(approved.isin)) || null : null;
             }
 
             function approvedRecommendationLabel(item) {
@@ -6857,12 +6681,11 @@
                         seriesMap[t] = res;
                     }
                     if (failed.length > 0) {
-                        document.getElementById('portfolioNotice').innerText = `Error descargando: ${failed.join(', ')}. Se eliminarán del cálculo.`;
-                        // remove failed from entries
-                        for (const f of failed) { const idx = entries.findIndex(x => x.ticker === f); if (idx >= 0) entries.splice(idx, 1); }
-                        normalizeEntryWeights(entries);
+                        throw new Error(`Faltan historicos para ${failed.join(', ')}. No se modifica la cartera ni se renormalizan sus pesos.`);
                     }
                     if (Object.keys(seriesMap).length === 0) { document.getElementById('portfolioNotice').innerText = 'No hay datos válidos.'; return; }
+                    await portfolioConvertCurrencies(seriesMap, entries, startDate, endDate);
+                    Object.entries(seriesMap).forEach(([ticker, series]) => FinanceCore.validateSeries(series, ticker));
 
                     // Find common date window by using max(firstDate) and min(lastDate)
                     const firstDates = Object.values(seriesMap).map(s => s[0].date);
@@ -6897,12 +6720,7 @@
                     }
 
                     // portfolio returns
-                    const portReturns = [];
-                    for (let i = 0; i < n - 1; i++) {
-                        let rp = 0;
-                        for (const e of entries) { const w = e.weight || 0; rp += w * (returns[e.ticker][i] || 0); }
-                        portReturns.push(rp);
-                    }
+                    const portReturns = FinanceCore.portfolioPath(entries, commonDates, returns, portfolioCalculationSettings());
 
                     // cumulative values
                     const values = [1000];
@@ -6912,7 +6730,7 @@
                     // basic stats
                     const firstPrice = portfolioData[0].price, lastPrice = portfolioData[portfolioData.length - 1].price;
                     const daysElapsed = (portfolioData[portfolioData.length - 1].date - portfolioData[0].date) / 86400000;
-                    const cagr = Math.pow(lastPrice / firstPrice, 365.25 / daysElapsed) - 1;
+                    const cagr = FinanceCore.cagr(portfolioData);
 
                     // covariance & volatility
                     const cov = math.zeros(tickers.length, tickers.length)._data;
@@ -6944,7 +6762,7 @@
                         portVarDaily = Number(portVarResult) || 0;
                     }
                     const frequency = selectedPortfolioFrequency(portfolioData);
-                    const portVolAnn = Math.sqrt(Math.max(portVarDaily, 0)) * Math.sqrt(periodsPerYear(frequency));
+                    const portVolAnn = FinanceCore.stdev(portReturns) * Math.sqrt(periodsPerYear(frequency));
 
                     // Render portfolio cumulative chart
                     renderPortfolioBacktestChart(portfolioData, 'backtest');
@@ -6953,7 +6771,7 @@
                     const corrTickers = tickers.slice();
                     const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
-                    loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns, priceSeries: seriesMapToComparable(seriesMap, entries), benchmarks: {} };
+                    loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns, priceSeries: seriesMapToComparable(seriesMap, entries), benchmarks: {}, calculationSettings: portfolioCalculationSettings() };
                     syncFundScoringPortfolioFromEntries(entries, 'Manual/Yahoo', { auto: true });
                     populatePortfolioBenchmarkSelect();
                     populateFundComparisonControls();
@@ -7131,7 +6949,8 @@
                     const sensitivityRowsData = buildPortfolioSensitivityRows(data);
                     const start = data[0].date;
                     const end = data[data.length - 1].date;
-                    const sharpe = p.portVolAnn ? p.cagr / p.portVolAnn : null;
+                    const calculatedSharpe = FinanceCore.sharpe(priceReturns(p.portfolioData), p.frequency, portfolioCalculationSettings().riskFreeAnnual);
+                    const sharpe = Number.isFinite(calculatedSharpe) ? calculatedSharpe : null;
                     const positiveDays = p.portfolioReturns?.length ? p.portfolioReturns.filter(r => r > 0).length / p.portfolioReturns.length : null;
                     const reading = portfolioExecutiveReading(p.cagr, p.portVolAnn, dd.maxDD, sharpe);
                     const compositionRows = (p.entries || []).map(e => `<tr><td>${escapeHtml(e.ticker)}</td><td class="num">${fmtPct(e.weight)}</td></tr>`).join('');
@@ -7147,7 +6966,7 @@
                         [`Volatilidad ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.sigma)],
                         [`VaR 95% ${frequencyLabel(frequency).toLowerCase()}`, fmtPct(metrics.var95)],
                         ['Max drawdown', fmtPct(dd.maxDD)],
-                        ['Sharpe aprox. rf=0', sharpe === null ? '-' : sharpe.toFixed(2)],
+                        ['Sharpe (excesos periodicos)', sharpe === null ? '-' : sharpe.toFixed(2)],
                         ['Periodos positivos', positiveDays === null ? '-' : fmtPct(positiveDays)],
                         ['Mejor periodo', `${fmtPct(metrics.bestDay)} (${fmtDate(metrics.bestDayDate)})`],
                         ['Peor periodo', `${fmtPct(metrics.worstDay)} (${fmtDate(metrics.worstDayDate)})`],
@@ -7204,7 +7023,7 @@
                         <footer>Analyzer · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
                     </section>
                 </body></html>`;
-                    document.getElementById('portfolioReportPreview').innerHTML = portfolioReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || portfolioReportHtml;
+                    ReportDesign.preview(document.getElementById('portfolioReportPreview'), portfolioReportHtml);
                     setPortfolioReportProgress(100, 'Informe generado');
                 } catch (e) {
                     console.error('generatePortfolioReport error:', e);
@@ -7633,15 +7452,8 @@
             }
 
             async function downloadPortfolioReportPdf() {
-                if (!portfolioReportHtml) await generatePortfolioReport();
-                if (!portfolioReportHtml) return;
-                setPortfolioReportProgress(92, 'Exportando PDF...');
-                await waitForUiFrame();
-                const el = document.createElement('div');
-                el.innerHTML = portfolioReportHtml;
-                if (!window.html2pdf) return downloadBlob(portfolioReportHtml, 'Informe_Cartera.html', 'text/html;charset=utf-8');
-                await html2pdf().set({ margin: 8, filename: 'Informe_Cartera.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save();
-                setPortfolioReportProgress(100, 'PDF generado');
+                await generatePortfolioReport();
+                if (portfolioReportHtml) await ReportDesign.printHtml(portfolioReportHtml);
             }
 
             async function downloadPortfolioReportWord() {
@@ -7982,7 +7794,7 @@
                         <footer>Analyzer · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
                     </section>
                     </body></html>`;
-                    document.getElementById('managerReportPreview').innerHTML = managerReportHtml.match(/<section class="report">([\s\S]*)<\/section>\s*<\/body>/)?.[1] || managerReportHtml;
+                    ReportDesign.preview(document.getElementById('managerReportPreview'), managerReportHtml);
                     setManagerReportProgress(100, 'Informe gestora generado');
                 } catch (e) {
                     console.error('generateManagerReport error:', e);
@@ -7992,31 +7804,8 @@
             }
 
             async function downloadManagerReportPdf() {
-                if (!managerReportHtml) await generateManagerReport();
-                if (!managerReportHtml) return;
-                setManagerReportProgress(92, 'Exportando PDF...');
-                await waitForUiFrame();
-                if (!window.html2pdf) return downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
-                const wrapper = createReportExportWrapper(managerReportHtml, managerReportStyles());
-                const report = wrapper.querySelector('.manager-report') || wrapper.querySelector('.report') || wrapper;
-                try {
-                    await waitForUiFrame();
-                    await waitForReportImages(report, 3000);
-                    await html2pdf().set({
-                        margin: [7, 7, 7, 7],
-                        filename: 'Informe_Gestora.pdf',
-                        pagebreak: { mode: ['css', 'legacy'], avoid: ['figure', '.summary'] },
-                        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
-                    }).from(report).save();
-                    setManagerReportProgress(100, 'PDF gestora generado');
-                } catch (err) {
-                    console.warn('manager pdf failed; downloading HTML fallback', err);
-                    downloadBlob(managerReportHtml, 'Informe_Gestora.html', 'text/html;charset=utf-8');
-                    setManagerReportProgress(100, 'No se pudo generar PDF; descargado HTML');
-                } finally {
-                    wrapper.remove();
-                }
+                await generateManagerReport();
+                if (managerReportHtml) await ReportDesign.printHtml(managerReportHtml);
             }
 
             async function downloadManagerReportWord() {
@@ -8148,7 +7937,7 @@
             }
             // --- FORECAST / MONTECARLO SIMULATIONS ---
             async function runForecastSimulations() {
-                const sims = Math.max(100, parseInt(document.getElementById('mcSims').value) || 10000);
+                const sims = Math.min(50000, Math.max(100, parseInt(document.getElementById('mcSims').value) || 10000));
                 // Per requirements: backtest window = 3 years, forecast horizon = 12 months (1 year)
                 const backtestYears = 3;
                 const forwardYears = 1;
@@ -8190,57 +7979,17 @@
                 const lastMonetary = capital;
                 const lastMonetaryDisplay = lastMonetary;
 
-                // 1) First graphic: 12 months array
-                const monthlySamples = Array.from({ length: 13 }, () => []);
-                // 2) Long-term tracking: mcYears mapped at annual frequency
                 const longTermYears = mcYears;
-                const longTermSamples = Array.from({ length: longTermYears + 1 }, () => []);
-
-                // 3) True Max Drawdown over the backtest duration
-                const histDays = nFull;
+                const histDays = Math.max(1, nFull - 1);
                 const histYears = histDays / stepsPerYear;
-                const maxDrawdowns = new Array(sims);
-
-                const maxSimDays = Math.max(histDays, longTermYears * stepsPerYear);
-
-                for (let s = 0; s < sims; s++) {
-                    let S = 1.0;
-                    let peak = 1.0, maxDD = 0;
-
-                    monthlySamples[0].push(lastMonetaryDisplay);
-                    longTermSamples[0].push(lastMonetaryDisplay);
-
-                    for (let t = 1; t <= maxSimDays; t++) {
-                        const z = randn_bm();
-                        // Periodic lognormal simulation matching the observed data frequency
-                        const r = meanLogFull + stdLogFull * z;
-                        S = S * Math.exp(r);
-
-                        // Track max drawdown up to histDays limit to keep comparison apples-to-apples with historical
-                        if (t <= histDays) {
-                            if (S > peak) peak = S;
-                            const dd = 1 - (S / peak);
-                            if (dd > maxDD) maxDD = dd;
-                        }
-
-                        // Monthly saves for 1st graphic (only up to 1 year = 252 days)
-                        if (t <= stepsPerYear) {
-                            monthlyCheckpointSteps.forEach((step, monthIdx) => {
-                                if (monthIdx > 0 && step === t) monthlySamples[monthIdx].push(lastMonetaryDisplay * S);
-                            });
-                        }
-
-                        // Annual saves for long term tables and chart
-                        if (t % stepsPerYear === 0) {
-                            const y = Math.round(t / stepsPerYear);
-                            if (y <= longTermYears) {
-                                longTermSamples[y].push(lastMonetaryDisplay * S);
-                            }
-                        }
-                    }
-
-                    maxDrawdowns[s] = maxDD;
-                }
+                const { monthlySamples, longTermSamples, maxDrawdowns } = await SimulationEngine.run({
+                    sims: Math.min(50000, sims), stepsPerYear, histDays, longTermYears,
+                    capital: lastMonetaryDisplay, logReturns: fullLogRets,
+                    seed: Number(document.getElementById('mcSeed')?.value || 12345),
+                    method: document.getElementById('mcMethod')?.value || 'normal',
+                    initialShock: Number(document.getElementById('mcStress')?.value || 0),
+                    blockSize: 5
+                });
 
                 // Compute deciles for monthlySamples (1y forward plot)
                 const percentiles = [0.10, 0.25, 0.5, 0.75, 0.90];
@@ -9857,72 +9606,7 @@
             function updateStatus(msg) { document.getElementById('statusText').innerText = msg; }
 
             async function fetchYahooData(ticker, startStr, endStr) {
-                const period1 = Math.floor(new Date(startStr).getTime() / 1000);
-                const period2 = Math.floor(new Date(endStr).getTime() / 1000);
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
-                const yahooUrl2 = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history`;
-
-                // Proxy propio de Vercel (sin CORS, el más fiable cuando está desplegado en Vercel)
-                const vercelProxyUrl = `/api/yahoo?ticker=${encodeURIComponent(ticker)}&period1=${period1}&period2=${period2}&interval=1d`;
-
-                // Lista completa de endpoints a intentar en paralelo
-                const proxyConfigs = [
-                    // 1. Proxy propio de Vercel (serverless) — sin CORS, máxima fiabilidad
-                    { url: vercelProxyUrl },
-                    // 2. Petición directa a Yahoo (funciona en local o sin firewall)
-                    { url: yahooUrl },
-                    { url: yahooUrl2 },
-                    // 3. Proxies CORS públicos de respaldo
-                    { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}` },
-                    { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}` },
-                    { url: `https://corsproxy.io/?${encodeURIComponent(yahooUrl2)}` },
-                    { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl2)}` },
-                    { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}` },
-                    { url: `https://thingproxy.freeboard.io/fetch/${yahooUrl}` },
-                ];
-
-                let json = null;
-
-                const fetchPromises = proxyConfigs.map(async (cfg) => {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-                    try {
-                        const response = await fetch(cfg.url, { signal: controller.signal });
-                        clearTimeout(timeoutId);
-                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                        const data = await response.json();
-                        if (data?.chart?.result) {
-                            return data;
-                        }
-                        throw new Error("Formato inválido");
-                    } catch (error) {
-                        clearTimeout(timeoutId);
-                        throw error;
-                    }
-                });
-
-                try {
-                    // Promise.any devuelve el primero que resuelva con éxito.
-                    json = await Promise.any(fetchPromises);
-                } catch (aggregateError) {
-                    throw new Error(`Incapaz de conectar con Yahoo para ${ticker}. Todos los proxies fallaron (o timeouts). Posible bloqueo estricto de firewall corporativo.`);
-                }
-
-                const result = json.chart.result?.[0];
-                if (!result) throw new Error(`Sin datos para ${ticker}`);
-
-                const timestamps = result.timestamp || [];
-                const quotes = result.indicators.quote[0];
-                const adjClose = result.indicators.adjclose?.[0]?.adjclose || quotes.close;
-                const data = [];
-                for (let i = 0; i < timestamps.length; i++) {
-                    if (timestamps[i] && adjClose[i] != null) {
-                        data.push({ date: new Date(timestamps[i] * 1000), price: adjClose[i] });
-                    }
-                }
-                return data;
+                return MarketData.prices(ticker, startStr, endStr);
             }
 
             // --- HELPER: REGRESSION (Calcula pendiente, intercepto y R2) ---
@@ -11162,7 +10846,7 @@
                 const meanRet = getMean(returns), sigma = getStdDev(returns), var95 = getPercentile(returns, 5);
                 const initialValue = 1000, finalValue = initialValue * (prices[prices.length - 1] / prices[0]);
                 const daysElapsed = (dates[dates.length - 1] - dates[0]) / 86400000;
-                const cagr = Math.pow(prices[prices.length - 1] / prices[0], 1 / (daysElapsed / 365.25)) - 1;
+                const cagr = FinanceCore.cagr(data);
                 const bestDay = Math.max(...returns), worstDay = Math.min(...returns);
                 let bestPosStreakInfo = { len: 0 }, bestNegStreakInfo = { len: 0 }, currPos = 0, currNeg = 0, posStart, negStart;
                 for (let i = 0; i < returns.length; i++) {
@@ -11609,14 +11293,15 @@
                 if (freq === 'M') return { '3 meses': 3, '6 meses': 6, '1 año': 12, '3 años': 36, '5 años': 60, '10 años': 120, '15 años': 180 };
                 if (freq === 'Q') return { '1 año': 4, '3 años': 12, '5 años': 20, '10 años': 40, '15 años': 60 };
                 if (freq === 'A') return { '3 años': 3, '5 años': 5, '10 años': 10, '15 años': 15 };
-                return horizonsRolling;
+                return { '3 meses': Math.round(perYear / 4), '12 meses': perYear, '5 años': perYear * 5, '10 años': perYear * 10, '15 años': perYear * 15 };
             }
 
             function getSeriesHorizons(freq) {
                 if (freq === 'M') return { '1 Año': 12, '5 Años': 60, '15 Años': 180 };
                 if (freq === 'Q') return { '1 Año': 4, '5 Años': 20, '15 Años': 60 };
                 if (freq === 'A') return { '1 Año': 1, '5 Años': 5, '15 Años': 15 };
-                return seriesHorizons;
+                const perYear = periodsPerYear(freq);
+                return { '1 Año': perYear, '5 Años': perYear * 5, '15 Años': perYear * 15 };
             }
 
             function calculateRollingStats(d, freq = currentDataFrequency) {
