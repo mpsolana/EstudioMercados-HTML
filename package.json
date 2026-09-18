@@ -1,0 +1,11 @@
+{
+  "name": "estudio-mercados-html",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "check": "node scripts/check-syntax.cjs",
+    "test:browser": "node tests/browser.cjs"
+  },
+  "engines": { "node": ">=20" }
+}
