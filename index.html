@@ -10,6 +10,7 @@
     <script src="assets/market-data.js"></script>
     <script src="assets/fund-selector.js"></script>
     <script src="assets/report-design.js"></script>
+    <script src="assets/initial-analysis.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
     <link rel="stylesheet" href="assets/portfolio-workspace.css">
 
@@ -647,7 +648,6 @@
                         <div class="flex flex-wrap gap-2">
                             <button onclick="generatePortfolioReport()" class="px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold hover:bg-blue-800"><i class="fa-solid fa-file-lines mr-1"></i>Generar</button>
                             <button onclick="downloadPortfolioReportPdf()" class="px-3 py-2 bg-white border border-blue-200 text-blue-800 rounded text-xs font-bold hover:bg-blue-100"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
-                            <button onclick="downloadPortfolioReportWord()" class="px-3 py-2 bg-white border border-blue-200 text-blue-800 rounded text-xs font-bold hover:bg-blue-100"><i class="fa-solid fa-file-word mr-1"></i>Word</button>
                         </div>
                         <div id="portfolioReportProgressWrap" class="hidden mt-3">
                             <div class="flex items-center justify-between text-[11px] font-bold text-blue-900 mb-1">
@@ -665,7 +665,6 @@
                         <div class="flex flex-wrap gap-2">
                             <button onclick="generateManagerReport()" class="px-3 py-2 bg-slate-800 text-white rounded text-xs font-bold hover:bg-slate-900"><i class="fa-solid fa-file-lines mr-1"></i>Generar</button>
                             <button onclick="downloadManagerReportPdf()" class="px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
-                            <button onclick="downloadManagerReportWord()" class="px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-file-word mr-1"></i>Word</button>
                         </div>
                         <div id="managerReportProgressWrap" class="hidden mt-3">
                             <div class="flex items-center justify-between text-[11px] font-bold text-slate-800 mb-1">
@@ -1831,13 +1830,7 @@
             }
 
             function alignPortfolioWithBenchmark(portfolioData, benchmarkData) {
-                const benchMap = new Map((benchmarkData || []).map(d => [d.date.toISOString().slice(0, 10), d.price]));
-                const rows = (portfolioData || [])
-                    .map(d => {
-                        const key = d.date.toISOString().slice(0, 10);
-                        return benchMap.has(key) ? { date: d.date, portfolio: d.price, benchmark: benchMap.get(key) } : null;
-                    })
-                    .filter(Boolean);
+                const rows = alignedSeriesRows(portfolioData, benchmarkData).map(r => ({date:r.date, portfolio:r.asset, benchmark:r.bench}));
                 if (rows.length < 2) return null;
                 const p0 = rows[0].portfolio;
                 const b0 = rows[0].benchmark;
@@ -1879,7 +1872,7 @@
                     traces.splice(1, 0, { x: chartX, y: benchY, mode: 'lines', name: `${benchmark.label} (Base 100)`, line: { color: '#0f172a', width: 2, dash: 'dot' } });
                 }
                 const note = document.getElementById('portfolioBenchmarkNote');
-                if (note) note.textContent = filteredComparison?.length ? `Comparacion base 100 desde ${chartX[0].toISOString().slice(0, 10)}` : (benchmark ? 'Benchmark sin fechas comunes suficientes.' : '');
+                if (note) note.textContent = filteredComparison?.length ? `Comparacion base 100 desde ${chartX[0].toISOString().slice(0, 10)}. Alineacion por periodos ${frequencyLabel(comparisonFrequency(portfolioData, benchmark.data)).toLowerCase()}, sin rellenar periodos ausentes.` : (benchmark ? 'Benchmark sin periodos comunes suficientes en el horizonte seleccionado.' : '');
                 Plotly.newPlot('portfolioChart', traces, {
                     title: filteredComparison?.length ? 'Evolucion cartera vs benchmark (Base 100)' : (mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)'),
                     margin: { t: 40, l: 60, r: 20, b: 40 },
@@ -3302,14 +3295,13 @@
 
             function analyzeFundProposalPortfolio() {
                 const status = document.getElementById('fundProposalStatus');
-                if (!fundUniverseState?.records?.length) { if (status) status.innerText = 'Carga primero el universo/ranking interno.'; return; }
                 const parsed = parseFundProposalInput(document.getElementById('fundProposalPortfolioInput')?.value || '');
                 if (!parsed.length) { if (status) status.innerText = 'Introduce al menos un ISIN con peso.'; return; }
                 fundProposalState.rows = parsed.map(row => {
-                    const current = fundUniverseState.isinIndex.get(row.isin) || searchFundUniverseRecords(row.isin, 1)[0] || null;
+                    const current = InitialAnalysis.resolve(row.isin) || fundUniverseState?.isinIndex.get(row.isin) || null;
                     const recs = current ? getBetterFundRecommendations(current, 5000) : [];
                     const proposed = recs[0] || current;
-                    const cheaperClasses = current ? findCheaperShareClasses(current) : [];
+                    const cheaperClasses = current && !current.originSource ? findCheaperShareClasses(current) : [];
                     return { ...row, current, proposed, recommendations: recs, cheaperClasses, missing: !current };
                 });
                 fundProposalState.reportHtml = '';
@@ -3326,10 +3318,10 @@
             }
 
             function fundProposalActionHtml(row, idx) {
-                if (!row.current) return `<div class="min-w-[240px]"><div class="mb-1 text-[10px] font-bold uppercase text-slate-700">Universo completo</div>${renderCompactFundCombobox(fundUniverseState.records || [], isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar ISIN, nombre o categoria...', { id: `fundProposalFullUniverse-${idx}`, selected: row.proposed, maxRows: fundUniverseState.records.length })}${row.proposed ? `<button class="mt-1 text-xs text-slate-600 underline" onclick="setFundProposalRecommendation(${idx}, '__original__')">Quitar propuesta</button>` : ''}</div>`;
+                if (!row.current) return `<div class="min-w-[240px]"><div class="mb-1 text-[10px] font-bold uppercase text-slate-700">Universo completo</div>${renderCompactFundCombobox(fundUniverseState?.records || [], isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar ISIN, nombre o categoria...', { id: `fundProposalFullUniverse-${idx}`, selected: row.proposed })}${row.proposed ? `<button class="mt-1 text-xs text-slate-600 underline" onclick="setFundProposalRecommendation(${idx}, '__original__')">Quitar propuesta</button>` : ''}</div>`;
                 const approved = getApprovedFundRecommendations(row.current, 5000);
                 const universe = row.recommendations || getBetterFundRecommendations(row.current, 5000);
-                const fullUniverse = fundUniverseState.records || [];
+                const fullUniverse = fundUniverseState?.records || [];
                 const reset = row.proposed && row.current && row.proposed.isin !== row.current.isin ? `<button onclick="setFundProposalRecommendation(${idx}, '__original__')" class="mt-1 px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-700">Volver actual</button>` : '';
                 return `<div class="space-y-1 min-w-[240px]">
                     <div><div class="mb-0.5 text-[10px] font-bold uppercase text-emerald-700">Aprobados (${approved.length})</div>${renderCompactFundCombobox(approved, isin => `setFundProposalRecommendation(${idx}, '${escapeHtml(isin)}')`, 'Buscar aprobado...', { id: `fundProposalApproved-${idx}`, selected: row.proposed, maxRows: 120, emptyLabel: 'Sin aprobados de la categoria' })}</div>
@@ -3473,7 +3465,7 @@
                     const terCls = !Number.isFinite(terSignal) ? '' : terSignal >= 0 ? 'text-emerald-800' : 'text-red-700';
                     return `<tr class="${proposed && current && proposed.isin !== current.isin ? 'bg-emerald-50' : ''}">
                         <td class="px-3 py-2 font-mono">${escapeHtml(row.isin)}</td>
-                        <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)} ${approvedFundBadge(current)}</b>${cheaperShareClassBadge(row)}` : '<span class="text-red-600 font-bold">Sin match</span>'}</td>
+                        <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)} ${current.originSource ? '' : approvedFundBadge(current)}</b>${cheaperShareClassBadge(row)}` : '<span class="text-red-600 font-bold">Sin match</span>'}${InitialAnalysis.originControl(row, idx)}</td>
                         <td class="px-3 py-2">${escapeHtml(current?.category || '-')}</td>
                         <td class="px-3 py-2 text-right font-bold">${row.weight.toFixed(2)}%</td>
                         <td class="px-3 py-2 text-right">${fmtScore(current?.score)}</td>
@@ -3499,7 +3491,7 @@
                     const cat = pair.current.category || pair.proposed.category || '';
                     if (!cat || seenCats.has(cat)) return;
                     seenCats.add(cat);
-                    const universe = (fundUniverseState.records || []).filter(r => r.category === cat && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
+                    const universe = (fundUniverseState?.records || []).filter(r => r.category === cat && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
                     if (!universe.length) return;
                     traces.push({ x: universe.map(r => r.ret5), y: universe.map(r => r.risk5), mode: 'markers', type: 'scatter', name: `Universo ${cat}`, text: universe.map(r => r.name), marker: { color: '#cbd5e1', size: 7, opacity: 0.28 }, hovertemplate: '<b>%{text}</b><br>Ret 5Y %{x:.2f}%<br>Risk 5Y %{y:.2f}%<extra></extra>' });
                     const avgRet = getMean(universe.map(r => r.ret5).filter(Number.isFinite));
@@ -3542,7 +3534,7 @@
             async function buildFundProposalPairChartImage(row) {
                 if (!window.Plotly || !row?.current || !row?.proposed) return '';
                 const category = row.current.category || row.proposed.category || '';
-                const universe = (fundUniverseState.records || []).filter(r => (!category || r.category === category) && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
+                const universe = (fundUniverseState?.records || []).filter(r => (!category || r.category === category) && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
                 if (!universe.length || !Number.isFinite(row.current.ret5) || !Number.isFinite(row.current.risk5)) return '';
                 const tmp = document.createElement('div');
                 tmp.style.width = '760px';
@@ -3690,7 +3682,7 @@
 
             async function downloadFundProposalReportPdf() {
                 await generateFundProposalReport();
-                if (fundProposalState.reportHtml) await ReportDesign.printHtml(fundProposalState.reportHtml);
+                if (fundProposalState.reportHtml) await ReportDesign.downloadPdf(fundProposalState.reportHtml, 'Analisis-inicial.pdf');
             }
 
             function sheetRowsFromHeader(workbook, sheetName, headerRowNumber = 1) {
@@ -6334,11 +6326,7 @@
             function renderFundCategoryPie(rows) {
                 const el = document.getElementById('fundCategoryPieChart');
                 if (!el || !window.Plotly) return;
-                const byCat = new Map();
-                rows.forEach(r => {
-                    const cat = r.record?.category || 'Sin categoria';
-                    byCat.set(cat, (byCat.get(cat) || 0) + (Number.isFinite(r.weight) ? r.weight : 0));
-                });
+                const byCat = new Map(FinanceCore.groupCategories(rows.map(r => ({category:r.record?.category,weight:r.weight}))).map(r => [r.category,r.weight]));
                 if (!byCat.size) {
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Sin categorias resueltas.</div>';
                     return;
@@ -7453,7 +7441,7 @@
 
             async function downloadPortfolioReportPdf() {
                 await generatePortfolioReport();
-                if (portfolioReportHtml) await ReportDesign.printHtml(portfolioReportHtml);
+                if (portfolioReportHtml) await ReportDesign.downloadPdf(portfolioReportHtml, 'Cartera-individual.pdf');
             }
 
             async function downloadPortfolioReportWord() {
@@ -7805,7 +7793,7 @@
 
             async function downloadManagerReportPdf() {
                 await generateManagerReport();
-                if (managerReportHtml) await ReportDesign.printHtml(managerReportHtml);
+                if (managerReportHtml) await ReportDesign.downloadPdf(managerReportHtml, 'Posiciones-agregadas.pdf');
             }
 
             async function downloadManagerReportWord() {
@@ -7828,11 +7816,13 @@
 
             // Render portfolio composition as a Pie chart
             function renderPortfolioComposition(entries) {
-                const labels = entries.map(e => String(portfolioEntryLabel(e)).match(/.{1,26}(?:\s|$)|.{1,26}/g).map(escapeHtml).join('<br>'));
-                const tickers = entries.map(e => e.ticker);
-                const values = entries.map(e => (e.weight || 0));
+                const byCategory = document.getElementById('portfolioCompositionMode')?.value === 'category';
+                const groups = byCategory ? FinanceCore.groupCategories(entries.map(e => ({category:e.assetClass || e.category || fundUniverseState?.isinIndex.get(normalizeIsin(e.ticker))?.category,weight:e.weight}))) : [];
+                const labels = (byCategory ? groups.map(g => g.category) : entries.map(portfolioEntryLabel)).map(label => (String(label || 'Sin identificar').match(/.{1,26}(?:\s|$)|.{1,26}/g) || []).map(escapeHtml).join('<br>'));
+                const tickers = byCategory ? groups.map(g => g.category) : entries.map(e => e.ticker);
+                const values = byCategory ? groups.map(g => g.weight) : entries.map(e => (e.weight || 0));
                 const colors = ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#475569', '#64748b', '#94a3b8'];
-                const trace = [{ labels, values, customdata: tickers, type: 'pie', hole: 0.35, marker: { colors }, hovertemplate: '%{label}<br>Ticker: %{customdata}<br>Peso: %{percent}<extra></extra>' }];
+                const trace = [{ labels, values, customdata: tickers, type: 'pie', hole: 0.35, marker: { colors }, hovertemplate: byCategory ? '%{label}<br>Peso: %{percent}<extra></extra>' : '%{label}<br>Ticker: %{customdata}<br>Peso: %{percent}<extra></extra>' }];
                 const layout = { height: 480, margin: { t: 20, l: 20, r: 220, b: 20 }, legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 10 } } };
                 Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
             }

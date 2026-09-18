@@ -41,17 +41,24 @@ function portfolioWorkflowRefresh() {
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
     const show = id => { const el = document.getElementById(id); if (el) { el.hidden = false; el.classList.remove('hidden'); } };
     if (w.step === 'data') show('workspaceData');
-    if (w.step === 'diagnosis') show(w.scope === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
-    if (w.step === 'proposal') show(w.scope === 'aggregate' ? 'workspaceAggregate' : 'workspaceProposal');
-    if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : 'workspaceIndividualReports');
-    document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope !== 'individual';
+    if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
+    if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
+    if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
+    document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis';
+    document.querySelectorAll('[data-workspace-tool]').forEach(b => {
+        b.hidden = (['aggregate','massive','screener'].includes(b.dataset.workspaceTool) ? 'aggregate' : 'individual') !== w.scope;
+        b.setAttribute('aria-pressed',String(b.dataset.workspaceTool === w.tool));
+    });
     document.getElementById('workspaceReportOptions').hidden = w.step !== 'report';
-    document.querySelectorAll('[data-workspace-step]').forEach(b => b.setAttribute('aria-current', b.dataset.workspaceStep === w.step ? 'step' : 'false'));
+    document.querySelectorAll('[data-workspace-step]').forEach(b => {
+        b.setAttribute('aria-current', b.dataset.workspaceStep === w.step ? 'step' : 'false');
+        b.hidden = b.dataset.workspaceStep === 'proposal' ? w.scope !== 'initial' : b.dataset.workspaceStep === 'diagnosis' && w.scope === 'initial';
+    });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
-    document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = el.dataset.workspaceOnly !== w.scope);
+    document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
     const rows = fundProposalState.rows || [];
     const coverage = FinanceCore.weighted(rows, 'ter', 'current').coverage;
-    document.getElementById('workspaceContext').textContent = `${w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : 'Cartera individual'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
+    document.getElementById('workspaceContext').textContent = `${w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : w.scope === 'initial' ? 'Analisis inicial · cartera de origen del cliente' : 'Cartera individual · comportamiento historico'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
     document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length} · Cartera scoring: ${fundPortfolioRows.length} posiciones · Agregado: ${aggregatePositionsState.rows.length} posiciones.\n${rows.length ? `Cobertura TER de la propuesta: ${(coverage * 100).toFixed(1)} %. ` : ''}Score orientativo: compara fondos dentro de la misma categoria. Historicos: ${loadedPortfolio?.sourceLabel || 'pendientes'}.`;
     if (portfolioHistoryStale()) document.getElementById('workspaceQuality').textContent += '\nHipotesis modificadas: vuelve a cargar o importar la cartera antes de utilizar el backtest.';
     const unadjusted = (loadedPortfolio?.entries || []).filter(e => MarketData.metadata.get(e.ticker)?.priceType === 'close');
@@ -60,8 +67,18 @@ function portfolioWorkflowRefresh() {
 }
 function portfolioSnapshot(kind) {
     const reportOptions = { charts: document.getElementById('reportIncludeCharts').checked, details: document.getElementById('reportIncludeDetails').checked, final: document.getElementById('reportFinal').checked };
-    const rows = kind === 'aggregate' ? aggregateScoringResults.map(r => ({ weight:r.position.weight, current:aggregateStaticRecord(r), proposed:aggregateEffectiveRecord(r) })) : fundProposalState.rows;
-    return JSON.parse(JSON.stringify({ id: `${kind}-${Date.now()}`, kind, revision: PortfolioWorkspace.revision, engine: PortfolioWorkspace.engine, createdAt: new Date().toISOString(), settings: portfolioCalculationSettings(), reportOptions, capital: kind === 'aggregate' ? null : fundProposalCapital(), source: { universe: fundUniverseState?.fileName || '', approved: approvedFundsState.fileName || '', portfolio: kind === 'aggregate' ? '' : loadedPortfolio?.sourceLabel || '', aggregate: kind === 'aggregate' ? aggregatePositionsState.fileName || '' : '' }, portfolio: kind === 'aggregate' ? null : loadedPortfolio, aggregate: kind === 'aggregate' ? {positions:aggregatePositionsState.rows,results:aggregateScoringResults} : null, proposal: kind === 'aggregate' ? [] : fundProposalState.rows.map(r => ({ isin:r.isin, weight:r.weight, current:r.current, proposed:r.proposed })), coverage: { currentTer: FinanceCore.weighted(rows, 'ter', 'current').coverage, proposedTer: FinanceCore.weighted(rows, 'ter', 'proposed').coverage }, dataSources: kind === 'aggregate' ? [] : [...MarketData.metadata.entries()] }));
+    const rows = kind === 'aggregate' ? aggregateScoringResults.map(r => ({ weight:r.position.weight, current:aggregateStaticRecord(r), proposed:aggregateEffectiveRecord(r) })) : kind === 'individual' ? fundScoringResults.map(r => ({weight:r.weight,current:r.included ? fundResolvedRecord(r) : null,proposed:r.included ? fundResolvedRecord(r) : null})) : fundProposalState.rows;
+    return JSON.parse(JSON.stringify({
+        id: `${kind}-${Date.now()}`, kind, revision: PortfolioWorkspace.revision, engine: PortfolioWorkspace.engine,
+        createdAt: new Date().toISOString(), settings: portfolioCalculationSettings(), reportOptions,
+        capital: kind === 'proposal' ? fundProposalCapital() : null,
+        source: { universe: fundUniverseState?.fileName || '', approved: approvedFundsState.fileName || '', portfolio: kind === 'individual' ? loadedPortfolio?.sourceLabel || '' : '', aggregate: kind === 'aggregate' ? aggregatePositionsState.fileName || '' : '' },
+        portfolio: kind === 'individual' ? loadedPortfolio : null,
+        aggregate: kind === 'aggregate' ? {positions:aggregatePositionsState.rows,results:aggregateScoringResults} : null,
+        proposal: kind === 'proposal' ? fundProposalState.rows.map(r => ({isin:r.isin,weight:r.weight,current:r.current,proposed:r.proposed})) : [],
+        coverage: {currentTer:FinanceCore.weighted(rows,'ter','current').coverage,proposedTer:FinanceCore.weighted(rows,'ter','proposed').coverage},
+        dataSources: kind === 'individual' ? [...MarketData.metadata.entries()] : []
+    }));
 }
 function initializePortfolioWorkspace() {
     const simulationControls = document.createElement('div'); simulationControls.className = 'workspace-settings';
@@ -75,6 +92,10 @@ function initializePortfolioWorkspace() {
     const shell = document.createElement('div');
     shell.innerHTML = `<div class="workspace-heading"><div><h2>Analisis de carteras</h2><small id="workspaceContext"></small></div><div class="workspace-scope"><button data-workspace-scope="individual">Cartera individual</button><button data-workspace-scope="aggregate">Posiciones agregadas</button></div></div><nav class="workspace-steps" aria-label="Proceso de analisis"><button data-workspace-step="data">01 Datos</button><button data-workspace-step="diagnosis">02 Diagnostico</button><button data-workspace-step="proposal">03 Propuesta</button><button data-workspace-step="report">04 Informe</button></nav><div id="workspaceTools" class="workspace-tools"></div><div id="workspaceQuality" class="workspace-status" role="status"></div><section id="workspaceData" class="workspace-panel" data-workspace-panel></section><section id="workspaceIndividualReports" class="workspace-panel" data-workspace-panel></section><section id="workspaceManagerReports" class="workspace-panel" data-workspace-panel></section>`;
     root.prepend(shell);
+    shell.querySelector('.workspace-scope').insertAdjacentHTML('afterbegin','<button data-workspace-scope="initial">Analisis Inicial</button>');
+    shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
+    shell.querySelector('[data-workspace-step="proposal"]').textContent = '02 Analisis inicial';
+    shell.querySelector('[data-workspace-step="report"]').textContent = '03 Informe';
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
     reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
     reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);
@@ -92,16 +113,23 @@ function initializePortfolioWorkspace() {
         const button = manualActions.querySelector(selector); button.innerHTML = `<i class="fa-solid fa-${icon}" aria-hidden="true"></i>`;
         button.title = label; button.setAttribute('aria-label',label); button.classList.add('workspace-icon');
     }
-    document.getElementById('loadPortfolioBtn').textContent = 'Cargar y analizar';
+    document.getElementById('loadPortfolioBtn').textContent = 'Cargar tickers Yahoo y analizar';
+    manualActions.insertAdjacentHTML('afterend','<p class="workspace-context">Carga Yahoo: utiliza este boton para los tickers introducidos arriba. Al cargar un Excel, el analisis se ejecuta automaticamente; no es necesario volver a pulsarlo.</p>');
     const upload = document.getElementById('fundUniverseFileInput').closest('.mt-6'); data.append(upload);
-    document.getElementById('fundPortfolioFileInput').closest('.min-w-0').dataset.workspaceOnly = 'individual';
+    document.getElementById('fundPortfolioFileInput').closest('.min-w-0').dataset.workspaceOnly = 'individual initial';
     document.getElementById('aggregatePositionsFileInput').closest('.min-w-0').dataset.workspaceOnly = 'aggregate';
     const settings = document.createElement('div'); settings.className = 'workspace-settings'; settings.dataset.workspaceOnly = 'individual';
     settings.innerHTML = `<label>Rebalanceo<select id="portfolioRebalance"><option value="period">Cada observacion (pesos constantes)</option><option value="monthly">Mensual</option><option value="hold">Comprar y mantener</option></select></label><label>Coste por volumen negociado (pb)<input id="portfolioCostBps" type="number" min="0" max="1000" value="0"></label><label>Tipo libre de riesgo anual (%)<input id="portfolioRiskFree" type="number" min="-99" step="0.1" value="0"></label><label>Moneda base<select id="portfolioBaseCurrency"><option>EUR</option><option>USD</option><option>GBP</option></select></label><label><input id="portfolioPricesInBase" type="checkbox"> Historicos propios ya expresados en moneda base</label>`;
     data.prepend(settings);
+    const help = document.createElement('footer'); help.className = 'workspace-calculation-help'; help.dataset.workspaceOnly = 'individual';
+    help.innerHTML = '<h3>Hipotesis del analisis</h3><dl><dt>Rebalanceo</dt><dd>Define cuando se recuperan los pesos objetivo: en cada observacion, al cambiar de mes o nunca (comprar y mantener, dejando evolucionar los pesos).</dd><dt>Coste por volumen negociado</dt><dd>Coste aplicado a las compras y ventas de cada rebalanceo. 10 puntos basicos equivalen a 0,10% del importe negociado, no de toda la cartera. No incluye impuestos ni la inversion inicial.</dd><dt>Tipo libre de riesgo</dt><dd>Rentabilidad anual de referencia utilizada para calcular el Sharpe. Se convierte a la frecuencia de los datos; no modifica la evolucion del patrimonio.</dd><dt>Moneda base</dt><dd>Divisa en la que se construye la cartera. Los historicos Yahoo en otra divisa se convierten cuando hay datos de cambio disponibles.</dd><dt>Historicos propios</dt><dd>Marca esta casilla solo si los precios importados ya estan expresados en la moneda base. Evita convertirlos otra vez. No debe marcarse para omitir una conversion que falta.</dd></dl><p>Si cambias rebalanceo, costes, moneda o tratamiento de historicos, vuelve a cargar la cartera o importar el Excel para recalcularla.</p>';
+    root.append(help);
+    ['portfolioRebalance','portfolioCostBps','portfolioRiskFree','portfolioBaseCurrency','portfolioPricesInBase'].forEach((id,i) => {
+        const description = help.querySelectorAll('dd')[i]; description.id = `${id}-help`; document.getElementById(id).setAttribute('aria-describedby',description.id);
+    });
     const unit = document.createElement('label'); unit.className = 'workspace-context'; unit.innerHTML = 'Unidad de pesos de scoring y propuesta <select id="fundWeightUnit"><option value="percent">Porcentaje (0-100)</option><option value="fraction">Fraccion (0-1)</option><option value="amount">Importes (se normalizan)</option></select>'; data.prepend(unit);
     const oldNav = document.getElementById('portfolioSubtab-main').parentElement; oldNav.hidden = true;
-    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', massive:'Comparador masivo', screener:'Screener' };
+    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', aggregate:'Posiciones y propuestas', massive:'Comparador masivo', screener:'Screener' };
     document.getElementById('workspaceTools').innerHTML = Object.entries(tools).map(([key,label]) => `<button data-workspace-tool="${key}">${label}</button>`).join('');
     for (const id of ['portfolioReportPreview','managerReportPreview']) {
         const target = document.getElementById(id); document.getElementById(id === 'portfolioReportPreview' ? 'workspaceIndividualReports' : 'workspaceManagerReports').append(target.parentElement);
@@ -109,17 +137,22 @@ function initializePortfolioWorkspace() {
     const aggregate = document.getElementById('aggregatePositionsStatus').closest('.grid').parentElement;
     aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
     root.querySelectorAll('.portfolio-subtab-content').forEach(el => { el.dataset.workspacePanel = ''; el.classList.add('workspace-panel'); });
-    const proposalPreview = document.getElementById('fundProposalReportPreview'); document.getElementById('workspaceIndividualReports').append(proposalPreview);
-    const reportActions = document.createElement('div'); reportActions.className='workspace-tools'; reportActions.innerHTML='<button onclick="generateFundProposalReport()">Generar informe de propuesta</button><button onclick="downloadFundProposalReportPdf()">Imprimir / PDF propuesta</button><button onclick="downloadPortfolioSnapshot()">Descargar trazabilidad JSON</button>';
-    document.getElementById('workspaceIndividualReports').prepend(reportActions);
+    const compositionMode = document.createElement('label'); compositionMode.className = 'workspace-context';
+    compositionMode.innerHTML = 'Distribucion por <select id="portfolioCompositionMode" onchange="if(loadedPortfolio) renderPortfolioComposition(loadedPortfolio.entries)"><option value="fund">Fondos</option><option value="category">Categorias</option></select>';
+    document.getElementById('portfolioCompositionChart').before(compositionMode);
+    const proposalPreview = document.getElementById('fundProposalReportPreview'); document.getElementById('workspaceInitialReports').append(proposalPreview);
+    const reportActions = document.createElement('div'); reportActions.className='workspace-tools'; reportActions.innerHTML='<button onclick="generateFundProposalReport()">Generar informe inicial</button><button onclick="downloadFundProposalReportPdf()">Descargar PDF</button><button onclick="downloadPortfolioSnapshot()">Descargar trazabilidad JSON</button>';
+    document.getElementById('workspaceInitialReports').prepend(reportActions);
     root.querySelectorAll('#portfolioSubtabContent-funds button').forEach(button => { if (/generateFundProposalReport|downloadFundProposalReportPdf/.test(button.getAttribute('onclick') || '')) button.hidden = true; });
     const proposal = document.getElementById('fundProposalStatus').parentElement;
     proposal.id = 'workspaceProposal'; proposal.dataset.workspacePanel = ''; proposal.classList.add('workspace-panel'); root.append(proposal);
+    document.getElementById('fundProposalPortfolioInput').insertAdjacentHTML('beforebegin','<button type="button" class="initial-origin-button" onclick="InitialAnalysis.useLoadedPortfolio()">Usar cartera scoring importada</button>');
+    root.append(help);
     root.addEventListener('click', event => {
         const b = event.target.closest('button'); if (!b) return;
-        if (b.dataset.workspaceScope) { PortfolioWorkspace.scope = b.dataset.workspaceScope; PortfolioWorkspace.step = 'data'; }
+        if (b.dataset.workspaceScope) { PortfolioWorkspace.scope = b.dataset.workspaceScope; PortfolioWorkspace.step = 'data'; PortfolioWorkspace.tool = b.dataset.workspaceScope === 'aggregate' ? 'aggregate' : 'main'; }
         if (b.dataset.workspaceStep) PortfolioWorkspace.step = b.dataset.workspaceStep;
-        if (b.dataset.workspaceTool) { PortfolioWorkspace.tool = b.dataset.workspaceTool; showPortfolioSubtab(b.dataset.workspaceTool); }
+        if (b.dataset.workspaceTool) { PortfolioWorkspace.tool = b.dataset.workspaceTool; if (b.dataset.workspaceTool !== 'aggregate') showPortfolioSubtab(b.dataset.workspaceTool); }
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
     });
     root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel]')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
@@ -142,6 +175,7 @@ function initializePortfolioWorkspace() {
             if (kind === 'aggregate') managerReportHtml = html; else if (kind === 'individual') portfolioReportHtml = html; else fundProposalState.reportHtml = html;
             PortfolioWorkspace.snapshots[kind] = JSON.parse(JSON.stringify(snapshot));
             ReportDesign.preview(document.getElementById(previewId), html);
+            PortfolioWorkspace.scope = kind === 'proposal' ? 'initial' : kind === 'aggregate' ? 'aggregate' : 'individual';
             PortfolioWorkspace.step = 'report'; portfolioWorkflowRefresh();
         };
     }

@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('../assets/finance-core.js');
+test('category distribution groups equivalent labels and sums weights',()=>{
+    const rows=F.groupCategories([{category:'Renta Fija',weight:15},{category:' renta  FIJA ',weight:15},{category:'Acciones',weight:70}]);
+    assert.deepEqual(rows,[{category:'Renta Fija',weight:30},{category:'Acciones',weight:70}]);
+});
 test('1 and 99 remain 1% and 99%; fractions normalize consistently', () => {
     assert.deepEqual(F.normalizeWeights([{ticker:'A',weight:1},{ticker:'B',weight:99}]).map(e=>e.weight), [.01,.99]);
     assert.deepEqual(F.normalizeWeights([{ticker:'A',weight:.01},{ticker:'B',weight:.99}]).map(e=>e.weight), [.01,.99]);

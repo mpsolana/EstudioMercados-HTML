@@ -72,7 +72,17 @@
     }
     function sameFund(a, b) { return Boolean(a?.fundId && b?.fundId && String(a.fundId).trim() === String(b.fundId).trim() && a.currency && a.currency === b.currency && a.hedging && a.hedging === b.hedging); }
     function better(anchor, records) { return Number.isFinite(anchor?.score) ? records.filter(r => r.isin !== anchor.isin && r.category === anchor.category && Number.isFinite(r.score) && r.score > anchor.score).sort((a, b) => b.score - a.score || (a.ter ?? Infinity) - (b.ter ?? Infinity)) : []; }
-    const api = { annualPeriods, mean, stdev, frequency, validateSeries, normalizeWeights, weighted, sharpe, cagr, portfolioPath, sameFund, better };
+    function groupCategories(rows) {
+        const grouped = new Map();
+        rows.forEach(row => {
+            const label = String(row.category || 'Sin categoria').trim().replace(/\s+/g,' ') || 'Sin categoria';
+            const key = label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+            if (!(Number.isFinite(row.weight) && row.weight > 0)) return;
+            const group = grouped.get(key) || {category:label,weight:0}; group.weight += row.weight; grouped.set(key,group);
+        });
+        return [...grouped.values()];
+    }
+    const api = { annualPeriods, mean, stdev, frequency, validateSeries, normalizeWeights, weighted, sharpe, cagr, portfolioPath, sameFund, better, groupCategories };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     root.FinanceCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

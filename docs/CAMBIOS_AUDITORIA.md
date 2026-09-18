@@ -4,10 +4,25 @@
 
 - `main`: integrado `codex/macro-dashboard-fallbacks` mediante el merge `e77679a` y publicado en origen.
 - `codex/portfolio-audit-redesign`: trabajo posterior, separado de `main`.
-- Esta nueva revision queda en commits locales para revisar antes de publicarla. No se despliega ni se mezcla con `main`.
+- La rama de revision se publico a peticion del usuario. Los cambios posteriores siguen en esa rama, sin mezclarse con `main`.
 - Base: auditoria de Analyzer y prueba de concepto revisadas con el usuario. No es una certificacion financiera ni una auditoria de seguridad exhaustiva.
 
 ## Cambios realizados
+
+### Segunda revision: ocho ajustes solicitados
+
+1. Ayuda al pie en Cartera individual: explica rebalanceo, coste por volumen (pb), tipo libre de riesgo, moneda base y la confirmacion de historicos propios. Los controles quedan vinculados a sus descripciones para lectores de pantalla.
+2. Navegacion: contorno gris para el paso y herramienta activos; estado accesible `aria-current` / `aria-pressed` actualizado al cambiar de apartado.
+3. Benchmark: la grafica de cartera usa la misma alineacion por periodos que el comparador de fondos, en lugar de exigir fechas exactas. No inventa precios en periodos ausentes ni compara historiales disjuntos.
+4. Comparador masivo y Screener trasladados a Diagnostico de Posiciones agregadas, conservando su funcionalidad. El comparador sigue utilizando los historicos/benchmarks importados en la aplicacion.
+5. Retirados los botones Word de los informes de cartera y gestora. Los tres informes descargan directamente un PDF A4, con texto seleccionable, tablas, graficas y paginacion, sin abrir el dialogo de impresion. Exportador cliente pdfmake 0.2.20 + html-to-pdfmake 2.5.33, cargado a demanda; no se envian datos de cartera a un servicio de conversion.
+6. Boton renombrado a Cargar tickers Yahoo y analizar; nota que aclara que el Excel se analiza al importarlo y no requiere esa segunda carga.
+7. Nuevo ambito Analisis Inicial para estudiar la cartera recibida del cliente y sus costes/sustituciones. Cartera individual queda para el comportamiento historico de la cartera construida. Informes y snapshots separados. En fondos sin match: editor de origen con proxy del universo y nombre propio, o datos manuales de nombre, categoria, moneda, score, TER, retornos, riesgos y drawdowns 1/3/5 anos. Los campos opcionales ausentes siguen siendo datos faltantes, no ceros. El proxy nunca acredita por si mismo una clase equivalente; la procedencia queda identificada en pantalla e informe. Se puede editar/restablecer el origen y reutilizar una cartera scoring importada.
+8. Categorias: agrupacion normalizada de espacios, mayusculas y acentos. Dos posiciones del 15% de una categoria suman 30%. La composicion historica permite elegir Fondos o Categorias, conservando ambas vistas.
+
+Verificacion de esta revision: 13 pruebas unitarias, comprobacion de sintaxis, pruebas de navegador de los tres ambitos, benchmark con cierres mensuales distintos, categoria 15+15, edicion de proxy y datos manuales, importacion Excel semanal y descarga efectiva de los tres PDF. Pruebas con datos sinteticos y vistas de escritorio/movil; falta aceptacion con los ficheros reales del usuario.
+
+Los puntos siguientes documentan la primera revision. Donde se menciona impresion para exportar PDF, queda sustituida por la descarga directa descrita arriba.
 
 ### Calculos y calidad de datos
 

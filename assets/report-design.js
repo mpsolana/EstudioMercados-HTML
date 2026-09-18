@@ -24,7 +24,9 @@ const ReportDesign = (() => {
     function metadata(snapshot) {
         const settings = snapshot.settings;
         const policy = {period:'cada observacion',monthly:'mensual',hold:'comprar y mantener'}[settings.rebalance];
-        return `<p class="method-note">${snapshot.reportOptions?.final ? 'FINAL' : 'BORRADOR'} · Expediente ${snapshot.id} · Revision ${snapshot.revision} · Motor ${snapshot.engine} · ${snapshot.createdAt}. Cobertura TER origen ${(snapshot.coverage.currentTer * 100).toFixed(1)}%, propuesta ${(snapshot.coverage.proposedTer * 100).toFixed(1)}%. Score orientativo, no comparable entre categorias. El ahorro TER supone AUM constante; el efecto compuesto supone rentabilidad bruta cero, sin impuestos ni costes de transaccion.</p><p class="method-note">Backtest: rebalanceo ${policy}, coste ${settings.costBps} pb por volumen negociado; libre de riesgo ${(settings.riskFreeAnnual * 100).toFixed(2)}% anual. Escenarios: ${settings.simulation.method === 'bootstrap' ? 'bootstrap por bloques' : 'lognormal independiente'}, semilla ${settings.simulation.seed}, shock inicial ${(settings.simulation.initialShock * 100).toFixed(0)}%. Son hipotesis de simulacion, no predicciones. El agregado comercial no implica un backtest consolidado.</p>`;
+        const coverage = snapshot.kind === 'proposal' ? `Cobertura TER origen ${(snapshot.coverage.currentTer * 100).toFixed(1)}%, propuesta ${(snapshot.coverage.proposedTer * 100).toFixed(1)}%.` : `Cobertura TER resuelta ${(snapshot.coverage.proposedTer * 100).toFixed(1)}%.`;
+        const assumptions = snapshot.kind === 'proposal' ? 'El ahorro TER supone AUM constante; el efecto compuesto supone rentabilidad bruta cero, sin impuestos ni costes de transaccion. Este analisis inicial no es un backtest de la cartera construida.' : snapshot.kind === 'aggregate' ? 'El agregado comercial no implica un backtest consolidado.' : `Backtest: rebalanceo ${policy}, coste ${settings.costBps} pb por volumen negociado; libre de riesgo ${(settings.riskFreeAnnual * 100).toFixed(2)}% anual. Escenarios: ${settings.simulation.method === 'bootstrap' ? 'bootstrap por bloques' : 'lognormal independiente'}, semilla ${settings.simulation.seed}, shock inicial ${(settings.simulation.initialShock * 100).toFixed(0)}%. Son hipotesis de simulacion, no predicciones.`;
+        return `<p class="method-note">${snapshot.reportOptions?.final ? 'FINAL' : 'BORRADOR'} · Expediente ${snapshot.id} · Revision ${snapshot.revision} · Motor ${snapshot.engine} · ${snapshot.createdAt}. ${coverage} Score orientativo, no comparable entre categorias.</p><p class="method-note">${assumptions}</p>`;
     }
     function prepare(html, snapshot) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -48,6 +50,17 @@ const ReportDesign = (() => {
         });
         doc.head.insertAdjacentHTML('beforeend', styles());
         const footer = doc.querySelector('footer') || doc.body.appendChild(doc.createElement('footer'));
+        const declaredOrigins = (snapshot.proposal || []).filter(r => r.current?.originSource);
+        if (declaredOrigins.length) {
+            const section = doc.createElement('section'); section.className = 'block';
+            const heading = doc.createElement('h2'); heading.textContent = 'Origen de los datos: proxies y declaraciones'; section.append(heading);
+            declaredOrigins.forEach(row => {
+                const p = doc.createElement('p'), source = row.current.originSource;
+                p.textContent = `${row.isin} - ${row.current.name}: ${source.mode === 'proxy' ? `metricas estimadas con el proxy ${source.proxyIsin} (${source.proxyName}). No son datos observados del fondo original ni acreditan una clase equivalente.` : 'datos introducidos manualmente por el usuario, no verificados contra el universo.'}`;
+                section.append(p);
+            });
+            footer.before(section);
+        }
         footer.insertAdjacentHTML('beforeend', metadata(snapshot));
         return '<!DOCTYPE html>' + doc.documentElement.outerHTML;
     }
@@ -72,5 +85,60 @@ const ReportDesign = (() => {
         frame.onload = () => { frame.style.height = Math.max(600, frame.contentDocument.documentElement.scrollHeight + 25) + 'px'; };
         frame.srcdoc = html.replace('</head>', styles() + '</head>'); target.replaceChildren(frame);
     }
-    return { styles, metadata, prepare, printHtml, preview };
+    let pdfLibraries;
+    function loadScript(src) {
+        return new Promise((resolve,reject) => {
+            const script = document.createElement('script'); script.src = src;
+            const timer = setTimeout(() => { script.remove(); reject(new Error('Tiempo agotado al cargar el exportador PDF.')); },30000);
+            script.onload = () => { clearTimeout(timer); resolve(); };
+            script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error('No se pudo cargar el exportador PDF. Revisa la conexion.')); };
+            document.head.append(script);
+        });
+    }
+    async function downloadPdf(html, filename) {
+        try {
+            if (!pdfLibraries) pdfLibraries = (async () => {
+                await loadScript('https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/html-to-pdfmake@2.5.33/browser.js');
+            })().catch(error => { pdfLibraries = null; throw error; });
+            await pdfLibraries;
+            const doc = new DOMParser().parseFromString(html,'text/html');
+            doc.querySelectorAll('script,style,colgroup').forEach(el => el.remove());
+            doc.body.querySelectorAll('*').forEach(el => { el.removeAttribute('style'); el.removeAttribute('width'); el.removeAttribute('height'); });
+            doc.querySelectorAll('.summary').forEach(summary => {
+                const cells = [...summary.children].filter(el => el.querySelector('strong'));
+                if (!cells.length) return;
+                const table = doc.createElement('table'); table.className = 'pdf-kpis';
+                for (let i=0;i<cells.length;i+=4) {
+                    const row = table.insertRow();
+                    for (let j=0;j<4;j++) { const cell=row.insertCell(), item=cells[i+j]; if (!item) continue;
+                        const label=doc.createElement('div'); label.textContent=item.querySelector('span')?.textContent || '';
+                        const value=doc.createElement('strong'); value.textContent=item.querySelector('strong').textContent;
+                        cell.append(label,doc.createElement('br'),value);
+                    }
+                }
+                summary.replaceWith(table);
+            });
+            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[500,310],margin:[0,6,0,12]})));
+            doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); div.className=el.className; div.append(...el.childNodes); el.replaceWith(div); });
+            const content = htmlToPdfmake(doc.body.innerHTML,{window,defaultStyles:{h1:{fontSize:23,color:'#263342',bold:true,margin:[0,6,0,14]},h2:{fontSize:13,color:'#215a90',bold:true,margin:[0,16,0,7]},h3:{fontSize:11,color:'#215a90',bold:true},p:{margin:[0,4,0,8]},th:{bold:true,fillColor:'#edf1f5'}}});
+            function format(node) {
+                if (!node || typeof node !== 'object') return;
+                if (Array.isArray(node)) { node.forEach(format); return; }
+                if (node.table) {
+                    node.table.widths = Array(node.table.body[0].length).fill('*'); node.table.dontBreakRows = true; node.layout = 'lightHorizontalLines';
+                    const fontSize = node.table.body[0].length > 6 ? 7 : 8;
+                    const sizeCells = cell => { if (!cell || typeof cell !== 'object') return; if (Array.isArray(cell)) return cell.forEach(sizeCells); cell.fontSize=fontSize; if(cell.text && typeof cell.text === 'object') sizeCells(cell.text); if(cell.stack) sizeCells(cell.stack); };
+                    node.table.body.forEach(sizeCells);
+                }
+                Object.values(node).forEach(format);
+            }
+            format(content);
+            const definition = {pageSize:'A4',pageMargins:[42,40,42,45],defaultStyle:{font:'Roboto',fontSize:9,color:'#263342',lineHeight:1.2},content,footer:(page,pages)=>({text:`${page} / ${pages}`,alignment:'right',margin:[42,12,42,0],fontSize:8,color:'#687787'})};
+            await new Promise(resolve => pdfMake.createPdf(definition).download(filename,resolve));
+            return true;
+        } catch(error) { alert(`No se ha descargado el PDF: ${error.message}`); return false; }
+    }
+    return { styles, metadata, prepare, printHtml, preview, downloadPdf };
 })();
