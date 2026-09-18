@@ -38,31 +38,36 @@ function invalidatePortfolioReports() {
 }
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
+    const steps = w.scope === 'initial' ? ['data','proposal','report'] : w.scope === 'screener' ? ['data','diagnosis'] : ['data','diagnosis','report'];
+    if (!steps.includes(w.step)) w.step = steps[1];
+    if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
     const show = id => { const el = document.getElementById(id); if (el) { el.hidden = false; el.classList.remove('hidden'); } };
     if (w.step === 'data') show('workspaceData');
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
     if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
-    document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis';
+    document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope === 'screener';
     document.querySelectorAll('[data-workspace-tool]').forEach(b => {
-        b.hidden = (['aggregate','massive','screener'].includes(b.dataset.workspaceTool) ? 'aggregate' : 'individual') !== w.scope;
+        b.hidden = (['aggregate','massive'].includes(b.dataset.workspaceTool) ? 'aggregate' : 'individual') !== w.scope;
         b.setAttribute('aria-pressed',String(b.dataset.workspaceTool === w.tool));
     });
     document.getElementById('workspaceReportOptions').hidden = w.step !== 'report';
     document.querySelectorAll('[data-workspace-step]').forEach(b => {
         b.setAttribute('aria-current', b.dataset.workspaceStep === w.step ? 'step' : 'false');
-        b.hidden = b.dataset.workspaceStep === 'proposal' ? w.scope !== 'initial' : b.dataset.workspaceStep === 'diagnosis' && w.scope === 'initial';
+        b.hidden = !steps.includes(b.dataset.workspaceStep);
+        if (b.dataset.workspaceStep === 'diagnosis') b.textContent = w.scope === 'screener' ? '02 Screener' : '02 Diagnostico';
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
     const rows = fundProposalState.rows || [];
     const coverage = FinanceCore.weighted(rows, 'ter', 'current').coverage;
-    document.getElementById('workspaceContext').textContent = `${w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : w.scope === 'initial' ? 'Analisis inicial · cartera de origen del cliente' : 'Cartera individual · comportamiento historico'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
+    document.getElementById('workspaceContext').textContent = `${w.scope === 'screener' ? 'Screener · universo de fondos' : w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : w.scope === 'initial' ? 'Analisis inicial · cartera de origen del cliente' : 'Cartera individual · comportamiento historico'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
     document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length} · Cartera scoring: ${fundPortfolioRows.length} posiciones · Agregado: ${aggregatePositionsState.rows.length} posiciones.\n${rows.length ? `Cobertura TER de la propuesta: ${(coverage * 100).toFixed(1)} %. ` : ''}Score orientativo: compara fondos dentro de la misma categoria. Historicos: ${loadedPortfolio?.sourceLabel || 'pendientes'}.`;
     if (portfolioHistoryStale()) document.getElementById('workspaceQuality').textContent += '\nHipotesis modificadas: vuelve a cargar o importar la cartera antes de utilizar el backtest.';
     const unadjusted = (loadedPortfolio?.entries || []).filter(e => MarketData.metadata.get(e.ticker)?.priceType === 'close');
     if (unadjusted.length) document.getElementById('workspaceQuality').textContent += `\n${unadjusted.length} activos con cierre sin ajuste: no equivalen necesariamente a retorno total.`;
+    if (w.scope === 'screener') document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length}.`;
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
 }
 function portfolioSnapshot(kind) {
@@ -93,6 +98,7 @@ function initializePortfolioWorkspace() {
     shell.innerHTML = `<div class="workspace-heading"><div><h2>Analisis de carteras</h2><small id="workspaceContext"></small></div><div class="workspace-scope"><button data-workspace-scope="individual">Cartera individual</button><button data-workspace-scope="aggregate">Posiciones agregadas</button></div></div><nav class="workspace-steps" aria-label="Proceso de analisis"><button data-workspace-step="data">01 Datos</button><button data-workspace-step="diagnosis">02 Diagnostico</button><button data-workspace-step="proposal">03 Propuesta</button><button data-workspace-step="report">04 Informe</button></nav><div id="workspaceTools" class="workspace-tools"></div><div id="workspaceQuality" class="workspace-status" role="status"></div><section id="workspaceData" class="workspace-panel" data-workspace-panel></section><section id="workspaceIndividualReports" class="workspace-panel" data-workspace-panel></section><section id="workspaceManagerReports" class="workspace-panel" data-workspace-panel></section>`;
     root.prepend(shell);
     shell.querySelector('.workspace-scope').insertAdjacentHTML('afterbegin','<button data-workspace-scope="initial">Analisis Inicial</button>');
+    shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="screener">Screener</button>');
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="proposal"]').textContent = '02 Analisis inicial';
     shell.querySelector('[data-workspace-step="report"]').textContent = '03 Informe';
@@ -128,8 +134,9 @@ function initializePortfolioWorkspace() {
         const description = help.querySelectorAll('dd')[i]; description.id = `${id}-help`; document.getElementById(id).setAttribute('aria-describedby',description.id);
     });
     const unit = document.createElement('label'); unit.className = 'workspace-context'; unit.innerHTML = 'Unidad de pesos de scoring y propuesta <select id="fundWeightUnit"><option value="percent">Porcentaje (0-100)</option><option value="fraction">Fraccion (0-1)</option><option value="amount">Importes (se normalizan)</option></select>'; data.prepend(unit);
+    unit.dataset.workspaceOnly = 'individual initial aggregate';
     const oldNav = document.getElementById('portfolioSubtab-main').parentElement; oldNav.hidden = true;
-    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', aggregate:'Posiciones y propuestas', massive:'Comparador masivo', screener:'Screener' };
+    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', aggregate:'Posiciones', massive:'Comparador masivo' };
     document.getElementById('workspaceTools').innerHTML = Object.entries(tools).map(([key,label]) => `<button data-workspace-tool="${key}">${label}</button>`).join('');
     for (const id of ['portfolioReportPreview','managerReportPreview']) {
         const target = document.getElementById(id); document.getElementById(id === 'portfolioReportPreview' ? 'workspaceIndividualReports' : 'workspaceManagerReports').append(target.parentElement);
@@ -150,8 +157,14 @@ function initializePortfolioWorkspace() {
     root.append(help);
     root.addEventListener('click', event => {
         const b = event.target.closest('button'); if (!b) return;
-        if (b.dataset.workspaceScope) { PortfolioWorkspace.scope = b.dataset.workspaceScope; PortfolioWorkspace.step = 'data'; PortfolioWorkspace.tool = b.dataset.workspaceScope === 'aggregate' ? 'aggregate' : 'main'; }
+        if (b.dataset.workspaceScope) {
+            PortfolioWorkspace.scope = b.dataset.workspaceScope;
+            PortfolioWorkspace.step = b.dataset.workspaceScope === 'screener' ? 'diagnosis' : 'data';
+            PortfolioWorkspace.tool = b.dataset.workspaceScope === 'aggregate' ? 'aggregate' : b.dataset.workspaceScope === 'screener' ? 'screener' : 'main';
+            if (b.dataset.workspaceScope === 'screener') showPortfolioSubtab('screener');
+        }
         if (b.dataset.workspaceStep) PortfolioWorkspace.step = b.dataset.workspaceStep;
+        if (b.dataset.workspaceStep === 'diagnosis' && PortfolioWorkspace.scope === 'screener') showPortfolioSubtab('screener');
         if (b.dataset.workspaceTool) { PortfolioWorkspace.tool = b.dataset.workspaceTool; if (b.dataset.workspaceTool !== 'aggregate') showPortfolioSubtab(b.dataset.workspaceTool); }
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
     });

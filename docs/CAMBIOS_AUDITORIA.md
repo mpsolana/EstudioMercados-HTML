@@ -9,6 +9,13 @@
 
 ## Cambios realizados
 
+### Tercera revision: navegacion del screener y agregados
+
+- Screener tiene su propia pestana principal, junto a Analisis Inicial, Cartera individual y Posiciones agregadas. Se abre directamente en el screener y conserva acceso a Datos para cargar el universo.
+- Retirado Screener de las herramientas internas de Posiciones agregadas. Se mantienen sus filtros y datos compartidos.
+- Posiciones agregadas muestra solo Datos, Diagnostico e Informe. Propuesta queda exclusivamente en Analisis Inicial; un estado antiguo de propuesta agregada se reconduce a Diagnostico, sin mostrar dos accesos al mismo contenido.
+- Pruebas de navegador ampliadas para verificar separacion de paneles, paso activo, carga de datos y ausencia del acceso duplicado, en escritorio y movil.
+
 ### Segunda revision: ocho ajustes solicitados
 
 1. Ayuda al pie en Cartera individual: explica rebalanceo, coste por volumen (pb), tipo libre de riesgo, moneda base y la confirmacion de historicos propios. Los controles quedan vinculados a sus descripciones para lectores de pantalla.
