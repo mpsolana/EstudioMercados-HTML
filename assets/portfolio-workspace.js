@@ -38,7 +38,7 @@ function invalidatePortfolioReports() {
 }
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
-    const steps = w.scope === 'initial' ? ['data','proposal','report'] : w.scope === 'screener' ? ['data','diagnosis'] : ['data','diagnosis','report'];
+    const steps = w.scope === 'initial' ? ['data','proposal','metrics','report'] : w.scope === 'screener' ? ['data','diagnosis'] : ['data','diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[1];
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
@@ -46,6 +46,7 @@ function portfolioWorkflowRefresh() {
     if (w.step === 'data') show('workspaceData');
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
+    if (w.step === 'metrics' && w.scope === 'initial') show('workspaceUniverseMetrics');
     if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
     document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope === 'screener';
     document.querySelectorAll('[data-workspace-tool]').forEach(b => {
@@ -57,6 +58,7 @@ function portfolioWorkflowRefresh() {
         b.setAttribute('aria-current', b.dataset.workspaceStep === w.step ? 'step' : 'false');
         b.hidden = !steps.includes(b.dataset.workspaceStep);
         if (b.dataset.workspaceStep === 'diagnosis') b.textContent = w.scope === 'screener' ? '02 Screener' : '02 Diagnostico';
+        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '04 Informe' : '03 Informe';
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
@@ -102,6 +104,7 @@ function initializePortfolioWorkspace() {
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="proposal"]').textContent = '02 Analisis inicial';
     shell.querySelector('[data-workspace-step="report"]').textContent = '03 Informe';
+    shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="metrics">03 Comparativa universo</button>');
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
     reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
     reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);
@@ -153,6 +156,8 @@ function initializePortfolioWorkspace() {
     root.querySelectorAll('#portfolioSubtabContent-funds button').forEach(button => { if (/generateFundProposalReport|downloadFundProposalReportPdf/.test(button.getAttribute('onclick') || '')) button.hidden = true; });
     const proposal = document.getElementById('fundProposalStatus').parentElement;
     proposal.id = 'workspaceProposal'; proposal.dataset.workspacePanel = ''; proposal.classList.add('workspace-panel'); root.append(proposal);
+    const metrics = document.getElementById('fundUniverseCompareStatus').parentElement;
+    metrics.id = 'workspaceUniverseMetrics'; metrics.dataset.workspacePanel = ''; metrics.classList.add('workspace-panel'); root.append(metrics);
     document.getElementById('fundProposalPortfolioInput').insertAdjacentHTML('beforebegin','<button type="button" class="initial-origin-button" onclick="InitialAnalysis.useLoadedPortfolio()">Usar cartera scoring importada</button>');
     root.append(help);
     root.addEventListener('click', event => {
@@ -167,6 +172,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceStep === 'diagnosis' && PortfolioWorkspace.scope === 'screener') showPortfolioSubtab('screener');
         if (b.dataset.workspaceTool) { PortfolioWorkspace.tool = b.dataset.workspaceTool; if (b.dataset.workspaceTool !== 'aggregate') showPortfolioSubtab(b.dataset.workspaceTool); }
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
+        if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
     root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel]')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {

@@ -43,6 +43,17 @@ const fs = require('node:fs');
         assert.equal(await page.locator('[data-workspace-step="proposal"]').isVisible(),false);
         assert.equal(await page.locator('button:has-text("Word")').count(),0);
         await page.locator('[data-workspace-scope="initial"]').click();
+        await page.locator('[data-workspace-step="metrics"]').click();
+        assert.ok(await page.locator('#workspaceUniverseMetrics').isVisible());
+        assert.equal(await page.locator('#portfolioSubtabContent-funds #fundUniverseCompareChart').count(),0);
+        assert.equal(await page.locator('[data-workspace-step="metrics"]').getAttribute('aria-current'),'step');
+        await page.locator('[data-workspace-scope="individual"]').click();
+        await page.locator('[data-workspace-step="diagnosis"]').click();
+        await page.locator('[data-workspace-tool="funds"]').click();
+        assert.equal(await page.locator('#workspaceUniverseMetrics').isVisible(),false);
+        assert.equal(await page.locator('[data-workspace-step="metrics"]').isVisible(),false);
+        assert.ok(await page.locator('#fundCompareChart').isVisible());
+        await page.locator('[data-workspace-scope="initial"]').click();
         const checks = await page.evaluate(() => {
             const weights = parseFundProposalInput('ES0000000001;1\nES0000000002;99').map(r => r.weight);
             const origin = { isin:'ES0000000001', name:'Fondo origen A EUR', category:'Bonos', score:9, ter:1, aum:100, ret5:4, risk5:6 };

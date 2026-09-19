@@ -1,0 +1,61 @@
+/* Shared application surfaces. Financial cell colours and chart series retain their meaning. */
+:root{--ink:#202933;--muted:#586675;--line:#d7dde3;--paper:#fff;--canvas:#f3f5f7;--accent:#24577e;--accent-hover:#193f5c;--tint:#edf3f8}
+body{background:var(--canvas)!important;color:var(--ink)!important;font-family:Arial,Helvetica,sans-serif!important;letter-spacing:0}
+body>nav{background:#17232f!important;box-shadow:none!important;border-bottom:1px solid #3c4854;min-height:64px}
+body>nav+div{background:#263440!important;box-shadow:none!important}
+.top-nav-btn{font-size:13px;padding:12px 16px;color:#d2dae1;border-radius:0}
+.top-nav-btn.active{color:#fff;border-bottom-color:#95b8d4;background:#ffffff0d}
+.top-nav-btn:hover{color:#fff;background:#ffffff12}
+.app-section{line-height:1.5}
+.app-section .container{max-width:1536px}
+.app-section :is(h1,h2,h3,h4,h5){letter-spacing:0!important;color:var(--ink);font-weight:600!important;overflow-wrap:break-word}
+.app-section h2{font-size:21px!important;text-transform:none!important}
+.app-section :is(h3,h4){font-size:15px!important;text-transform:none!important}
+.app-section :is(h2,h3,h4)[class*="border-"],.app-section div:has(>h2)[class*="border-b"]{border-color:var(--line)!important}
+.app-section :is(h2,h3,h4) i,.app-section div:has(>h2)>i{color:var(--accent)!important;font-size:18px}
+.app-section div:has(>h3)[class*="border-b"],.app-section div.space-y-6[class*="border-t"]{border-color:var(--line)!important}
+.app-section div:has(>h3)>i{color:var(--accent)!important;font-size:18px}
+.app-section [class*="tracking-"]{letter-spacing:0!important}
+.app-section :is(.shadow,.shadow-sm,.shadow-md,.shadow-lg,.shadow-xl){box-shadow:none!important}
+.app-section :is(.rounded-lg,.rounded-xl,.rounded-2xl){border-radius:4px!important}
+/* Full-width sections are bands; chart grids retain a subtle separator. */
+.app-section .container>.bg-white,.app-section .space-y-6>.bg-white,.app-section .space-y-8>.bg-white,.app-section .space-y-12>.bg-white{border:0!important;border-radius:0!important;border-bottom:1px solid var(--line)!important;background:var(--paper)!important}
+.app-section .bg-white .bg-white:not(.absolute){box-shadow:none!important;border-radius:0!important}
+.app-section :is(.bg-indigo-50,.bg-purple-50,.bg-violet-50,.bg-cyan-50,.bg-sky-50,.bg-blue-50){background:var(--tint)!important}
+.app-section :is(.bg-slate-50,.bg-gray-50,.bg-slate-100,.bg-gray-100){background:var(--canvas)!important}
+.app-section :is(.text-indigo-600,.text-indigo-700,.text-indigo-800,.text-purple-600,.text-purple-700,.text-cyan-600,.text-sky-600,.text-blue-600,.text-blue-700){color:var(--accent)!important}
+.app-section :is(.text-slate-400,.text-gray-400,.text-slate-500,.text-gray-500){color:var(--muted)!important}
+.app-section div:is(.bg-slate-800,.bg-slate-900).text-white{background:var(--canvas)!important;color:var(--ink)!important;border-bottom:1px solid var(--line)}
+.app-section div:is(.bg-slate-800,.bg-slate-900).text-white .text-slate-300{color:var(--muted)!important}
+.app-section :is(button,label.cursor-pointer){border-radius:3px;transition:background-color .15s,border-color .15s;white-space:normal;overflow-wrap:break-word;max-width:100%}
+.app-section :is(button,label.cursor-pointer).text-white{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
+.app-section :is(button,label.cursor-pointer).text-white:hover{background:var(--accent-hover)!important}
+.app-section button:disabled{opacity:.5;cursor:not-allowed}
+.app-section :is(button,input,select,textarea,a):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.app-section :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea){border-color:#b9c4ce!important;border-radius:3px!important;background:#fff;color:var(--ink);max-width:100%;min-width:0;font-size:13px}
+.app-section :is(input[type=checkbox],input[type=radio],input[type=range]){accent-color:var(--accent)}
+.app-section :is(input,textarea)::placeholder{color:#697582;opacity:1}
+.app-section table{font-variant-numeric:tabular-nums;border-collapse:collapse}
+.app-section thead{background:#edf0f3!important;color:#465362!important}
+.app-section th{font-weight:600;letter-spacing:0!important;text-transform:none;font-size:12px}
+.app-section :is(td,th){border-color:var(--line)}
+.app-section tbody tr{border-bottom-color:#e5e9ed}
+.app-section tbody tr:hover{outline:1px solid #c3d1dd;outline-offset:-1px}
+.app-section .grid>*{min-width:0}
+.app-section .js-plotly-plot .plotly{font-family:Arial,Helvetica,sans-serif!important}
+.app-section .absolute[class*="shadow"]{box-shadow:0 4px 16px #17232f1f!important;border:1px solid var(--line);border-radius:4px!important}
+.workspace-heading h2{font-size:22px!important}
+.workspace-steps{gap:18px}
+.workspace-steps button{white-space:normal!important;text-align:left;min-height:44px}
+.workspace-scope button[aria-pressed=true],.workspace-tools button[aria-pressed=true]{background:var(--tint);color:var(--ink);border-color:#737b84}
+#workspaceUniverseMetrics{border:0;border-radius:0;box-shadow:none;padding:18px 0}
+@media(max-width:700px){
+ .app-section>.container{padding:12px}
+ .app-section h2{font-size:19px!important}
+ .app-section :is(.p-6,.p-8){padding:16px}
+ .workspace-steps{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px}
+ .workspace-heading{gap:14px}
+ .top-nav-btn{padding:12px;font-size:12px}
+ #workspaceUniverseMetrics .absolute{max-width:calc(100vw - 64px)}
+}
+@media(prefers-reduced-motion:reduce){.tab-content{animation:none}.app-section *{scroll-behavior:auto!important;transition:none!important}}

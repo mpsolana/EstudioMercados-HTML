@@ -129,6 +129,7 @@
             border-bottom-color: #60a5fa;
         }
     </style>
+    <link rel="stylesheet" href="assets/professional-theme.css">
 </head>
 
 <body class="bg-slate-100 text-slate-800 min-h-screen font-sans flex flex-col">
@@ -1291,7 +1292,7 @@
                             <div><label class="text-xs uppercase font-bold text-slate-500">Eje Y</label><select id="fundUniverseCompareYAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
                             <div><label class="text-xs uppercase font-bold text-slate-500">Tamaño burbuja</label><select id="fundUniverseCompareZAxis" onchange="renderFundUniverseMetricComparison()" class="mt-1 w-full p-2 border border-slate-300 rounded text-sm bg-white"></select></div>
                         </div>
-                        <div id="fundUniverseCompareStatus" class="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Carga primero el universo/ranking interno desde Scoring de Cartera.</div><div id="fundUniverseCompareChart" class="w-full h-[480px] border border-slate-100 rounded mb-4"></div>
+                        <div id="fundUniverseCompareStatus" class="mb-3 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Carga primero el universo/ranking interno desde Datos.</div><div id="fundUniverseCompareChart" class="w-full h-[480px] border border-slate-100 rounded mb-4"></div>
                         <div class="overflow-x-auto border border-slate-100 rounded"><table class="min-w-[1100px] w-full text-xs text-slate-600"><thead id="fundUniverseCompareHead" class="bg-slate-100 text-[11px] uppercase text-slate-500"></thead><tbody id="fundUniverseCompareBody" class="divide-y divide-slate-100"></tbody></table></div>
                     </div>
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -8248,7 +8249,7 @@
                             válido procedente de Yahoo! Finance (ej: AAPL, AAPL.MX para internacionales).</li>
                         <li><strong>Define la ventana temporal:</strong> Modifica la fecha de origen si deseas observar
                             comportamientos puntuales.</li>
-                        <li><strong>Inicia el Cálculo:</strong> Pulsa sobre el botón rojo de ejecución y espera a que la
+                        <li><strong>Inicia el Cálculo:</strong> Pulsa Ejecutar Análisis y espera a que la
                             señal visual del "Loader" termine. Dependiendo de los servidores remotos de datos puede
                             tomar 2 a 5 segundos.</li>
                         <li><strong>Evalúa las correlaciones:</strong> El panel superior de visualizaciones tiene

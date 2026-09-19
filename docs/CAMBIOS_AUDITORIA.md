@@ -9,6 +9,15 @@
 
 ## Cambios realizados
 
+### Cuarta revision: comparativa inicial y estilo global
+
+- Comparativa por metricas del universo trasladada a una pestana propia de Analisis Inicial: Datos, Analisis inicial, Comparativa universo e Informe. Conserva filtros, seleccion de fondos, ejes, tabla y datos compartidos. La comparativa historica sigue en Cartera individual.
+- Hoja de estilo comun para Mercados, Valoraciones Relativas, Macro, Analisis Individual, Analisis Cartera y Ayuda: azules, grises, blancos y texto oscuro; tipografia, botones, formularios, tablas y cabeceras coherentes.
+- Secciones mas planas, sin sombras decorativas y con separadores discretos. Desplegables conservan elevacion para distinguirlos del contenido. Cabeceras de informes con fondo claro y contraste legible.
+- Se conservan colores semanticos de rentabilidad, alertas, cuartiles y series graficas; no se modifican calculos ni fuentes de datos.
+- Navegacion inicial adaptable a movil, foco de teclado visible y estados activos conservados.
+- Verificacion: 13 pruebas unitarias, sintaxis, regresion de navegador con los tres PDF y capturas de las seis secciones a 1440 y 390 px. Las capturas generales no consultan datos financieros en vivo; la regresion utiliza datos sinteticos y Excel de prueba.
+
 ### Tercera revision: navegacion del screener y agregados
 
 - Screener tiene su propia pestana principal, junto a Analisis Inicial, Cartera individual y Posiciones agregadas. Se abre directamente en el screener y conserva acceso a Datos para cargar el universo.
