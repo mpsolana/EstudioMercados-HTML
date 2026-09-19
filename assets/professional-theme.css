@@ -1,5 +1,14 @@
 /* Shared application surfaces. Financial cell colours and chart series retain their meaning. */
 :root{--ink:#202933;--muted:#586675;--line:#d7dde3;--paper:#fff;--canvas:#f3f5f7;--accent:#24577e;--accent-hover:#193f5c;--tint:#edf3f8}
+.app-section .financial-q1{background:#204f78!important;color:#fff!important}
+.app-section .financial-q2{background:#a7c2d7!important;color:#203b50!important}
+.app-section .financial-q3{background:#dde6ed!important;color:#34495a!important}
+.app-section .financial-q4{background:#f0f2f4!important;color:#536170!important}
+.app-section table :is(.text-green-500,.text-green-600,.text-green-700,.text-green-800,.text-emerald-600,.text-emerald-700,.text-emerald-800){color:#247354!important}
+.app-section table :is(.text-red-500,.text-red-600,.text-red-700,.text-red-800,.text-rose-600,.text-rose-700){color:#b34b50!important}
+.app-section table :is(.bg-green-50,.bg-emerald-50,.bg-green-100,.bg-emerald-100){background:#e9f3ee!important}
+.app-section table :is(.bg-red-50,.bg-rose-50,.bg-red-100,.bg-rose-100){background:#f8eaeb!important}
+.app-section table :is(.bg-lime-50,.bg-lime-100,.bg-orange-50,.bg-orange-100,.bg-yellow-50,.bg-yellow-100){background:#f1f3f5!important}
 body{background:var(--canvas)!important;color:var(--ink)!important;font-family:Arial,Helvetica,sans-serif!important;letter-spacing:0}
 body>nav{background:#17232f!important;box-shadow:none!important;border-bottom:1px solid #3c4854;min-height:64px}
 body>nav+div{background:#263440!important;box-shadow:none!important}

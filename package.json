@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "check": "node scripts/check-syntax.cjs",
-    "test:browser": "node tests/browser.cjs"
+    "test:browser": "node tests/browser.cjs",
+    "test:visuals": "node tests/financial-visuals-browser.cjs"
   },
   "engines": { "node": ">=20" }
 }

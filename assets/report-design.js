@@ -14,7 +14,9 @@ const ReportDesign = (() => {
         .report th{background:#f0f3f6!important;color:#435466!important;border-right:0!important;font-size:10px!important;letter-spacing:0!important;text-transform:none!important}
         .report td{font-size:10px!important;line-height:1.45!important;border-bottom:1px solid #e5e9ed!important}
         .report table{table-layout:auto!important}.report .isin-cell{font-size:9px!important;white-space:normal!important;overflow:visible!important}
-        .report .q1,.report .q2,.report .q3,.report .q4,.report .badge{background:#eef2f6!important;color:#263342!important}
+        .report .badge{background:#eef2f6!important;color:#263342!important}
+        ${FinancialVisuals.quartiles.map((q,i)=>`.report .q${i+1},.proposal-report .q${i+1}{background:${q.background}!important;color:${q.color}!important}`).join('')}
+        .report .report-good,.report .good{color:#247354!important}.report .report-bad,.report .bad{color:#b34b50!important}
         .report .analysis-note,.report .method-note{background:white!important;border:0!important;padding:6px 0!important;color:#687787!important}
         .report .indented{text-indent:0!important;text-align:left!important}.report p{font-size:11px!important;line-height:1.65!important}
         .report footer{border-top:1px solid #dce2e8!important;color:#687787!important;padding-top:12px!important;font-size:10px!important}
@@ -106,6 +108,8 @@ const ReportDesign = (() => {
             const doc = new DOMParser().parseFromString(html,'text/html');
             doc.querySelectorAll('script,style,colgroup').forEach(el => el.remove());
             doc.body.querySelectorAll('*').forEach(el => { el.removeAttribute('style'); el.removeAttribute('width'); el.removeAttribute('height'); });
+            FinancialVisuals.quartiles.forEach((q,i)=>doc.querySelectorAll(`.q${i+1}`).forEach(el=>el.setAttribute('style',`background-color:${q.background};color:${q.color}`)));
+            for (const [selector,color] of [['.report-good,.good',FinancialVisuals.colors.positive],['.report-bad,.bad',FinancialVisuals.colors.negative]]) doc.querySelectorAll(selector).forEach(el=>el.style.color=color);
             doc.querySelectorAll('.summary').forEach(summary => {
                 const cells = [...summary.children].filter(el => el.querySelector('strong'));
                 if (!cells.length) return;

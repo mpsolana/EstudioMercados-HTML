@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="docTitle">Analyzer v13</title>
     <script src="assets/finance-core.js"></script>
+    <script src="assets/financial-visuals.js"></script>
     <script src="assets/simulation-engine.js"></script>
     <script src="assets/market-data.js"></script>
     <script src="assets/fund-selector.js"></script>
@@ -1104,7 +1105,7 @@
                                     <tbody id="aggregatePositionsTableBody" class="divide-y divide-slate-100"></tbody>
                                 </table>
                             </div>
-                            <p class="mt-2 text-[11px] text-slate-500">* Los colores de las metricas representan el cuartil dentro de la categoria del ranking cargado: verde = Q1, lima = Q2, naranja = Q3, rojo = Q4.</p>
+                            <p class="mt-2 text-[11px] text-slate-500">* Cuartiles dentro de la categoria: azul oscuro Q1, azul medio Q2, gris azulado Q3 y gris claro Q4. Q1 es el mejor cuartil; no indica necesariamente rentabilidad positiva.</p>
                         </div>
 
                         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
@@ -1874,7 +1875,7 @@
                 }
                 const note = document.getElementById('portfolioBenchmarkNote');
                 if (note) note.textContent = filteredComparison?.length ? `Comparacion base 100 desde ${chartX[0].toISOString().slice(0, 10)}. Alineacion por periodos ${frequencyLabel(comparisonFrequency(portfolioData, benchmark.data)).toLowerCase()}, sin rellenar periodos ausentes.` : (benchmark ? 'Benchmark sin periodos comunes suficientes en el horizonte seleccionado.' : '');
-                Plotly.newPlot('portfolioChart', traces, {
+                FinancialVisuals.newPlot('portfolioChart', traces, {
                     title: filteredComparison?.length ? 'Evolucion cartera vs benchmark (Base 100)' : (mode === 'real' ? 'Evolucion real de la cartera' : 'Evolucion cartera (Backtest)'),
                     margin: { t: 40, l: 60, r: 20, b: 40 },
                     yaxis: { title: filteredComparison?.length ? 'Base 100' : 'Patrimonio', domain: [0.33, 1] },
@@ -2436,7 +2437,7 @@
                 }
                 const assetNorm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.asset })));
                 const benchNorm = normalizeBase100(rowsVisible.map(r => ({ date: r.date, price: r.bench })));
-                Plotly.newPlot('fundCompareChart', [
+                FinancialVisuals.newPlot('fundCompareChart', [
                     { x: assetNorm.map(d => d.date), y: assetNorm.map(d => d.price), mode: 'lines', name: asset.label, line: { color: '#2563eb', width: 2.4 } },
                     { x: benchNorm.map(d => d.date), y: benchNorm.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 2, dash: 'dot' } }
                 ], {
@@ -2541,7 +2542,7 @@
                     renderMassiveFundComparisonTables(selectedAsset ? [selectedAsset] : [], bench);
                     return;
                 }
-                Plotly.newPlot('massiveFundCompareChart', traces, {
+                FinancialVisuals.newPlot('massiveFundCompareChart', traces, {
                     title: `Comparador masivo: ${category} vs ${bench.label}`,
                     yaxis: { title: 'Base 100' },
                     margin: { t: 45, l: 55, r: 20, b: 45 },
@@ -2637,7 +2638,7 @@
                     renderFundCategoryComparisonTables(assets, bench, category);
                     return;
                 }
-                Plotly.newPlot('fundCompareChart', traces, {
+                FinancialVisuals.newPlot('fundCompareChart', traces, {
                     title: `Comparador por categoria: ${category} vs ${bench.label}`,
                     yaxis: { title: 'Base 100' },
                     margin: { t: 45, l: 55, r: 20, b: 45 },
@@ -3182,7 +3183,7 @@
                 if (!Number.isFinite(value)) return '<td class="px-3 py-2 text-right text-slate-400">-</td>';
                 const proposedValue = proposed && proposed[metric.key];
                 const q = metricQuartile(record, metric.key);
-                const qCls = q === 1 ? 'bg-emerald-100 text-emerald-900' : q === 2 ? 'bg-lime-100 text-lime-900' : q === 3 ? 'bg-orange-100 text-orange-900' : q === 4 ? 'bg-red-100 text-red-900' : 'bg-slate-50 text-slate-700';
+                const qCls = q ? `financial-q${q}` : 'bg-slate-50 text-slate-700';
                 let relCls = '';
                 if (proposed && record.isin !== proposed.isin && Number.isFinite(proposedValue)) {
                     const better = metric.lowerBetter ? value < proposedValue : value > proposedValue;
@@ -3255,7 +3256,7 @@
                     const label = `${escapeHtml(role)}: ${escapeHtml(r.isin)}<br>${nameLines.map(escapeHtml).join('<br>')}`;
                     traces.push({ x: [r[xKey]], y: [r[yKey]], mode: 'markers+text', type: 'scatter', name: label, text: [label], textfont: { size: 10 }, textposition: `${r[yKey] > avg(yKey) ? 'bottom' : 'top'} ${r[xKey] < avg(xKey) ? 'right' : 'left'}`, marker: { size: Math.max(16, sizeFor(r)), color: colors[idx % colors.length], line: { color: '#0f172a', width: 1.2 } }, hovertemplate: '<b>' + escapeHtml(r.name) + '</b><br>' + escapeHtml(r.isin) + '<br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>' });
                 });
-                Plotly.newPlot(el, traces, { title: 'Universo ' + (scatterCategory || ''), xaxis: { title: metricLabel(xKey), zeroline: false }, yaxis: { title: metricLabel(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.28 }, plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff' }, { responsive: true });
+                FinancialVisuals.newPlot(el, traces, { title: 'Universo ' + (scatterCategory || ''), xaxis: { title: metricLabel(xKey), zeroline: false }, yaxis: { title: metricLabel(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.28 }, plot_bgcolor: '#ffffff', paper_bgcolor: '#ffffff' }, { responsive: true });
             }
 
             function parseFundProposalInput(text) {
@@ -3394,7 +3395,7 @@
                 const simpleColor = positive ? '#7c8e9f' : '#b7791f';
                 const compColor = positive ? '#215a90' : '#b42318';
                 const labels = data.years.map(y => `${y}A`);
-                Plotly.newPlot(el, [
+                FinancialVisuals.newPlot(el, [
                     {
                         x: labels,
                         y: data.simple,
@@ -3502,7 +3503,7 @@
                 traces.push({ x: pairs.map(r => r.current.ret5), y: pairs.map(r => r.current.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos actuales', text: pairs.map(r => r.current.name), textposition: 'top center', marker: { color: '#2563eb', size: pairs.map(r => Math.max(12, Math.min(32, 8 + (r.current.ter || 0) * 8))), line: { color: '#0f172a', width: 1 } } });
                 const changedPairs = pairs.filter(r => r.proposed.isin !== r.current.isin);
                 if (changedPairs.length) traces.push({ x: changedPairs.map(r => r.proposed.ret5), y: changedPairs.map(r => r.proposed.risk5), mode: 'markers+text', type: 'scatter', name: 'Fondos propuestos', text: changedPairs.map(r => r.proposed.name), textposition: 'bottom center', marker: { color: '#64748b', size: changedPairs.map(r => Math.max(12, Math.min(32, 8 + (r.proposed.ter || 0) * 8))), line: { color: '#263342', width: 1 } } });
-                Plotly.newPlot(el, traces, { title: 'Propuesta: Retorno 5Y vs Riesgo 5Y (tamaño = TER)', xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 55, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
+                FinancialVisuals.newPlot(el, traces, { title: 'Propuesta: Retorno 5Y vs Riesgo 5Y (tamaño = TER)', xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 55, l: 60, r: 30, b: 55 }, legend: { orientation: 'h', y: -0.18 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
             }
 
             function fundProposalMetricReportCell(record, metric, proposed) {
@@ -3553,7 +3554,7 @@
                 ];
                 if (row.proposed.isin !== row.current.isin && Number.isFinite(row.proposed.ret5) && Number.isFinite(row.proposed.risk5)) traces.push({ x: [row.proposed.ret5], y: [row.proposed.risk5], mode: 'markers+text', type: 'scatter', name: 'Propuesto', text: ['Propuesto'], textposition: 'bottom center', marker: { color: '#64748b', size: 16, line: { color: '#263342', width: 1 } } });
                 try {
-                    await Plotly.newPlot(tmp, traces, { title: `${row.isin} - Retorno 5Y vs Riesgo 5Y`, xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 50, l: 60, r: 20, b: 55 }, legend: { orientation: 'h', y: -0.2 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { staticPlot: true, displayModeBar: false });
+                    await FinancialVisuals.newPlot(tmp, traces, { title: `${row.isin} - Retorno 5Y vs Riesgo 5Y`, xaxis: { title: 'Retorno 5Y (%)' }, yaxis: { title: 'Riesgo 5Y (%)' }, margin: { t: 50, l: 60, r: 20, b: 55 }, legend: { orientation: 'h', y: -0.2 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { staticPlot: true, displayModeBar: false });
                     return await Plotly.toImage(tmp, { format: 'png', width: 760, height: 430, scale: 2 });
                 } catch (err) {
                     console.warn('No se pudo capturar nube de propuesta', err);
@@ -3989,7 +3990,7 @@
             function quartileCell(value, record, metricKey, isPercentPoint = true) {
                 if (!Number.isFinite(value)) return '<td class="px-3 py-2 text-right text-slate-400">-</td>';
                 const q = metricQuartile(record, metricKey);
-                const cls = q === 1 ? 'bg-emerald-100 text-emerald-900' : q === 2 ? 'bg-lime-100 text-lime-900' : q === 3 ? 'bg-orange-100 text-orange-900' : q === 4 ? 'bg-red-100 text-red-900' : '';
+                const cls = q ? `financial-q${q}` : '';
                 const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<td class="px-3 py-2 text-right font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</td>`;
             }
@@ -3997,7 +3998,7 @@
             function quartileValueHtml(value, record, metricKey, isPercentPoint = true) {
                 if (!Number.isFinite(value)) return '<span class="text-slate-400">-</span>';
                 const q = metricQuartile(record, metricKey);
-                const cls = q === 1 ? 'bg-emerald-100 text-emerald-900' : q === 2 ? 'bg-lime-100 text-lime-900' : q === 3 ? 'bg-orange-100 text-orange-900' : q === 4 ? 'bg-red-100 text-red-900' : 'bg-slate-50 text-slate-800';
+                const cls = q ? `financial-q${q}` : 'bg-slate-50 text-slate-800';
                 const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<span class="inline-flex justify-end min-w-[72px] rounded px-2 py-1 font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</span>`;
             }
@@ -4235,7 +4236,7 @@
                 const zMin = Math.min(...zValues), zMax = Math.max(...zValues);
                 const sizes = zValues.map(v => zMax > zMin ? 8 + ((v - zMin) / (zMax - zMin)) * 28 : 14);
                 const metricLabel = key => fundScreenerColumns().find(c => c.key === key)?.label || key;
-                Plotly.newPlot(el, [{
+                FinancialVisuals.newPlot(el, [{
                     x: source.map(r => r[xKey]),
                     y: source.map(r => r[yKey]),
                     mode: 'markers',
@@ -4442,7 +4443,7 @@
                 const zMin = Math.min(...zVals), zMax = Math.max(...zVals);
                 const sizes = zVals.map(v => zMax > zMin ? 10 + ((v - zMin) / (zMax - zMin)) * 32 : 16);
                 const label = key => assetClassMetricConfigs().find(c => c.key === key)?.label || key;
-                Plotly.newPlot(el, [{
+                FinancialVisuals.newPlot(el, [{
                     x: source.map(r => r[xKey]),
                     y: source.map(r => r[yKey]),
                     mode: 'markers',
@@ -4462,7 +4463,7 @@
                 const horizons = [{ label: '1Y', ret: 'ret1', risk: 'risk1' }, { label: '3Y', ret: 'ret3', risk: 'risk3' }, { label: '5Y', ret: 'ret5', risk: 'risk5' }, { label: '10Y', ret: 'ret10', risk: 'risk10' }];
                 const valid = horizons.filter(h => Number.isFinite(record[`${h.ret}Mean`]) || Number.isFinite(record[`${h.risk}Mean`]));
                 if (!valid.length) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin retornos para esta categoría.</div>'; return; }
-                Plotly.newPlot(el, [
+                FinancialVisuals.newPlot(el, [
                     { x: valid.map(h => h.label), y: valid.map(h => {
                         const min = Number.isFinite(record[`${h.ret}Min`]) ? record[`${h.ret}Min`] : 0;
                         const max = Number.isFinite(record[`${h.ret}Max`]) ? record[`${h.ret}Max`] : min;
@@ -5718,7 +5719,7 @@
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Sin exposicion por bloque.</div>';
                     return;
                 }
-                Plotly.newPlot(el, [{
+                FinancialVisuals.newPlot(el, [{
                     labels: [...byCat.keys()],
                     values: [...byCat.values()],
                     type: 'pie',
@@ -6262,7 +6263,7 @@
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Selecciona activos con datos suficientes.</div>';
                     return;
                 }
-                Plotly.newPlot(el, traces, { title: 'Evolucion de activos en cartera (Base 100)', yaxis: { title: 'Base 100' }, margin: { t: 45, l: 55, r: 20, b: 45 }, legend: { orientation: 'h', y: -0.2 }, hovermode: 'x unified' }, { responsive: true });
+                FinancialVisuals.newPlot(el, traces, { title: 'Evolucion de activos en cartera (Base 100)', yaxis: { title: 'Base 100' }, margin: { t: 45, l: 55, r: 20, b: 45 }, legend: { orientation: 'h', y: -0.2 }, hovermode: 'x unified' }, { responsive: true });
             }
 
             function sliceSeriesByRange(series, range) {
@@ -6332,7 +6333,7 @@
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-12">Sin categorias resueltas.</div>';
                     return;
                 }
-                Plotly.newPlot(el, [{
+                FinancialVisuals.newPlot(el, [{
                     labels: [...byCat.keys()],
                     values: [...byCat.values()],
                     type: 'pie',
@@ -6598,7 +6599,7 @@
                 const traceMean = { x, y: rows.map(r => r.mean), type: 'scatter', mode: 'markers+text', name: 'Media', marker: { color: '#000080', size: 16, symbol: 'line-ew', line: { color: '#000080', width: 5 } }, text: rows.map(r => fmtPct(r.mean)), textposition: 'middle right', textfont: { color: '#000080', size: 12, family: 'Arial Black' }, hovertemplate: '%{x}<br>Media: %{y:.1%}<extra></extra>' };
                 const traceMax = { x, y: rows.map(r => r.max), type: 'scatter', mode: 'text', name: 'Máximo', text: rows.map(r => fmtPct(r.max)), textposition: 'top center', textfont: { color: '#008000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
                 const traceMin = { x, y: rows.map(r => r.min), type: 'scatter', mode: 'text', name: 'Mínimo', text: rows.map(r => fmtPct(r.min)), textposition: 'bottom center', textfont: { color: '#ff0000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
-                Plotly.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin], {
+                FinancialVisuals.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin], {
                     title: 'Rango de rentabilidades según el plazo de la inversión',
                     yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad' },
                     xaxis: { title: 'Plazo de la inversión' },
@@ -6610,7 +6611,7 @@
                 const values = [100];
                 portfolioReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
                 const dates = ['Inicio'].concat(assetAllocationState.dates);
-                Plotly.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'Evolución mensual de la asignación', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
+                FinancialVisuals.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'Evolución mensual de la asignación', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
             }
 
             function parseFlexibleAllocationDate(value) {
@@ -6890,7 +6891,7 @@
                         <thead><tr><th>ISIN orig.</th><th>ISIN sel.</th><th>Fondo</th><th>Peso</th><th>Cat.</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Ret 3Y</th><th>Risk 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
-                    <p class="method-note"><b>Metodología:</b> el score y TER ponderados usan la selección actual de cada fila, incluyendo proxies o recomendaciones aplicadas, y excluyen fondos marcados como excluidos. Los colores representan cuartiles frente a fondos de la misma categoría: verde Q1, lima Q2, naranja Q3 y rojo Q4.</p>
+                    <p class="method-note"><b>Metodología:</b> el score y TER ponderados usan la selección actual de cada fila, incluyendo proxies o recomendaciones aplicadas, y excluyen fondos marcados como excluidos. Cuartiles frente a fondos de la misma categoría: azul oscuro Q1, azul medio Q2, gris azulado Q3 y gris claro Q4. Q1 es el mejor cuartil, no necesariamente una rentabilidad positiva.</p>
                 </section>`;
             }
 
@@ -7704,7 +7705,7 @@
                 div.style.top = '0';
                 document.body.appendChild(div);
                 try {
-                    await Plotly.newPlot(div, traces, {
+                    await FinancialVisuals.newPlot(div, traces, {
                         title: `${category} vs ${bench.label}`,
                         yaxis: { title: 'Base 100' },
                         margin: { t: 45, l: 55, r: 20, b: 45 },
@@ -7825,7 +7826,7 @@
                 const colors = ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#475569', '#64748b', '#94a3b8'];
                 const trace = [{ labels, values, customdata: tickers, type: 'pie', hole: 0.35, marker: { colors }, hovertemplate: byCategory ? '%{label}<br>Peso: %{percent}<extra></extra>' : '%{label}<br>Ticker: %{customdata}<br>Peso: %{percent}<extra></extra>' }];
                 const layout = { height: 480, margin: { t: 20, l: 20, r: 220, b: 20 }, legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 10 } } };
-                Plotly.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
+                FinancialVisuals.newPlot('portfolioCompositionChart', trace, layout, { responsive: true });
             }
 
             // Update portfolio correlation matrix based on selected frequency
@@ -7883,7 +7884,7 @@
                 const text = z.map(row => row.map(val => Number.isFinite(val) ? val.toFixed(2) : '-'));
                 const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#0f172a'], [0.5, '#94a3b8'], [1, '#ffffff']], zmin: -1, zmax: 1, text, hoverinfo: 'x+y+z', texttemplate: '%{text}', textfont: { color: '#111827', size: 11 } }];
                 const layout = { height: Math.max(520, labels.length * 30 + 160), title: { text: `Ventana ${windowSize} periodo(s) · muestra ${sampleSize}`, font: { size: 12 } }, margin: { t: 45, l: 170, r: 45, b: 55 }, xaxis: { tickmode: 'array', tickvals: labels, ticktext: labels.map((_, i) => String(i + 1)), tickangle: 0 }, yaxis: { tickfont: { size: 10 }, tickmode: 'array', tickvals: labels, ticktext: labels.map((label, i) => `${i + 1}. ${String(label).slice(0, 19)}${String(label).length > 19 ? '…' : ''}`), autorange: 'reversed' } };
-                Plotly.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
+                FinancialVisuals.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
             }
 
             function renderPortfolioRollingCorrelation(tickers, baseReturns, windowSize) {
@@ -7923,7 +7924,7 @@
                 const avgX = [...allByIndex.keys()];
                 const avgY = avgX.map(k => getMean(allByIndex.get(k)));
                 traces.unshift({ x: avgX, y: avgY, mode: 'lines', name: 'Media pares', line: { width: 3, color: '#1d4ed8' }, hovertemplate: 'Media: %{y:.2f}<extra></extra>' });
-                Plotly.newPlot(chart, traces, { height: 520, title: { text: `Rolling correlation (${rollingWindow} periodo(s))`, font: { size: 14 } }, yaxis: { range: [-1, 1], title: 'Correlación' }, xaxis: { title: 'Fecha' }, margin: { t: 45, l: 55, r: 230, b: 55 }, showlegend: true, legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 9 } } }, { responsive: true });
+                FinancialVisuals.newPlot(chart, traces, { height: 520, title: { text: `Rolling correlation (${rollingWindow} periodo(s))`, font: { size: 14 } }, yaxis: { range: [-1, 1], title: 'Correlación' }, xaxis: { title: 'Fecha' }, margin: { t: 45, l: 55, r: 230, b: 55 }, showlegend: true, legend: { orientation: 'v', x: 1.02, y: 1, font: { size: 9 } } }, { responsive: true });
                 if (note) note.textContent = `${pairCount} pares calculados; línea azul = media de pares.`;
             }
             // --- FORECAST / MONTECARLO SIMULATIONS ---
@@ -8006,10 +8007,10 @@
                     const color = ['#06b6d4', '#0ea5a4', '#60a5fa', '#34d399', '#1e40af'][p];
                     traces.push({ x: monthsX, y, mode: 'lines', name, line: { color, dash: p === 2 ? 'solid' : 'dot' } });
                 }
-                Plotly.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y normalizado a capital inicial de proyeccion + 12 meses`, margin: { t: 40 }, xaxis: { title: 'Fecha' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
+                FinancialVisuals.newPlot('forecastBalanceChart', traces, { title: `Backtest ${backtestYears}y normalizado a capital inicial de proyeccion + 12 meses`, margin: { t: 40 }, xaxis: { title: 'Fecha' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
 
                 // Drawdown histogram
-                Plotly.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v => v * 100), type: 'histogram', marker: { color: '#ef4444' }, nbinsx: 20 }], { title: `Histograma Máx Drawdown (Simulado ${Math.round(histYears)}y) (%)`, xaxis: { title: 'Max. Drawdown (%)' } }, { responsive: true });
+                FinancialVisuals.newPlot('forecastDrawdownHist', [{ x: maxDrawdowns.map(v => v * 100), type: 'histogram', marker: { color: '#ef4444' }, nbinsx: 20 }], { title: `Histograma Máx Drawdown (Simulado ${Math.round(histYears)}y) (%)`, xaxis: { title: 'Max. Drawdown (%)' } }, { responsive: true });
 
                 // Performance summary: percentiles of end balance and max drawdown
                 const perfMetrics = {
@@ -8053,7 +8054,7 @@
                     const colors = ['#06b6d4', '#0ea5a4', '#60a5fa', '#34d399', '#1e40af'];
                     return { x: yearsX, y: ys, mode: 'lines', name: `${Math.round(p * 100)}th`, line: { color: colors[idx] } };
                 });
-                Plotly.newPlot('forecastLongTermChart', ltTraces, { title: `Evolución a largo plazo (${mcYears} años) - percentiles`, margin: { t: 40 }, xaxis: { title: 'Años' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
+                FinancialVisuals.newPlot('forecastLongTermChart', ltTraces, { title: `Evolución a largo plazo (${mcYears} años) - percentiles`, margin: { t: 40 }, xaxis: { title: 'Años' }, yaxis: { title: 'Balance (u.m.)' } }, { responsive: true });
 
                 // Also calculate historical metrics from full series (CAGR, vol)
                 const firstFullPrice = fullPrices[0];
@@ -9307,7 +9308,7 @@
                     document.getElementById('volatilityChart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>';
                     return;
                 }
-                Plotly.newPlot('volatilityChart', traces, { title: '^VIX vs ^MOVE', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Valor' } }, { responsive: true });
+                FinancialVisuals.newPlot('volatilityChart', traces, { title: '^VIX vs ^MOVE', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Valor' } }, { responsive: true });
             }
 
             function renderCurrenciesBase10() {
@@ -9324,7 +9325,7 @@
                     document.getElementById('currenciesBase10Chart').innerHTML = '<div class="text-sm text-gray-500 text-center py-12">Datos no disponibles</div>';
                     return;
                 }
-                Plotly.newPlot('currenciesBase10Chart', traces, { title: 'Divisas (Base 10 vs EUR)', margin: { t: 40, l: 60, r: 20, b: 40 }, legend: { orientation: 'h', y: -0.2 } }, { responsive: true });
+                FinancialVisuals.newPlot('currenciesBase10Chart', traces, { title: 'Divisas (Base 10 vs EUR)', margin: { t: 40, l: 60, r: 20, b: 40 }, legend: { orientation: 'h', y: -0.2 } }, { responsive: true });
             }
 
             // --- Top-level section switcher (Mercados / Individual / Cartera / Ayuda) ---
@@ -9737,7 +9738,7 @@
                     yaxis: { title: 'Retorno Acumulado (%)', tickformat: '.0%' },
                     margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true, legend: { x: 0, y: 1 }
                 };
-                Plotly.newPlot('seasonalityYoYChart', traces, layout, { responsive: true });
+                FinancialVisuals.newPlot('seasonalityYoYChart', traces, layout, { responsive: true });
                 const sorted = [...statsList].sort((a, b) => b.ytdPerf - a.ytdPerf);
                 document.getElementById('rankingYoYTableBody').innerHTML = sorted.map((r, i) => {
                     const rank = i + 1;
@@ -10043,7 +10044,7 @@
 
                 const traces = [trace1, trace2, trace3, trace4, trace5, trace6];
                 if (trace7) traces.push(trace7);
-                Plotly.newPlot('seasonalityDecilesChart', traces, layout, { responsive: true });
+                FinancialVisuals.newPlot('seasonalityDecilesChart', traces, layout, { responsive: true });
             }
 
             function renderMonthlyHeatmap(data) {
@@ -10215,7 +10216,7 @@
 
                 const height = Math.max(400, (years.length + 1) * 32 + 100);
 
-                Plotly.newPlot('monthlyHeatmapChart', [trace], {
+                FinancialVisuals.newPlot('monthlyHeatmapChart', [trace], {
                     margin: { t: 20, l: 70, r: 80, b: 40 },
                     xaxis: { side: 'bottom', fixedrange: true },
                     yaxis: { fixedrange: true, autorange: 'reversed', type: 'category' },
@@ -10294,7 +10295,7 @@
                     colorscale: [[0, '#1e3a8a'], [1, 'white']],
                     zmin: -1, zmax: 1, text: z.map(row => row.map(val => val.toFixed(2))), hoverinfo: 'x+y+z', texttemplate: "%{text}"
                 }];
-                Plotly.newPlot('corrMatrixChart', data, { title: 'Matriz de Correlación (Azul -1 a Blanco +1)', margin: { t: 50, l: 100, b: 100 }, height: 600 }, { responsive: true });
+                FinancialVisuals.newPlot('corrMatrixChart', data, { title: 'Correlación: gris -1, blanco 0, azul +1', margin: { t: 50, l: 100, b: 100 }, height: 600 }, { responsive: true });
             }
             function setupRollingUI(tickers) {
                 const selA = document.getElementById('rollAssetA'), selB = document.getElementById('rollAssetB');
@@ -10311,8 +10312,8 @@
                     const sliceA = retsA.slice(i - windowSize, i), sliceB = retsB.slice(i - windowSize, i);
                     rollingCorr.push(getCorrelation(sliceA, sliceB)); rollingDates.push(dates[i]);
                 }
-                Plotly.newPlot('rollingCorrChart', [{ x: rollingDates.map(d => d.toISOString().split('T')[0]), y: rollingCorr, mode: 'lines', line: { color: '#4f46e5', width: 2 }, name: 'Rolling Corr' }], { title: `Rolling Correlation (${windowSize})`, yaxis: { range: [-1.1, 1.1], title: 'Correlación' }, shapes: [{ type: 'line', x0: rollingDates[0], x1: rollingDates[rollingDates.length - 1], y0: 0, y1: 0, line: { color: 'black', dash: 'dot', width: 1 } }], margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
-                Plotly.newPlot('rollingHistChart', [{ x: rollingCorr, type: 'histogram', marker: { color: '#818cf8' }, nbinsx: 20 }], { title: 'Distribución', xaxis: { title: 'Correlación', range: [-1, 1] }, margin: { t: 40, l: 40, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('rollingCorrChart', [{ x: rollingDates.map(d => d.toISOString().split('T')[0]), y: rollingCorr, mode: 'lines', line: { color: '#4f46e5', width: 2 }, name: 'Rolling Corr' }], { title: `Rolling Correlation (${windowSize})`, yaxis: { range: [-1.1, 1.1], title: 'Correlación' }, shapes: [{ type: 'line', x0: rollingDates[0], x1: rollingDates[rollingDates.length - 1], y0: 0, y1: 0, line: { color: 'black', dash: 'dot', width: 1 } }], margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('rollingHistChart', [{ x: rollingCorr, type: 'histogram', marker: { color: '#818cf8' }, nbinsx: 20 }], { title: 'Distribución', xaxis: { title: 'Correlación', range: [-1, 1] }, margin: { t: 40, l: 40, r: 20, b: 40 } }, { responsive: true });
             }
 
             // --- VIX ANALYSIS ---
@@ -10344,7 +10345,7 @@
                 const xVix = vixRaw.map(d => d.date), yVix = vixRaw.map(d => d.price), currentVix = yVix[yVix.length - 1];
 
                 // Plot VIX Price
-                Plotly.newPlot('vixPriceChart', [
+                FinancialVisuals.newPlot('vixPriceChart', [
                     { x: xVix, y: yVix, type: 'scatter', mode: 'lines', line: { color: '#00008b', width: 1.5 }, name: `VIX: ${currentVix.toFixed(2)}` },
                     { x: [xVix[0], xVix[xVix.length - 1]], y: [threshold, threshold], mode: 'lines', line: { color: 'purple', dash: 'dash' }, name: `Nivel ${threshold}` }
                 ], { responsive: true });
@@ -10376,7 +10377,7 @@
                     hoverinfo: 'y+name'
                 }));
 
-                Plotly.newPlot('vixBarChart', traces, {
+                FinancialVisuals.newPlot('vixBarChart', traces, {
                     yaxis: { tickformat: '.1%', title: 'Rentabilidad' },
                     margin: { t: 40, l: 50, r: 20, b: 40 },
                     showlegend: true,
@@ -10386,7 +10387,7 @@
                 // VIX Histogram (Removed Normal Curve)
                 const histData = hist12M.map(r => r * 100);
 
-                Plotly.newPlot('vixHistogram', [
+                FinancialVisuals.newPlot('vixHistogram', [
                     { x: histData, type: 'histogram', marker: { color: '#00008b', opacity: 0.7 }, name: 'Frecuencia', nbinsx: 25 }
                 ], {
                     xaxis: { title: 'Retorno (%)' },
@@ -10399,7 +10400,7 @@
                 if (xs.length > 2) {
                     const reg = calculateRegressionStats(xs, ys);
                     const minX = Math.min(...xs), maxX = Math.max(...xs);
-                    Plotly.newPlot('vixScatterChart', [
+                    FinancialVisuals.newPlot('vixScatterChart', [
                         { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#3b82f6', size: 3, opacity: 0.4 }, name: 'Datos' },
                         { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: `Regresión` }
                     ], {
@@ -10442,7 +10443,7 @@
                 if (!data) return;
                 const { stats, hist6M } = data;
                 const oilX = oilRaw.map(d => d.date), oilY = oilRaw.map(d => d.price);
-                Plotly.newPlot('oilPriceChart', [{ x: oilX, y: oilY, type: 'scatter', mode: 'lines', line: { color: 'black', width: 1.5 }, name: 'Petróleo (CL=F)' }, { x: [oilX[0], oilX[oilX.length - 1]], y: [100, 100], type: 'scatter', mode: 'lines', line: { color: 'red', dash: 'dash', width: 2 }, name: 'Umbral 100' }], { title: 'Evolución Petróleo (CL=F)', yaxis: { title: 'Precio (USD)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
+                FinancialVisuals.newPlot('oilPriceChart', [{ x: oilX, y: oilY, type: 'scatter', mode: 'lines', line: { color: 'black', width: 1.5 }, name: 'Petróleo (CL=F)' }, { x: [oilX[0], oilX[oilX.length - 1]], y: [100, 100], type: 'scatter', mode: 'lines', line: { color: 'red', dash: 'dash', width: 2 }, name: 'Umbral 100' }], { title: 'Evolución Petróleo (CL=F)', yaxis: { title: 'Precio (USD)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
                 const tbody = document.getElementById('oilStatsTableBody');
                 const order = ['1 semana', '1 mes', '6 meses', '12 meses', '36 meses', '60 meses'];
                 const orderIndex = (label) => {
@@ -10473,7 +10474,7 @@
                     hoverinfo: 'y+name'
                 }));
 
-                Plotly.newPlot('oilBarChart', traces, {
+                FinancialVisuals.newPlot('oilBarChart', traces, {
 
                     yaxis: { tickformat: '.1%', title: 'Rentabilidad' },
                     margin: { t: 40, l: 50, r: 20, b: 40 },
@@ -10484,7 +10485,7 @@
                 // Oil Histogram (No curve)
                 const histData = hist6M.map(r => r * 100);
 
-                Plotly.newPlot('oilHistogram', [
+                FinancialVisuals.newPlot('oilHistogram', [
                     { x: histData, type: 'histogram', marker: { color: '#6b7280', opacity: 0.7 }, nbinsx: 20, name: 'Frecuencia' }
                 ], {
                     xaxis: { title: 'Rentabilidad (%)' },
@@ -10563,7 +10564,7 @@
                 const rates = merged.map(d => d.ratePrice);
                 const ratesMA = merged.map(d => d.rateMA);
 
-                Plotly.newPlot('ratesPriceChart', [
+                FinancialVisuals.newPlot('ratesPriceChart', [
                     { x: dates, y: rates, type: 'scatter', mode: 'lines', line: { color: 'black', width: 1.5 }, name: 'Tipos Corto Plazo (^IRX)' },
                     { x: dates, y: ratesMA, type: 'scatter', mode: 'lines', line: { color: 'red', width: 1.5, dash: 'dot' }, name: 'Media Móvil 200' }
                 ], { title: 'Evolución Histórica', yaxis: { title: 'Tasa/Rendimiento (%)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
@@ -10580,7 +10581,7 @@
             `).join('');
 
                 const colors = ['#ef4444', '#22c55e'];
-                Plotly.newPlot('ratesBarChart', [
+                FinancialVisuals.newPlot('ratesBarChart', [
                     { x: stats.map(s => s.regime), y: stats.map(s => s.annRet), type: 'bar', marker: { color: colors }, text: stats.map(s => fmtPct(s.annRet)), textposition: 'auto' }
                 ], { title: 'Régimen Trend Following Tipos Corto', yaxis: { tickformat: '.1%', title: 'Rentabilidad Anualizada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
             }
@@ -10657,7 +10658,7 @@
                 const allVals = zData.flat().filter(v => v !== null);
                 const maxAbs = allVals.length > 0 ? Math.max(...allVals.map(Math.abs)) : 10;
 
-                Plotly.newPlot('ratesHeatmapChart', [{
+                FinancialVisuals.newPlot('ratesHeatmapChart', [{
                     x: xBins.map(b => b.label),
                     y: yBins.map(b => b.label),
                     z: zData,
@@ -10696,7 +10697,7 @@
                     const ys = validPairs.map(p => p.forwardRet * 100);
                     const reg = calculateRegressionStats(xs, ys);
                     const minX = Math.min(...xs), maxX = Math.max(...xs);
-                    Plotly.newPlot('ratesScatterChart', [
+                    FinancialVisuals.newPlot('ratesScatterChart', [
                         { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#059669', opacity: 0.1 }, name: `Datos ${horizonLabel}` },
                         { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: 'Regresión' }
                     ], {
@@ -10720,11 +10721,11 @@
                 return { top10, scenarios: { "Siempre Invertido": calcFinal([]), "Fuera 10 Mejores": calcFinal(top10.map(d => d.index)), "Fuera 20 Mejores": calcFinal(top20.map(d => d.index)), "Fuera 30 Mejores": calcFinal(top30.map(d => d.index)) } };
             }
             function renderBestDaysCharts(d, ticker) {
-                Plotly.newPlot('bestDaysBarChart', [{ x: Object.keys(d.scenarios), y: Object.values(d.scenarios), type: 'bar', marker: { color: ['#2563eb', '#64748b', '#94a3b8', '#cbd5e1'] }, text: Object.values(d.scenarios).map(v => fmtNum(v)), textposition: 'auto' }], { yaxis: { title: 'Patrimonio Final' }, margin: { t: 30, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('bestDaysBarChart', [{ x: Object.keys(d.scenarios), y: Object.values(d.scenarios), type: 'bar', marker: { color: ['#2563eb', '#64748b', '#94a3b8', '#cbd5e1'] }, text: Object.values(d.scenarios).map(v => fmtNum(v)), textposition: 'auto' }], { yaxis: { title: 'Patrimonio Final' }, margin: { t: 30, l: 50, r: 20, b: 40 } }, { responsive: true });
                 document.getElementById('top10TableBody').innerHTML = d.top10.map((r, i) => `<tr class="border-b hover:bg-blue-50"><td class="px-4 py-2 font-medium text-gray-500">#${i + 1}</td><td class="px-4 py-2">${fmtDate(r.date)}</td><td class="px-4 py-2 text-right font-bold text-green-600">${fmtPct(r.ret)}</td></tr>`).join('');
                 const dates = currentData.map(d => d.date.toISOString().split('T')[0]), prices = currentData.map(d => d.price);
                 // FIX COLOR: Best days background line darker (#64748b instead of #cbd5e1)
-                Plotly.newPlot('bestDaysLocationChart', [{ x: dates, y: prices, type: 'scatter', mode: 'lines', name: ticker, line: { color: '#64748b' } }, { x: d.top10.map(r => r.date.toISOString().split('T')[0]), y: d.top10.map(r => r.price), type: 'scatter', mode: 'markers', name: 'Top 10 Días', marker: { color: 'red', size: 8, symbol: 'star' } }], { yaxis: { title: 'Precio' }, xaxis: { title: 'Fecha' }, margin: { t: 30, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
+                FinancialVisuals.newPlot('bestDaysLocationChart', [{ x: dates, y: prices, type: 'scatter', mode: 'lines', name: ticker, line: { color: '#64748b' } }, { x: d.top10.map(r => r.date.toISOString().split('T')[0]), y: d.top10.map(r => r.price), type: 'scatter', mode: 'markers', name: 'Top 10 Días', marker: { color: 'red', size: 8, symbol: 'star' } }], { yaxis: { title: 'Precio' }, xaxis: { title: 'Fecha' }, margin: { t: 30, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
             }
 
             function calculateDipAnalysis(data, drawdowns) {
@@ -10752,7 +10753,7 @@
                 const horizonsX = [1, 6, 12, 36, 60], p5 = [], p25 = [], p50 = [], p75 = [], p95 = [];
                 order.forEach(h => { const item = sortedData.find(d => d.Horizonte === h); if (item) { p5.push(item.P5); p25.push(item.P25); p50.push(item.Mediana); p75.push(item.P75); p95.push(item.P95); } else { p5.push(0); p25.push(0); p50.push(0); p75.push(0); p95.push(0); } });
 
-                Plotly.newPlot('dipFanChart', [{ x: horizonsX, y: p5, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, showlegend: false }, { x: horizonsX, y: p95, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, name: '95-5 Range', fillcolor: 'rgba(135, 206, 250, 0.2)' }, { x: horizonsX, y: p25, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, showlegend: false }, { x: horizonsX, y: p75, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, name: '75-25 Range', fillcolor: 'rgba(70, 130, 180, 0.3)' }, { x: horizonsX, y: p50, type: 'scatter', mode: 'lines+markers', line: { color: 'darkblue', width: 2 }, name: 'Mediana' }], { title: `Fan Chart: Proyección Rentabilidad tras Caída > ${threshold}`, xaxis: { title: 'Meses tras evento', tickvals: [1, 6, 12, 36, 60], ticktext: ['1M', '6M', '12M', '36M', '60M'] }, yaxis: { tickformat: '.0%', title: 'Rentabilidad Acumulada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('dipFanChart', [{ x: horizonsX, y: p5, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, showlegend: false }, { x: horizonsX, y: p95, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, name: '95-5 Range', fillcolor: 'rgba(135, 206, 250, 0.2)' }, { x: horizonsX, y: p25, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, showlegend: false }, { x: horizonsX, y: p75, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, name: '75-25 Range', fillcolor: 'rgba(70, 130, 180, 0.3)' }, { x: horizonsX, y: p50, type: 'scatter', mode: 'lines+markers', line: { color: 'darkblue', width: 2 }, name: 'Mediana' }], { title: `Fan Chart: Proyección Rentabilidad tras Caída > ${threshold}`, xaxis: { title: 'Meses tras evento', tickvals: [1, 6, 12, 36, 60], ticktext: ['1M', '6M', '12M', '36M', '60M'] }, yaxis: { tickformat: '.0%', title: 'Rentabilidad Acumulada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
 
                 // Dip Bar Chart (Refactored for Legend and Colors)
                 const colors = ['#bfdbfe', '#60a5fa', '#3b82f6', '#1d4ed8', '#1e3a8a']; // Blue Gradient
@@ -10775,7 +10776,7 @@
                     hoverinfo: 'y+name'
                 }));
 
-                Plotly.newPlot('dipBarChart', traces, {
+                FinancialVisuals.newPlot('dipBarChart', traces, {
                     title: `Retorno Medio tras caídas > ${threshold}`,
                     yaxis: { tickformat: '.0%' },
                     margin: { t: 40, l: 50, r: 20, b: 40 },
@@ -10786,7 +10787,7 @@
                 // Dip Histogram (Removed Curve)
                 const histData = (rawEvents.forwardRets['12 meses'] || []).map(r => r * 100);
 
-                Plotly.newPlot('dipHistChart', [
+                FinancialVisuals.newPlot('dipHistChart', [
                     { x: histData, type: 'histogram', marker: { color: '#2563eb', opacity: 0.7 }, nbinsx: 20, name: 'Frecuencia' }
                 ], {
 
@@ -10805,7 +10806,7 @@
                 // Label content
                 const regLabel = `y = ${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)}<br>R² = ${reg.r2.toFixed(3)}`;
 
-                Plotly.newPlot('dipScatterChart', [
+                FinancialVisuals.newPlot('dipScatterChart', [
                     { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: 'blue', opacity: 0.6 }, name: 'Datos' },
                     { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: 'Regresión' }
                 ], {
@@ -10887,11 +10888,11 @@
                 traces.push({ x: [dates[0], dates[dates.length - 1]], y: [m - (2 * s), m - (2 * s)], mode: 'lines', name: `-2σ (T:${prob2s} / R:${rProbLt2})`, line: { color: '#16a34a', dash: 'dot', width: 1 } });
                 traces.push({ x: [dates[0], dates[dates.length - 1]], y: [m - (3 * s), m - (3 * s)], mode: 'lines', name: `-3σ (T:${prob3s} / R:${rProbLt3})`, line: { color: '#15803d', dash: 'dot', width: 1.5 } });
 
-                Plotly.newPlot('returnsChart', traces, {
+                FinancialVisuals.newPlot('returnsChart', traces, {
                     title: `Retornos ${frequencyLabel(currentDataFrequency).toLowerCase()} + Bandas Sigma`, xaxis: { title: 'Fecha' }, yaxis: { title: 'Retorno', tickformat: '.1%' }, margin: { t: 40, l: 60, r: 20, b: 40 }, showlegend: true
                 }, { responsive: true });
 
-                Plotly.newPlot('returnsHistogram', [{ x: d.returns.map(x => x * 100), type: 'histogram', nbinsx: 50, marker: { color: '#6366f1' } }], { title: 'Distribución de Rentabilidades', xaxis: { title: 'Retorno (%)' }, yaxis: { title: 'Frecuencia' }, margin: { t: 40, l: 60, r: 20, b: 40 }, shapes: [{ type: 'line', x0: d.meanRet * 100, x1: d.meanRet * 100, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', dash: 'dot', width: 2 } }, { type: 'line', x0: d.var95 * 100, x1: d.var95 * 100, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', width: 2 } }], annotations: [{ x: d.var95 * 100, y: 0.5, yref: 'paper', text: `VaR 95%: ${fmtPct(d.var95)}`, showarrow: true, ax: 40 }] }, { responsive: true });
+                FinancialVisuals.newPlot('returnsHistogram', [{ x: d.returns.map(x => x * 100), type: 'histogram', nbinsx: 50, marker: { color: '#6366f1' } }], { title: 'Distribución de Rentabilidades', xaxis: { title: 'Retorno (%)' }, yaxis: { title: 'Frecuencia' }, margin: { t: 40, l: 60, r: 20, b: 40 }, shapes: [{ type: 'line', x0: d.meanRet * 100, x1: d.meanRet * 100, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', dash: 'dot', width: 2 } }, { type: 'line', x0: d.var95 * 100, x1: d.var95 * 100, y0: 0, y1: 1, yref: 'paper', line: { color: 'red', width: 2 } }], annotations: [{ x: d.var95 * 100, y: 0.5, yref: 'paper', text: `VaR 95%: ${fmtPct(d.var95)}`, showarrow: true, ax: 40 }] }, { responsive: true });
             }
 
             // NEW FUNCTION: Render Sigma Events
@@ -10970,7 +10971,7 @@
                 </div>
             `;
 
-                Plotly.newPlot('athPriceChart', [{ x: dates, y: prices, name: ticker, type: 'scatter', line: { color: '#3b82f6', width: 1.5 } }, { x: athData.recordIndices.map(i => dates[i]), y: athData.recordIndices.map(i => prices[i]), name: 'Nuevo Máximo', mode: 'markers', marker: { color: 'red', size: 5 } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('athPriceChart', [{ x: dates, y: prices, name: ticker, type: 'scatter', line: { color: '#3b82f6', width: 1.5 } }, { x: athData.recordIndices.map(i => dates[i]), y: athData.recordIndices.map(i => prices[i]), name: 'Nuevo Máximo', mode: 'markers', marker: { color: 'red', size: 5 } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
             }
             function renderATHForwardChart(results) {
                 const keys = ['3M', '6M', '12M', '24M', '3Y', '5Y'];
@@ -10979,7 +10980,7 @@
                 const anyDayRet = keys.map(k => (results[k]?.meanAll * 100) || 0);
                 const athDayRet = keys.map(k => (results[k]?.meanRec * 100) || 0);
 
-                Plotly.newPlot('athForwardChart', [
+                FinancialVisuals.newPlot('athForwardChart', [
                     {
                         x: labels, y: anyDayRet, type: 'bar',
                         name: 'Cualquier Día', marker: { color: '#4b5563' }, // gray-600
@@ -11012,7 +11013,7 @@
                 <div class="mb-2"><span class="font-bold">Valor P:</span> ${res.pValueText}</div>
                 <div class="${colorClass} p-2 rounded border mt-2"><strong>Interpretación:</strong> ${interpretation}</div>
             `;
-                Plotly.newPlot('athHistogram', [{ x: res.recordReturns.map(x => x * 100), type: 'histogram', name: 'Tras Máximo', opacity: 0.6, marker: { color: 'red' } }, { x: res.nonRecordReturnsSample.map(x => x * 100), type: 'histogram', name: 'Aleatorio', opacity: 0.6, marker: { color: 'blue' } }], { title: 'Distribución de Retornos (%)', barmode: 'overlay', margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('athHistogram', [{ x: res.recordReturns.map(x => x * 100), type: 'histogram', name: 'Tras Máximo', opacity: 0.6, marker: { color: 'red' } }, { x: res.nonRecordReturnsSample.map(x => x * 100), type: 'histogram', name: 'Aleatorio', opacity: 0.6, marker: { color: 'blue' } }], { title: 'Distribución de Retornos (%)', barmode: 'overlay', margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
             }
 
             function calculateAnnualDistribution(data) {
@@ -11076,7 +11077,7 @@
                 const avgDD = d.reduce((s, i) => s + i.maxDD, 0) / d.length;
                 const positiveYears = d.filter(i => i.v > 0).length;
 
-                Plotly.newPlot('annualDistChart', [barTrace, dotTrace], {
+                FinancialVisuals.newPlot('annualDistChart', [barTrace, dotTrace], {
                     title: `Caídas intra-año vs Rentabilidad anual (${ticker})`,
                     annotations: [{
                         xref: 'paper', yref: 'paper', x: 0, y: 1.06,
@@ -11127,14 +11128,14 @@
 
                     const yearTexts = yearsInBin.map(y => {
                         const yearStr = y.y;
-                        // Current year RED, others Black. Columns Gray.
-                        return yearStr === currentYear ? `<b style="color:red; font-size:14px;">${yearStr}</b>` : `<span style="font-size:10px; color: black;">${yearStr}</span>`;
+                        // Emphasize the current year without implying a negative return.
+                        return yearStr === currentYear ? `<b style="color:white; font-size:14px;">${yearStr}</b>` : `<span style="font-size:10px; color:white;">${yearStr}</span>`;
                     });
                     textLabels.push(yearTexts.join('<br>'));
                     barColors.push('#d1d5db'); // Gray
                 });
 
-                Plotly.newPlot('annualDistHistChart', [{
+                FinancialVisuals.newPlot('annualDistHistChart', [{
                     x: xLabels,
                     y: yCounts,
                     type: 'bar',
@@ -11185,12 +11186,12 @@
                 const n = new Date(); const cm = n.getMonth(); const cq = Math.floor(cm / 3) + 1; const cw = getWeekNumber(n);
                 if (d.weekly) {
                     const wColors = Array.from({ length: 53 }, (_, i) => (i + 1) === cw ? 'black' : '#3b82f6');
-                    Plotly.newPlot('weeklyChart', [{ x: Array.from({ length: 53 }, (_, i) => i + 1), y: d.weekly.slice(1), text: d.weekly.slice(1).map(v => fmtPct(v)), textposition: 'outside', type: 'bar', marker: { color: wColors } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
+                    FinancialVisuals.newPlot('weeklyChart', [{ x: Array.from({ length: 53 }, (_, i) => i + 1), y: d.weekly.slice(1), text: d.weekly.slice(1).map(v => fmtPct(v)), textposition: 'outside', type: 'bar', marker: { color: wColors } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
                 } else {
                     renderUnavailableChartMessage('weeklyChart', `Estacionalidad semanal no disponible con frecuencia ${frequencyLabel(d.frequency).toLowerCase()}. Carga una serie diaria para analizar patrones por semana.`);
                 }
-                Plotly.newPlot('monthlyChart', [{ x: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], y: d.monthly, text: d.monthly.map(v => fmtPct(v)), textposition: 'auto', type: 'bar', marker: { color: d.monthly.map((_, i) => i === cm ? 'black' : '#3b82f6') } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
-                Plotly.newPlot('quarterlyChart', [{ x: ['Q1', 'Q2', 'Q3', 'Q4'], y: d.quarterly.slice(1), text: d.quarterly.slice(1).map(v => fmtPct(v)), textposition: 'auto', type: 'bar', marker: { color: [1, 2, 3, 4].map(i => i === cq ? 'black' : '#3b82f6') } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('monthlyChart', [{ x: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], y: d.monthly, text: d.monthly.map(v => fmtPct(v)), textposition: 'auto', type: 'bar', marker: { color: d.monthly.map((_, i) => i === cm ? 'black' : '#3b82f6') } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('quarterlyChart', [{ x: ['Q1', 'Q2', 'Q3', 'Q4'], y: d.quarterly.slice(1), text: d.quarterly.slice(1).map(v => fmtPct(v)), textposition: 'auto', type: 'bar', marker: { color: [1, 2, 3, 4].map(i => i === cq ? 'black' : '#3b82f6') } }], { margin: { t: 20, l: 50, r: 20, b: 40 } }, { responsive: true });
             }
 
             function calculateTechnicalIndicators(data) { const p = data.map(d => d.price); const ma = w => { const r = []; for (let i = 0; i < p.length; i++) r.push(i < w - 1 ? null : p.slice(i - w + 1, i + 1).reduce((a, b) => a + b, 0) / w); return r; }; return { ma50: ma(50), ma200: ma(200), rsi: calculateRSI(p, 14) }; }
@@ -11229,7 +11230,7 @@
                 const ma200Label = last200 ? `MA200: ${last200.toFixed(2)} (${fmtPct(currDist200)} | R: ${fmtPct(minDist200)} / ${fmtPct(maxDist200)})` : 'MA200';
                 const rsiLabel = `RSI (${lastRSI.toFixed(1)} | R: ${minRSI.toFixed(1)} - ${maxRSI.toFixed(1)})`;
 
-                Plotly.newPlot('technicalChart', [
+                FinancialVisuals.newPlot('technicalChart', [
                     { x, y, name: `Precio: ${lastP.toFixed(2)}` },
                     { x, y: t.ma50, name: ma50Label, line: { color: '#eab308' } },
                     { x, y: t.ma200, name: ma200Label, line: { color: '#00008b' } },
@@ -11431,7 +11432,7 @@
             function fmtNum(n) { return n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
             function fmtDate(d) { return d.toISOString().split('T')[0]; }
 
-            function renderTable(s) { document.getElementById('statsTableBody').innerHTML = s.map(i => `<tr><td class="px-4">${i.horizon}</td><td class="px-4 text-right">${fmtPct(i.meanTot)}</td><td class="px-4 text-right text-blue-600">${fmtPct(i.meanAnn)}</td><td class="px-4 text-right text-red-500">${fmtPct(i.minTot)}</td><td class="px-4 text-right text-green-600">${fmtPct(i.maxTot)}</td></tr>`).join(''); }
+            function renderTable(s) { document.getElementById('statsTableBody').innerHTML = s.map(i => `<tr><td class="px-4">${i.horizon}</td>${[i.meanTot,i.meanAnn,i.minTot,i.maxTot].map(value=>`<td class="px-4 text-right" style="color:${FinancialVisuals.signColor(value)}">${fmtPct(value)}</td>`).join('')}</tr>`).join(''); }
 
             // Render Forward Returns Matrix (Years Forward vs Start Year)
             function renderForwardReturnsMatrix(data) {
@@ -11506,7 +11507,7 @@
                 // 1. Annualized Chart (Exclude periods < 1 year)
                 const annualizedData = s.filter(i => (i.periods || 0) >= (i.periodsPerYear || periodsPerYear(currentDataFrequency)));
 
-                Plotly.newPlot('rollingAnnualizedChart', [
+                FinancialVisuals.newPlot('rollingAnnualizedChart', [
                     { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.minAnn), type: 'bar', name: 'Mínimo Anualizado', marker: { color: '#2d7a78' }, text: annualizedData.map(i => fmtPct(i.minAnn)), textposition: 'auto' },
                     { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.meanAnn), type: 'bar', name: 'Promedio Anualizado', marker: { color: '#3b4974' }, text: annualizedData.map(i => fmtPct(i.meanAnn)), textposition: 'auto' },
                     { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.maxAnn), type: 'bar', name: 'Máximo Anualizado', marker: { color: '#6bbf70' }, text: annualizedData.map(i => fmtPct(i.maxAnn)), textposition: 'auto' }
@@ -11517,7 +11518,7 @@
                 }, { responsive: true });
 
                 // 2. Total Chart (All periods)
-                Plotly.newPlot('rollingTotalChart', [
+                FinancialVisuals.newPlot('rollingTotalChart', [
                     { x: s.map(i => i.horizon), y: s.map(i => i.minTot), type: 'bar', name: 'Mínimo Total', marker: { color: '#2d7a78' }, text: s.map(i => fmtPct(i.minTot)), textposition: 'auto' },
                     { x: s.map(i => i.horizon), y: s.map(i => i.meanTot), type: 'bar', name: 'Promedio Total', marker: { color: '#3b4974' }, text: s.map(i => fmtPct(i.meanTot)), textposition: 'auto' },
                     { x: s.map(i => i.horizon), y: s.map(i => i.maxTot), type: 'bar', name: 'Máximo Total', marker: { color: '#6bbf70' }, text: s.map(i => fmtPct(i.maxTot)), textposition: 'auto' }
@@ -11530,7 +11531,7 @@
 
             function renderLineChart(s) {
                 const colors = { '1 Año': '#93c5fd', '5 Años': '#1e3a8a', '15 Años': '#9ca3af' };
-                Plotly.newPlot('lineChart', Object.entries(s).map(([k, v]) => ({ x: v.x, y: v.y, name: k, line: { color: colors[k] || 'black' } })), { yaxis: { tickformat: '.1%' }, margin: { t: 40, l: 40, r: 20, b: 40 }, title: 'Evolución Rentabilidad Anualizada Móvil' }, { responsive: true });
+                FinancialVisuals.newPlot('lineChart', Object.entries(s).map(([k, v]) => ({ x: v.x, y: v.y, name: k, line: { color: colors[k] || 'black' } })), { yaxis: { tickformat: '.1%' }, margin: { t: 40, l: 40, r: 20, b: 40 }, title: 'Evolución Rentabilidad Anualizada Móvil' }, { responsive: true });
             }
 
             // --- REFACTORED: PESTAÑA MERCADOS (GENERIC) ---
@@ -11594,7 +11595,7 @@
                         margin: { t: 40, l: 50, r: 60, b: 40 },
                         hovermode: 'x unified'
                     };
-                    Plotly.newPlot('volatilityChart', traces, layout, { responsive: true });
+                    FinancialVisuals.newPlot('volatilityChart', traces, layout, { responsive: true });
                     return;
                 }
 
@@ -11667,7 +11668,7 @@
                         }]
                     };
 
-                    Plotly.newPlot('currenciesBase10Chart', traces, layout, { responsive: true });
+                    FinancialVisuals.newPlot('currenciesBase10Chart', traces, layout, { responsive: true });
                     updateMarketsTable('currencies', globalCurrenciesData);
                     return;
                 }
@@ -11711,7 +11712,7 @@
 
                 const pctPositive = totalAssets > 0 ? ((positiveCount / totalAssets) * 100).toFixed(0) : 0;
 
-                Plotly.newPlot(config.chartId, traces, {
+                FinancialVisuals.newPlot(config.chartId, traces, {
                     xaxis: { showgrid: false },
                     yaxis: { title: 'Base 10', gridcolor: '#f3f4f6' },
                     margin: { t: 20, l: 40, r: 60, b: 40 },
@@ -11910,9 +11911,9 @@
                             totalByYear[y]++;
                             const ret = (yData[yData.length - 1].price / yData[0].price) - 1;
                             if (ret > 0) winnersByYear[y]++;
-                            const alpha = Math.min(0.1 + Math.abs(ret) * 2.5, 0.85);
-                            const bgColor = ret > 0 ? `rgba(34, 197, 94, ${alpha})` : `rgba(239, 68, 68, ${alpha})`;
-                            const textColor = alpha > 0.5 ? 'white' : 'black';
+                            const alpha = Math.min(0.1 + Math.abs(ret) * 2.5, 0.35);
+                            const bgColor = FinancialVisuals.alpha(FinancialVisuals.signColor(ret), alpha);
+                            const textColor = FinancialVisuals.colors.ink;
                             rowHtml += `<td class="px-2 py-2 border" style="background-color: ${bgColor}; color: ${textColor}">${fmtPct(ret)}</td>`;
                         } else rowHtml += `<td class="px-2 py-2 border text-gray-300">-</td>`;
                     });
@@ -11924,7 +11925,7 @@
             }
 
             function renderDrawdownChart(d, dd, t) {
-                Plotly.newPlot('drawdownChart', [
+                FinancialVisuals.newPlot('drawdownChart', [
                     { x: dd.dates, y: dd.drawdowns, fill: 'tozeroy', name: 'DD' }
                 ], {
                     yaxis: { tickformat: '.1%' }, margin: { t: 40, l: 50, r: 20, b: 40 },
@@ -12049,7 +12050,7 @@
                     });
                 }
 
-                Plotly.newPlot('ddSpaghettiChart', traces, layout, { responsive: true });
+                FinancialVisuals.newPlot('ddSpaghettiChart', traces, layout, { responsive: true });
             }
 
             function renderDrawdownTable(e) { document.getElementById('drawdownTableBody').innerHTML = e.map((i, k) => `<tr><td class="px-4">#${k + 1}</td><td class="px-4 text-red-600 font-bold">${fmtPct(i.drawdown)}</td><td class="px-4">${fmtDate(i.start)}</td><td class="px-4">${fmtDate(i.end)}</td><td class="px-4">${i.recovery ? fmtDate(i.recovery) : '-'}</td><td class="px-4">${formatDurationWithContext(i.length)}</td><td class="px-4">${formatDurationWithContext(i.underwater)}</td></tr>`).join(''); }
@@ -12547,7 +12548,7 @@
                         fillcolor: def.fill || undefined
                     };
                 }).filter(t => t.x.length > 0);
-                Plotly.newPlot(chartId, traces, layout, { responsive: true });
+                FinancialVisuals.newPlot(chartId, traces, layout, { responsive: true });
                 return defs.map(def => ({ label: def.label, ratio: fullValRatio(def.a, def.b) }));
             }
 
@@ -12575,7 +12576,7 @@
 
                 // HY vs IG chart
                 const hy_ig = spreadRatio(HY, IG);
-                Plotly.newPlot('valHYIGChart', [
+                FinancialVisuals.newPlot('valHYIGChart', [
                     { x: hy_ig.map(d => d.date), y: hy_ig.map(d => d.value), mode: 'lines', name: 'Ratio HY/IG', line: { color: '#dc2626', width: 2 } }
                 ], chartLayout('Ratio HY vs IG (Evolución Relativa)'), { responsive: true });
 
@@ -12585,7 +12586,7 @@
 
                 // Crédito vs Govies chart
                 const ig_gov = spreadRatio(IG, GOV);
-                Plotly.newPlot('valCreditGovieChart', [
+                FinancialVisuals.newPlot('valCreditGovieChart', [
                     { x: ig_gov.map(d => d.date), y: ig_gov.map(d => d.value), mode: 'lines', name: 'Ratio IG/Govies Largo', line: { color: '#f97316', width: 2 } }
                 ], chartLayout('Ratio Crédito vs Govies'), { responsive: true });
 
@@ -12596,7 +12597,7 @@
                 // Curva de tipos por tramos (Spread Largo vs Corto y Medio vs Corto)
                 const largo_corto = spreadRatio(GOV, GOVS);
                 const medio_corto = spreadRatio(GOVM, GOVS);
-                Plotly.newPlot('valCurvaChart', [
+                FinancialVisuals.newPlot('valCurvaChart', [
                     { x: largo_corto.map(d => d.date), y: largo_corto.map(d => d.value), mode: 'lines', name: 'Largo / Corto (10Y+ vs 1-3Y)', line: { color: '#0ea5e9', width: 2 } },
                     { x: medio_corto.map(d => d.date), y: medio_corto.map(d => d.value), mode: 'lines', name: 'Medio / Corto (5-7Y vs 1-3Y)', line: { color: '#d97706', width: 2 } }
                 ], {
@@ -12951,10 +12952,12 @@
                 const shapes = [];
                 if (opts.refline !== null && opts.refline !== undefined) shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: opts.refline, y1: opts.refline, line: { color: opts.reflineColor || '#94a3b8', width: 1.3, dash: opts.reflineDash || 'dash' } });
                 if (!traces.length) { document.getElementById(group.chartId).innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin datos FRED disponibles.</div>'; renderMacroTable(group, series); updateMacroSourceLabel(group, payload); return; }
+                lastPoints.forEach((point,index) => { point.color = FinancialVisuals.seriesColor(index); });
+                traces.forEach((trace,index) => { trace.line.color = FinancialVisuals.seriesColor(index); });
                 const annotations = buildLastValueAnnotations(lastPoints);
                 const layout = { margin: { t: 12, l: 55, r: 150, b: 42 }, xaxis: { showgrid: false, zeroline: false }, yaxis: { gridcolor: '#e2e8f0', ticksuffix: opts.ysuffix || '', tickformat: opts.yformat || '' }, hovermode: 'x unified', legend: { orientation: 'h', y: -0.22, font: { size: 11 } }, paper_bgcolor: 'white', plot_bgcolor: 'white', shapes, annotations };
                 if (opts.dualAxis) layout.yaxis2 = { title: opts.y2title || '', overlaying: 'y', side: 'right', showgrid: false, zeroline: false };
-                Plotly.newPlot(group.chartId, traces, layout, { responsive: true, displayModeBar: false });
+                FinancialVisuals.newPlot(group.chartId, traces, layout, { responsive: true, displayModeBar: false });
                 renderMacroTable(group, series);
                 updateMacroSourceLabel(group, payload);
             }
@@ -12965,12 +12968,12 @@
             }
             function renderMacroTable(group, series) {
                 const el = document.getElementById(group.tableId); if (!el) return;
-                const rows = (series || []).filter(s => s.observations && s.observations.length).map(s => {
+                const rows = (series || []).filter(s => s.observations?.some(o => Number.isFinite(Number(o.value)))).map((s,index) => {
                     const obs = s.observations.map(o => ({ date: new Date(o.date), value: Number(o.value) })).filter(o => Number.isFinite(o.value));
                     const last = obs[obs.length - 1], prev = obs[obs.length - 2];
                     const ytdBase = [...obs].reverse().find(o => o.date.getFullYear() < last.date.getFullYear()) || obs[0];
                     const diffMode = group.opts.changeMode === 'diff';
-                    return { label: s.label, color: s.color, date: last.date, value: last.value, mom: changeValue(last, prev, diffMode), ytd: changeValue(last, ytdBase, diffMode), diffMode };
+                    return { label: s.label, color: FinancialVisuals.seriesColor(index), date: last.date, value: last.value, mom: changeValue(last, prev, diffMode), ytd: changeValue(last, ytdBase, diffMode), diffMode };
                 });
                 if (!rows.length) { el.innerHTML = ''; return; }
                 const tableDomId = `${group.tableId}Table`;

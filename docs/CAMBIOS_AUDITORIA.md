@@ -9,6 +9,17 @@
 
 ## Cambios realizados
 
+### Quinta revision: colores financieros en tablas y graficas
+
+- Motor visual compartido `assets/financial-visuals.js`: todas las graficas Plotly del programa pasan por el mismo adaptador, incluidas las generadas para informes. No cambia series, calculos ni fuentes.
+- Serie unica azul oscuro; dos series azul y gris. Comparativas amplias con paleta profesional ampliada y trazos diferenciados cuando se repiten colores; composiciones con tonos adicionales para mas de doce posiciones.
+- Etiquetas finales, leyendas y anotaciones coherentes con las series. Tablas macro usan el mismo orden de colores que las curvas. Se conservan bandas de confianza, transparencias, simbolos y escalas numericas de burbujas.
+- Barras de rentabilidad mensual, semanal, trimestral, anual y comparaciones por horizonte/regimen: verde positivo, rojo negativo y gris cero/sin dato. Barras agrupadas anaden patrones para distinguir series sin perder el signo. Las distribuciones de frecuencias no se colorean como si fueran ganancias.
+- Mapas de rentabilidad centrados en cero, rojo/blanco/verde; correlaciones con rango fijo -1/+1, gris/blanco/azul. Drawdown en rojo. Escalas de score en azul, sin implicar rentabilidad.
+- Tablas: cuatro cuartiles distinguibles de azul oscuro a gris claro; leyendas actualizadas. El cuartil no se confunde con el signo de una rentabilidad. Positivos/negativos con tonos sobrios comunes, tambien en PDF.
+- Eliminado el rojo decorativo del ano actual en el histograma de distribucion; sigue destacado en negrita. Minimos/maximos de la tabla de retornos se colorean por su signo real.
+- Verificacion: 20 pruebas unitarias, sintaxis, regresion de carteras y tres descargas PDF, y prueba visual con datos sinteticos de ocho tipos de grafica y cuartiles a 1440/390 px. No se verifica disponibilidad de proveedores financieros en vivo en estas pruebas.
+
 ### Cuarta revision: comparativa inicial y estilo global
 
 - Comparativa por metricas del universo trasladada a una pestana propia de Analisis Inicial: Datos, Analisis inicial, Comparativa universo e Informe. Conserva filtros, seleccion de fondos, ejes, tabla y datos compartidos. La comparativa historica sigue en Cartera individual.
