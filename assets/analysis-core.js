@@ -1,9 +1,30 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory(require('./finance-core.js'));else root.AnalysisCore=factory(root.FinanceCore);})(globalThis,function(finance){
+    const normalized=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    function familyName(value){
+        const words=normalized(value).split(' ');
+        const suffix=/^(?:[a-z]{1,2}\d{0,2}|eur|usd|gbp|chf|jpy|acc|accumulation|accumulating|dist|distribution|distributing|inc|hedged|unhedged|hgd|cap|capitalisation|capitalization|institutional|retail|clean|class|clase|shares)$/;
+        while(words.length>2&&suffix.test(words.at(-1)))words.pop();
+        return words.join(' ');
+    }
+    function classMatch(a,b){
+        if(!a||!b||[a,b].some(r=>['proxy','manual'].includes(r.originSource?.mode)))return '';
+        if(a.fundId&&b.fundId&&normalized(a.fundId)!==normalized(b.fundId))return '';
+        for(const key of ['currency','hedging'])if(a[key]&&b[key]&&normalized(a[key])!==normalized(b[key]))return '';
+        const currency=r=>normalized(r.currency)||normalized(r.name).match(/\b(eur|usd|gbp|chf|jpy)\b/)?.[1];
+        if(currency(a)&&currency(b)&&currency(a)!==currency(b))return '';
+        if(/\b(hedged|hgd)\b/.test(normalized(a.name))!==/\b(hedged|hgd)\b/.test(normalized(b.name)))return '';
+        if(finance.sameFund(a,b))return 'confirmed';
+        if(a.fundId&&b.fundId&&normalized(a.fundId)===normalized(b.fundId))return 'probable';
+        if(!normalized(a.category)||normalized(a.category)!==normalized(b.category)||!normalized(a.manager)||normalized(a.manager)!==normalized(b.manager))return '';
+        if(!(a.aum>0&&b.aum>0)||Math.abs(a.aum-b.aum)/Math.max(a.aum,b.aum)>.01)return '';
+        const name=familyName(a.name);
+        return name.length>=10&&name.split(' ').length>=2&&name===familyName(b.name)?'probable':'';
+    }
     function classes(record,universe,approvedIsins){
-        if(!record || ['proxy','manual'].includes(record.originSource?.mode) || !Number.isFinite(record.ter) || !finance.sameFund(record,record))return {status:'unknown',all:[],approved:[]};
-        const peers=universe.filter(r=>finance.sameFund(record,r));
+        if(!record || ['proxy','manual'].includes(record.originSource?.mode) || !Number.isFinite(record.ter))return {status:'unknown',all:[],approved:[]};
+        const peers=universe.filter(r=>classMatch(record,r));
         const all=peers.filter(r=>r.isin!==record.isin&&Number.isFinite(r.ter)&&r.ter<record.ter).sort((a,b)=>a.ter-b.ter||a.isin.localeCompare(b.isin));
-        return {status:all.length?'cheaper':peers.some(r=>!Number.isFinite(r.ter))?'unknown':'lowest',all,approved:all.filter(r=>approvedIsins.has(r.isin))};
+        return {status:all.length?'cheaper':!peers.length||peers.some(r=>!Number.isFinite(r.ter))?'unknown':'lowest',all,approved:all.filter(r=>approvedIsins.has(r.isin))};
     }
     function comparison(rows,field){
         const total=rows.reduce((s,r)=>s+Math.max(0,r.weight||0),0);
@@ -29,5 +50,5 @@
         const base=rows.filter(r=>r.date<=begin).at(-1),visible=rows.filter(r=>r.date>=begin&&r.date<=finish);
         return base&&visible.length&&base!==visible[0]?[base,...visible]:visible;
     }
-    return {classes,comparison,percent,sample,windowRows};
+    return {classes,classMatch,familyName,comparison,percent,sample,windowRows};
 });

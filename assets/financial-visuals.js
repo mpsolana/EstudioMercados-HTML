@@ -32,7 +32,9 @@
         data.forEach((trace,index) => {
             if (auxiliary(trace) || trace.type === 'heatmap' || trace.type === 'pie') return;
             let color;
-            if (/^Universo\b/i.test(trace.name || '')) color = '#b6c4cf';
+            if (trace.meta?.financialRole==='origin') color=colors.blue;
+            else if (trace.meta?.financialRole==='proposal') color=colors.gray;
+            else if (/^(Universo\b|Peer group\b)/i.test(trace.name || '')) color = '#b6c4cf';
             else if (/^Media\b/i.test(trace.name || '') && trace.marker?.symbol === 'diamond') color = '#454b53';
             else { ordinals.set(index,next); color = seriesColor(next++); }
             assignments.set(index,color);

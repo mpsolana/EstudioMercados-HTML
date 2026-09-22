@@ -32,6 +32,7 @@ const ReportDesign = (() => {
     }
     function prepare(html, snapshot) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
+        const blocks=(snapshot.kind==='proposal'?snapshot.reportConfiguration?.initial:snapshot.kind==='aggregate'?snapshot.reportConfiguration?.manager:null)?.blocks||{};
         if (!snapshot.reportOptions.charts) doc.querySelectorAll('figure').forEach(el => el.remove());
         if (!snapshot.reportOptions.details) doc.querySelectorAll('section').forEach(el => {
             if (/analisis de sustitucion|detalle por|desglose por/i.test(el.querySelector('h2')?.textContent || '')) el.remove();
@@ -53,7 +54,7 @@ const ReportDesign = (() => {
         doc.head.insertAdjacentHTML('beforeend', styles());
         const footer = doc.querySelector('footer') || doc.body.appendChild(doc.createElement('footer'));
         const declaredOrigins = (snapshot.proposal || []).filter(r => r.current?.originSource);
-        if (declaredOrigins.length) {
+        if (blocks.sources!==false&&declaredOrigins.length) {
             const section = doc.createElement('section'); section.className = 'block';
             const heading = doc.createElement('h2'); heading.textContent = 'Origen de los datos: proxies y declaraciones'; section.append(heading);
             declaredOrigins.forEach(row => {
@@ -63,7 +64,15 @@ const ReportDesign = (() => {
             });
             footer.before(section);
         }
-        footer.insertAdjacentHTML('beforeend', metadata(snapshot));
+        const notes=new DOMParser().parseFromString(metadata(snapshot),'text/html');
+        if(blocks.sources!==false)footer.insertAdjacentHTML('beforeend',notes.body.children[0]?.outerHTML||'');
+        if(blocks.methodology!==false)footer.insertAdjacentHTML('beforeend',notes.body.children[1]?.outerHTML||'');
+        if(blocks.methodology===false)doc.querySelectorAll('.method-note').forEach(el=>{if(!footer.contains(el))el.remove();});
+        if(blocks.sources!==false){
+            const labels={universe:'Universo',approved:'Aprobados',portfolio:'Cartera',aggregate:'Posiciones agregadas'};
+            const files=Object.entries(snapshot.source||{}).filter(([,name])=>name).map(([key,name])=>`${labels[key]||key}: ${name}`);
+            if(files.length){const p=doc.createElement('p');p.textContent=files.join(' · ');footer.append(p);}
+        }
         return '<!DOCTYPE html>' + doc.documentElement.outerHTML;
     }
     async function printHtml(html) {

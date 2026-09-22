@@ -1,5 +1,15 @@
 const test=require('node:test'),assert=require('node:assert/strict'),core=require('../assets/analysis-core.js');
 const origin={isin:'ES0000000001',fundId:'F1',currency:'EUR',hedging:'No',ter:1,score:4,category:'Bonos'};
+test('class-name fallback requires matching manager category and AUM and preserves strategy and currency',()=>{
+    const a={isin:'A',name:'Aurum Global Bond Fund A EUR Acc',manager:'Aurum',category:'Bonos',aum:1000,ter:1};
+    const b={...a,isin:'B',name:'Aurum Global Bond Fund I EUR Acc',aum:1005,ter:.3};
+    assert.equal(core.classMatch(a,b),'probable');
+    assert.equal(core.classes(a,[a,b],new Set(['B'])).approved[0],b);
+    for(const change of [{manager:'Other'},{category:'Equity'},{aum:2000},{name:'Aurum Global Equity Fund I EUR Acc'},{name:'Aurum Global Bond Fund I USD Acc'},{name:'Aurum Global Bond Fund I EUR Hedged Acc'}])assert.equal(core.classMatch(a,{...b,...change}),'');
+    assert.equal(core.classMatch({...a,fundId:'A'},{...b,fundId:'B'}),'');
+    assert.notEqual(core.familyName('Aurum Global Income A Acc'),core.familyName('Aurum Global A Acc'));
+    assert.equal(core.classMatch(a,{...b,manager:''}),'');
+});
 test('equivalent classes distinguish unknown, cheapest, universe and approved',()=>{
     const cheap={...origin,isin:'ES0000000002',ter:.2},approved={...origin,isin:'ES0000000003',ter:.4},wrong={...cheap,isin:'ES0000000004',currency:'USD',ter:.1};
     const result=core.classes(origin,[origin,cheap,approved,wrong],new Set([approved.isin]));
@@ -14,6 +24,11 @@ test('weighted impact uses the same coverage and excludes cross-category score c
     const ter=core.comparison(rows,'ter'),score=core.comparison(rows,'score');
     assert.equal(ter.coverage,.6);assert.equal(ter.current,1);assert.equal(ter.proposed,.5);assert.equal(ter.delta,-.5);
     assert.equal(score.coverage,.6);assert.equal(score.delta,2);
+});
+test('report comparison preserves origin/proposal colors with peer groups',()=>{
+    const visuals=require('../assets/financial-visuals.js');
+    const result=visuals.prepare('report',[{name:'Peer group',type:'scatter',marker:{}},{name:'Origen',type:'scatter',meta:{financialRole:'origin'},marker:{}},{name:'Propuesta',type:'scatter',meta:{financialRole:'proposal'},marker:{}}]);
+    assert.equal(result.data[1].marker.color,visuals.colors.blue);assert.equal(result.data[2].marker.color,visuals.colors.gray);
 });
 test('asset class units preserve formatted and explicit percentages without magnitude guessing',()=>{
     for(const value of [.06,'0,06'])assert.equal(core.percent(value,'','fraction'),6);

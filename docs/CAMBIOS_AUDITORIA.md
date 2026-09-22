@@ -9,6 +9,17 @@
 
 ## Cambios realizados
 
+### Septima revision: clases comparables e informes personalizados
+
+- Detector compartido en analisis inicial, scoring individual y posiciones agregadas. Conserva identificadores explicitos y anade candidatos por nombre base sin sufijo de clase, misma entidad/categoria y AUM con tolerancia relativa del 1%. Rechaza conflictos de identificador, divisa y cobertura; las coincidencias inferidas se rotulan como probables, no como equivalencias certificadas.
+- Texto comercial uniforme: "No se han identificado clases mas baratas en el universo cargado". Las alternativas muestran nombre, ISIN, TER y diferencia en puntos porcentuales; no se afirma ser la clase mas barata de todo el mercado.
+- Opcion global, desactivada inicialmente, para extender aprobacion a clases identificadas de la misma familia. Etiquetas distintas para aprobado por ISIN y por familia; se aplica a las alternativas de los tres flujos y queda registrada en el snapshot.
+- Tablas con tipografia, encabezados "Clases y alternativas", avisos y acciones comunes; se conservan columnas propias de cada ambito.
+- Graficas del informe inicial recuperan peer group y media por categoria, origen y propuesta, con nombre e ISIN. Ejes configurables, seleccion sin duplicados identicos y colores de rol estables. La media usa todos los registros validos; nubes de mas de 1000 puntos se muestrean y se indica en la leyenda.
+- Ajustes manuales, metodologia y procedencia se pueden incluir u omitir en el informe inicial. La configuracion completa permanece en el snapshot interno.
+- Informe agregado configurable por resumen, impacto TER/score, clases, posiciones, cambios, exposicion, Santalucia, comparativas, metodologia y fuentes. No se generan apartados excluidos. Periodos corregidos a "año" y "años" en la interfaz.
+- Validacion: 27 pruebas unitarias, regresion de navegador y PDF, controles de omision de apartados, familias aprobadas optativas y comparacion con peer groups. Sin cambios en main ni reorganizacion de historicos.
+
 ### Sexta revision: edicion, informes y rendimiento
 
 - Historicos: reorganizacion aplazada expresamente; se mantienen las cargas y la biblioteca actuales, sin nuevas bases de datos ni persistencia.

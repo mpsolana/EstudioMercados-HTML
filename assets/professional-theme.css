@@ -57,6 +57,13 @@ body>nav+div{background:#263440!important;box-shadow:none!important}
 .app-section .js-plotly-plot .plotly{font-family:Arial,Helvetica,sans-serif!important}
 .app-section .absolute[class*="shadow"]{box-shadow:0 4px 16px #17232f1f!important;border:1px solid var(--line);border-radius:4px!important}
 .workspace-heading h2{font-size:22px!important}
+.share-class-summary{font-size:11px;line-height:1.5;color:#536274;border-top:1px solid #dce2e8;margin-top:8px;padding-top:7px;max-width:380px;white-space:normal}
+.share-class-summary strong{color:#173b63;font-weight:600;display:block}.share-class-summary small{color:#657487}
+.fund-approval-badge{display:inline-block;padding:2px 5px;background:#edf2f7;color:#173b63;font-size:10px;font-weight:600}
+.approval-policy{display:flex;align-items:center;gap:8px;border-top:1px solid #dce2e8;margin-top:16px;padding:12px 0;font-size:12px;color:#334155}
+.scoring-comparison-table{font-size:12px!important;border-collapse:collapse}.scoring-comparison-table th{font-size:11px!important;text-transform:none!important;background:#edf1f5;color:#334155;border-bottom:1px solid #cbd3dc;padding:10px 12px!important}
+:is(#fundProposalTableBody,#fundScoringTableBody,#aggregatePositionsTableBody)>tr>td{vertical-align:top;line-height:1.45;padding:10px 12px}
+:is(#fundProposalTableBody,#fundScoringTableBody,#aggregatePositionsTableBody) .initial-origin-button{color:#173b63;background:#f1f4f7;border:1px solid #cbd3dc;border-radius:3px;font-size:11px;padding:5px 7px;margin:3px 3px 0 0}
 .workspace-steps{gap:18px}
 .workspace-steps button{white-space:normal!important;text-align:left;min-height:44px}
 .workspace-scope button[aria-pressed=true],.workspace-tools button[aria-pressed=true]{background:var(--tint);color:var(--ink);border-color:#737b84}

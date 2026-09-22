@@ -3022,11 +3022,22 @@
             }
 
             function isFundApprovedRecord(record) {
-                return Boolean(record?.isin && approvedFundsState?.isinIndex?.has(normalizeIsin(record.isin)));
+                return Boolean(record?.isin && approvedClassRecords().some(r=>r.isin===normalizeIsin(record.isin)));
             }
 
             function approvedFundBadge(record) {
-                return isFundApprovedRecord(record) ? '<span class="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-emerald-700">Aprobado</span>' : '';
+                if (!isFundApprovedRecord(record)) return '';
+                const exact=approvedFundsState?.isinIndex?.has(normalizeIsin(record.isin));
+                return `<span class="fund-approval-badge">${exact?'Aprobado ISIN':'Aprobado por familia'}</span>`;
+            }
+
+            let approvedClassCache = null;
+            function approvedClassRecords() {
+                const universe=fundUniverseState?.records||[],approved=approvedFundsState?.records||[],extend=typeof ReportControls!=='undefined'&&ReportControls.extendApproved;
+                if(approvedClassCache?.universe===universe&&approvedClassCache.approved===approved&&approvedClassCache.extend===extend)return approvedClassCache.records;
+                const anchors=approved.map(r=>fundUniverseState?.isinIndex?.get(r.isin)||r),byIsin=new Map(anchors.map(r=>[r.isin,r]));
+                if(extend)universe.forEach(r=>{if(!byIsin.has(r.isin)&&anchors.some(a=>AnalysisCore.classMatch(a,r)))byIsin.set(r.isin,r);});
+                const records=[...byIsin.values()];approvedClassCache={universe,approved,extend,records};return records;
             }
 
             function closeCompactFundComboboxes(exceptId = '') {
@@ -3294,13 +3305,13 @@
             }
 
             function shareClassAssessment(record) {
-                return AnalysisCore.classes(record, fundUniverseState?.records || [], new Set((approvedFundsState.records || []).map(r => r.isin)));
+                return AnalysisCore.classes(record, fundUniverseState?.records || [], new Set(approvedClassRecords().map(r => r.isin)));
             }
 
             function shareClassSummary(record) {
                 const result = shareClassAssessment(record);
-                const label = r => r ? `${escapeHtml(r.name)} (${escapeHtml(r.isin)}) · TER ${fmtPercentPoint(r.ter)} · diferencia ${fmtPercentPoint(record.ter-r.ter)}` : 'Sin alternativa mas barata identificada';
-                return `<div class="initial-origin-note">${result.status === 'unknown' ? 'Datos insuficientes para verificar la clase mas barata.' : result.status === 'lowest' ? 'Menor TER entre las clases equivalentes identificadas.' : 'Hay clases equivalentes de menor TER.'}<br>Universo: ${label(result.all[0])}<br>Aprobadas: ${label(result.approved[0])}<br>Acceso a la clase pendiente de verificar.</div>`;
+                const label = r => r ? `${escapeHtml(r.name)} (${escapeHtml(r.isin)}) · TER ${fmtPercentPoint(r.ter)} · diferencia ${(record.ter-r.ter).toFixed(2)} pp${AnalysisCore.classMatch(record,r)==='probable'?' · Coincidencia probable, revisar clase':''}` : 'No se han identificado clases más baratas';
+                return `<div class="share-class-summary"><strong>${result.all.length?'Se han identificado clases con menor TER.':'No se han identificado clases más baratas en el universo cargado.'}</strong><div>Universo: ${label(result.all[0])}</div><div>Aprobadas: ${label(result.approved[0])}</div>${result.all.length?'<small>Verificar disponibilidad y condiciones de acceso antes de sustituir.</small>':''}</div>`;
             }
 
             function shareClassActions(record, action, index) {
@@ -4814,7 +4825,7 @@
                 const cacheKey = `approved-all|${anchor.isin || ''}|${category}|${approvedFundsState.records.length}|${fundUniverseState.records.length}|${limit}`;
                 if (fundRecommendationCache.has(cacheKey)) return fundRecommendationCache.get(cacheKey);
                 const deduped = new Map();
-                approvedFundsState.records.forEach(ap => {
+                approvedClassRecords().forEach(ap => {
                     const rec = fundUniverseState.isinIndex.get(ap.isin) || universeRecordForApproved(ap);
                     if (!rec || rec.isin === anchor.isin) return;
                     if (normalizeHeaderLabel(rec.category || '') !== category) return;
@@ -5977,7 +5988,7 @@
             function bestAggregateApprovedRecommendation(anchor, categoryOverride = '', scoreOverride = -Infinity) {
                 if (!anchor || !fundUniverseState?.records?.length) return [];
                 const anchorCategory = normalizeHeaderLabel(categoryOverride || anchor.category || '');
-                const approved = (approvedFundsState.records || []).map(ap => {
+                const approved = approvedClassRecords().map(ap => {
                     const universe = aggregateFastIndex.approvedUniverse.get(ap.isin) || universeRecordForApproved(ap);
                     return { approved: ap, universe, source: 'aprobado' };
                 }).filter(x => x.universe && normalizeHeaderLabel(x.universe.category || '') === anchorCategory && Number.isFinite(x.universe.score));
@@ -7722,7 +7733,7 @@
                     const assets = Object.values(priceSeries).filter(s => String(s.assetClass || '').toLowerCase().trim() === category.toLowerCase());
                     if (!assets.length) continue;
                     setManagerReportProgress(64 + Math.round((i / Math.max(1, entries.length)) * 20), `Capturando comparador ${category}...`);
-                    const img = await captureMassiveComparisonImage(assets, bench, category);
+                    const img = document.getElementById('reportIncludeCharts')?.checked!==false ? await captureMassiveComparisonImage(assets, bench, category) : '';
                     sections.push(`<section class="block">
                         <h2>Comparador masivo: ${escapeHtml(category)}</h2>
                         <p class="indented">Compara todos los fondos/activos de la categoría frente a su benchmark de referencia, normalizados en base 100.</p>
@@ -7744,14 +7755,15 @@
                     await waitForUiFrame();
                     const summary = aggregateScoringSummary();
                     setManagerReportProgress(25, 'Preparando scoring agregado...');
-                    const summarySection = buildManagerSummarySection(summary) + ReportControls.aggregateComparison() + ReportControls.aggregateClasses();
-                    const positionsSection = buildManagerAggregatePositionsSection(summary);
-                    const changesSection = buildManagerProposedChangesSection(summary);
-                    const santaSection = buildManagerSantaluciaSection(summary);
+                    const blocks=ReportControls.manager.blocks;
+                    const summarySection = (blocks.summary?buildManagerSummarySection(summary):'') + (blocks.impact?ReportControls.aggregateComparison():'') + (blocks.classes?ReportControls.aggregateClasses():'');
+                    const positionsSection = blocks.positions?buildManagerAggregatePositionsSection(summary):'';
+                    const changesSection = blocks.changes?buildManagerProposedChangesSection(summary):'';
+                    const santaSection = blocks.santa?buildManagerSantaluciaSection(summary):'';
                     setManagerReportProgress(45, 'Capturando exposición por bloques...');
-                    const exposureSection = await buildManagerExposureSection();
+                    const exposureSection = blocks.exposure&&document.getElementById('reportIncludeCharts')?.checked!==false?await buildManagerExposureSection():'';
                     setManagerReportProgress(62, 'Construyendo comparadores por benchmark...');
-                    const massiveSections = await buildManagerMassiveComparisonSections();
+                    const massiveSections = blocks.comparisons?await buildManagerMassiveComparisonSections():'';
                     setManagerReportProgress(88, 'Maquetando informe gestora...');
                     managerReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe Gestora</title>${portfolioReportStyles()}${managerReportStyles()}</head><body>
                     <section class="report manager-report">
