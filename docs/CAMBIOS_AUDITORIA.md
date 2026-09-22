@@ -9,6 +9,19 @@
 
 ## Cambios realizados
 
+### Sexta revision: edicion, informes y rendimiento
+
+- Historicos: reorganizacion aplazada expresamente; se mantienen las cargas y la biblioteca actuales, sin nuevas bases de datos ni persistencia.
+- Analisis Inicial: editar origen en todas las filas, anadir/eliminar posiciones, editar pesos y normalizar con una accion explicita. Identificador estable por fila; los ISIN repetidos conservan ajustes independientes. La entrada por texto y la tabla se sincronizan, y recalcular conserva las sustituciones.
+- TER y score editables en origen y propuesta, con marca Manual y restablecimiento por campo. Los registros compartidos del universo/aprobados no se modifican. Las posiciones incompletas o los pesos que no suman 100% bloquean el informe hasta su correccion.
+- Clases equivalentes: criterio unico por identificador de fondo, divisa y cobertura. Diferencia entre menor TER identificado, alternativa mas barata y datos insuficientes. Se distinguen universo y aprobadas, con acciones de eleccion voluntaria en los tres flujos. Los proxies no acreditan equivalencia y se advierte de que falta verificar acceso comercial.
+- Informe inicial: controles independientes para posiciones, cambios, clases, detalle de metricas, ahorro, comparacion global y graficas por sustitucion. Los bloques desactivados no se generan. Ejes X/Y configurables, presets riesgo 5A/retorno 5A y TER/score, y tamano de burbuja fijo o por metrica. Metodologia, cobertura y procedencia permanecen visibles. Configuracion y ajustes incluidos en trazabilidad JSON.
+- Informe agregado: YTD inicial, 1/3/5 anos, historico completo o fechas personalizadas. Periodo aplicado a graficas y tablas, con fecha de referencia comun basada en benchmarks y sin cambiar la frecuencia de calculo. El ultimo precio anterior al periodo sirve como base cuando esta disponible.
+- Tabla agregada Origen/Propuesta/Variacion para TER y score ponderados sobre las mismas posiciones con datos en ambos lados. Cobertura explicita; el score excluye del diferencial cambios entre categorias, y su media entre categorias se identifica como orientativa.
+- Screener: Fondos y Asset class separados, pagina inicial de 100 filas y opciones 250/500/1000. Filtros sobre todo el universo leidos una vez, resultados cacheados por archivo/filtros y debounce de 250 ms. Nube bajo demanda, limite independiente de 100/500/1000/5000/20000 puntos y muestra determinista declarada; WebGL por encima de 1500 puntos.
+- Asset class: lectura de valores y formatos Excel, normalizacion a puntos porcentuales y previsualizacion con selector por grupos de metricas para celdas sin unidad. 0,06 decimal y 6% se muestran como 6%; AUM y numero de fondos no se escalan.
+- Pruebas: 25 casos unitarios, suite de regresion con los tres PDF y nueva prueba integral con 20000 fondos, edicion de duplicados, restablecimiento, configuracion de PDF, importacion XLSX y vistas movil/escritorio. Entrada del screener medida en 235 ms en una ejecucion local; no constituye un SLA ni prueba de disponibilidad de proveedores en vivo.
+
 ### Quinta revision: colores financieros en tablas y graficas
 
 - Motor visual compartido `assets/financial-visuals.js`: todas las graficas Plotly del programa pasan por el mismo adaptador, incluidas las generadas para informes. No cambia series, calculos ni fuentes.

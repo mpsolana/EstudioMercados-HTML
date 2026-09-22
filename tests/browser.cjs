@@ -105,7 +105,7 @@ const fs = require('node:fs');
         await page.evaluate(()=>generateFundProposalReport());
         assert.ok(await page.evaluate(()=>fundProposalState.reportHtml.includes('metricas estimadas con el proxy')));
         await page.locator('[data-workspace-step="proposal"]').click();
-        await page.locator('#fundProposalTableBody button:has-text("Editar origen")').click();
+        await page.locator('#fundProposalTableBody tr').nth(1).locator('button:has-text("Editar origen")').click();
         await page.locator('#initialOriginMode').selectOption('manual');
         await page.locator('#initialOriginName').fill('Fondo cliente manual');
         await page.locator('#initialMetric-ter').fill('2.25');

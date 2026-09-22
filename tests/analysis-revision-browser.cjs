@@ -1,0 +1,60 @@
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {pathToFileURL}=require('node:url');
+(async()=>{
+    const out=process.env.BROWSER_OUTPUT_DIR;assert.ok(out);fs.mkdirSync(out,{recursive:true});
+    const browser=await chromium.launch({headless:true});
+    try{
+        const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.dismiss());
+        await page.route('https://**/*',r=>/tailwindcss|plotly|mathjs|xlsx|pdfmake|font-awesome/.test(r.request().url())?r.continue():r.abort());
+        await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
+        await page.evaluate(()=>{
+            switchSection('cartera');
+            const base={isin:'ES0000000001',name:'Origen EUR',fundId:'F1',currency:'EUR',hedging:'No',category:'Bonos',ter:1,score:4,ret3:5,risk3:7,ret5:6,risk5:8,aum:100};
+            const records=Array.from({length:20000},(_,i)=>({...base,isin:'ES'+String(i+1).padStart(10,'0'),name:'Fondo '+i,ter:i===1?.2:1,score:4+i%5}));
+            fundUniverseState={records,isinIndex:new Map(records.map(r=>[r.isin,r])),quartiles:buildFundQuartiles(records)};approvedFundsState={records:[records[1]],isinIndex:new Map([[records[1].isin,records[1]]])};
+        });
+        const start=Date.now();await page.locator('[data-workspace-scope="screener"]').click();
+        assert.equal(await page.locator('#fundScreenerBody tr').count(),100);const entryMs=Date.now()-start;assert.ok(entryMs<3000,`Screener entry ${entryMs}ms`);
+        assert.equal(await page.locator('#assetClassScreenerHead tr').count(),0);
+        await page.locator('[data-fund-screener-filter="name"]').fill('Fondo 19999');await page.waitForTimeout(400);assert.equal(await page.locator('#fundScreenerBody tr').count(),1);
+        await page.locator('[data-fund-screener-filter="name"]').fill('');await page.waitForTimeout(400);
+        await page.locator('#fundsNext').click();assert.match(await page.locator('#fundsPageLabel').innerText(),/101-200/);
+        await page.locator('#fundChartDetails summary').click();await page.waitForFunction(()=>document.getElementById('fundScreenerScatter').data?.[0]?.x.length===500);
+        await page.screenshot({path:path.join(out,'screener-20000.png')});
+        await page.locator('[data-workspace-scope="initial"]').click();await page.locator('[data-workspace-step="proposal"]').click();
+        const unitWeights=await page.evaluate(()=>{const input=document.getElementById('fundWeightUnit'),previous=input.value;try{return ['percent','fraction','amount'].map(unit=>{input.value=unit;return parseFundProposalInput('ES0000000001;40%\nES0000000002;30%').map(r=>r.weight);});}finally{input.value=previous;}});
+        assert.deepEqual(unitWeights,[[40,30],[40,30],[40,30]]);
+        await page.evaluate(()=>{document.getElementById('fundProposalPortfolioInput').value='ES0000000001;50\nES0000000001;50';analyzeFundProposalPortfolio();});
+        const ids=await page.evaluate(()=>fundProposalState.rows.map(r=>r.id));assert.notEqual(ids[0],ids[1]);
+        await page.getByRole('spinbutton',{name:'ter origen fila 1',exact:true}).fill('2');await page.getByRole('spinbutton',{name:'ter origen fila 1',exact:true}).press('Tab');
+        await page.getByRole('spinbutton',{name:'score propuesta fila 1',exact:true}).fill('8');await page.getByRole('spinbutton',{name:'score propuesta fila 1',exact:true}).press('Tab');
+        const edited=await page.evaluate(()=>{analyzeFundProposalPortfolio();return {ter:fundProposalState.rows[0].current.ter,other:fundProposalState.rows[1].current.ter,universe:fundUniverseState.records[0].ter,score:fundProposalState.rows[0].proposed.score,ids:fundProposalState.rows.map(r=>r.id)};});
+        assert.deepEqual(edited,{ter:2,other:1,universe:1,score:8,ids});
+        await page.locator('#fundProposalTableBody tr').first().getByRole('button',{name:'Restablecer ter',exact:true}).click();assert.equal(await page.evaluate(()=>fundProposalState.rows[0].current.ter),1);
+        await page.locator('#fundProposalTableBody tr').first().getByRole('button',{name:'Eliminar posicion',exact:true}).click();assert.equal(await page.evaluate(()=>fundProposalState.rows[0].id),ids[1]);
+        await page.getByRole('button',{name:'Anadir posicion'}).click();await page.locator('#initialOriginMode').selectOption('universe');await page.evaluate(()=>InitialAnalysis.selectProxy('ES0000000002'));await page.locator('dialog button[type=submit]').click();
+        await page.getByRole('spinbutton',{name:'Peso fila 2',exact:true}).fill('50');await page.getByRole('spinbutton',{name:'Peso fila 2',exact:true}).press('Tab');
+        await page.locator('[data-workspace-step="report"]').click();
+        await page.locator('#reportChartPreset').selectOption('pricing');
+        for(const key of ['savings','overview','pairs','details','changes','classes'])await page.locator(`[data-report-block="${key}"]`).uncheck();
+        const report=await page.evaluate(async()=>{const original=FinancialVisuals.newPlot;let calls=0;FinancialVisuals.newPlot=(...args)=>{calls++;return original(...args);};try{await generateFundProposalReport();return {calls,html:fundProposalState.reportHtml,configuration:PortfolioWorkspace.snapshots.proposal.reportConfiguration};}finally{FinancialVisuals.newPlot=original;}});
+        assert.equal(report.calls,0);assert.ok(report.html.includes('Posiciones de origen'));assert.equal(report.html.includes('<img'),false);assert.equal(report.configuration.initial.x,'ter');assert.equal(report.configuration.initial.y,'score');
+        await page.locator('[data-report-block="overview"]').check();await page.evaluate(()=>generateFundProposalReport());assert.ok(await page.evaluate(()=>fundProposalState.reportHtml.includes('TER (%) / Score')));
+        const downloadPromise=page.waitForEvent('download');await page.evaluate(()=>ReportDesign.downloadPdf(fundProposalState.reportHtml,'Configurado.pdf'));await(await downloadPromise).saveAs(path.join(out,'informe-configurado.pdf'));
+        await page.screenshot({path:path.join(out,'informe-configurado.png')});
+        await page.evaluate(()=>{
+            const wb=XLSX.utils.book_new(),sheet=XLSX.utils.aoa_to_sheet([['Asset Class','Return 5Y* (Media)','Return 5Y* (Min)','Return 5Y* (Max)','Risk 5Y* (Media)','KIID Ongoing Charge* (Media)','AUM* (Media)','Fondos'],['Bonos',.06,-.02,.12,.08,.01,1000,2]]);sheet.B2.z='0.00%';XLSX.utils.book_append_sheet(wb,sheet,'Asset Class');
+            window.assetPending=importAssetClassScreenerFile(new File([XLSX.write(wb,{type:'array',bookType:'xlsx'})],'AssetClass.xlsx'));
+        });
+        await page.locator('dialog button[type=submit]').click();await page.evaluate(()=>window.assetPending);
+        assert.deepEqual(await page.evaluate(()=>{const r=assetClassScreenerState.records[0];return [r.ret5Mean,r.ret5Min,r.ret5Max,r.terMean,r.aumMean];}),[6,-2,12,1,1000]);
+        await page.locator('[data-workspace-scope="screener"]').click();await page.locator('[data-screener-tab="asset"]').click();assert.match(await page.locator('#assetClassScreenerBody').innerText(),/6.00%/);
+        await page.screenshot({path:path.join(out,'asset-class.png')});
+        await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);await page.screenshot({path:path.join(out,'asset-class-mobile.png')});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+        await page.setViewportSize({width:1440,height:1000});await page.locator('[data-workspace-scope="aggregate"]').click();await page.locator('[data-workspace-step="report"]').click();
+        assert.equal(await page.locator('#managerReportRange').inputValue(),'YTD');
+        const aggregate=await page.evaluate(()=>{const current=fundUniverseState.records[0],proposed=fundUniverseState.records[1];aggregateScoringResults=[{position:{isin:current.isin,weight:100},originalRecord:current,universeMatch:{record:current},currentRecord:proposed,included:true}];return ReportControls.aggregateComparison();});assert.ok(aggregate.includes('-0.80'));assert.ok(aggregate.includes('100.0%'));
+        assert.deepEqual(errors,[]);console.log(JSON.stringify({entryMs,rows:20000,manualEdits:true,configuredPdf:true,assetPercent:6,errors},null,2));
+    }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

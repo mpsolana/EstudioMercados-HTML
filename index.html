@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="docTitle">Analyzer v13</title>
     <script src="assets/finance-core.js"></script>
+    <script src="assets/analysis-core.js"></script>
     <script src="assets/financial-visuals.js"></script>
     <script src="assets/simulation-engine.js"></script>
     <script src="assets/market-data.js"></script>
@@ -13,6 +14,8 @@
     <script src="assets/report-design.js"></script>
     <script src="assets/initial-analysis.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
+    <script defer src="assets/report-controls.js"></script>
+    <script defer src="assets/screener-ui.js"></script>
     <link rel="stylesheet" href="assets/portfolio-workspace.css">
 
     <!-- Tailwind CSS -->
@@ -2080,7 +2083,7 @@
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = e => {
-                        try { resolve(XLSX.read(e.target.result, { type: 'array', cellDates: true })); }
+                        try { resolve(XLSX.read(e.target.result, { type: 'array', cellDates: true, cellNF: true })); }
                         catch (err) { reject(err); }
                     };
                     reader.onerror = reject;
@@ -3261,16 +3264,22 @@
 
             function parseFundProposalInput(text) {
                 const rows = [];
+                const unit = document.getElementById('fundWeightUnit')?.value || 'percent';
+                let explicitCount = 0;
                 String(text || '').split(/\r?\n/).forEach(line => {
                     const parts = line.split(line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',').map(x => x.trim()).filter(Boolean);
                     if (!parts.length) return;
                     const isin = normalizeIsin(parts[0]);
-                    const weight = parseFundWeight(parts[1]);
-                    if (!isLikelyIsin(isin) || !Number.isFinite(weight) || weight <= 0) throw new Error('ISIN o peso no valido en la propuesta: ' + line);
+                    const explicit = String(parts[1]).includes('%');
+                    const parsedWeight = explicit ? parseNumber(parts[1]) : parseFundWeight(parts[1]);
+                    if (explicit) explicitCount++;
+                    const weight = explicit || unit === 'fraction' ? parsedWeight * 100 : parsedWeight;
+                    if (!isLikelyIsin(isin) || !Number.isFinite(weight) || weight < 0) throw new Error('ISIN o peso no valido en la propuesta: ' + line);
                     rows.push({ isin, weight });
                 });
                 const total = rows.reduce((acc, r) => acc + r.weight, 0);
-                if (total > 0) rows.forEach(r => r.weight = r.weight / total * 100);
+                if (unit === 'amount' && explicitCount && explicitCount !== rows.length) throw new Error('No mezcles importes y porcentajes en la misma cartera.');
+                if (unit === 'amount' && !explicitCount && total > 0) rows.forEach(r => r.weight = r.weight / total * 100);
                 return rows;
             }
 
@@ -3281,31 +3290,37 @@
             }
 
             function findCheaperShareClasses(record) {
-                if (!record || !Number.isFinite(record.ter)) return [];
-                return (fundUniverseState?.records || []).filter(candidate =>
-                    candidate.isin !== record.isin && FinanceCore.sameFund(record, candidate) &&
-                    Number.isFinite(candidate.ter) && candidate.ter < record.ter
-                ).sort((a, b) => a.ter - b.ter);
+                return shareClassAssessment(record).all;
+            }
+
+            function shareClassAssessment(record) {
+                return AnalysisCore.classes(record, fundUniverseState?.records || [], new Set((approvedFundsState.records || []).map(r => r.isin)));
+            }
+
+            function shareClassSummary(record) {
+                const result = shareClassAssessment(record);
+                const label = r => r ? `${escapeHtml(r.name)} (${escapeHtml(r.isin)}) · TER ${fmtPercentPoint(r.ter)} · diferencia ${fmtPercentPoint(record.ter-r.ter)}` : 'Sin alternativa mas barata identificada';
+                return `<div class="initial-origin-note">${result.status === 'unknown' ? 'Datos insuficientes para verificar la clase mas barata.' : result.status === 'lowest' ? 'Menor TER entre las clases equivalentes identificadas.' : 'Hay clases equivalentes de menor TER.'}<br>Universo: ${label(result.all[0])}<br>Aprobadas: ${label(result.approved[0])}<br>Acceso a la clase pendiente de verificar.</div>`;
+            }
+
+            function shareClassActions(record, action, index) {
+                const result=shareClassAssessment(record);
+                return [['Universo',result.all[0]],['Aprobada',result.approved[0]]].filter(([,fund])=>fund).map(([label,fund])=>`<button type="button" class="initial-origin-button" onclick="${action}(${index},'${escapeHtml(fund.isin)}')">Elegir clase mas barata · ${label}</button>`).join('');
             }
 
             function cheaperShareClassBadge(row) {
                 const best = row?.cheaperClasses?.[0];
-                if (!best || !row.current) return '';
+                if (!best || !row.current) return shareClassSummary(row?.current);
                 const annual = Number.isFinite(row.weight) && Number.isFinite(row.current.ter) && Number.isFinite(best.ter) ? fundProposalCapital() * (row.weight / 100) * (row.current.ter - best.ter) / 100 : NaN;
-                return `<div class="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800"><b>Clase mas barata:</b> ${escapeHtml(best.isin)} · TER ${fmtPercentPoint(best.ter)}${Number.isFinite(annual) ? ` · ahorro ${formatEur(annual)}/año` : ''}</div>`;
+                return `${shareClassSummary(row.current)}${Number.isFinite(annual) ? `<small>Ahorro estimado ${formatEur(annual)}/año</small>` : ''}`;
             }
 
             function analyzeFundProposalPortfolio() {
                 const status = document.getElementById('fundProposalStatus');
                 const parsed = parseFundProposalInput(document.getElementById('fundProposalPortfolioInput')?.value || '');
                 if (!parsed.length) { if (status) status.innerText = 'Introduce al menos un ISIN con peso.'; return; }
-                fundProposalState.rows = parsed.map(row => {
-                    const current = InitialAnalysis.resolve(row.isin) || fundUniverseState?.isinIndex.get(row.isin) || null;
-                    const recs = current ? getBetterFundRecommendations(current, 5000) : [];
-                    const proposed = recs[0] || current;
-                    const cheaperClasses = current && !current.originSource ? findCheaperShareClasses(current) : [];
-                    return { ...row, current, proposed, recommendations: recs, cheaperClasses, missing: !current };
-                });
+                fundProposalState.rows = InitialAnalysis.reconcile(parsed);
+                invalidatePortfolioReports();
                 fundProposalState.reportHtml = '';
                 renderFundProposalPortfolio();
             }
@@ -3313,6 +3328,7 @@
             function setFundProposalRecommendation(index, isin) {
                 const row = fundProposalState.rows[index];
                 if (!row) return;
+                if (isin !== '__original__' && row.proposed?.isin === isin) return;
                 row.proposed = isin === '__original__' ? row.current : fundUniverseState.isinIndex.get(normalizeIsin(isin)) || row.proposed;
                 fundProposalState.reportHtml = '';
                 fundProposalState.reportBodyHtml = '';
@@ -3434,6 +3450,8 @@
                 if (!body) return;
                 const rows = fundProposalState.rows || [];
                 const currentScore = fundProposalWeighted('score', 'current');
+                const totalWeight = rows.reduce((sum,row)=>sum+row.weight,0);
+                setText('initialWeightTotal',`Peso total: ${totalWeight.toFixed(2)}%${Math.abs(totalWeight-100)>.01?' · Ajustar o normalizar antes del informe':''}`);
                 const newScore = fundProposalWeighted('score', 'proposed');
                 const currentTer = fundProposalWeighted('ter', 'current');
                 const newTer = fundProposalWeighted('ter', 'proposed');
@@ -3469,13 +3487,13 @@
                         <td class="px-3 py-2 font-mono">${escapeHtml(row.isin)}</td>
                         <td class="px-3 py-2">${current ? `<b>${escapeHtml(current.name)} ${current.originSource ? '' : approvedFundBadge(current)}</b>${cheaperShareClassBadge(row)}` : '<span class="text-red-600 font-bold">Sin match</span>'}${InitialAnalysis.originControl(row, idx)}</td>
                         <td class="px-3 py-2">${escapeHtml(current?.category || '-')}</td>
-                        <td class="px-3 py-2 text-right font-bold">${row.weight.toFixed(2)}%</td>
-                        <td class="px-3 py-2 text-right">${fmtScore(current?.score)}</td>
-                        <td class="px-3 py-2 text-right">${fmtPercentPoint(current?.ter)}</td>
+                        <td class="px-3 py-2 text-right font-bold"><input class="initial-metric-input" aria-label="Peso fila ${idx+1}" type="number" min="0" max="100" step="any" value="${row.weight}" onchange="InitialAnalysis.weight(${idx},this)">%</td>
+                        <td class="px-3 py-2 text-right">${InitialAnalysis.metricControl(row,idx,'current','score')}</td>
+                        <td class="px-3 py-2 text-right">${InitialAnalysis.metricControl(row,idx,'current','ter')}</td>
                         <td class="px-3 py-2">${proposed ? `${escapeHtml(proposed.name)} ${approvedFundBadge(proposed)}<br><span class="font-mono text-[11px] text-slate-400">${escapeHtml(proposed.isin)}</span>` : '-'}</td>
-                        <td class="px-3 py-2 text-right font-bold ${scoreCls}">${fmtScore(proposed?.score)}</td>
-                        <td class="px-3 py-2 text-right font-bold ${terCls}">${fmtPercentPoint(proposed?.ter)}</td>
-                        <td class="px-3 py-2">${fundProposalActionHtml(row, idx)}</td>
+                        <td class="px-3 py-2 text-right font-bold ${scoreCls}">${InitialAnalysis.metricControl(row,idx,'proposed','score')}</td>
+                        <td class="px-3 py-2 text-right font-bold ${terCls}">${InitialAnalysis.metricControl(row,idx,'proposed','ter')}</td>
+                        <td class="px-3 py-2">${fundProposalActionHtml(row, idx)}${shareClassActions(current,'setFundProposalRecommendation',idx)}</td>
                     </tr>`;
                 }).join('') : '<tr><td colspan="10" class="px-3 py-6 text-center text-slate-400">Introduce una cartera para analizar.</td></tr>';
                 renderFundProposalSavingsChart();
@@ -3636,50 +3654,7 @@
             }
 
             async function generateFundProposalReport() {
-                if (!Number.isFinite(fundProposalCapital())) {
-                    document.getElementById('fundProposalCapital')?.reportValidity();
-                    return;
-                }
-                if (!fundProposalState.rows?.length) analyzeFundProposalPortfolio();
-                const preview = document.getElementById('fundProposalReportPreview');
-                if (!preview || !fundProposalState.rows?.length) return;
-                setFundProposalBusy('Generando informe propuesta...', true);
-                renderFundProposalSavingsChart();
-                renderFundProposalChart();
-                await waitForUiFrame();
-                const savings = fundProposalSavingsData();
-                const currentScore = fundProposalWeighted('score', 'current');
-                const newScore = fundProposalWeighted('score', 'proposed');
-                const currentTer = fundProposalWeighted('ter', 'current');
-                const newTer = fundProposalWeighted('ter', 'proposed');
-                const savingsImage = await capturePlotlyReportImage('fundProposalSavingsChart');
-                const overviewImage = await capturePlotlyReportImage('fundProposalChart');
-                const rows = fundProposalState.rows || [];
-                const changes = rows.map(row => {
-                    const scoreSignal = row.current && row.proposed && row.current.category === row.proposed.category && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
-                    const terSignal = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
-                    const bad = (Number.isFinite(scoreSignal) && scoreSignal < 0) || (Number.isFinite(terSignal) && terSignal < 0);
-                    return `<tr class="${bad ? 'report-bad-row' : ''}"><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.current?.name || 'Sin match')}</td><td>${escapeHtml(row.proposed?.name || '-')}</td><td class="num">${row.weight.toFixed(2)}%</td><td class="num">${fmtScore(row.current?.score)}</td><td class="num ${proposalReportToneClass(scoreSignal)}">${fmtScore(row.proposed?.score)}</td><td class="num">${fmtPercentPoint(row.current?.ter)}</td><td class="num ${proposalReportToneClass(terSignal)}">${fmtPercentPoint(row.proposed?.ter)}</td></tr>`;
-                }).join('');
-                const cheaperRows = fundProposalCheaperOpportunitiesRows();
-                const pairSections = [];
-                for (let i = 0; i < rows.length; i++) {
-                    const row = rows[i];
-                    setFundProposalBusy(`Generando epigrafe ${i + 1}/${rows.length}...`, true);
-                    await waitForUiFrame();
-                    const pairImage = await buildFundProposalPairChartImage(row);
-                    const scoreDelta = row.current && row.proposed && row.current.category === row.proposed.category && Number.isFinite(row.current.score) && Number.isFinite(row.proposed.score) ? row.proposed.score - row.current.score : NaN;
-                    const terDelta = row.current && row.proposed && Number.isFinite(row.current.ter) && Number.isFinite(row.proposed.ter) ? row.current.ter - row.proposed.ter : NaN;
-                    const bestCheap = row.cheaperClasses?.[0];
-                    const cheapText = bestCheap ? ` Clase mas barata detectada: ${escapeHtml(bestCheap.isin)} (${fmtPercentPoint(bestCheap.ter)} TER).` : ' No se detecta clase mas barata equivalente.';
-                    pairSections.push(`<section class="block"><h2>${escapeHtml(row.isin)} - Analisis de sustitucion</h2><p class="analysis-note"><b>Descripcion:</b> ${row.current && row.proposed ? `se compara ${escapeHtml(row.current.name || row.isin)} frente a ${escapeHtml(row.proposed.name || '-')}. La mejora de score es ${Number.isFinite(scoreDelta) ? scoreDelta.toFixed(2) : '-'} y el diferencial de TER de la propuesta es ${Number.isFinite(terDelta) ? terDelta.toFixed(2) + ' pp' : '-'}.${cheapText}` : 'no hay match suficiente para proponer una sustitucion automatica.'}</p>${fundProposalMetricReportTable(row)}${pairImage ? `<figure><figcaption>Nube categoria: retorno 5Y, riesgo 5Y y TER</figcaption><img src="${pairImage}" alt="Nube comparativa ${escapeHtml(row.isin)}"></figure>` : '<p class="method-note"><b>Incidencia:</b> la nube no se ha generado por falta de metricas 5Y suficientes.</p>'}</section>`);
-                }
-                const bodyHtml = buildFundProposalReportBodyHtml({ savings, currentScore, newScore, currentTer, newTer, savingsImage, overviewImage, changes, cheaperRows, pairSections });
-                fundProposalState.reportBodyHtml = bodyHtml;
-                fundProposalState.reportHtml = buildFundProposalReportDocumentHtml(bodyHtml);
-                ReportDesign.preview(preview, fundProposalState.reportHtml);
-                preview.classList.remove('hidden');
-                setFundProposalBusy('Informe propuesta generado. Puedes exportarlo a PDF.', false);
+                return ReportControls.generateInitial();
             }
 
             async function downloadFundProposalReportPdf() {
@@ -4158,7 +4133,7 @@
 
             function filteredFundScreenerRecords() {
                 const columns = fundScreenerColumns();
-                return (fundUniverseState?.records || []).filter(record => columns.every(col => recordMatchesScreenerFilter(record, col, fundScreenerFilterValue(col.key))));
+                return ScreenerUI.filtered('funds',fundUniverseState?.records || [],columns,fundScreenerFilterValue);
             }
 
             function setFundScreenerSort(key) {
@@ -4172,6 +4147,7 @@
             }
 
             function renderFundUniverseScreener() {
+                if (typeof ScreenerUI !== 'undefined' && !ScreenerUI.visible('funds')) return;
                 const head = document.getElementById('fundScreenerHead');
                 const body = document.getElementById('fundScreenerBody');
                 const status = document.getElementById('fundScreenerStatus');
@@ -4180,7 +4156,7 @@
                 const columns = fundScreenerColumns();
                 if (!fundScreenerState.initialized) {
                     head.innerHTML = `<tr>${columns.map(c => `<th style="min-width:${c.width || '90px'}" class="px-2 py-2 text-left cursor-pointer select-none" onclick="setFundScreenerSort('${c.key}')">${escapeHtml(c.label)} ${fundScreenerState.sortKey === c.key ? (fundScreenerState.sortDir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr>
-                        <tr class="bg-white">${columns.map(c => `<th class="px-2 py-1"><input data-fund-screener-filter="${c.key}" oninput="renderFundUniverseScreener()" class="w-full p-1 border border-slate-200 rounded text-[11px] normal-case font-normal" placeholder="${c.type === 'num' ? '>3, <1, 2..4' : 'contiene...'}" value="${escapeHtml(fundScreenerFilterValue(c.key))}"></th>`).join('')}</tr>`;
+                        <tr class="bg-white">${columns.map(c => `<th class="px-2 py-1"><input data-fund-screener-filter="${c.key}" oninput="ScreenerUI.schedule('funds')" class="w-full p-1 border border-slate-200 rounded text-[11px] normal-case font-normal" placeholder="${c.type === 'num' ? '>3, <1, 2..4' : 'contiene...'}" value="${escapeHtml(fundScreenerFilterValue(c.key))}"></th>`).join('')}</tr>`;
                     fundScreenerState.initialized = true;
                 }
                 if (!fundUniverseState?.records?.length) {
@@ -4197,7 +4173,7 @@
                     return String(av || '').localeCompare(String(bv || '')) * dir;
                 });
                 updateFundScreenerCategoryOptions(rows);
-                const visible = rows.slice(0, fundScreenerState.limit);
+                const visible = ScreenerUI.page('funds',rows);
                 body.innerHTML = visible.map(record => `<tr class="hover:bg-blue-50">
                     ${columns.map(col => {
                         const value = record[col.key];
@@ -4206,7 +4182,7 @@
                     }).join('')}
                 </tr>`).join('');
                 if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} fondos encontrados de ${(fundUniverseState.records || []).length.toLocaleString('es-ES')}. Mostrando ${visible.length.toLocaleString('es-ES')}.`;
-                renderFundScreenerChart(rows);
+                ScreenerUI.charts('funds',rows);
             }
 
             function clearFundScreenerFilters() {
@@ -4215,6 +4191,7 @@
             }
 
             function renderFundScreenerChart(records = null) {
+                if (!ScreenerUI.visible('funds') || !document.getElementById('fundChartDetails').open) return;
                 const el = document.getElementById('fundScreenerScatter');
                 if (!el) return;
                 if (!fundUniverseState?.records?.length || !window.Plotly) {
@@ -4227,7 +4204,7 @@
                 const xKey = document.getElementById('fundScreenerXAxis')?.value || 'ret3';
                 const yKey = document.getElementById('fundScreenerYAxis')?.value || 'risk3';
                 const zKey = document.getElementById('fundScreenerZAxis')?.value || 'aum';
-                const source = filteredRows.filter(r => (!category || r.category === category) && Number.isFinite(r[xKey]) && Number.isFinite(r[yKey]));
+                const source = ScreenerUI.points(filteredRows.filter(r => (!category || r.category === category) && Number.isFinite(r[xKey]) && Number.isFinite(r[yKey])));
                 if (!source.length) {
                     el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin fondos con datos suficientes para los ejes seleccionados.</div>';
                     return;
@@ -4240,7 +4217,7 @@
                     x: source.map(r => r[xKey]),
                     y: source.map(r => r[yKey]),
                     mode: 'markers',
-                    type: 'scatter',
+                    type: source.length > 1500 ? 'scattergl' : 'scatter',
                     text: source.map(r => `${r.name}<br>${r.isin}<br>${r.category}`),
                     customdata: source.map(r => [r.score, r.ter, r[zKey]]),
                     marker: { size: sizes, color: source.map(r => Number.isFinite(r.score) ? r.score : 0), colorscale: 'Blues', showscale: true, colorbar: { title: 'Score' }, opacity: 0.72, line: { color: '#0f172a', width: 0.4 } },
@@ -4285,13 +4262,13 @@
             function assetClassRawRows(workbook, sheetName) {
                 const sheet = workbook.Sheets[sheetName];
                 if (!sheet) return [];
-                const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false });
+                const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
                 const headerIndex = aoa.findIndex(row => (row || []).some(cell => normalizeHeaderLabel(cell) === 'asset class'));
                 if (headerIndex < 0) return [];
                 const headers = (aoa[headerIndex] || []).map(h => String(h || '').trim());
-                return aoa.slice(headerIndex + 1).map(row => {
-                    const obj = {};
-                    headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
+                return aoa.slice(headerIndex + 1).map((row,rowIndex) => {
+                    const obj = {__formats:{}};
+                    headers.forEach((h, i) => { if (h) { obj[h] = row[i]; obj.__formats[h] = sheet[XLSX.utils.encode_cell({r:headerIndex+1+rowIndex,c:i})]?.z || ''; } });
                     return obj;
                 }).filter(row => String(row['Asset Class'] || '').trim());
             }
@@ -4300,7 +4277,7 @@
                 const key = Object.keys(row || {}).find(k => normalizeHeaderLabel(k) === normalizeHeaderLabel(header));
                 const value = parseRankingNumber(key ? row[key] : row[header]);
                 if (!Number.isFinite(value)) return NaN;
-                return percentLike ? value / 100 : value;
+                return percentLike ? AnalysisCore.percent(key ? row[key] : row[header],row.__formats?.[key],AssetImport.unit(header)) : value;
             }
 
             function assetClassMetricTriple(row, base, keyPrefix, percentLike = true) {
@@ -4318,6 +4295,7 @@
                 if (status) status.innerText = 'Leyendo asset class...';
                 const workbook = await readWorkbook(file);
                 const sheetName = findSheet(workbook, ['Análisis por Asset Class', 'Analisis por Asset Class', 'Asset Class']) || workbook.SheetNames[0];
+                if (!await AssetImport.preview(workbook,sheetName)) return;
                 const rows = assetClassRawRows(workbook, sheetName).map(row => ({
                     assetClass: String(row['Asset Class'] || '').trim(),
                     funds: parseRankingNumber(Object.entries(row).find(([k]) => /fondos/i.test(normalizeHeaderLabel(k)))?.[1]),
@@ -4338,7 +4316,7 @@
                     ...assetClassMetricTriple(row, 'MRAR 5', 'mrar5', false),
                     ...assetClassMetricTriple(row, 'MRAR 10', 'mrar10', false)
                 })).filter(r => r.assetClass);
-                assetClassScreenerState = { records: rows, fileName: file.name, sortKey: 'funds', sortDir: 'desc', initialized: false, limit: 300 };
+                assetClassScreenerState = { records: rows, fileName: file.name, units: AssetImport.state(), sortKey: 'funds', sortDir: 'desc', initialized: false, limit: 100 };
                 renderScoringDataStatus();
                 if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} categorías cargadas (${file.name}).`;
                 renderAssetClassScreener();
@@ -4350,7 +4328,7 @@
 
             function filteredAssetClassScreenerRecords() {
                 const columns = assetClassScreenerColumns();
-                return (assetClassScreenerState.records || []).filter(record => columns.every(col => recordMatchesScreenerFilter(record, col, assetClassScreenerFilterValue(col.key))));
+                return ScreenerUI.filtered('asset',assetClassScreenerState.records || [],columns,assetClassScreenerFilterValue);
             }
 
             function setAssetClassScreenerSort(key) {
@@ -4382,6 +4360,7 @@
             }
 
             function renderAssetClassScreener() {
+                if (typeof ScreenerUI !== 'undefined' && !ScreenerUI.visible('asset')) return;
                 const head = document.getElementById('assetClassScreenerHead');
                 const body = document.getElementById('assetClassScreenerBody');
                 const status = document.getElementById('assetClassScreenerStatus');
@@ -4390,7 +4369,7 @@
                 const columns = assetClassScreenerColumns();
                 if (!assetClassScreenerState.initialized) {
                     head.innerHTML = `<tr>${columns.map(c => `<th style="min-width:${c.width || '95px'}" class="px-2 py-2 text-left cursor-pointer select-none" onclick="setAssetClassScreenerSort('${c.key}')">${escapeHtml(c.label)} ${assetClassScreenerState.sortKey === c.key ? (assetClassScreenerState.sortDir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr>
-                        <tr class="bg-white">${columns.map(c => `<th class="px-2 py-1"><input data-asset-class-filter="${c.key}" oninput="renderAssetClassScreener()" class="w-full p-1 border border-slate-200 rounded text-[11px] normal-case font-normal" placeholder="${c.type === 'num' ? '>3, <1, 2..4' : 'contiene...'}" value="${escapeHtml(assetClassScreenerFilterValue(c.key))}"></th>`).join('')}</tr>`;
+                        <tr class="bg-white">${columns.map(c => `<th class="px-2 py-1"><input data-asset-class-filter="${c.key}" oninput="ScreenerUI.schedule('asset')" class="w-full p-1 border border-slate-200 rounded text-[11px] normal-case font-normal" placeholder="${c.type === 'num' ? '>3, <1, 2..4' : 'contiene...'}" value="${escapeHtml(assetClassScreenerFilterValue(c.key))}"></th>`).join('')}</tr>`;
                     assetClassScreenerState.initialized = true;
                 }
                 if (!assetClassScreenerState.records.length) {
@@ -4405,14 +4384,14 @@
                     if (col?.type === 'num') return ((Number.isFinite(av) ? av : -Infinity) - (Number.isFinite(bv) ? bv : -Infinity)) * dir;
                     return String(av || '').localeCompare(String(bv || '')) * dir;
                 });
-                const visible = rows.slice(0, assetClassScreenerState.limit);
+                const visible = ScreenerUI.page('asset',rows);
                 body.innerHTML = visible.map(record => `<tr class="hover:bg-emerald-50">${columns.map(col => {
                     const value = record[col.key];
                     if (col.type === 'num') return `<td class="px-2 py-1 text-right font-semibold">${formatAssetClassValue(value, col)}</td>`;
                     return `<td class="px-2 py-1 font-semibold">${escapeHtml(value || '-')}</td>`;
                 }).join('')}</tr>`).join('');
                 if (status) status.innerText = `${rows.length.toLocaleString('es-ES')} categorías encontradas de ${assetClassScreenerState.records.length.toLocaleString('es-ES')}. Mostrando ${visible.length.toLocaleString('es-ES')}.`;
-                renderAssetClassScreenerCharts(rows);
+                ScreenerUI.charts('asset',rows);
             }
 
             function clearAssetClassScreenerFilters() {
@@ -4816,6 +4795,8 @@
                 const reset = fundHasAppliedChange(result) ? `<button onclick="resetFundRecommendation(${idx})" class="px-2 py-1 border border-slate-300 rounded bg-white text-[11px] font-bold">Volver al ISIN original</button>` : '';
                 return `<div class="space-y-1">
                     ${manualBlock}
+                    ${shareClassSummary(anchor)}
+                    ${shareClassActions(anchor,'applyFundRecommendation',idx)}
                     <details open><summary class="cursor-pointer font-bold text-emerald-700">Fondos aprobados (${approved.length})</summary>${fundRecommendationSelectHtml(idx, approved, 'Buscar aprobado...')}</details>
                     <details><summary class="cursor-pointer font-bold text-blue-700">Universo invertible (${universe.length})</summary>${fundRecommendationSelectHtml(idx, universe, 'Buscar universo...')}</details>
                     <div class="text-[11px] text-slate-400">Categoria: ${escapeHtml(anchor.category || '-')} | score actual ${currentScore}</div>
@@ -5971,6 +5952,8 @@
                 const manualProxy = !rec ? aggregateManualProxySelectHtml(result, idx) : '';
                 return `<div class="space-y-2 text-xs">
                     ${manualProxy}
+                    ${shareClassSummary(aggregateStaticRecord(result))}
+                    ${shareClassActions(aggregateStaticRecord(result),'applyAggregateRecord',idx)}
                     <details open><summary class="cursor-pointer font-bold text-emerald-700">Aprobados + cartera (${recs.approved.length})</summary>${aggregateRecommendationSelectHtml(idx, recs.approved, 'Seleccionar aprobado/cartera')}</details>
                     <details><summary class="cursor-pointer font-bold text-blue-700">Universo invertible (${recs.universe.length})</summary>${aggregateRecommendationSelectHtml(idx, recs.universe, 'Seleccionar universo')}</details>
                     ${reset}
@@ -7645,10 +7628,10 @@
                 const visibleAssetRows = (assets || []).map((asset, index) => ({
                     asset,
                     index,
-                    rows: alignedSeriesRows(asset.data, bench.data, range)
+                    rows: ReportControls.periodRows(alignedSeriesRows(asset.data, bench.data, range))
                 })).filter(item => item.rows.length >= 2);
                 const traces = [];
-                const benchVisible = normalizeBase100(benchmarkRowsForComparedAssets(visibleAssetRows.map(item => item.asset), bench, range));
+                const benchVisible = normalizeBase100(ReportControls.periodRows(benchmarkRowsForComparedAssets(visibleAssetRows.map(item => item.asset), bench, range)));
                 if (benchVisible.length) traces.push({ x: benchVisible.map(d => d.date), y: benchVisible.map(d => d.price), mode: 'lines', name: bench.label, line: { color: '#0f172a', width: 3, dash: 'dot' } });
                 visibleAssetRows.forEach(({ asset, index, rows }) => {
                     const rowsVisible = rows;
@@ -7659,6 +7642,10 @@
             }
 
             function buildMassiveComparisonTablesHtml(assets, bench) {
+                if (ReportControls.manager.range !== 'ALL') {
+                    const rows=assets.map(asset=>{const aligned=ReportControls.periodRows(alignedSeriesRows(asset.data,bench.data,'ALL'));const ret=periodReturnFromRows(aligned,null);return `<tr><td>${escapeHtml(asset.label)}</td><td>${escapeHtml(ReportControls.manager.range)}</td>${ret?`<td>${fmtPct(ret.asset)}</td><td>${fmtPct(ret.bench)}</td><td>${fmtPct(ret.asset-ret.bench)}</td>`:'<td colspan="3">Sin datos suficientes</td>'}</tr>`;}).join('');
+                    return `<div class="table-block"><h3>Rentabilidad del periodo seleccionado</h3><table><thead><tr><th>Fondo</th><th>Periodo</th><th>Fondo</th><th>Benchmark</th><th>Alfa</th></tr></thead><tbody>${rows}</tbody></table><p>Rentabilidad acumulada sobre fechas comunes. Se conserva el ultimo precio anterior al inicio como base cuando existe.</p></div>`;
+                }
                 const horizons = [
                     { label: '1M', months: 1 }, { label: '3M', months: 3 }, { label: '6M', months: 6 }, { label: '1A', months: 12 },
                     { label: 'YTD', months: 'YTD' }, { label: '3A', months: 36 }, { label: '5A', months: 60 }, { label: 'Inicio', months: null }
@@ -7749,6 +7736,7 @@
 
             async function generateManagerReport() {
                 try {
+                    ReportControls.validatePeriod();
                     setManagerReportProgress(5, 'Preparando informe gestora...');
                     if (aggregateScoringResults.length) {
                         try { renderAggregateScoringResults(); } catch (e) { console.warn('aggregate render before manager report failed', e); }
@@ -7756,7 +7744,7 @@
                     await waitForUiFrame();
                     const summary = aggregateScoringSummary();
                     setManagerReportProgress(25, 'Preparando scoring agregado...');
-                    const summarySection = buildManagerSummarySection(summary);
+                    const summarySection = buildManagerSummarySection(summary) + ReportControls.aggregateComparison() + ReportControls.aggregateClasses();
                     const positionsSection = buildManagerAggregatePositionsSection(summary);
                     const changesSection = buildManagerProposedChangesSection(summary);
                     const santaSection = buildManagerSantaluciaSection(summary);
@@ -7771,6 +7759,7 @@
                             <div>
                                 <div class="eyebrow">Informe Gestora</div>
                                 <h1>Seguimiento agregado de fondos</h1>
+                                <p>Periodo historico: ${escapeHtml(ReportControls.manager.range)} · fecha de referencia ${new Date(ReportControls.manager.asOf).toISOString().slice(0,10)}${ReportControls.manager.range==='CUSTOM'?` · ${ReportControls.manager.start} / ${ReportControls.manager.end}`:''}</p>
                                 <p>${new Date().toLocaleDateString('es-ES')}</p>
                             </div>
                             <div class="stamp">Analyzer</div>

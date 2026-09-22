@@ -1,75 +1,52 @@
 const InitialAnalysis = (() => {
-    const origins = new Map();
-    const metrics = [['score','Score'],['ter','TER (%)'],['ret1','Retorno 1A (%)'],['ret3','Retorno 3A (%)'],['ret5','Retorno 5A (%)'],['risk1','Riesgo 1A (%)'],['risk3','Riesgo 3A (%)'],['risk5','Riesgo 5A (%)'],['dd1','Caida maxima 1A (%)'],['dd3','Caida maxima 3A (%)'],['dd5','Caida maxima 5A (%)']];
-    let dialog, editingIsin, selectedProxy;
-    function resolve(isin) { return origins.get(isin) || null; }
-    function originControl(row, index) {
-        if (row.current && !row.current.originSource) return '';
-        const source = row.current?.originSource;
-        const note = source ? source.mode === 'proxy' ? `Proxy: ${source.proxyIsin} · ${source.proxyName}` : 'Datos declarados por el usuario' : '';
-        return `<div class="initial-origin-note">${escapeHtml(note)}</div><button type="button" class="initial-origin-button" onclick="InitialAnalysis.edit(${index})">${source ? 'Editar origen' : 'Definir origen: proxy / manual'}</button>`;
+    const metrics=[['score','Score'],['ter','TER (%)'],['ret1','Retorno 1A (%)'],['ret3','Retorno 3A (%)'],['ret5','Retorno 5A (%)'],['risk1','Riesgo 1A (%)'],['risk3','Riesgo 3A (%)'],['risk5','Riesgo 5A (%)'],['dd1','Caida maxima 1A (%)'],['dd3','Caida maxima 3A (%)'],['dd5','Caida maxima 5A (%)']];
+    let sequence=0,dialog,editingId,selectedProxy;
+    function identify(row){return row.id ||= `initial-${++sequence}`;}
+    function reconcile(parsed){
+        const queues=new Map();
+        for(const row of fundProposalState.rows||[]){identify(row);if(!queues.has(row.isin))queues.set(row.isin,[]);queues.get(row.isin).push(row);}
+        return parsed.map(item=>{const previous=queues.get(item.isin)?.shift();if(previous)return {...previous,weight:item.weight};const current=fundUniverseState?.isinIndex.get(item.isin)||null;const recommendations=current?getBetterFundRecommendations(current,5000):[];return {id:`initial-${++sequence}`,...item,current,proposed:recommendations[0]||current,recommendations,cheaperClasses:current?findCheaperShareClasses(current):[],missing:!current};});
     }
-    function edit(index) {
-        const row = fundProposalState.rows[index]; if (!row) return;
-        editingIsin = row.isin; selectedProxy = null;
-        if (!dialog) {
-            dialog = document.createElement('dialog'); dialog.className = 'initial-origin-dialog'; document.body.append(dialog);
-            dialog.addEventListener('close', () => dialog.replaceChildren());
-        }
-        const current = resolve(row.isin);
-        dialog.innerHTML = `<form id="initialOriginForm"><div class="initial-origin-heading"><h3>Datos del fondo de origen</h3><button type="button" aria-label="Cerrar" title="Cerrar" onclick="InitialAnalysis.close()">&times;</button></div><p>${escapeHtml(row.isin)}</p><label>Nombre del fondo del cliente<input id="initialOriginName" required maxlength="180"></label><label>Fuente de datos<select id="initialOriginMode"><option value="proxy">Proxy del universo</option><option value="manual">Datos manuales</option></select></label><section id="initialProxyFields"><label>Fondo proxy</label><div id="initialProxyPicker"></div><p id="initialProxySelection" role="status"></p></section><section id="initialManualFields" class="initial-metric-grid"><label>Categoria<input id="initialOriginCategory" maxlength="150"></label><label>Moneda<input id="initialOriginCurrency" maxlength="3" placeholder="EUR"></label>${metrics.map(([key,label]) => `<label>${label}<input id="initialMetric-${key}" type="number" step="any" ${key === 'ter' ? 'min="0" max="99.99"' : key.startsWith('risk') || key === 'score' ? 'min="0"' : ''}></label>`).join('')}</section><p id="initialOriginError" role="alert"></p><div class="workspace-tools"><button type="submit">Aplicar al analisis</button><button type="button" onclick="InitialAnalysis.reset()">Restablecer origen</button></div></form>`;
-        dialog.querySelector('#initialOriginName').value = current?.name || row.current?.name || '';
-        dialog.querySelector('#initialOriginMode').value = current?.originSource?.mode || 'proxy';
-        dialog.querySelector('#initialOriginCategory').value = current?.category || '';
-        dialog.querySelector('#initialOriginCurrency').value = current?.currency || 'EUR';
-        metrics.forEach(([key]) => { dialog.querySelector(`#initialMetric-${key}`).value = Number.isFinite(current?.[key]) ? current[key] : ''; });
-        dialog.querySelector('#initialProxyPicker').innerHTML = renderCompactFundCombobox(fundUniverseState?.records || [], isin => `InitialAnalysis.selectProxy('${isin}')`, 'ISIN, nombre o categoria', {id:'initialOriginProxy'});
-        if (current?.originSource?.proxyIsin) selectProxy(current.originSource.proxyIsin);
-        dialog.querySelector('#initialOriginMode').addEventListener('change', modeChanged);
-        dialog.querySelector('form').addEventListener('submit', event => { event.preventDefault(); save(); });
-        modeChanged(); dialog.showModal();
+    function sync(){document.getElementById('fundProposalPortfolioInput').value=fundProposalState.rows.map(r=>`${r.isin};${r.weight}%`).join('\n');}
+    function changed(){invalidatePortfolioReports();sync();renderFundProposalPortfolio();portfolioWorkflowRefresh();}
+    function originControl(row,index){
+        identify(row);const source=row.current?.originSource,note=source?.mode==='proxy'?`Proxy: ${source.proxyIsin} · ${source.proxyName}`:source?.mode==='manual'?'Datos declarados por el usuario':'';
+        return `<div class="initial-origin-note">${escapeHtml(note)}</div><button type="button" class="initial-origin-button" onclick="InitialAnalysis.edit(${index})">${row.current?'Editar origen':'Definir origen: proxy / manual'}</button><button type="button" class="initial-origin-button" title="Eliminar posicion" aria-label="Eliminar posicion" onclick="InitialAnalysis.remove(${index})"><i class="fa-solid fa-trash"></i></button>`;
     }
-    function modeChanged() {
-        const manual = dialog.querySelector('#initialOriginMode').value === 'manual';
-        dialog.querySelector('#initialManualFields').hidden = !manual;
-        dialog.querySelector('#initialProxyFields').hidden = manual;
-        dialog.querySelector('#initialOriginCategory').required = manual;
-        for (const key of ['score','ter']) dialog.querySelector(`#initialMetric-${key}`).required = manual;
+    function metricControl(row,index,side,key){const record=row[side];if(!record)return '-';const manual=Object.hasOwn(record.manualOverrides||{},key);return `<input class="initial-metric-input" aria-label="${key} ${side==='current'?'origen':'propuesta'} fila ${index+1}" type="number" min="0" ${key==='ter'?'max="99.99"':''} step="any" value="${Number.isFinite(record[key])?record[key]:''}" onchange="InitialAnalysis.metric(${index},'${side}','${key}',this)">${manual?`<small>Manual</small><button title="Restablecer ${key}" aria-label="Restablecer ${key}" onclick="InitialAnalysis.restore(${index},'${side}','${key}')"><i class="fa-solid fa-rotate-left"></i></button>`:''}`;}
+    function metric(index,side,key,input){
+        if(!input.reportValidity())return;const row=fundProposalState.rows[index],base=row[side];if(!base)return;
+        row[side]={...base,manualBase:{...(base.manualBase||{}),[key]:Object.hasOwn(base.manualBase||{},key)?base.manualBase[key]:base[key]},manualOverrides:{...(base.manualOverrides||{}),[key]:input.value===''?null:input.valueAsNumber},[key]:input.value===''?NaN:input.valueAsNumber};
+        if(side==='current')row.recommendations=getBetterFundRecommendations(row.current,5000);row.cheaperClasses=findCheaperShareClasses(row.current);changed();
     }
-    function selectProxy(isin) {
-        selectedProxy = fundUniverseState?.isinIndex.get(isin) || null;
-        dialog.querySelector('#initialProxySelection').textContent = selectedProxy ? `${selectedProxy.isin} · ${selectedProxy.name}` : 'El proxy no esta disponible en el universo actual.';
+    function restore(index,side,key){const row=fundProposalState.rows[index],base=row[side];row[side]={...base,[key]:base.manualBase[key],manualOverrides:{...base.manualOverrides},manualBase:{...base.manualBase}};delete row[side].manualOverrides[key];delete row[side].manualBase[key];if(side==='current')row.recommendations=getBetterFundRecommendations(row.current,5000);row.cheaperClasses=findCheaperShareClasses(row.current);changed();}
+    function weight(index,input){if(!input.reportValidity()||!Number.isFinite(input.valueAsNumber))return;fundProposalState.rows[index].weight=input.valueAsNumber;changed();}
+    function normalize(){const total=fundProposalState.rows.reduce((s,r)=>s+r.weight,0);if(!(total>0))return;fundProposalState.rows.forEach(r=>r.weight=r.weight/total*100);changed();}
+    function remove(index){fundProposalState.rows.splice(index,1);changed();}
+    function add(){fundProposalState.rows.push({id:`initial-${++sequence}`,isin:'',weight:0,current:null,proposed:null,recommendations:[],cheaperClasses:[],missing:true});changed();edit(fundProposalState.rows.length-1);}
+    function edit(index){
+        const row=fundProposalState.rows[index];if(!row)return;editingId=identify(row);selectedProxy=null;
+        if(!dialog){dialog=document.createElement('dialog');dialog.className='initial-origin-dialog';document.body.append(dialog);dialog.addEventListener('close',()=>dialog.replaceChildren());}
+        const current=row.current;
+        dialog.innerHTML=`<form><div class="initial-origin-heading"><h3>Datos del fondo de origen</h3><button type="button" aria-label="Cerrar" onclick="InitialAnalysis.close()">&times;</button></div><label>ISIN del origen<input id="initialOriginIsin" required pattern="[A-Za-z]{2}[A-Za-z0-9]{10}" maxlength="12"></label><label>Nombre del fondo del cliente<input id="initialOriginName" maxlength="180"></label><label>Fuente de datos<select id="initialOriginMode"><option value="universe">Fondo del universo</option><option value="proxy">Proxy del universo</option><option value="manual">Datos manuales</option></select></label><section id="initialProxyFields"><div id="initialProxyPicker"></div><p id="initialProxySelection" role="status"></p></section><section id="initialManualFields" class="initial-metric-grid"><label>Categoria<input id="initialOriginCategory" maxlength="150"></label><label>Moneda<input id="initialOriginCurrency" maxlength="3"></label>${metrics.map(([key,label])=>`<label>${label}<input id="initialMetric-${key}" type="number" step="any" ${key==='ter'?'min="0" max="99.99"':key==='score'||key.startsWith('risk')?'min="0"':''}></label>`).join('')}</section><p id="initialOriginError" role="alert"></p><div class="workspace-tools"><button type="submit">Aplicar al analisis</button><button type="button" onclick="InitialAnalysis.reset()">Restablecer origen</button></div></form>`;
+        dialog.querySelector('#initialOriginIsin').value=row.isin;dialog.querySelector('#initialOriginName').value=current?.name||'';dialog.querySelector('#initialOriginMode').value=current?.originSource?.mode||(current?'universe':'proxy');dialog.querySelector('#initialOriginCategory').value=current?.category||'';dialog.querySelector('#initialOriginCurrency').value=current?.currency||'EUR';
+        metrics.forEach(([key])=>dialog.querySelector(`#initialMetric-${key}`).value=Number.isFinite(current?.[key])?current[key]:'');
+        dialog.querySelector('#initialProxyPicker').innerHTML=renderCompactFundCombobox(fundUniverseState?.records||[],isin=>`InitialAnalysis.selectProxy('${isin}')`,'ISIN, nombre o categoria',{id:'initialOriginProxy'});
+        if(current)selectProxy(current.originSource?.proxyIsin||current.isin);
+        dialog.querySelector('#initialOriginMode').addEventListener('change',modeChanged);dialog.querySelector('form').addEventListener('submit',e=>{e.preventDefault();save();});modeChanged();dialog.showModal();
     }
-    function save() {
-        const form = dialog.querySelector('form'); if (!form.reportValidity()) return;
-        const name = dialog.querySelector('#initialOriginName').value.trim();
-        const mode = dialog.querySelector('#initialOriginMode').value;
-        let record;
-        if (mode === 'proxy') {
-            if (!selectedProxy) { dialog.querySelector('#initialOriginError').textContent = 'Selecciona un fondo proxy del universo.'; return; }
-            record = {...selectedProxy, name, isin:editingIsin, originSource:{mode,proxyIsin:selectedProxy.isin,proxyName:selectedProxy.name}};
-        } else {
-            record = {isin:editingIsin,name,category:dialog.querySelector('#initialOriginCategory').value.trim(),currency:dialog.querySelector('#initialOriginCurrency').value.trim().toUpperCase(),originSource:{mode}};
-            metrics.forEach(([key]) => { const value = dialog.querySelector(`#initialMetric-${key}`).valueAsNumber; record[key] = Number.isFinite(value) ? key.startsWith('dd') ? -Math.abs(value) : value : NaN; });
-        }
-        if (!name || !record.category) { dialog.querySelector('#initialOriginError').textContent = 'Indica nombre y categoria.'; return; }
-        origins.set(editingIsin, record); updateRow(record); dialog.close();
+    function modeChanged(){const manual=dialog.querySelector('#initialOriginMode').value==='manual';dialog.querySelector('#initialManualFields').hidden=!manual;dialog.querySelector('#initialProxyFields').hidden=manual;dialog.querySelector('#initialOriginCategory').required=manual;dialog.querySelector('#initialOriginName').required=dialog.querySelector('#initialOriginMode').value!=='universe';}
+    function selectProxy(isin){selectedProxy=fundUniverseState?.isinIndex.get(isin)||null;dialog.querySelector('#initialProxySelection').textContent=selectedProxy?`${selectedProxy.isin} · ${selectedProxy.name}`:'No disponible en el universo.';if(selectedProxy&&dialog.querySelector('#initialOriginMode').value==='universe'){dialog.querySelector('#initialOriginIsin').value=selectedProxy.isin;dialog.querySelector('#initialOriginName').value=selectedProxy.name;}}
+    function save(){
+        if(!dialog.querySelector('form').reportValidity())return;const row=fundProposalState.rows.find(r=>r.id===editingId);if(!row)return;
+        const mode=dialog.querySelector('#initialOriginMode').value,isin=normalizeIsin(dialog.querySelector('#initialOriginIsin').value),name=dialog.querySelector('#initialOriginName').value.trim();let record;
+        if(mode!=='manual'){if(!selectedProxy){dialog.querySelector('#initialOriginError').textContent='Selecciona un fondo del universo.';return;}record=mode==='universe'?{...selectedProxy}:{...selectedProxy,name,isin,originSource:{mode,proxyIsin:selectedProxy.isin,proxyName:selectedProxy.name}};}
+        else{record={isin,name,category:dialog.querySelector('#initialOriginCategory').value.trim(),currency:dialog.querySelector('#initialOriginCurrency').value.trim().toUpperCase(),originSource:{mode}};metrics.forEach(([key])=>{const value=dialog.querySelector(`#initialMetric-${key}`).valueAsNumber;record[key]=Number.isFinite(value)?key.startsWith('dd')?-Math.abs(value):value:NaN;});}
+        const previous=row.current;
+        if(mode==='universe'&&previous?.isin===record.isin&&!previous.originSource){record.manualBase={...previous.manualBase};record.manualOverrides={...previous.manualOverrides};for(const key of Object.keys(record.manualOverrides))record[key]=previous[key];}
+        row.isin=record.isin;row.current=record;row.missing=false;row.recommendations=getBetterFundRecommendations(record,5000);row.cheaperClasses=findCheaperShareClasses(record);if(!row.proposed||row.proposed===previous)row.proposed=row.recommendations[0]||record;dialog.close();changed();
     }
-    function updateRow(record) {
-        const row = fundProposalState.rows.find(r => r.isin === editingIsin); if (!row) return;
-        invalidatePortfolioReports();
-        row.current = record; row.missing = !record;
-        row.recommendations = record ? getBetterFundRecommendations(record,5000) : [];
-        row.proposed = row.recommendations[0] || record;
-        row.cheaperClasses = [];
-        renderFundProposalPortfolio(); portfolioWorkflowRefresh();
-    }
-    function reset() { origins.delete(editingIsin); updateRow(fundUniverseState?.isinIndex.get(editingIsin) || null); dialog.close(); }
-    function useLoadedPortfolio() {
-        if (!fundPortfolioRows.length) { alert('Carga primero el archivo de cartera scoring en Datos.'); return; }
-        const fraction = document.getElementById('fundWeightUnit').value === 'fraction';
-        document.getElementById('fundProposalPortfolioInput').value = fundPortfolioRows.map(r => `${r.isin};${fraction ? r.weight / 100 : r.weight}`).join('\n');
-        invalidatePortfolioReports(); analyzeFundProposalPortfolio(); portfolioWorkflowRefresh();
-    }
-    return {resolve,originControl,edit,selectProxy,reset,useLoadedPortfolio,close:()=>dialog?.close()};
+    function reset(){const row=fundProposalState.rows.find(r=>r.id===editingId);if(!row)return;const previous=row.current;row.current=fundUniverseState?.isinIndex.get(row.isin)||null;row.missing=!row.current;row.cheaperClasses=findCheaperShareClasses(row.current);row.recommendations=row.current?getBetterFundRecommendations(row.current,5000):[];if(row.proposed===previous)row.proposed=row.current;dialog.close();changed();}
+    function useLoadedPortfolio(){if(!fundPortfolioRows.length){alert('Carga primero la cartera scoring en Datos.');return;}const fraction=document.getElementById('fundWeightUnit').value==='fraction';document.getElementById('fundProposalPortfolioInput').value=fundPortfolioRows.map(r=>`${r.isin};${fraction?r.weight/100:r.weight}`).join('\n');analyzeFundProposalPortfolio();portfolioWorkflowRefresh();}
+    return {identify,reconcile,originControl,metricControl,metric,restore,weight,normalize,remove,add,edit,selectProxy,reset,useLoadedPortfolio,close:()=>dialog?.close()};
 })();

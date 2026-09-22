@@ -1,5 +1,8 @@
 /* Shared application surfaces. Financial cell colours and chart series retain their meaning. */
 :root{--ink:#202933;--muted:#586675;--line:#d7dde3;--paper:#fff;--canvas:#f3f5f7;--accent:#24577e;--accent-hover:#193f5c;--tint:#edf3f8}
+.initial-metric-input{width:84px;padding:6px;border:1px solid #b9c4ce;text-align:right}.initial-metric-input+small{display:block;font-size:10px;color:#536170}
+.report-control-panel{border-bottom:1px solid var(--line);padding:16px 0;margin-bottom:16px}.report-control-panel .workspace-report-options{flex-wrap:wrap}
+#fundChartDetails>summary{cursor:pointer;padding:12px 0;color:var(--accent);font-weight:600}#fundChartDetails>label{font-size:13px}#fundPointStatus{font-size:12px;padding:8px 0}
 .app-section .financial-q1{background:#204f78!important;color:#fff!important}
 .app-section .financial-q2{background:#a7c2d7!important;color:#203b50!important}
 .app-section .financial-q3{background:#dde6ed!important;color:#34495a!important}

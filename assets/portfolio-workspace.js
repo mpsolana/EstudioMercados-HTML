@@ -77,12 +77,12 @@ function portfolioSnapshot(kind) {
     const rows = kind === 'aggregate' ? aggregateScoringResults.map(r => ({ weight:r.position.weight, current:aggregateStaticRecord(r), proposed:aggregateEffectiveRecord(r) })) : kind === 'individual' ? fundScoringResults.map(r => ({weight:r.weight,current:r.included ? fundResolvedRecord(r) : null,proposed:r.included ? fundResolvedRecord(r) : null})) : fundProposalState.rows;
     return JSON.parse(JSON.stringify({
         id: `${kind}-${Date.now()}`, kind, revision: PortfolioWorkspace.revision, engine: PortfolioWorkspace.engine,
-        createdAt: new Date().toISOString(), settings: portfolioCalculationSettings(), reportOptions,
+        createdAt: new Date().toISOString(), settings: portfolioCalculationSettings(), reportOptions, reportConfiguration: ReportControls.state(),
         capital: kind === 'proposal' ? fundProposalCapital() : null,
         source: { universe: fundUniverseState?.fileName || '', approved: approvedFundsState.fileName || '', portfolio: kind === 'individual' ? loadedPortfolio?.sourceLabel || '' : '', aggregate: kind === 'aggregate' ? aggregatePositionsState.fileName || '' : '' },
         portfolio: kind === 'individual' ? loadedPortfolio : null,
         aggregate: kind === 'aggregate' ? {positions:aggregatePositionsState.rows,results:aggregateScoringResults} : null,
-        proposal: kind === 'proposal' ? fundProposalState.rows.map(r => ({isin:r.isin,weight:r.weight,current:r.current,proposed:r.proposed})) : [],
+        proposal: kind === 'proposal' ? fundProposalState.rows.map(r => ({id:r.id,isin:r.isin,weight:r.weight,current:r.current,proposed:r.proposed})) : [],
         coverage: {currentTer:FinanceCore.weighted(rows,'ter','current').coverage,proposedTer:FinanceCore.weighted(rows,'ter','proposed').coverage},
         dataSources: kind === 'individual' ? [...MarketData.metadata.entries()] : []
     }));
@@ -174,7 +174,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
-    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel]')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
         const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await original(...args); } catch(error) { alert(error.message); } finally { portfolioWorkflowRefresh(); } };
     }
@@ -185,7 +185,8 @@ function initializePortfolioWorkspace() {
         const original = window[name]; window[name] = async (...args) => {
             if (kind === 'individual' && portfolioHistoryStale()) { alert('Vuelve a cargar o importar la cartera con las nuevas hipotesis antes de generar el informe.'); PortfolioWorkspace.step = 'data'; portfolioWorkflowRefresh(); return; }
             if (kind === 'aggregate') managerReportHtml = ''; else if (kind === 'individual') portfolioReportHtml = ''; else fundProposalState.reportHtml = '';
-            const revision = PortfolioWorkspace.revision; await original(...args);
+            const revision = PortfolioWorkspace.revision;
+            try { await original(...args); } catch(error) { invalidatePortfolioReports(); alert(`No se ha generado el informe: ${error.message}`); return; }
             if (revision !== PortfolioWorkspace.revision) { invalidatePortfolioReports(); return; }
             const snapshot = portfolioSnapshot(kind);
             let html = kind === 'aggregate' ? managerReportHtml : kind === 'individual' ? portfolioReportHtml : fundProposalState.reportHtml;
