@@ -50,5 +50,20 @@
         const base=rows.filter(r=>r.date<=begin).at(-1),visible=rows.filter(r=>r.date>=begin&&r.date<=finish);
         return base&&visible.length&&base!==visible[0]?[base,...visible]:visible;
     }
-    return {classes,classMatch,familyName,comparison,percent,sample,windowRows};
+    function categoryFlows(rows,capital){
+        if(!Number.isFinite(capital)||capital<=0)throw new Error('Introduce un AUM de cartera mayor que cero.');
+        if(!rows.length)throw new Error('Introduce las posiciones de origen.');
+        if(rows.some(r=>!Number.isFinite(r.weight)||r.weight<0)||Math.abs(rows.reduce((s,r)=>s+r.weight,0)-100)>.01)throw new Error('Los pesos deben sumar 100% para representar el AUM completo.');
+        const names=new Map(),links=new Map();
+        const category=record=>{const label=String(record?.category||'').trim().replace(/\s+/g,' ')||'Sin categoría',key=normalized(label);if(!names.has(key))names.set(key,label);return key;};
+        for(const row of rows){
+            if(!row.weight)continue;
+            const source=category(row.current),target=category(row.proposed),key=JSON.stringify([source,target]);
+            if(!links.has(key))links.set(key,{source,target,amount:0,weight:0,funds:[]});
+            const link=links.get(key);link.amount+=capital*row.weight/100;link.weight+=row.weight;
+            link.funds.push({isin:row.isin,name:row.current?.name||row.isin||'Sin identificar',proposed:row.proposed?.name||'Sin propuesta',amount:capital*row.weight/100});
+        }
+        return {capital,categories:[...names].map(([key,label])=>({key,label})).sort((a,b)=>a.label.localeCompare(b.label)),links:[...links.values()]};
+    }
+    return {classes,classMatch,familyName,comparison,percent,sample,windowRows,categoryFlows};
 });

@@ -9,6 +9,13 @@
 
 ## Cambios realizados
 
+### Novena revision: flujos de categorias
+
+- Sankey en Analisis Inicial > Propuesta: categorias de origen y destino, grosor proporcional al AUM de cartera por peso, agrupacion de flujos repetidos y color compartido por categoria en ambos lados.
+- Conserva posiciones sin cambio de categoria y fondos sin identificar, agrupados como Sin categoria. No usa el patrimonio del fondo ni normaliza pesos de forma silenciosa; solicita AUM positivo y pesos al 100%.
+- Detalle interactivo con importe, porcentaje y fondos implicados. Actualizacion al editar la cartera o el AUM, y visualizacion movil con desplazamiento horizontal contenido.
+- Casilla independiente Flujos de categorias (AUM) en el informe inicial, exportada en pagina de grafica grande. Pruebas de conservacion de capital, agrupacion, escritorio/movil, hover y PDF opcional.
+
 ### Octava revision: maquetacion de informes
 
 - Comparativas del informe inicial al ancho de pagina, empezando en pagina nueva, con lienzo mas alto, leyenda inferior y etiquetas ampliadas. El detalle numerico de cada sustitucion queda separado de su grafica.

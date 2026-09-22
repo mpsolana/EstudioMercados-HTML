@@ -41,6 +41,7 @@
             if (oldColor(trace) && !remap.has(oldColor(trace))) remap.set(oldColor(trace),color);
         });
         const traces = data.map((source,index) => {
+            if(source.type==='sankey')return {...source,node:{...source.node},link:{...source.link}};
             const t = {...source, line:{...source.line}, marker:{...source.marker}, textfont:{...source.textfont}};
             const preceding = index > 0 && oldColor(source) === oldColor(data[index-1]) ? assignments.get(index-1) : null;
             const color = assignments.get(index) || preceding || remap.get(oldColor(source)) || colors.blue;

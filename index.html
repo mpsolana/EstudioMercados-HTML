@@ -8,6 +8,7 @@
     <script src="assets/finance-core.js"></script>
     <script src="assets/analysis-core.js"></script>
     <script src="assets/financial-visuals.js"></script>
+    <script src="assets/category-flows.js"></script>
     <script src="assets/simulation-engine.js"></script>
     <script src="assets/market-data.js"></script>
     <script src="assets/fund-selector.js"></script>
@@ -1340,6 +1341,7 @@
                             </table>
                         </div>
                         <div id="fundProposalSavingsChart" class="w-full h-[420px] border border-slate-100 rounded mb-4"></div>
+                        <section class="category-flows-section"><h3>Distribución del capital por categorías</h3><p id="categoryFlowsStatus" role="status"></p><div class="category-flows-scroll"><div id="fundProposalCategoryFlows" aria-label="Flujos de AUM desde categorías de origen a categorías propuestas"></div></div></section>
                         <div id="fundProposalChart" class="w-full h-[460px] border border-slate-100 rounded mb-4"></div>
                         <div id="fundProposalReportPreview" class="hidden rounded border border-slate-200 bg-white p-4 text-sm text-slate-700"></div>
                     </div>
@@ -3509,6 +3511,7 @@
                 }).join('') : '<tr><td colspan="10" class="px-3 py-6 text-center text-slate-400">Introduce una cartera para analizar.</td></tr>';
                 renderFundProposalSavingsChart();
                 renderFundProposalChart();
+                CategoryFlows.render();
             }
 
             function renderFundProposalChart() {

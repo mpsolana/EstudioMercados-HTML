@@ -1,11 +1,11 @@
 const ReportControls=(()=>{
     const metrics={risk5:'Riesgo 5A (%)',ret5:'Retorno 5A (%)',ter:'TER (%)',score:'Score',risk3:'Riesgo 3A (%)',ret3:'Retorno 3A (%)',risk1:'Riesgo 1A (%)',ret1:'Retorno 1A (%)',aum:'AUM'};
-    const blocks={positions:'Tabla de posiciones',changes:'Tabla de cambios',classes:'Clases mas baratas',details:'Detalle de metricas',savings:'Grafica de ahorro',overview:'Comparacion global',pairs:'Graficas por sustitucion',manual:'Ajustes manuales',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
+    const blocks={positions:'Tabla de posiciones',changes:'Tabla de cambios',classes:'Clases mas baratas',details:'Detalle de metricas',savings:'Grafica de ahorro',overview:'Comparacion global',pairs:'Graficas por sustitucion',flows:'Flujos de categorías (AUM)',manual:'Ajustes manuales',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
     const initial={blocks:Object.fromEntries(Object.keys(blocks).map(k=>[k,true])),x:'risk5',y:'ret5',size:'ter'};
     const managerBlocks={summary:'Resumen ejecutivo',impact:'Cambios de TER y score',classes:'Clases más baratas',positions:'Posiciones',changes:'Sustituciones propuestas',exposure:'Exposición por bloques',santa:'Análisis Santalucía',comparisons:'Comparativas por benchmark',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
     const manager={range:'YTD',start:'',end:'',blocks:Object.fromEntries(Object.keys(managerBlocks).map(k=>[k,true]))};
     let extendApproved=false;
-    function options(){const charts=document.getElementById('reportIncludeCharts')?.checked!==false,details=document.getElementById('reportIncludeDetails')?.checked!==false;return {...initial,blocks:{...initial.blocks,savings:charts&&initial.blocks.savings,overview:charts&&initial.blocks.overview,pairs:charts&&details&&initial.blocks.pairs,details:details&&initial.blocks.details}};}
+    function options(){const charts=document.getElementById('reportIncludeCharts')?.checked!==false,details=document.getElementById('reportIncludeDetails')?.checked!==false;return {...initial,blocks:{...initial.blocks,flows:charts&&initial.blocks.flows,savings:charts&&initial.blocks.savings,overview:charts&&initial.blocks.overview,pairs:charts&&details&&initial.blocks.pairs,details:details&&initial.blocks.details}};}
     function changed(){invalidatePortfolioReports();portfolioWorkflowRefresh();}
     function init(){
         for(const id of ['fundProposalTableBody','fundScoringTableBody','aggregatePositionsTableBody']){
@@ -87,6 +87,7 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
         if(b.classes)parts.push(section('Clases mas baratas',classTable(rows)));
         if(b.savings){renderFundProposalSavingsChart();await waitForUiFrame();parts.push(section('Ahorro estimado por TER',figure(await capturePlotlyReportImage('fundProposalSavingsChart'),'Ahorro simple y compuesto')));}
         if(b.overview)parts.push(section('Mapa global de la propuesta',figure(await chart(rows),caption()),true));
+        if(b.flows)parts.push(section('Flujos de capital por categorías',figure(await CategoryFlows.image(),'Categorías de origen y propuesta · AUM de la cartera'),true));
         if(b.details||b.pairs)for(const row of rows){await waitForUiFrame();if(b.details)parts.push(section(`${row.isin} - Analisis de sustitucion`,fundProposalMetricReportTable(row)));if(b.pairs)parts.push(section(`${row.isin} - Comparativa con el universo`,figure(await chart([row]),caption()),true));}
         const manual=[];for(const row of rows)for(const side of ['current','proposed'])for(const [key,value] of Object.entries(row[side]?.manualOverrides||{}))manual.push(`${row.isin} · ${side==='current'?'origen':'propuesta'} · ${key}: ${value===null?'sin dato':value}`);
         if(b.manual&&manual.length)parts.push(section('Ajustes manuales',manual.map(text=>`<p>${escapeHtml(text)}</p>`).join('')));

@@ -36,7 +36,7 @@ const {pathToFileURL}=require('node:url');
         await page.getByRole('spinbutton',{name:'Peso fila 2',exact:true}).fill('50');await page.getByRole('spinbutton',{name:'Peso fila 2',exact:true}).press('Tab');
         await page.locator('[data-workspace-step="report"]').click();
         await page.locator('#reportChartPreset').selectOption('pricing');
-        for(const key of ['savings','overview','pairs','details','changes','classes'])await page.locator(`[data-report-block="${key}"]`).uncheck();
+        for(const key of ['savings','overview','pairs','details','changes','classes','flows'])await page.locator(`[data-report-block="${key}"]`).uncheck();
         const report=await page.evaluate(async()=>{const original=FinancialVisuals.newPlot;let calls=0;FinancialVisuals.newPlot=(...args)=>{calls++;return original(...args);};try{await generateFundProposalReport();return {calls,html:fundProposalState.reportHtml,configuration:PortfolioWorkspace.snapshots.proposal.reportConfiguration};}finally{FinancialVisuals.newPlot=original;}});
         assert.equal(report.calls,0);assert.ok(report.html.includes('Posiciones de origen'));assert.equal(report.html.includes('<img'),false);assert.equal(report.configuration.initial.x,'ter');assert.equal(report.configuration.initial.y,'score');
         await page.locator('[data-report-block="overview"]').check();

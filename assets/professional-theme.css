@@ -57,6 +57,7 @@ body>nav+div{background:#263440!important;box-shadow:none!important}
 .app-section .js-plotly-plot .plotly{font-family:Arial,Helvetica,sans-serif!important}
 .app-section .absolute[class*="shadow"]{box-shadow:0 4px 16px #17232f1f!important;border:1px solid var(--line);border-radius:4px!important}
 .workspace-heading h2{font-size:22px!important}
+.category-flows-section{padding:20px 0;border-top:1px solid #dce2e8}.category-flows-section h3{font-size:16px;color:#173b63}.category-flows-section p{font-size:12px;color:#657487;margin:8px 0}.category-flows-scroll{max-width:100%;overflow-x:auto}#fundProposalCategoryFlows{width:100%;min-width:680px;height:520px}
 .share-class-summary{font-size:11px;line-height:1.5;color:#536274;border-top:1px solid #dce2e8;margin-top:8px;padding-top:7px;max-width:380px;white-space:normal}
 .share-class-summary strong{color:#173b63;font-weight:600;display:block}.share-class-summary small{color:#657487}
 .fund-approval-badge{display:inline-block;padding:2px 5px;background:#edf2f7;color:#173b63;font-size:10px;font-weight:600}
