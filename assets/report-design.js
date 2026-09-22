@@ -21,6 +21,8 @@ const ReportDesign = (() => {
         .report .indented{text-indent:0!important;text-align:left!important}.report p{font-size:11px!important;line-height:1.65!important}
         .report footer{border-top:1px solid #dce2e8!important;color:#687787!important;padding-top:12px!important;font-size:10px!important}
         .report .block,.report .table-block{break-inside:auto!important}.report tr,.report figure{break-inside:avoid}.report thead{display:table-header-group}
+        .report .report-chart-page{break-before:page!important}.report .report-chart-page img{max-height:none!important;width:100%!important}.report .report-chart-page figure{margin:0!important}
+        .manager-report{max-width:1120px!important}.manager-report .wide-report-table{table-layout:fixed!important;width:100%!important}.manager-report .wide-report-table :is(th,td){font-size:9px!important;padding:5px 3px!important;overflow-wrap:break-word}.manager-report .wide-report-table .num{white-space:nowrap}
         @media print{body{background:white!important;margin:0!important}.report{padding:0!important}.report .wide-report-table{font-size:9px!important}}
         </style>`; }
     function metadata(snapshot) {
@@ -32,6 +34,7 @@ const ReportDesign = (() => {
     }
     function prepare(html, snapshot) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
+        const landscape=Boolean(doc.querySelector('.manager-report'));
         const blocks=(snapshot.kind==='proposal'?snapshot.reportConfiguration?.initial:snapshot.kind==='aggregate'?snapshot.reportConfiguration?.manager:null)?.blocks||{};
         if (!snapshot.reportOptions.charts) doc.querySelectorAll('figure').forEach(el => el.remove());
         if (!snapshot.reportOptions.details) doc.querySelectorAll('section').forEach(el => {
@@ -39,6 +42,7 @@ const ReportDesign = (() => {
         });
         // Split flat wide tables into printable groups, repeating their identifying columns.
         doc.querySelectorAll('table').forEach(table => {
+            if(landscape)return;
             const rows = [...table.rows], count = rows[0]?.cells.length || 0;
             if (count <= 8 || rows.some(row => row.cells.length !== count || [...row.cells].some(cell => cell.colSpan !== 1 || cell.rowSpan !== 1))) return;
             const parts = Math.ceil((count - 2) / 6);
@@ -52,6 +56,7 @@ const ReportDesign = (() => {
             table.remove();
         });
         doc.head.insertAdjacentHTML('beforeend', styles());
+        if(landscape)doc.head.insertAdjacentHTML('beforeend','<style>@page{size:A4 landscape;margin:12mm}</style>');
         const footer = doc.querySelector('footer') || doc.body.appendChild(doc.createElement('footer'));
         const declaredOrigins = (snapshot.proposal || []).filter(r => r.current?.originSource);
         if (blocks.sources!==false&&declaredOrigins.length) {
@@ -115,6 +120,13 @@ const ReportDesign = (() => {
             })().catch(error => { pdfLibraries = null; throw error; });
             await pdfLibraries;
             const doc = new DOMParser().parseFromString(html,'text/html');
+            const landscape=Boolean(doc.querySelector('.manager-report'));
+            const pageWidth=landscape?841.89:595.28,usableWidth=pageWidth-(landscape?60:84);
+            // Preserve the report's column proportions before removing HTML-only styles.
+            doc.querySelectorAll('table').forEach(table=>{
+                const columns=[...table.querySelectorAll('colgroup col')].map(col=>parseFloat(col.style.width));
+                if(columns.length&&columns.every(n=>Number.isFinite(n)&&n>0))table.dataset.pdfWidths=JSON.stringify(columns);
+            });
             doc.querySelectorAll('script,style,colgroup').forEach(el => el.remove());
             doc.body.querySelectorAll('*').forEach(el => { el.removeAttribute('style'); el.removeAttribute('width'); el.removeAttribute('height'); });
             FinancialVisuals.quartiles.forEach((q,i)=>doc.querySelectorAll(`.q${i+1}`).forEach(el=>el.setAttribute('style',`background-color:${q.background};color:${q.color}`)));
@@ -133,22 +145,32 @@ const ReportDesign = (() => {
                 }
                 summary.replaceWith(table);
             });
-            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[500,310],margin:[0,6,0,12]})));
-            doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); div.className=el.className; div.append(...el.childNodes); el.replaceWith(div); });
+            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page')?620:landscape?360:310],margin:[0,6,0,12]})));
+            doc.querySelectorAll('.report-chart-page').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
+            const tableWidths=[...doc.querySelectorAll('table')].map(table=>table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null);
+            doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); for(const attr of el.attributes)div.setAttribute(attr.name,attr.value); div.append(...el.childNodes); el.replaceWith(div); });
+            // Source-code indentation is not report content or vertical spacing.
+            const walker=doc.createTreeWalker(doc.body,4),indentation=[];
+            while(walker.nextNode())if(/^\s+$/.test(walker.currentNode.textContent)&&/[\r\n]/.test(walker.currentNode.textContent))indentation.push(walker.currentNode);
+            indentation.forEach(node=>node.remove());
             const content = htmlToPdfmake(doc.body.innerHTML,{window,defaultStyles:{h1:{fontSize:23,color:'#263342',bold:true,margin:[0,6,0,14]},h2:{fontSize:13,color:'#215a90',bold:true,margin:[0,16,0,7]},h3:{fontSize:11,color:'#215a90',bold:true},p:{margin:[0,4,0,8]},th:{bold:true,fillColor:'#edf1f5'}}});
             function format(node) {
                 if (!node || typeof node !== 'object') return;
                 if (Array.isArray(node)) { node.forEach(format); return; }
                 if (node.table) {
-                    node.table.widths = Array(node.table.body[0].length).fill('*'); node.table.dontBreakRows = true; node.layout = 'lightHorizontalLines';
-                    const fontSize = node.table.body[0].length > 6 ? 7 : 8;
+                    const count=node.table.body[0].length,weights=tableWidths.shift();
+                    const available=usableWidth-count*6;
+                    node.table.widths = weights?.length===count?weights.map(w=>available*w/weights.reduce((a,b)=>a+b,0)):Array(count).fill('*');
+                    node.table.dontBreakRows = true;node.table.headerRows=1;node.table.keepWithHeaderRows=1;
+                    node.layout = {hLineWidth:(i)=>i===1?0.7:0.35,vLineWidth:()=>0,hLineColor:()=>'#dce2e8',paddingLeft:()=>3,paddingRight:()=>3,paddingTop:()=>5,paddingBottom:()=>5};
+                    const fontSize = landscape?8:count > 6 ? 7 : 8;
                     const sizeCells = cell => { if (!cell || typeof cell !== 'object') return; if (Array.isArray(cell)) return cell.forEach(sizeCells); cell.fontSize=fontSize; if(cell.text && typeof cell.text === 'object') sizeCells(cell.text); if(cell.stack) sizeCells(cell.stack); };
                     node.table.body.forEach(sizeCells);
                 }
                 Object.values(node).forEach(format);
             }
             format(content);
-            const definition = {pageSize:'A4',pageMargins:[42,40,42,45],defaultStyle:{font:'Roboto',fontSize:9,color:'#263342',lineHeight:1.2},content,footer:(page,pages)=>({text:`${page} / ${pages}`,alignment:'right',margin:[42,12,42,0],fontSize:8,color:'#687787'})};
+            const definition = {pageSize:'A4',pageOrientation:landscape?'landscape':'portrait',pageMargins:landscape?[30,32,30,36]:[42,40,42,45],defaultStyle:{font:'Roboto',fontSize:9,color:'#263342',lineHeight:1.2},content,footer:(page,pages)=>({text:`${page} / ${pages}`,alignment:'right',margin:[42,12,42,0],fontSize:8,color:'#687787'})};
             await new Promise(resolve => pdfMake.createPdf(definition).download(filename,resolve));
             return true;
         } catch(error) { alert(`No se ha descargado el PDF: ${error.message}`); return false; }

@@ -9,6 +9,13 @@
 
 ## Cambios realizados
 
+### Octava revision: maquetacion de informes
+
+- Comparativas del informe inicial al ancho de pagina, empezando en pagina nueva, con lienzo mas alto, leyenda inferior y etiquetas ampliadas. El detalle numerico de cada sustitucion queda separado de su grafica.
+- Las tablas de oportunidades de clases solo incluyen posiciones con una alternativa de menor TER; si no existe ninguna, se muestra una frase de resumen sin filas por ISIN. No se eliminan posiciones de las tablas generales de cartera.
+- Informe agregado en A4 horizontal, sin fragmentacion por columnas. Las tablas de posiciones por ISIN y Santalucia conservan sus 12 y 11 columnas, con anchos proporcionales, mas espacio para fondo/categoria, cabecera repetida y filas no partidas.
+- Validacion automatizada de ausencia de fragmentos, orientacion horizontal, anchos de columnas y filtrado de oportunidades; PDF renderizado para comprobacion visual.
+
 ### Septima revision: clases comparables e informes personalizados
 
 - Detector compartido en analisis inicial, scoring individual y posiciones agregadas. Conserva identificadores explicitos y anade candidatos por nombre base sin sufijo de clase, misma entidad/categoria y AUM con tolerancia relativa del 1%. Rechaza conflictos de identificador, divisa y cobertura; las coincidencias inferidas se rotulan como probables, no como equivalencias certificadas.
