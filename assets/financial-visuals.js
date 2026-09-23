@@ -68,12 +68,7 @@
             if (next > palette.length && !source.line?.dash) t.line.dash = dashStyles[Math.floor((ordinals.get(index)||0)/palette.length)%dashStyles.length];
             const numericScale = source.marker?.colorscale && Array.isArray(source.marker?.color);
             if (numericScale) {
-                const returns = id === 'assetClassScreenerScatter';
-                t.marker.colorscale = returns ? diverging : sequential;
-                if (returns) {
-                    const limit = extent(source.marker.color);
-                    t.marker.cmin=-limit; t.marker.cmax=limit; t.marker.cmid=0;
-                }
+                t.marker.colorscale = sequential;
             } else {
                 t.marker.color = id === 'bestDaysBarChart' ? (source.y || []).map((_,i)=>seriesColor(i)) : color;
             }

@@ -16,6 +16,8 @@
     <script src="assets/fund-selector.js"></script>
     <script src="assets/report-design.js"></script>
     <script src="assets/initial-analysis.js"></script>
+    <script src="assets/proposal-allocation.js"></script>
+    <script src="assets/proposal-portfolio.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
     <script defer src="assets/report-controls.js"></script>
     <script defer src="assets/screener-ui.js"></script>
@@ -3373,14 +3375,15 @@
 
             function fundProposalWeighted(metric, side = 'current') {
                 if (metric === 'score' && !fundProposalScoresComparable()) return NaN;
-                const rows = fundProposalState.rows || [];
+                const rows = ProposalPortfolio.safeRows();
                 const valid = rows.filter(r => r[side] && Number.isFinite(r[side][metric]) && Number.isFinite(r.weight));
                 const total = valid.reduce((acc, r) => acc + r.weight, 0);
                 return total > 0 ? valid.reduce((acc, r) => acc + r[side][metric] * r.weight, 0) / total : NaN;
             }
 
             function fundProposalScoresComparable() {
-                return fundProposalState.rows.every(r => r.current && r.proposed && Number.isFinite(r.current.score) && Number.isFinite(r.proposed.score) && r.current.category && r.current.category === r.proposed.category);
+                const rows=ProposalPortfolio.safeRows();
+                return rows.length>0 && rows.every(r => r.current && r.proposed && Number.isFinite(r.current.score) && Number.isFinite(r.proposed.score) && r.current.category && r.current.category === r.proposed.category);
             }
 
             function fundProposalCapital() {
@@ -3402,7 +3405,7 @@
                 const currentTer = fundProposalWeighted('ter', 'current');
                 const proposedTer = fundProposalWeighted('ter', 'proposed');
                 const deltaTer = Number.isFinite(currentTer) && Number.isFinite(proposedTer) ? currentTer - proposedTer : NaN;
-                if (fundProposalState.rows.some(row => !row.current || !row.proposed || !Number.isFinite(row.current.ter) || !Number.isFinite(row.proposed.ter))) {
+                if (!ProposalPortfolio.safeRows().length || ProposalPortfolio.safeRows().some(row => !row.current || !row.proposed || !Number.isFinite(row.current.ter) || !Number.isFinite(row.proposed.ter))) {
                     return { currentTer, proposedTer, deltaTer: NaN, annualSaving: NaN, years: Array.from({ length: 15 }, (_, i) => i + 1), simple: Array(15).fill(NaN), compounded: Array(15).fill(NaN) };
                 }
                 const annualSaving = Number.isFinite(deltaTer) ? fundProposalCapital() * deltaTer / 100 : NaN;
@@ -3515,17 +3518,17 @@
                 renderFundProposalChart();
                 CategoryFlows.render();
                 ProposalCharts.schedule('initial');
+                ProposalPortfolio.render();
             }
 
             function renderFundProposalChart() {
                 const el = document.getElementById('fundProposalChart');
                 if (!el || !window.Plotly) return;
-                const pairs = (fundProposalState.rows || []).filter(r => r.current && r.proposed);
+                const pairs = ProposalPortfolio.safeRows().filter(r => r.current && r.proposed);
                 if (!pairs.length) { el.innerHTML = '<div class="text-sm text-slate-400 text-center py-16">Sin propuestas para graficar.</div>'; return; }
                 const traces = [];
                 const seenCats = new Set();
-                pairs.forEach(pair => {
-                    const cat = pair.current.category || pair.proposed.category || '';
+                pairs.flatMap(pair=>[pair.current.category,pair.proposed.category]).forEach(cat => {
                     if (!cat || seenCats.has(cat)) return;
                     seenCats.add(cat);
                     const universe = (fundUniverseState?.records || []).filter(r => r.category === cat && Number.isFinite(r.ret5) && Number.isFinite(r.risk5));
@@ -4445,7 +4448,7 @@
                     mode: 'markers',
                     type: 'scatter',
                     text: source.map(r => `${r.assetClass}<br>Fondos: ${r.funds || '-'}`),
-                    marker: { size: sizes, color: source.map(r => r.ret5Mean || 0), colorscale: 'Blues', showscale: true, colorbar: { title: 'Ret 5Y' }, opacity: 0.75, line: { color: '#0f172a', width: 0.4 } },
+                    marker: { size: sizes, color: source.map(r => r[yKey]), colorscale: FinancialVisuals.sequential, showscale: true, colorbar: { title: label(yKey) }, opacity: 0.75, line: { color: '#0f172a', width: 0.4 } },
                     hovertemplate: '<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>'
                 }], { title: 'Nube de asset classes', xaxis: { title: label(xKey), zeroline: false }, yaxis: { title: label(yKey), zeroline: false }, margin: { t: 50, l: 60, r: 70, b: 60 }, plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
             }
@@ -5425,13 +5428,14 @@
 
             function aggregateEffectiveRecord(result) {
                 const base = result?.currentRecord || result?.universeMatch?.record || null;
-                if (!base && !result?.manualCategory && !Number.isFinite(result?.manualScore)) return null;
+                if (!base && !result?.manualCategory && !Number.isFinite(result?.manualScore) && !Number.isFinite(result?.manualTer)) return null;
                 return {
                     ...(base || {}),
                     isin: base?.isin || result?.position?.isin || '',
                     name: base?.name || result?.position?.name || '',
                     category: result?.manualCategory || base?.category || result?.approvedMatch?.record?.categoryName || '',
-                    score: Number.isFinite(result?.manualScore) ? result.manualScore : base?.score
+                    score: Number.isFinite(result?.manualScore) ? result.manualScore : base?.score,
+                    ter: Number.isFinite(result?.manualTer) ? result.manualTer : base?.ter
                 };
             }
 
@@ -5474,6 +5478,20 @@
                 renderAggregateScoringResults();
             }
 
+            function setAggregateManualTer(index, input) {
+                if (!input.reportValidity()) return;
+                const result=findAggregateResult(index);if(!result)return;
+                result.manualTer=input.value===''?NaN:input.valueAsNumber;
+                invalidatePortfolioReports();renderAggregateScoringResults();
+            }
+
+            function keepAggregateRecord(index) {
+                const existing=findAggregateResult(index);
+                if(existing&&aggregateHasAppliedChange(existing))resetAggregateRecord(index);
+                const result=findAggregateResult(index);if(!result)return;
+                result.reviewDecision='keep';invalidatePortfolioReports();renderAggregateScoringResults();
+            }
+
             function applyAggregateRecord(index, isin) {
                 const result = findAggregateResult(index);
                 if (!result) return;
@@ -5481,6 +5499,8 @@
                 if (!record) return;
                 result.currentRecord = record;
                 result.selectedRecommendation = record.isin;
+                result.reviewDecision='replace';result.manualTer=NaN;
+                invalidatePortfolioReports();
                 result.manualCategory = record.category || result.manualCategory || '';
                 result.manualScore = NaN;
                 result.included = true;
@@ -5493,6 +5513,8 @@
                 if (!result) return;
                 result.currentRecord = result.originalRecord || result.universeMatch?.record || null;
                 result.selectedRecommendation = '';
+                result.reviewDecision='';result.manualTer=NaN;
+                invalidatePortfolioReports();
                 result.manualCategory = result.currentRecord?.category || result.approvedMatch?.record?.categoryName || '';
                 result.manualScore = NaN;
                 result.included = true;
@@ -5501,7 +5523,7 @@
             }
 
             function aggregateHasAppliedChange(result) {
-                const original = result?.originalRecord?.isin || result?.universeMatch?.record?.isin || '';
+                const original = result?.originalRecord?.isin || result?.universeMatch?.record?.isin || result?.position?.isin || '';
                 const current = result?.currentRecord?.isin || '';
                 return Boolean(original && current && original !== current);
             }
@@ -5974,6 +5996,9 @@
                     ${shareClassActions(aggregateStaticRecord(result),'applyAggregateRecord',idx)}
                     <details open><summary class="cursor-pointer font-bold text-emerald-700">Aprobados + cartera (${recs.approved.length})</summary>${aggregateRecommendationSelectHtml(idx, recs.approved, 'Seleccionar aprobado/cartera')}</details>
                     <details><summary class="cursor-pointer font-bold text-blue-700">Universo invertible (${recs.universe.length})</summary>${aggregateRecommendationSelectHtml(idx, recs.universe, 'Seleccionar universo')}</details>
+                    <details><summary>Universo completo</summary>${renderCompactFundCombobox(fundUniverseState?.records||[],isin=>`applyAggregateRecord(${idx}, '${escapeHtml(isin)}')`,'Buscar cualquier fondo',{id:`aggregateFullUniverse-${idx}`})}</details>
+                    <label>TER efectivo (%) <input aria-label="TER agregado ${idx+1}" type="number" min="0" max="99.99" step="any" value="${Number.isFinite(rec?.ter)?rec.ter:''}" onchange="setAggregateManualTer(${idx},this)"></label>${Number.isFinite(result.manualTer)?'<small>TER manual</small>':''}
+                    <button type="button" class="initial-origin-button" aria-pressed="${result.reviewDecision==='keep'}" onclick="keepAggregateRecord(${idx})">${result.reviewDecision==='keep'?'Sin cambio confirmado':'Mantener fondo actual'}</button>
                     ${reset}
                 </div>`;
             }
@@ -6887,8 +6912,8 @@
                         <div><span>Cambios aplicados</span><strong>${summary.changed}</strong></div>
                     </section>
                     <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} El TER ponderado resume el coste corriente de los fondos incluidos en el cálculo.</p>
-                    <table class="wide-report-table scoring-report-table">
-                        ${reportColgroup([8, 12, 22, 6, 18, 4.25, 4.25, 4.25, 4.25, 4.25, 4.25, 4.25, 4.25])}
+                    <table class="wide-report-table scoring-report-table compact-scoring-table">
+                        ${reportColgroup([11, 11, 18, 5, 15, 5, 5, 5, 5, 5, 5, 5, 5])}
                         <thead><tr><th>ISIN orig.</th><th>ISIN sel.</th><th>Fondo</th><th>Peso</th><th>Cat.</th><th>Score</th><th>TER</th><th>Ret 1Y</th><th>Ret 3Y</th><th>Risk 1Y</th><th>Risk 3Y</th><th>MD 1Y</th><th>MD 3Y</th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
@@ -7537,7 +7562,7 @@
             }
 
             function buildManagerProposedChangesSection(summary) {
-                const candidates = [...summary.changed, ...summary.weak, ...summary.noScore]
+                const candidates = [...summary.changed, ...summary.weak, ...summary.noScore, ...aggregateScoringResults.filter(r=>r.included!==false&&(r.reviewDecision==='keep'||Number.isFinite(r.manualTer)))]
                     .filter((item, idx, arr) => arr.indexOf(item) === idx);
                 if (!candidates.length) {
                     return `<section class="block"><h2>Cambios propuestos</h2><p class="analysis-note"><b>Descripción:</b> No hay cambios aplicados ni fondos deficientes/sin score pendientes de revisión.</p></section>`;
@@ -7578,10 +7603,12 @@
             }
 
             function reportAggregateChangeHtml(result) {
-                if (!aggregateHasAppliedChange(result)) return '<span class="badge warn-badge">Pendiente</span>';
-                const original = result.originalRecord || result.universeMatch?.record || {};
+                const manual=Number.isFinite(result.manualTer)?`<br>TER manual: ${result.manualTer.toFixed(2)}%`:'';
+                if(result.reviewDecision==='keep')return '<span class="badge">Sin cambio</span>'+manual;
+                if (!aggregateHasAppliedChange(result)) return '<span class="badge warn-badge">Pendiente</span>'+manual;
+                const original = result.originalRecord || result.universeMatch?.record || result.position || {};
                 const current = result.currentRecord || {};
-                return `<span class="badge good-badge">Cambio aplicado</span><br>${escapeHtml(original.isin || '-')} -> ${escapeHtml(current.isin || '-')}`;
+                return `<span class="badge good-badge">Cambio aplicado</span><br>${escapeHtml(original.isin || '-')} -> ${escapeHtml(current.isin || '-')}${manual}`;
             }
 
             function collectSantaluciaReportRows(summary) {

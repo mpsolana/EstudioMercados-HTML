@@ -5,7 +5,7 @@ const ProposalCharts=(()=>{
     const label=value=>text(String(value||'').length>56?String(value).slice(0,53)+'…':value).replace(/(.{1,28})(\s|$)/g,'$1<br>').replace(/<br>$/,'');
     function aggregateRows(){return (aggregateScoringResults.length?aggregateScoringResults:aggregatePositionsState.aggregated.map(position=>({position}))).filter(r=>r.included!==false);}
     function model(kind,scope){
-        const rows=fundProposalState.rows||[];
+        const rows=scope==='aggregate'?[]:ProposalPortfolio.rows();
         if(kind==='waterfall')return ProposalChartCore.savings(rows,fundProposalCapital());
         if(kind==='pairs')return ProposalChartCore.pairs(rows);
         if(kind==='concentration'){
@@ -56,6 +56,7 @@ const ProposalCharts=(()=>{
             if(report){traces[0].mode='markers+text';traces[0].text=data.points.map((_,i)=>String(i+1));traces[0].textposition='top center';traces[0].cliponaxis=false;}
             note=`Uso interno. ${data.sizedByClients?'Área proporcional a identificadores de cliente/cuenta por fondo (no sumables entre fondos).':'Tamaño uniforme: recuentos de cliente/cuenta incompletos.'} ${data.omitted} posiciones omitidas por importe incompleto. Verificar equivalencia y acceso a la clase; las oportunidades no son órdenes de sustitución.`;
         }
+        if(ProposalPortfolio.independent&&['waterfall','pairs'].includes(kind))note+=' '+ProposalPortfolio.note;
         return {data:traces,layout:base,height,note};
     }
     function mount(scope,kind,before){

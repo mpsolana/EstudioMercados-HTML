@@ -80,3 +80,11 @@ body>nav+div{background:#263440!important;box-shadow:none!important}
  #workspaceUniverseMetrics .absolute{max-width:calc(100vw - 64px)}
 }
 @media(prefers-reduced-motion:reduce){.tab-content{animation:none}.app-section *{scroll-behavior:auto!important;transition:none!important}}
+.proposal-target-section{padding:18px 0;border-top:1px solid #dce2e8;border-bottom:1px solid #dce2e8;margin:16px 0}
+.proposal-target-section label{display:block;margin:8px 0;color:#435466}
+.proposal-target-section textarea{display:block;width:100%;max-width:600px;border:1px solid #a4afb9;padding:8px}
+.proposal-target-section input{width:85px;border:1px solid #a4afb9;padding:5px}
+.proposal-target-section table{width:100%;border-collapse:collapse;min-width:700px}
+.proposal-target-section :is(th,td){padding:7px;border-bottom:1px solid #dce2e8;text-align:left}
+.independent-origin tr>*:nth-child(n+7){display:none}
+#aggregatePositionsTableBody .initial-origin-button[aria-pressed=true]{outline:2px solid #737b84;outline-offset:-2px;background:#e5ebf0;font-weight:600}

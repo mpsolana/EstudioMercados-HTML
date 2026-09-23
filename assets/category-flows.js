@@ -1,5 +1,5 @@
 const CategoryFlows=(()=>{
-    function model(){return AnalysisCore.categoryFlows(fundProposalState.rows||[],fundProposalCapital());}
+    function model(){return AnalysisCore.categoryFlows(ProposalPortfolio.rows(),fundProposalCapital());}
     function plot(data){
         const colors=new Map(data.categories.map((c,i)=>[c.key,FinancialVisuals.seriesColor(i)]));
         const nodes=[],index=new Map();
@@ -16,7 +16,7 @@ const CategoryFlows=(()=>{
     }
     async function render(){
         const el=document.getElementById('fundProposalCategoryFlows');if(!el||!window.Plotly)return;
-        try{const data=model(),chart=plot(data);el.style.height=`${Math.max(520,data.categories.length*80)}px`;await FinancialVisuals.newPlot(el,chart.data,chart.layout,{responsive:true,displayModeBar:false});document.getElementById('categoryFlowsStatus').textContent=`AUM representado: ${formatEur(data.capital)} · ${data.links.length} flujos`;}
+        try{const data=model(),chart=plot(data);el.style.height=`${Math.max(520,data.categories.length*80)}px`;await FinancialVisuals.newPlot(el,chart.data,chart.layout,{responsive:true,displayModeBar:false});document.getElementById('categoryFlowsStatus').textContent=`AUM representado: ${formatEur(data.capital)} · ${data.links.length} flujos${ProposalPortfolio.independent?' · '+ProposalPortfolio.note:''}`;}
         catch(error){Plotly.purge(el);el.replaceChildren();document.getElementById('categoryFlowsStatus').textContent=error.message;}
     }
     async function image(){

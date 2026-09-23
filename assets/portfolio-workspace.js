@@ -76,7 +76,7 @@ function portfolioWorkflowRefresh() {
 }
 function portfolioSnapshot(kind) {
     const reportOptions = { charts: document.getElementById('reportIncludeCharts').checked, details: document.getElementById('reportIncludeDetails').checked, final: document.getElementById('reportFinal').checked };
-    const rows = kind === 'aggregate' ? aggregateScoringResults.map(r => ({ weight:r.position.weight, current:aggregateStaticRecord(r), proposed:aggregateEffectiveRecord(r) })) : kind === 'individual' ? fundScoringResults.map(r => ({weight:r.weight,current:r.included ? fundResolvedRecord(r) : null,proposed:r.included ? fundResolvedRecord(r) : null})) : fundProposalState.rows;
+    const rows = kind === 'aggregate' ? aggregateScoringResults.map(r => ({ weight:r.position.weight, current:aggregateStaticRecord(r), proposed:aggregateEffectiveRecord(r) })) : kind === 'individual' ? fundScoringResults.map(r => ({weight:r.weight,current:r.included ? fundResolvedRecord(r) : null,proposed:r.included ? fundResolvedRecord(r) : null})) : ProposalPortfolio.safeRows();
     return JSON.parse(JSON.stringify({
         id: `${kind}-${Date.now()}`, kind, revision: PortfolioWorkspace.revision, engine: PortfolioWorkspace.engine,
         createdAt: new Date().toISOString(), settings: portfolioCalculationSettings(), reportOptions, reportConfiguration: ReportControls.state(),
@@ -85,6 +85,7 @@ function portfolioSnapshot(kind) {
         portfolio: kind === 'individual' ? loadedPortfolio : null,
         aggregate: kind === 'aggregate' ? {positions:aggregatePositionsState.rows,results:aggregateScoringResults} : null,
         proposal: kind === 'proposal' ? fundProposalState.rows.map(r => ({id:r.id,isin:r.isin,weight:r.weight,current:r.current,proposed:r.proposed})) : [],
+        independentProposal: kind==='proposal'&&ProposalPortfolio.independent?ProposalPortfolio.targetRows():null,
         coverage: {currentTer:FinanceCore.weighted(rows,'ter','current').coverage,proposedTer:FinanceCore.weighted(rows,'ter','proposed').coverage},
         dataSources: kind === 'individual' ? [...MarketData.metadata.entries()] : []
     }));

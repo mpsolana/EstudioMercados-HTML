@@ -22,6 +22,7 @@ const ReportDesign = (() => {
         .report footer{border-top:1px solid #dce2e8!important;color:#687787!important;padding-top:12px!important;font-size:10px!important}
         .report .block,.report .table-block{break-inside:auto!important}.report tr,.report figure{break-inside:avoid}.report thead{display:table-header-group}
         .report .report-chart-page{break-before:page!important}.report .report-chart-page img{max-height:none!important;width:100%!important}.report .report-chart-page figure{margin:0!important}
+        .report .compact-scoring-table{table-layout:fixed!important;width:100%!important}.report .compact-scoring-table :is(th,td){font-size:8px!important;line-height:1.15!important;padding:3px 2px!important;overflow-wrap:break-word}.report .compact-scoring-table .isin-cell{font-size:8px!important;white-space:nowrap!important}
         .manager-report{max-width:1120px!important}.manager-report .wide-report-table{table-layout:fixed!important;width:100%!important}.manager-report .wide-report-table :is(th,td){font-size:9px!important;padding:5px 3px!important;overflow-wrap:break-word}.manager-report .wide-report-table .num{white-space:nowrap}
         @media print{body{background:white!important;margin:0!important}.report{padding:0!important}.report .wide-report-table{font-size:9px!important}}
         </style>`; }
@@ -34,7 +35,7 @@ const ReportDesign = (() => {
     }
     function prepare(html, snapshot) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
-        const landscape=Boolean(doc.querySelector('.manager-report'));
+        const landscape=Boolean(doc.querySelector('.manager-report,.compact-scoring-table'));
         const blocks=(snapshot.kind==='proposal'?snapshot.reportConfiguration?.initial:snapshot.kind==='aggregate'?snapshot.reportConfiguration?.manager:null)?.blocks||{};
         if (!snapshot.reportOptions.charts) doc.querySelectorAll('figure').forEach(el => el.remove());
         if (!snapshot.reportOptions.details) doc.querySelectorAll('section').forEach(el => {
@@ -120,7 +121,7 @@ const ReportDesign = (() => {
             })().catch(error => { pdfLibraries = null; throw error; });
             await pdfLibraries;
             const doc = new DOMParser().parseFromString(html,'text/html');
-            const landscape=Boolean(doc.querySelector('.manager-report'));
+            const landscape=Boolean(doc.querySelector('.manager-report,.compact-scoring-table'));
             const pageWidth=landscape?841.89:595.28,usableWidth=pageWidth-(landscape?60:84);
             // Preserve the report's column proportions before removing HTML-only styles.
             doc.querySelectorAll('table').forEach(table=>{
@@ -147,7 +148,7 @@ const ReportDesign = (() => {
             });
             doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
             doc.querySelectorAll('.report-chart-page').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
-            const tableWidths=[...doc.querySelectorAll('table')].map(table=>table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null);
+            const tableWidths=[...doc.querySelectorAll('table')].map(table=>({widths:table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null,compact:table.classList.contains('compact-scoring-table')}));
             doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); for(const attr of el.attributes)div.setAttribute(attr.name,attr.value); div.append(...el.childNodes); el.replaceWith(div); });
             // Source-code indentation is not report content or vertical spacing.
             const walker=doc.createTreeWalker(doc.body,4),indentation=[];
@@ -158,12 +159,12 @@ const ReportDesign = (() => {
                 if (!node || typeof node !== 'object') return;
                 if (Array.isArray(node)) { node.forEach(format); return; }
                 if (node.table) {
-                    const count=node.table.body[0].length,weights=tableWidths.shift();
+                    const count=node.table.body[0].length,spec=tableWidths.shift()||{},weights=spec.widths;
                     const available=usableWidth-count*6;
                     node.table.widths = weights?.length===count?weights.map(w=>available*w/weights.reduce((a,b)=>a+b,0)):Array(count).fill('*');
                     node.table.dontBreakRows = true;node.table.headerRows=1;node.table.keepWithHeaderRows=1;
-                    node.layout = {hLineWidth:(i)=>i===1?0.7:0.35,vLineWidth:()=>0,hLineColor:()=>'#dce2e8',paddingLeft:()=>3,paddingRight:()=>3,paddingTop:()=>5,paddingBottom:()=>5};
-                    const fontSize = landscape?8:count > 6 ? 7 : 8;
+                    node.layout = {hLineWidth:(i)=>i===1?0.7:0.35,vLineWidth:()=>0,hLineColor:()=>'#dce2e8',paddingLeft:()=>3,paddingRight:()=>3,paddingTop:()=>spec.compact?3:5,paddingBottom:()=>spec.compact?3:5};
+                    const fontSize = spec.compact?7.5:landscape?8:count > 6 ? 7 : 8;
                     const sizeCells = cell => { if (!cell || typeof cell !== 'object') return; if (Array.isArray(cell)) return cell.forEach(sizeCells); cell.fontSize=fontSize; if(cell.text && typeof cell.text === 'object') sizeCells(cell.text); if(cell.stack) sizeCells(cell.stack); };
                     node.table.body.forEach(sizeCells);
                 }

@@ -9,6 +9,17 @@
 
 ## Cambios realizados
 
+### Undecima revision: propuesta independiente e informes
+
+- Analisis Inicial conserva Sustitucion por fondo y anade Cartera propuesta independiente. Carga directa ISIN;peso porcentual, busqueda en todo el universo, altas/bajas, normalizacion y edicion de peso, TER y score. Cambiar de modo conserva ambas selecciones; el origen no se altera.
+- Cada cartera debe sumar 100%. Los ISIN repetidos de la carga se agrupan; los desconocidos bloquean la carga completa sin sobrescribir la anterior. Se mantiene el AUM total. No se simulan aportaciones ni retiradas.
+- Asignacion ilustrativa para los graficos existentes: retener primero fondos comunes, luego categoria y finalmente remanente. Los flujos conservan los pesos de origen y destino; no representan instrucciones de traspaso. El informe distingue las composiciones reales de esta asignacion.
+- Peers de ambas categorias en comparaciones cruzadas, con una misma escala de tamano para todos los fondos. Valores ausentes usan tamano neutro; media de categoria sigue siendo referencia fija. Se conserva el muestreo declarado de hasta 1.000 peers por categoria.
+- Leyenda explicita de cuartiles, grafica y detalle agrupados, menor altura para comparativas individuales. Los informes individuales con tabla extensa de scoring pasan a A4 horizontal y mantienen todas las columnas, sin division horizontal.
+- Agregadas: universo completo sin filtro de categoria/score, TER efectivo manual con herencia del dato existente y boton Mantener fondo actual. El informe incluye Sin cambio confirmado, TER manual y sustituciones; cambiar de fondo restablece el TER heredado sin modificar el universo.
+- Asset Class: escala secuencial gris/azul ligada a la metrica del eje Y, incluido su titulo.
+- Verificacion: 36 pruebas unitarias; recorrido de navegador de la propuesta independiente, peers, decisiones agregadas, controles de screener y PDF. Pruebas de escritorio y movil con datos sinteticos. No se modifica drawdown ni se anaden benchmarks.
+
 ### Decima revision: graficos de decision
 
 - Analisis Inicial > Propuesta: cascada del ahorro TER anual por sustitucion, comparacion de puntos origen/propuesta para TER y score, y concentracion por gestora/categoria. Todos se recalculan al cambiar las posiciones o el AUM.
