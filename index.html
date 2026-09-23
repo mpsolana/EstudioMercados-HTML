@@ -9,6 +9,8 @@
     <script src="assets/analysis-core.js"></script>
     <script src="assets/financial-visuals.js"></script>
     <script src="assets/category-flows.js"></script>
+    <script src="assets/proposal-chart-core.js"></script>
+    <script src="assets/proposal-charts.js"></script>
     <script src="assets/simulation-engine.js"></script>
     <script src="assets/market-data.js"></script>
     <script src="assets/fund-selector.js"></script>
@@ -3512,6 +3514,7 @@
                 renderFundProposalSavingsChart();
                 renderFundProposalChart();
                 CategoryFlows.render();
+                ProposalCharts.schedule('initial');
             }
 
             function renderFundProposalChart() {
@@ -5361,12 +5364,12 @@
                 const grouped = new Map();
                 rows.forEach(row => {
                     if (!grouped.has(row.isin)) {
-                        grouped.set(row.isin, { isin: row.isin, name: row.name, productType: row.productType, assetType: row.assetType, amount: 0, amountCount: 0, units: 0, rows: 0, accounts: new Set() });
+                        grouped.set(row.isin, { isin: row.isin, name: row.name, productType: row.productType, assetType: row.assetType, amount: 0, amountCount: 0, accountCount: 0, units: 0, rows: 0, accounts: new Set() });
                     }
                     const item = grouped.get(row.isin);
                     item.rows += 1;
                     if (row.name && (!item.name || row.name.length > item.name.length)) item.name = row.name;
-                    if (row.account) item.accounts.add(row.account);
+                    if (row.account) { item.accounts.add(row.account); item.accountCount++; }
                     if (Number.isFinite(row.amount) && row.amount > 0) { item.amount += row.amount; item.amountCount += 1; }
                     if (Number.isFinite(row.units) && row.units > 0) item.units += row.units;
                 });
@@ -5663,6 +5666,7 @@
                 renderAggregateWeakFunds(sourceRows);
                 renderAggregateCategoryPie(sourceRows);
                 renderSantaluciaFundsTable(sourceRows);
+                ProposalCharts.schedule('aggregate');
             }
 
             function renderAggregateKpis(rows) {
@@ -7767,6 +7771,9 @@
                     const exposureSection = blocks.exposure&&document.getElementById('reportIncludeCharts')?.checked!==false?await buildManagerExposureSection():'';
                     setManagerReportProgress(62, 'Construyendo comparadores por benchmark...');
                     const massiveSections = blocks.comparisons?await buildManagerMassiveComparisonSections():'';
+                    const chartsEnabled=document.getElementById('reportIncludeCharts')?.checked!==false;
+                    const concentrationSection=blocks.concentration&&chartsEnabled?await ProposalCharts.report('concentration','aggregate'):'';
+                    const opportunitiesSection=blocks.opportunities&&chartsEnabled?await ProposalCharts.report('opportunities','aggregate'):'';
                     setManagerReportProgress(88, 'Maquetando informe gestora...');
                     managerReportHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Informe Gestora</title>${portfolioReportStyles()}${managerReportStyles()}</head><body>
                     <section class="report manager-report">
@@ -7780,6 +7787,8 @@
                             <div class="stamp">Analyzer</div>
                         </header>
                         ${summarySection}
+                        ${concentrationSection}
+                        ${opportunitiesSection}
                         ${positionsSection}
                         ${changesSection}
                         ${exposureSection}

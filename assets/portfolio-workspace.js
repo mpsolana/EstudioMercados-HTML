@@ -71,6 +71,8 @@ function portfolioWorkflowRefresh() {
     if (unadjusted.length) document.getElementById('workspaceQuality').textContent += `\n${unadjusted.length} activos con cierre sin ajuste: no equivalen necesariamente a retorno total.`;
     if (w.scope === 'screener') document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length}.`;
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    if(w.scope==='initial'&&w.step==='proposal')ProposalCharts.schedule('initial');
+    if(w.scope==='aggregate'&&w.step==='diagnosis'&&w.tool==='aggregate')ProposalCharts.schedule('aggregate');
 }
 function portfolioSnapshot(kind) {
     const reportOptions = { charts: document.getElementById('reportIncludeCharts').checked, details: document.getElementById('reportIncludeDetails').checked, final: document.getElementById('reportFinal').checked };

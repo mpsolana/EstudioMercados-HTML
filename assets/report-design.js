@@ -145,7 +145,7 @@ const ReportDesign = (() => {
                 }
                 summary.replaceWith(table);
             });
-            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page')?620:landscape?360:310],margin:[0,6,0,12]})));
+            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
             doc.querySelectorAll('.report-chart-page').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
             const tableWidths=[...doc.querySelectorAll('table')].map(table=>table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null);
             doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); for(const attr of el.attributes)div.setAttribute(attr.name,attr.value); div.append(...el.childNodes); el.replaceWith(div); });

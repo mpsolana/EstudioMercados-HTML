@@ -9,6 +9,17 @@
 
 ## Cambios realizados
 
+### Decima revision: graficos de decision
+
+- Analisis Inicial > Propuesta: cascada del ahorro TER anual por sustitucion, comparacion de puntos origen/propuesta para TER y score, y concentracion por gestora/categoria. Todos se recalculan al cambiar las posiciones o el AUM.
+- Cascada: incluye encarecimientos en rojo y ahorro en verde. Si faltan TER, declara cobertura y subtotal conocido; no trata los datos ausentes como cero. Carteras largas agrupan las aportaciones menores en Resto sin perder el total.
+- Score: solo se conectan categorias comparables. No se inventan valores faltantes. El informe pagina la comparacion en grupos de 12 posiciones y la concentracion en grupos de 10, conservando los porcentajes del conjunto.
+- Posiciones Agregadas: concentracion ponderada por contravalor real y mapa de oportunidades con el ahorro potencial por clase de menor TER. Solo usa importes completos; clientes/cuentas se representan por area cuando sus identificadores son completos, y con tamano uniforme si no lo son. Los recuentos no son sumables entre fondos.
+- Mapa comercial rotulado Uso interno y desactivado por defecto en el informe. En PDF se incluye una tabla numerada para identificar las burbujas. No implica sustitucion automatica ni confirma accesibilidad comercial de clases probables.
+- Casillas independientes para los nuevos graficos; el interruptor global de graficos tambien se respeta. El informe agregado conserva A4 horizontal y el inicial paginas amplias para graficas.
+- La grafica existente de caidas desde maximos no se modifica ni se duplica; no se anade comparacion con benchmark.
+- Pruebas: 32 casos unitarios, nuevo recorrido escritorio/movil y PDF, controles de cobertura, omision de graficos y regresion de los flujos anteriores.
+
 ### Novena revision: flujos de categorias
 
 - Sankey en Analisis Inicial > Propuesta: categorias de origen y destino, grosor proporcional al AUM de cartera por peso, agrupacion de flujos repetidos y color compartido por categoria en ambos lados.
