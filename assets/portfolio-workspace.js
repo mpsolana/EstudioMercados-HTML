@@ -177,7 +177,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
-    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
         const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await original(...args); } catch(error) { alert(error.message); } finally { portfolioWorkflowRefresh(); } };
     }

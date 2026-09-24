@@ -1332,7 +1332,7 @@
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Score propuesto</div><div id="proposalNewScore" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">TER actual</div><div id="proposalCurrentTer" class="text-2xl font-black text-slate-900 mt-1">-</div></div>
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">TER propuesto</div><div id="proposalNewTer" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
-                                <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Mejora score</div><div id="proposalScoreDelta" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
+                                <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Variación score</div><div id="proposalScoreDelta" class="text-2xl font-black text-emerald-800 mt-1">-</div><small>Diferencia de medias ponderadas. Orientativa entre categorías o coberturas distintas.</small></div>
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Ahorro anual TER</div><div id="proposalAnnualTerSaving" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Ahorro 5 años</div><div id="proposalSaving5y" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
                                 <div class="rounded border border-slate-200 bg-slate-50 p-3"><div class="text-[10px] uppercase font-bold text-slate-500">Ahorro 15 años</div><div id="proposalSaving15y" class="text-2xl font-black text-emerald-800 mt-1">-</div></div>
@@ -1973,6 +1973,7 @@
                 return Math.pow(1 + annualizedReturn, months / 12) - 1;
             }
             let assetAllocationState = null;
+            let assetAllocationReportBusy = false;
 
             function showPortfolioSubtab(tabName) {
                 document.querySelectorAll('.portfolio-subtab-content').forEach(el => el.classList.add('hidden'));
@@ -3326,7 +3327,9 @@
 
             function shareClassActions(record, action, index) {
                 const result=shareClassAssessment(record);
-                return [['Universo',result.all[0]],['Aprobada',result.approved[0]]].filter(([,fund])=>fund).map(([label,fund])=>`<button type="button" class="initial-origin-button" onclick="${action}(${index},'${escapeHtml(fund.isin)}')">Elegir clase mas barata · ${label}</button>`).join('');
+                const candidates=AnalysisCore.classCandidates(record,fundUniverseState?.records||[]);
+                const selector=candidates.length?renderCompactFundCombobox(candidates,isin=>`${action}(${index},'${isin}')`,'Buscar clase por nombre o ISIN',{id:`classes-${action}-${index}`,buttonText:`Otras clases candidatas (${candidates.length})`}):'';
+                return [['Universo',result.all[0]],['Aprobada',result.approved[0]]].filter(([,fund])=>fund).map(([label,fund])=>`<button type="button" class="initial-origin-button" onclick="${action}(${index},'${escapeHtml(fund.isin)}')">Elegir clase mas barata · ${label}</button>`).join('')+selector+(candidates.length?'<small>Coincidencia de familia e identificador, o gestora y AUM. Pueden variar categoría, divisa o cobertura; revisar antes de elegir. No implica aprobación.</small>':'');
             }
 
             function cheaperShareClassBadge(row) {
@@ -3478,7 +3481,8 @@
                 setText('proposalCurrentTer', fmtPercentPoint(currentTer));
                 setText('proposalNewTer', fmtPercentPoint(newTer));
                 const savings = fundProposalSavingsData();
-                setText('proposalScoreDelta', fundProposalScoresComparable() && Number.isFinite(newScore) && Number.isFinite(currentScore) ? (newScore - currentScore >= 0 ? '+' : '') + (newScore - currentScore).toFixed(2) : 'No comparable');
+                setText('proposalScoreDelta', Number.isFinite(newScore) && Number.isFinite(currentScore) ? (newScore - currentScore >= 0 ? '+' : '') + (newScore - currentScore).toFixed(2) : 'Sin dato');
+                document.getElementById('proposalScoreDelta').title='Diferencia aritmética entre scores ponderados sobre el peso con datos. Entre categorías o coberturas distintas es orientativa, no una mejora homogénea de rentabilidad/riesgo.';
                 setText('proposalAnnualTerSaving', formatEur(savings.annualSaving));
                 setText('proposalSaving5y', formatEur(savings.compounded[4]));
                 setText('proposalSaving15y', formatEur(savings.compounded[14]));
@@ -3562,8 +3566,11 @@
             function fundProposalMetricReportTable(row) {
                 const current = row.current;
                 const proposed = row.proposed;
-                if (!current || !proposed) return '<p class="method-note"><b>Incidencia:</b> no hay datos suficientes en el universo para construir la comparativa de metricas.</p>';
                 const metrics = fundUniverseMetricConfigs().filter(m => ['score', 'ter', 'ret1', 'ret3', 'ret5', 'risk1', 'risk3', 'risk5', 'dd1', 'dd3', 'dd5'].includes(m.key));
+                if(!current||!proposed){
+                    const record=current||proposed;if(!record)return '<p class="method-note">Fondo sin identificar en el universo.</p>';
+                    return `<table class="scoring-report-table"><thead><tr><th>Métrica</th><th>${current?'Origen':'Propuesta'} · ${escapeHtml(record.name)} · ${escapeHtml(record.isin)}</th></tr></thead><tbody>${metrics.map(metric=>`<tr><td>${escapeHtml(metric.label)}</td>${fundProposalMetricReportCell(record,metric,record)}</tr>`).join('')}</tbody></table>`;
+                }
                 return `<table class="scoring-report-table"><colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup><thead><tr><th>Metrica</th><th>Fondo actual</th><th>Fondo propuesto</th></tr></thead><tbody>
                     <tr><td><b>Nombre</b></td><td>${escapeHtml(current.name || '-')}<br><span class="muted">${escapeHtml(current.isin || '-')}</span></td><td>${escapeHtml(proposed.name || '-')}<br><span class="muted">${escapeHtml(proposed.isin || '-')}</span></td></tr>
                     <tr><td><b>Categoria</b></td><td>${escapeHtml(current.category || '-')}</td><td>${escapeHtml(proposed.category || '-')}</td></tr>
@@ -3900,6 +3907,7 @@
                         ter,
                         aum,
                         manager: String(fundCol(row, ['Entidad*', 'Entidad', 'Manager', 'Provider']) || '').trim(),
+                        managerTenure: parseNumber(fundCol(row, ['Manager Tenure*', 'Manager Tenure', 'Manager Tenure (Years)', 'Antigüedad gestor'])),
                         currency: String(fundCol(row, ['Divisa', 'Currency']) || '').trim(),
                         ranking: String(fundCol(row, ['Ranking']) || '').trim(),
                         ret1: parseRankingNumber(fundCol(row, ['Return 1Y*'])),
@@ -5440,7 +5448,28 @@
             }
 
             function aggregateStaticRecord(result) {
-                return result?.universeMatch?.record || result?.originalRecord || null;
+                return result?.originOverride || result?.universeMatch?.record || result?.originalRecord || null;
+            }
+
+            function setAggregateOrigin(index, isin) {
+                const result=findAggregateResult(index),record=fundUniverseState?.isinIndex?.get(normalizeIsin(isin));
+                if(!result||!record)return;
+                const changed=aggregateHasAppliedChange(result);
+                result.originOverride=record;
+                if(!changed){result.currentRecord=record;result.manualCategory=record.category||'';result.manualTer=NaN;result.manualScore=NaN;result.selectedRecommendation='';}
+                aggregateRecommendationCache.clear();invalidatePortfolioReports();renderAggregateScoringResults();
+            }
+
+            function clearAggregateOrigin(index) {
+                const result=findAggregateResult(index);if(!result)return;
+                const changed=aggregateHasAppliedChange(result);delete result.originOverride;
+                if(!changed){result.currentRecord=aggregateStaticRecord(result);result.manualCategory=result.currentRecord?.category||'';result.manualTer=NaN;result.manualScore=NaN;result.selectedRecommendation='';}
+                aggregateRecommendationCache.clear();invalidatePortfolioReports();renderAggregateScoringResults();
+            }
+
+            function aggregateOriginNote(result) {
+                const origin=result?.originOverride;
+                return origin?`<div class="text-xs text-slate-600">Origen de datos seleccionado: ${escapeHtml(origin.name)} · ${escapeHtml(origin.isin)}. Posición importada: ${escapeHtml(result.position.isin)}. No representa una operación; comprobar equivalencia de clase.</div>`:'';
             }
 
             function findAggregateResult(index) {
@@ -5511,7 +5540,7 @@
             function resetAggregateRecord(index) {
                 const result = findAggregateResult(index);
                 if (!result) return;
-                result.currentRecord = result.originalRecord || result.universeMatch?.record || null;
+                result.currentRecord = aggregateStaticRecord(result);
                 result.selectedRecommendation = '';
                 result.reviewDecision='';result.manualTer=NaN;
                 invalidatePortfolioReports();
@@ -5523,14 +5552,14 @@
             }
 
             function aggregateHasAppliedChange(result) {
-                const original = result?.originalRecord?.isin || result?.universeMatch?.record?.isin || result?.position?.isin || '';
+                const original = aggregateStaticRecord(result)?.isin || result?.position?.isin || '';
                 const current = result?.currentRecord?.isin || '';
                 return Boolean(original && current && original !== current);
             }
 
             function aggregateChangeBadge(result) {
                 if (!aggregateHasAppliedChange(result)) return '';
-                const original = result.originalRecord || result.universeMatch?.record || {};
+                const original = aggregateStaticRecord(result) || {};
                 const current = result.currentRecord || {};
                 return `<div class="mt-1 inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-800">Cambio aplicado: ${escapeHtml(original.isin || '-')} -> ${escapeHtml(current.isin || '-')}</div>`;
             }
@@ -5804,7 +5833,7 @@
                 return `<tr class="${weakCls}" data-aggregate-bucket="${escapeHtml(bucketSlug || '')}">
                     <td class="px-3 py-2 font-bold min-w-[120px]">${aggregateBucketEditorHtml(result, idx)}</td>
                     <td class="px-3 py-2 font-mono">${escapeHtml(pos.isin || '-')}</td>
-                    <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(pos.name || rec?.name || '-')} ${approvedFundBadge(rec)}</div><div class="text-[11px] text-slate-400">${escapeHtml(pos.assetType || '')}</div>${aggregateChangeBadge(result)}</td>
+                    <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(pos.name || rec?.name || '-')} ${approvedFundBadge(rec)}</div><div class="text-[11px] text-slate-400">${escapeHtml(pos.assetType || '')}</div>${aggregateOriginNote(result)}${renderCompactFundCombobox(fundUniverseState?.records||[],isin=>`setAggregateOrigin(${idx},'${isin}')`,'Buscar origen: ISIN o nombre',{id:`aggregate-origin-${idx}`,buttonText:'Editar origen de datos'})}${result.originOverride?`<button type="button" class="initial-origin-button" onclick="clearAggregateOrigin(${idx})">Restaurar origen importado</button>`:''}${aggregateChangeBadge(result)}</td>
                     <td class="px-3 py-2 text-right">${(pos.clientCount || 0).toLocaleString('es-ES')} / ${(pos.rows || 0).toLocaleString('es-ES')}</td>
                     <td class="px-3 py-2 text-right">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
                     <td class="px-3 py-2 text-right font-bold">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}${includeEditor}</td>
@@ -6495,8 +6524,7 @@
             function renderAssetAllocationWeights() {
                 if (!assetAllocationState) return;
                 const wrap = document.getElementById('assetAllocationWeights');
-                document.querySelectorAll('button[onclick="equalizeAssetAllocationWeights()"],button[onclick="normalizeAssetAllocationWeights()"]').forEach(button=>button.disabled=Boolean(assetAllocationState.portfolioSeries));
-                if(assetAllocationState.portfolioSeries){wrap.innerHTML=assetAllocationState.keys.map(k=>`<div>${escapeHtml(assetAllocationState.labels[k]||k)} · ${fmtPct(assetAllocationState.weights[k])}</div>`).join('');return;}
+                document.querySelectorAll('button[onclick="equalizeAssetAllocationWeights()"],button[onclick="normalizeAssetAllocationWeights()"]').forEach(button=>button.disabled=assetAllocationReportBusy);
                 wrap.innerHTML = assetAllocationState.keys.map((key, idx) => {
                     const label = assetAllocationState.labels[key] || key;
                     const weight = (assetAllocationState.weights[key] || 0) * 100;
@@ -6508,16 +6536,19 @@
                         <input data-aa-slider="${idx}" type="range" min="0" max="100" step="0.5" value="${weight.toFixed(1)}" oninput="setAssetAllocationWeight(${idx}, this.value, 'slider')" class="w-full">
                     </div>`;
                 }).join('');
+                if(assetAllocationState.portfolioSeries)wrap.insertAdjacentHTML('beforeend','<p class="text-xs text-slate-600">Simulación visual: el informe utiliza siempre los pesos originales.</p><button type="button" class="initial-origin-button" onclick="preparePortfolioReportAllocationState()">Restablecer pesos originales</button>');
+                wrap.querySelectorAll('input,button').forEach(control=>control.disabled=assetAllocationReportBusy);
             }
 
             function setAssetAllocationWeight(index, value, source) {
-                if (!assetAllocationState) return;
+                if (!assetAllocationState || assetAllocationReportBusy) return;
                 const key = assetAllocationState.keys[index];
                 const pct = Math.min(100, Math.max(0, Number(value) || 0));
                 const newWeight = pct / 100;
                 const otherKeys = assetAllocationState.keys.filter(k => k !== key);
                 const otherTotal = otherKeys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
                 assetAllocationState.weights[key] = newWeight;
+                if(!otherKeys.length)assetAllocationState.weights[key]=1;
                 if (otherKeys.length) {
                     const remaining = Math.max(0, 1 - newWeight);
                     if (otherTotal > 0) {
@@ -6542,8 +6573,7 @@
             }
 
             function normalizeAssetAllocationWeights() {
-                if (!assetAllocationState) return;
-                if(assetAllocationState.portfolioSeries)return;
+                if (!assetAllocationState || assetAllocationReportBusy) return;
                 const sum = assetAllocationState.keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
                 if (!sum) return equalizeAssetAllocationWeights();
                 assetAllocationState.keys.forEach(k => assetAllocationState.weights[k] /= sum);
@@ -6552,8 +6582,7 @@
             }
 
             function equalizeAssetAllocationWeights() {
-                if (!assetAllocationState) return;
-                if(assetAllocationState.portfolioSeries)return;
+                if (!assetAllocationState || assetAllocationReportBusy) return;
                 const equal = 1 / assetAllocationState.keys.length;
                 assetAllocationState.keys.forEach(k => assetAllocationState.weights[k] = equal);
                 renderAssetAllocationWeights();
@@ -6565,7 +6594,14 @@
                 const keys = assetAllocationState.keys;
                 const rawSum = keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
                 const weights = Object.fromEntries(keys.map(k => [k, rawSum ? (assetAllocationState.weights[k] || 0) / rawSum : 1 / keys.length]));
-                const series=assetAllocationState.portfolioSeries||HorizonCore.fromReturns(assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * assetAllocationState.returns[k][i], 0)));
+                const simulated=assetAllocationState.portfolioSeries&&keys.some(k=>Math.abs(weights[k]-assetAllocationState.originalWeights[k])>1e-10);
+                let series=assetAllocationState.portfolioSeries;
+                if(simulated){
+                    const dates=series.map(p=>p.date);
+                    const returns=FinanceCore.portfolioPath(keys.map(ticker=>({ticker,weight:weights[ticker]})),dates,assetAllocationState.returns,assetAllocationState.calculationSettings);
+                    let price=100;series=dates.map((date,i)=>({date,price:i?(price*=1+returns[i-1]):price}));
+                }
+                series=series||HorizonCore.fromReturns(assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * assetAllocationState.returns[k][i], 0)));
                 const portfolioReturns=priceReturns(series),frequency=assetAllocationState.frequency||'M';
                 const threshold = (parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0) || 0) / 100;
                 const thresholdDirection = document.getElementById('assetAllocationThresholdDirection')?.value === 'gt' ? 'gt' : 'lt';
@@ -6573,7 +6609,7 @@
                 const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold, thresholdDirection,frequency,series)).filter(Boolean);
                 assetAllocationState.analysisRows=rows;
                 document.getElementById('assetAllocationWeightSum').innerText = fmtPct(rawSum);
-                document.getElementById('assetAllocationSource').innerText = assetAllocationState.sourceLabel;
+                document.getElementById('assetAllocationSource').innerText = (simulated?'Simulación visual (no afecta al informe). ':'')+assetAllocationState.sourceLabel;
                 const history=assetAllocationState.portfolioSeries?.map(p=>new Date(p.date).toISOString().slice(0,10))||assetAllocationState.dates;
                 document.getElementById('assetAllocationHistory').innerText = `${history[0]} / ${history[history.length - 1]}`;
                 renderAssetAllocationStats(rows);
@@ -6626,6 +6662,8 @@
                 const traceMean = { x, y: rows.map(r => r.mean), type: 'scatter', mode: 'markers+text', name: 'Media', marker: { color: '#000080', size: 16, symbol: 'line-ew', line: { color: '#000080', width: 5 } }, text: rows.map(r => fmtPct(r.mean)), textposition: 'middle right', textfont: { color: '#000080', size: 12, family: 'Arial Black' }, hovertemplate: '%{x}<br>Media: %{y:.1%}<extra></extra>' };
                 const traceMax = { x, y: rows.map(r => r.max), type: 'scatter', mode: 'text', name: 'Máximo', text: rows.map(r => fmtPct(r.max)), textposition: 'top center', textfont: { color: '#008000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
                 const traceMin = { x, y: rows.map(r => r.min), type: 'scatter', mode: 'text', name: 'Mínimo', text: rows.map(r => fmtPct(r.min)), textposition: 'bottom center', textfont: { color: '#ff0000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
+                const labelGap=Math.max(1e-8,Math.max(...rows.map(r=>r.max))-Math.min(...rows.map(r=>r.min)))*.08;
+                rows.forEach((r,i)=>{if(r.max-r.min<labelGap){traceMax.text[i]='';traceMin.text[i]='';}else{if(r.max-r.mean<labelGap)traceMax.text[i]='';if(r.mean-r.min<labelGap)traceMin.text[i]='';}});
                 FinancialVisuals.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin], {
                     title: 'Rango de rentabilidades según el plazo de la inversión',
                     yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad total <1 año; anualizada ≥1 año' },
@@ -6934,6 +6972,9 @@
 
             async function generatePortfolioReport() {
                 if (!loadedPortfolio || !loadedPortfolio.portfolioData?.length) return alert('Primero carga una cartera.');
+                if(assetAllocationReportBusy)return;
+                const visualAllocation=assetAllocationState,originalPortfolio=loadedPortfolio;
+                assetAllocationReportBusy=true;
                 try {
                     setPortfolioReportProgress(3, 'Preparando informe ejecutivo...');
                     await waitForUiFrame();
@@ -7046,6 +7087,10 @@
                     console.error('generatePortfolioReport error:', e);
                     setPortfolioReportProgress(100, 'Error generando informe');
                     alert(`Error generando informe: ${e.message || e}`);
+                } finally {
+                    assetAllocationReportBusy=false;
+                    if(visualAllocation&&loadedPortfolio===originalPortfolio){assetAllocationState=visualAllocation;renderAssetAllocationWeights();updateAssetAllocationAnalysis();}
+                    else renderAssetAllocationWeights();
                 }
             }
 
@@ -7083,6 +7128,8 @@
                     labels: Object.fromEntries(keys.map(k => [k, portfolioLabelForTicker(k)])),
                     sourceLabel: `Backtest de cartera (${loadedPortfolio.sourceLabel || 'datos actuales'}). Mismos precios, costes y rebalanceo; media aritmética de ventanas solapadas, no CAGR del periodo completo.`,
                     portfolioSeries:loadedPortfolio.portfolioData,
+                    originalWeights:{...weights},
+                    calculationSettings:{...loadedPortfolio.calculationSettings},
                     frequency:loadedPortfolio.frequency||inferDataFrequency(loadedPortfolio.portfolioData),
                     dates: dateSource.length === minLen ? dateSource : Array.from({ length: minLen }, (_, i) => `${i + 1}`),
                     returns: Object.fromEntries(keys.map(k => [k, loadedPortfolio.returns[k].slice(-minLen)])),
@@ -7537,7 +7584,7 @@
                     return `<tr>
                         <td class="block-cell">${escapeHtml(aggregateEffectiveBucket(result) || '-')}</td>
                         <td class="isin-cell">${escapeHtml(pos.isin || '-')}</td>
-                        <td class="fund-cell">${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}</td>
+                        <td class="fund-cell">${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}${aggregateOriginNote(result)}</td>
                         <td class="num">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
                         <td class="num">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
                         <td class="cat-cell">${escapeHtml(rec?.category || '-')}</td>
@@ -7602,10 +7649,10 @@
             }
 
             function reportAggregateChangeHtml(result) {
-                const manual=Number.isFinite(result.manualTer)?`<br>TER manual: ${result.manualTer.toFixed(2)}%`:'';
+                const manual=(Number.isFinite(result.manualTer)?`<br>TER manual: ${result.manualTer.toFixed(2)}%`:'')+aggregateOriginNote(result);
                 if(result.reviewDecision==='keep')return '<span class="badge">Sin cambio</span>'+manual;
                 if (!aggregateHasAppliedChange(result)) return '<span class="badge warn-badge">Pendiente</span>'+manual;
-                const original = result.originalRecord || result.universeMatch?.record || result.position || {};
+                const original = aggregateStaticRecord(result) || result.position || {};
                 const current = result.currentRecord || {};
                 return `<span class="badge good-badge">Cambio aplicado</span><br>${escapeHtml(original.isin || '-')} -> ${escapeHtml(current.isin || '-')}${manual}`;
             }

@@ -56,28 +56,43 @@ const ReportControls=(()=>{
         const universe=(fundUniverseState?.records||[]).filter(r=>categories.includes(r.category)&&valid(r));
         const maxSize=[...selected,...universe].reduce((max,r)=>Number.isFinite(r[o.size])?Math.max(max,Math.abs(r[o.size])):max,0);
         const size=r=>o.size==='fixed'?14:Number.isFinite(r[o.size])?Math.max(5,38*Math.sqrt(Math.abs(r[o.size])/(maxSize||1))):8;
+        const displayed=[...new Map(categories.flatMap(category=>AnalysisCore.sample(universe.filter(r=>r.category===category),1000)).map(r=>[r.isin,r])).values()];
+        if(displayed.length)traces.push({type:'scatter',mode:'markers',name:`Peer group · ${categories.map(escapeHtml).join(' + ')}${displayed.length<universe.length?' (muestra)':''}`,x:displayed.map(r=>r[o.x]),y:displayed.map(r=>r[o.y]),text:displayed.map(r=>escapeHtml(`${r.name} · ${r.isin} · ${r.category}`)),marker:{size:displayed.map(size),opacity:.25,color:'#94a3b8'},hovertemplate:'%{text}<br>X %{x:.2f}<br>Y %{y:.2f}<extra>%{fullData.name}</extra>'});
         for(const category of categories){
             const peers=universe.filter(r=>r.category===category);
             if(!peers.length)continue;
-            const displayed=AnalysisCore.sample(peers,1000),mean=key=>peers.reduce((s,r)=>s+r[key],0)/peers.length;
-            traces.push({type:'scatter',mode:'markers',name:`Peer group · ${escapeHtml(category)}${peers.length>1000?' (muestra 1.000)':''}`,x:displayed.map(r=>r[o.x]),y:displayed.map(r=>r[o.y]),text:displayed.map(r=>escapeHtml(`${r.name} · ${r.isin}`)),marker:{size:displayed.map(size),opacity:.25,color:'#94a3b8'},hovertemplate:'%{text}<br>X %{x:.2f}<br>Y %{y:.2f}<extra>%{fullData.name}</extra>'});
-            traces.push({type:'scatter',mode:'markers+text',name:`Media categoría · ${escapeHtml(category)}`,x:[mean(o.x)],y:[mean(o.y)],text:[`Media ${escapeHtml(category)}`],textposition:categories.indexOf(category)%2?'bottom center':'top center',marker:{size:14,symbol:'diamond',color:'#111827'}});
+            const mean=key=>peers.reduce((s,r)=>s+r[key],0)/peers.length;
+            traces.push({type:'scatter',mode:'markers',name:`Media categoría · ${escapeHtml(category)}`,x:[mean(o.x)],y:[mean(o.y)],marker:{size:14,symbol:'diamond',color:'#111827'}});
         }
         for(const [side,label] of [['current','Origen'],['proposed','Propuesta']]){
             const records=[...new Map(rows.map(r=>r[side]).filter(valid).map(r=>[`${r.isin}|${r[o.x]}|${r[o.y]}`,r])).values()];
             for(const r of records){
                 const name=escapeHtml(r.name||'Sin nombre').replace(/(.{1,42})(\s|$)/g,'$1<br>').replace(/<br>$/,'');
                 const text=`${label} · ${escapeHtml(r.isin)}<br>${name}`;
-traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='current'?'origin':'proposal'},name:text,x:[r[o.x]],y:[r[o.y]],text:[records.length>3?`${label} · ${escapeHtml(r.name).slice(0,32)}`:text],cliponaxis:false,textfont:{size:records.length>3?12:17},textposition:`${r[o.y]>midpoint(o.y)?'bottom':'top'} ${r[o.x]<midpoint(o.x)?'right':'left'}`,marker:{color:side==='current'?'#173b63':'#657487',symbol:side==='current'?'circle':'square',size:size(r)},hovertemplate:'%{text}<br>X %{x:.2f}<br>Y %{y:.2f}<extra></extra>'});
+traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='current'?'origin':'proposal'},name:text,x:[r[o.x]],y:[r[o.y]],text:[records.length>3?`${label} · ${escapeHtml(r.name).slice(0,32)}`:text],cliponaxis:false,textfont:{size:records.length>3?12:17},textposition:`${side==='current'?'top':'bottom'} ${r[o.x]<midpoint(o.x)?'right':'left'}`,marker:{color:side==='current'?'#173b63':'#657487',symbol:side==='current'?'circle':'square',size:size(r)},hovertemplate:'%{text}<br>X %{x:.2f}<br>Y %{y:.2f}<extra></extra>'});
                 if(overview){const trace=traces[traces.length-1];trace.name=label;trace.showlegend=r===records[0];trace.legendgroup=side;}
             }
         }
         if(!traces.length)return '';
-        const height=rows.length===1?700:900+Math.min(350,Math.ceil(traces.length/2)*35);
+        const height=selected.length<=2?700:900+Math.min(350,Math.ceil(traces.length/2)*35);
         const div=document.createElement('div');div.style.cssText=`position:fixed;left:-12000px;width:1100px;height:${height}px`;document.body.append(div);
-        try{await FinancialVisuals.newPlot(div,traces,{font:{size:17},xaxis:{title:metrics[o.x],automargin:true},yaxis:{title:metrics[o.y],automargin:true},margin:{t:40,l:95,r:65,b:Math.min(430,80+Math.ceil(traces.length/2)*52)},legend:{orientation:'h',x:0,y:-.13,font:{size:14},entrywidth:400,entrywidthmode:'pixels'}},{staticPlot:true});return await Plotly.toImage(div,{format:'png',width:1100,height,scale:2});}finally{Plotly.purge(div);div.remove();}
+        try{await FinancialVisuals.newPlot(div,traces,{font:{size:17},xaxis:{title:metrics[o.x],automargin:true},yaxis:{title:metrics[o.y],automargin:true},margin:{t:40,l:95,r:65,b:Math.min(430,80+Math.ceil(traces.length/2)*52)},legend:{orientation:'h',x:0,y:height===700?-.25:-.13,font:{size:14},entrywidth:400,entrywidthmode:'pixels'}},{staticPlot:true});return await Plotly.toImage(div,{format:'png',width:1100,height,scale:2});}finally{Plotly.purge(div);div.remove();}
     }
     function figure(image,title){return image?`<figure><figcaption>${escapeHtml(title)}</figcaption><img src="${image}" alt="${escapeHtml(title)}"></figure>`:'<p>Sin datos suficientes para los ejes seleccionados.</p>';}
+    function chartNotes(rows){
+        const o=options(),notes=new Set();
+        for(const row of rows)for(const [side,label] of [['current','Origen'],['proposed','Propuesta']]){
+            if(!(side in row))continue;
+            const record=row[side],missing=[...new Set([o.x,o.y,...(o.size==='fixed'?[]:[o.size])])].filter(key=>!Number.isFinite(record?.[key]));
+            if(missing.length)notes.add(`${label}: ${record?.name||row.isin||'Sin identificar'} (${record?.isin||row.isin||'-'}), sin dato de ${missing.map(key=>metrics[key]).join(', ')}. ${!Number.isFinite(record?.[o.x])||!Number.isFinite(record?.[o.y])?'No representado en la gráfica.':'Burbuja de tamaño neutro.'}`);
+        }
+        return [...notes].map(note=>`<p class="method-note chart-data-note">${escapeHtml(note)}</p>`).join('');
+    }
+    function independentComparisons(origins,targets){
+        const groups=origins.map(origin=>({title:`${origin.isin} · Origen y peers de su categoría`,rows:[{isin:origin.isin,current:origin.current},...targets.filter(t=>origin.current?.category&&t.record.category===origin.current.category).map(t=>({isin:t.record.isin,proposed:t.record}))]}));
+        for(const target of targets.filter(t=>!origins.some(o=>o.current?.category&&o.current.category===t.record.category)))groups.push({title:`${target.record.isin} · Propuesta y peers de su categoría`,rows:[{isin:target.record.isin,proposed:target.record}]});
+        return groups;
+    }
     async function generateInitial(){
         if(ProposalPortfolio.independent){try{ProposalPortfolio.syncOrigin();}catch(error){alert('Origen: '+error.message);return;}}
         const origins=fundProposalState.rows||[];
@@ -89,7 +104,7 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
         if(!Number.isFinite(fundProposalCapital())){alert('Introduce un AUM valido.');return;}
         const b=options().blocks,parts=[],savings=fundProposalSavingsData();
         setFundProposalBusy('Generando informe inicial...',true);
-        const section=(title,html,chartPage=false)=>`<section class="block${chartPage?' report-chart-page':''}"><h2>${escapeHtml(title)}</h2>${html}</section>`;
+        const section=(title,html,chartPage=false,keepTogether=false)=>`<section class="block${chartPage?' report-chart-page':''}${keepTogether?' report-keep-together':''}"><h2>${escapeHtml(title)}</h2>${html}</section>`;
         parts.push(section('Resumen ejecutivo',`<p>AUM de origen ${formatEur(fundProposalCapital())}. Ahorro TER anual estimado ${formatEur(savings.annualSaving)}.</p><p>El score procede del ranking. Las comparaciones entre categorias no son homogeneas; los ajustes manuales no recalculan una metodologia de rentabilidad/riesgo.</p>`));
         parts.push(section('Cobertura de métricas',`<p>TER origen ${(ProposalPortfolio.weighted('ter','current').coverage*100).toFixed(1)}%; TER propuesta ${(ProposalPortfolio.weighted('ter','proposed').coverage*100).toFixed(1)}%. Score origen ${(ProposalPortfolio.weighted('score','current').coverage*100).toFixed(1)}%; score propuesta ${(ProposalPortfolio.weighted('score','proposed').coverage*100).toFixed(1)}%. Medias sobre el peso con datos, orientativas si mezclan categorías. Sin cobertura TER completa en ambos lados no se estima ahorro total.</p>`));
         if(ProposalPortfolio.independent)parts.push(section('Cartera propuesta independiente',`<p>${origins.length} fondos de origen y ${ProposalPortfolio.targetRows().length} fondos propuestos. ${ProposalPortfolio.note}</p>`));
@@ -99,20 +114,26 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
         else if(b.changes)parts.push(section('Cambios propuestos',`<table><thead><tr><th>Origen</th><th>Propuesta</th><th>Score origen</th><th>Score propuesta</th><th>TER origen</th><th>TER propuesta</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.current?.name||r.isin)}</td><td>${escapeHtml(r.proposed?.name||'-')}</td><td>${format(r.current?.score,'score')}</td><td>${format(r.proposed?.score,'score')}</td><td>${format(r.current?.ter,'ter')}</td><td>${format(r.proposed?.ter,'ter')}</td></tr>`).join('')}</tbody></table>`));
         if(b.classes)parts.push(section('Clases mas baratas',classTable(origins)));
         if(b.details)parts.push(section('Leyenda de cuartiles',`<table><tr>${['Q1 · Mejor 25%','Q2 · 25–50%','Q3 · 50–75%','Q4 · Último 25%'].map((label,i)=>`<td class="q${i+1}">${label}</td>`).join('')}</tr></table><p>Comparación dentro de la categoría de cada fondo, no entre categorías. Mayor retorno y score es mejor; menor TER y riesgo es mejor. En caídas, se favorece la menor pérdida. Sin dato: sin color. El cuartil no garantiza una rentabilidad positiva.</p>`));
-        if(b.waterfall)parts.push(await ProposalCharts.report('waterfall'));
-        if(b.comparison)parts.push(await ProposalCharts.report('pairs'));
+        if(b.waterfall&&!ProposalPortfolio.independent)parts.push(await ProposalCharts.report('waterfall'));
+        if(b.comparison&&!ProposalPortfolio.independent)parts.push(await ProposalCharts.report('pairs'));
         if(b.savings){renderFundProposalSavingsChart();await waitForUiFrame();parts.push(section('Ahorro estimado por TER',figure(await capturePlotlyReportImage('fundProposalSavingsChart'),'Ahorro simple y compuesto')));}
-        if(b.overview)parts.push(section('Mapa global de la propuesta',figure(await chart(rows),caption()),true));
+        if(b.overview&&!ProposalPortfolio.independent)parts.push(section('Mapa global de la propuesta',figure(await chart(rows),caption())+chartNotes(rows),true));
         if(b.flows)parts.push(section('Flujos de capital por categorías',(ProposalPortfolio.independent?`<p>${ProposalPortfolio.note}</p>`:'')+figure(await CategoryFlows.image(),'Categorías de origen y propuesta · AUM de la cartera'),true));
         if(b.concentration)parts.push(await ProposalCharts.report('concentration'));
-        if(b.details||b.pairs)for(const row of rows){await waitForUiFrame();const detail=b.details?fundProposalMetricReportTable(row):'';if(b.pairs)parts.push(section(`${row.isin} - Comparativa con el universo`,figure(await chart([row]),caption())+detail,true));else if(b.details)parts.push(section(`${row.isin} - Analisis de sustitucion`,detail));}
+        if(ProposalPortfolio.independent){
+            const detailed=new Set();
+            for(const group of independentComparisons(origins,ProposalPortfolio.targetRows())){
+                if(b.overview||b.pairs)parts.push(section(group.title,figure(await chart(group.rows),caption())+chartNotes(group.rows),true));
+                if(b.details)for(const row of group.rows){const key=(row.current?'current':'proposed')+row.isin;if(!detailed.has(key)){parts.push(section(`${row.isin} · Métricas`,fundProposalMetricReportTable(row),false,true));detailed.add(key);}}
+            }
+        }else if(b.details||b.pairs)for(const row of rows){await waitForUiFrame();const detail=b.details?fundProposalMetricReportTable(row):'';if(b.pairs)parts.push(section(`${row.isin} - Comparativa con el universo`,figure(await chart([row]),caption())+chartNotes([row])+detail,true));else if(b.details)parts.push(section(`${row.isin} - Analisis de sustitucion`,detail));}
         const manual=[];for(const row of rows)for(const side of ['current','proposed'])for(const [key,value] of Object.entries(row[side]?.manualOverrides||{}))manual.push(`${row.isin} · ${side==='current'?'origen':'propuesta'} · ${key}: ${value===null?'sin dato':value}`);
         if(b.manual&&manual.length)parts.push(section('Ajustes manuales',manual.map(text=>`<p>${escapeHtml(text)}</p>`).join('')));
-        const comparison=['ter','score'].map(key=>{const v=AnalysisCore.comparison(rows,key);return `<p>${key.toUpperCase()} comparable: ${format(v.current,key)} / ${format(v.proposed,key)}. Variacion ${Number.isFinite(v.delta)?v.delta.toFixed(2)+(key==='ter'?' pp':''):'-'}. Cobertura ${(v.coverage*100).toFixed(1)}%.</p>`;}).join('');
+        const comparison=['ter','score'].map(key=>{if(ProposalPortfolio.independent){const a=ProposalPortfolio.weighted(key,'current'),b=ProposalPortfolio.weighted(key,'proposed');return `<p>${key.toUpperCase()} ponderado origen / propuesta: ${format(a.value,key)} / ${format(b.value,key)}. Cobertura ${(a.coverage*100).toFixed(1)}% / ${(b.coverage*100).toFixed(1)}%. Son composiciones independientes, no sustituciones uno a uno.</p>`;}const v=AnalysisCore.comparison(rows,key);return `<p>${key.toUpperCase()} comparable: ${format(v.current,key)} / ${format(v.proposed,key)}. Variacion ${Number.isFinite(v.delta)?v.delta.toFixed(2)+(key==='ter'?' pp':''):'-'}. Cobertura ${(v.coverage*100).toFixed(1)}%.</p>`;}).join('');
         if(b.methodology)parts.push(section('Metodologia y cobertura',comparison+'<p>Los datos ausentes no son cero. Ahorro anual = AUM x suma de pesos x diferencia TER / 100; no se calcula un ahorro total sin cobertura completa de TER. El efecto compuesto supone rentabilidad bruta cero, sin impuestos ni costes de transaccion. Menor TER no acredita acceso comercial a una clase.</p>'));
         const body=`<main class="report proposal-report"><header class="cover"><h1>Informe de analisis inicial</h1><p>${new Date().toLocaleDateString('es-ES')}</p></header>${parts.join('')}<footer>Analyzer · Datos del universo y ajustes declarados por el usuario.</footer></main>`;
         fundProposalState.reportBodyHtml=body;fundProposalState.reportHtml=buildFundProposalReportDocumentHtml(body);ReportDesign.preview(document.getElementById('fundProposalReportPreview'),fundProposalState.reportHtml);setFundProposalBusy('Informe inicial generado.',false);
     }
-    return {init,state,options,manager,periodRows,validatePeriod,aggregateComparison,aggregateClasses,generateInitial,chart,get extendApproved(){return extendApproved;}};
+    return {init,state,options,manager,periodRows,validatePeriod,aggregateComparison,aggregateClasses,generateInitial,chart,chartNotes,independentComparisons,get extendApproved(){return extendApproved;}};
 })();
 ReportControls.init();

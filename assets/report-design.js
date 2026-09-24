@@ -73,7 +73,7 @@ const ReportDesign = (() => {
         const notes=new DOMParser().parseFromString(metadata(snapshot),'text/html');
         if(blocks.sources!==false)footer.insertAdjacentHTML('beforeend',notes.body.children[0]?.outerHTML||'');
         if(blocks.methodology!==false)footer.insertAdjacentHTML('beforeend',notes.body.children[1]?.outerHTML||'');
-        if(blocks.methodology===false)doc.querySelectorAll('.method-note').forEach(el=>{if(!footer.contains(el))el.remove();});
+        if(blocks.methodology===false)doc.querySelectorAll('.method-note:not(.chart-data-note)').forEach(el=>{if(!footer.contains(el))el.remove();});
         if(blocks.sources!==false){
             const labels={universe:'Universo',approved:'Aprobados',portfolio:'Cartera',aggregate:'Posiciones agregadas'};
             const files=Object.entries(snapshot.source||{}).filter(([,name])=>name).map(([key,name])=>`${labels[key]||key}: ${name}`);
@@ -148,6 +148,7 @@ const ReportDesign = (() => {
             });
             doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
             doc.querySelectorAll('.report-chart-page').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
+            doc.querySelectorAll('.report-keep-together').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({unbreakable:true})));
             const tableWidths=[...doc.querySelectorAll('table')].map(table=>({widths:table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null,compact:table.classList.contains('compact-scoring-table')}));
             doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); for(const attr of el.attributes)div.setAttribute(attr.name,attr.value); div.append(...el.childNodes); el.replaceWith(div); });
             // Source-code indentation is not report content or vertical spacing.

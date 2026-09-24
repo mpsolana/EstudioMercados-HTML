@@ -30,7 +30,7 @@ const {pathToFileURL}=require('node:url');
    FinancialVisuals.newPlot=(el,data,...args)=>{captured=data;return old(el,data,...args);};
    try{await ReportControls.chart(rows);return captured;}finally{FinancialVisuals.newPlot=old;}
   });
-  const peers=traces.filter(t=>t.name.startsWith('Peer group'));assert.equal(peers.length,2);assert.equal(peers.reduce((n,t)=>n+t.x.length,0),30);assert.ok(peers.every(t=>Array.isArray(t.marker.size)));assert.ok(new Set(peers.flatMap(t=>t.marker.size)).size>1);
+  const peers=traces.filter(t=>t.name.startsWith('Peer group'));assert.equal(peers.length,1);assert.equal(peers.reduce((n,t)=>n+t.x.length,0),30);assert.ok(peers.every(t=>Array.isArray(t.marker.size)));assert.ok(new Set(peers.flatMap(t=>t.marker.size)).size>1);
   assert.equal(traces.find(t=>t.meta?.financialRole==='origin').marker.size,peers[0].marker.size[0]);
   await page.locator('[data-workspace-step="report"]').click();for(const box of await page.locator('[data-report-block]').all())await box.uncheck();for(const key of ['positions','changes'])await page.locator(`[data-report-block="${key}"]`).check();
   await page.evaluate(()=>generateFundProposalReport());assert.ok(await page.evaluate(()=>fundProposalState.reportHtml.includes('Composición propuesta')));

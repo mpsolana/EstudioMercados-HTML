@@ -73,13 +73,18 @@ const ProposalCharts=(()=>{
     function render(scope){
         for(const kind of scope==='initial'?['waterfall','pairs','concentration']:['concentration','opportunities']){
             const el=document.getElementById(`proposal-${scope}-${kind}`);if(!el||!el.getClientRects().length)continue;
+            if(scope==='initial'&&ProposalPortfolio.independent&&['waterfall','pairs'].includes(kind)){
+                Plotly.purge(el);el.replaceChildren();el.style.height='0px';document.getElementById(el.id+'-status').textContent='Cartera independiente: el ahorro se calcula a nivel de cartera. El informe compara cada origen con sus peers y con propuestas de la misma categoría, sin atribuir sustituciones individuales.';continue;
+            }
             try{const chart=build(kind,model(kind,scope));el.style.height=`${chart.height}px`;document.getElementById(el.id+'-status').textContent=chart.note;FinancialVisuals.newPlot(el,chart.data,chart.layout,{responsive:true,displayModeBar:false});}
             catch(error){if(window.Plotly)Plotly.purge(el);el.replaceChildren();el.style.height='0px';document.getElementById(el.id+'-status').textContent=error.message;}
         }
     }
     async function report(kind,scope='initial'){
+        if(scope==='initial'&&ProposalPortfolio.independent&&['waterfall','pairs'].includes(kind))return '';
         let value;try{value=model(kind,scope);}catch(error){return `<section class="block"><h2>${titles[kind]}</h2><p>${text(error.message)}</p></section>`;}
-        const chunks=kind==='pairs'?Array.from({length:Math.ceil(value.length/12)},(_,i)=>value.slice(i*12,i*12+12)):kind==='concentration'?Array.from({length:Math.ceil(Math.max(value.manager.length,value.category.length)/10)},(_,i)=>({...value,manager:value.manager.slice(i*10,i*10+10),category:value.category.slice(i*10,i*10+10)})):[value],sections=[];
+        if(kind==='concentration')value=compactConcentration(value,scope==='aggregate'?10:14);
+        const chunks=kind==='pairs'?Array.from({length:Math.ceil(value.length/12)},(_,i)=>value.slice(i*12,i*12+12)):[value],sections=[];
         for(const [i,chunk] of chunks.entries()){
             let chart;try{chart=build(kind,chunk,true);}catch(error){sections.push(`<section class="block"><h2>${titles[kind]}</h2><p>${text(error.message)}</p></section>`);continue;}
             if(scope==='aggregate')chart.height=720;
@@ -90,6 +95,16 @@ const ProposalCharts=(()=>{
         return sections.join('')||`<section class="block"><h2>${titles[kind]}</h2><p>Sin posiciones para comparar.</p></section>`;
     }
     const timers={};
+    function compactConcentration(value,limit){
+        const result={...value};
+        for(const key of ['manager','category']){
+            const sorted=value[key].slice().sort((a,b)=>Math.max(b.current,b.proposed)-Math.max(a.current,a.proposed));
+            if(sorted.length<=limit){result[key]=sorted;continue;}
+            const rest=sorted.slice(limit-1);result[key]=sorted.slice(0,limit-1).concat({label:`Otros (${rest.length})`,current:rest.reduce((s,r)=>s+r.current,0),proposed:rest.reduce((s,r)=>s+r.proposed,0)});
+            result.note+=` ${key==='manager'?'Gestoras':'Categorías'}: ${rest.length} de menor peso agrupadas en Otros; se conserva el 100% de cada cartera.`;
+        }
+        return result;
+    }
     function schedule(scope){clearTimeout(timers[scope]);timers[scope]=setTimeout(()=>render(scope),60);}
-    return {init,render,schedule,report,model,build};
+    return {init,render,schedule,report,model,build,compactConcentration};
 })();
