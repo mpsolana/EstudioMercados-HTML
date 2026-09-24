@@ -9,6 +9,16 @@
 
 ## Cambios realizados
 
+### Duodecima revision: coherencia de rentabilidades, cobertura y peers
+
+- Corregido el rango max/media/min del backtest: la preparacion anterior reutilizaba retornos nativos de los activos como si fueran mensuales, reconstruyendo ademas una cartera de pesos constantes. Ahora usa la serie real `portfolioData`, con su frecuencia, rebalanceo y costes ya incorporados.
+- Motor compartido para rango, estadisticas y serie movil. Rentabilidad de cada ventana = precio final / inicial - 1; desde un ano se anualiza cada ventana con periodos por ano / longitud antes de tomar su media aritmetica. La media no es el CAGR del historico completo ni la anualizacion de una media acumulada. Ventanas completas, mismo numero de muestras, sin ceros inventados para plazos sin historico.
+- Los escenarios externos de distribucion de activos conservan su analisis mensual independiente. Boton para volver al backtest; pesos de ese backtest no editables desde el escenario para evitar simulaciones que aparenten ser la misma cartera. Se conserva el umbral de probabilidad elegido.
+- Propuesta independiente: TER y score se calculan por separado para cada cartera, ponderando su peso con datos y mostrando cobertura. Un problema en origen no vacia los indicadores validos del destino. Score orientativo entre categorias; no se presenta delta como comparable si cambian.
+- Cargar propuesta sincroniza el origen escrito y resuelve ISIN previamente pendientes cuando el universo ya existe. Se conservan origenes sin match para el informe y Sankey sin inventar metricas; sin cobertura completa de TER en ambos lados no se estima ahorro total. Los pesos deben sumar 100% y los errores indican la suma y la cartera afectada. Selector explicito porcentaje/fraccion para cargar destino.
+- Tabla TER/score frente a peers en agregadas y bloque opcional en su PDF: ISIN, nombre, categoria, metricas efectivas, medias, diferencias, muestra y lectura relativa. Media simple de otros ISIN de la misma categoria con ambas metricas disponibles, sin duplicados ni el propio fondo. Muestra reducida si hay menos de tres peers. No se divide score por TER ni se formula recomendacion de inversion.
+- Pruebas: 45 unitarias, coherencia numerica en cinco frecuencias de navegador, origen sin match, pesos incompletos, carga fraccionaria, cobertura e informe, peers con TER manual y regresiones de las funciones anteriores. Datos sinteticos, no certificacion de todos los ficheros de clientes.
+
 ### Undecima revision: propuesta independiente e informes
 
 - Analisis Inicial conserva Sustitucion por fondo y anade Cartera propuesta independiente. Carga directa ISIN;peso porcentual, busqueda en todo el universo, altas/bajas, normalizacion y edicion de peso, TER y score. Cambiar de modo conserva ambas selecciones; el origen no se altera.

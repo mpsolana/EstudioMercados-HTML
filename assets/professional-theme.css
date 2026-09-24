@@ -88,3 +88,4 @@ body>nav+div{background:#263440!important;box-shadow:none!important}
 .proposal-target-section :is(th,td){padding:7px;border-bottom:1px solid #dce2e8;text-align:left}
 .independent-origin tr>*:nth-child(n+7){display:none}
 #aggregatePositionsTableBody .initial-origin-button[aria-pressed=true]{outline:2px solid #737b84;outline-offset:-2px;background:#e5ebf0;font-weight:600}
+#aggregatePeerValue table{border-collapse:collapse;width:100%;min-width:1150px;font-size:12px}#aggregatePeerValue :is(th,td){padding:8px;border-bottom:1px solid #dce2e8;text-align:left}#aggregatePeerValue th{background:#edf2f6}#aggregatePeerValue td:nth-child(n+4):nth-child(-n+10){text-align:right;white-space:nowrap}

@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="docTitle">Analyzer v13</title>
     <script src="assets/finance-core.js"></script>
+    <script src="assets/horizon-core.js"></script>
     <script src="assets/analysis-core.js"></script>
     <script src="assets/financial-visuals.js"></script>
     <script src="assets/category-flows.js"></script>
@@ -18,6 +19,8 @@
     <script src="assets/initial-analysis.js"></script>
     <script src="assets/proposal-allocation.js"></script>
     <script src="assets/proposal-portfolio.js"></script>
+    <script src="assets/peer-value.js"></script>
+    <script src="assets/aggregate-peer-table.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
     <script defer src="assets/report-controls.js"></script>
     <script defer src="assets/screener-ui.js"></script>
@@ -1440,6 +1443,7 @@
                                 <p class="text-xs text-slate-500 mt-1 pl-3">Optimiza pesos sobre rentabilidades mensuales históricas. Por defecto usa las clases de activo cargadas en Mercados; también puedes subir un Excel/CSV con columnas date + activos.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
+                                <button onclick="if(!preparePortfolioReportAllocationState())alert('Carga primero una cartera con histórico para usar su backtest.')" class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold">Usar backtest de cartera</button>
                                 <button onclick="loadAssetAllocationFromMarkets('assets')" class="px-3 py-2 bg-indigo-700 text-white rounded text-xs font-bold hover:bg-indigo-800"><i class="fa-solid fa-database mr-1"></i>Usar activos</button>
                                 <button onclick="loadAssetAllocationFromMarkets('indices')" class="px-3 py-2 bg-slate-700 text-white rounded text-xs font-bold hover:bg-slate-800"><i class="fa-solid fa-chart-line mr-1"></i>Usar índices</button>
                                 <label class="px-3 py-2 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
@@ -3374,11 +3378,7 @@
             }
 
             function fundProposalWeighted(metric, side = 'current') {
-                if (metric === 'score' && !fundProposalScoresComparable()) return NaN;
-                const rows = ProposalPortfolio.safeRows();
-                const valid = rows.filter(r => r[side] && Number.isFinite(r[side][metric]) && Number.isFinite(r.weight));
-                const total = valid.reduce((acc, r) => acc + r.weight, 0);
-                return total > 0 ? valid.reduce((acc, r) => acc + r[side][metric] * r.weight, 0) / total : NaN;
+                return ProposalPortfolio.weighted(metric,side).value;
             }
 
             function fundProposalScoresComparable() {
@@ -3405,7 +3405,7 @@
                 const currentTer = fundProposalWeighted('ter', 'current');
                 const proposedTer = fundProposalWeighted('ter', 'proposed');
                 const deltaTer = Number.isFinite(currentTer) && Number.isFinite(proposedTer) ? currentTer - proposedTer : NaN;
-                if (!ProposalPortfolio.safeRows().length || ProposalPortfolio.safeRows().some(row => !row.current || !row.proposed || !Number.isFinite(row.current.ter) || !Number.isFinite(row.proposed.ter))) {
+                if (!Number.isFinite(deltaTer) || ProposalPortfolio.weighted('ter','current').coverage<.999999 || ProposalPortfolio.weighted('ter','proposed').coverage<.999999) {
                     return { currentTer, proposedTer, deltaTer: NaN, annualSaving: NaN, years: Array.from({ length: 15 }, (_, i) => i + 1), simple: Array(15).fill(NaN), compounded: Array(15).fill(NaN) };
                 }
                 const annualSaving = Number.isFinite(deltaTer) ? fundProposalCapital() * deltaTer / 100 : NaN;
@@ -3478,13 +3478,13 @@
                 setText('proposalCurrentTer', fmtPercentPoint(currentTer));
                 setText('proposalNewTer', fmtPercentPoint(newTer));
                 const savings = fundProposalSavingsData();
-                setText('proposalScoreDelta', Number.isFinite(newScore) && Number.isFinite(currentScore) ? (newScore - currentScore >= 0 ? '+' : '') + (newScore - currentScore).toFixed(2) : '-');
+                setText('proposalScoreDelta', fundProposalScoresComparable() && Number.isFinite(newScore) && Number.isFinite(currentScore) ? (newScore - currentScore >= 0 ? '+' : '') + (newScore - currentScore).toFixed(2) : 'No comparable');
                 setText('proposalAnnualTerSaving', formatEur(savings.annualSaving));
                 setText('proposalSaving5y', formatEur(savings.compounded[4]));
                 setText('proposalSaving15y', formatEur(savings.compounded[14]));
-                setProposalKpiTone('proposalNewScore', Number.isFinite(newScore) && Number.isFinite(currentScore) ? newScore - currentScore : NaN);
+                setProposalKpiTone('proposalNewScore', fundProposalScoresComparable() && Number.isFinite(newScore) && Number.isFinite(currentScore) ? newScore - currentScore : NaN);
                 setProposalKpiTone('proposalNewTer', Number.isFinite(currentTer) && Number.isFinite(newTer) ? currentTer - newTer : NaN);
-                setProposalKpiTone('proposalScoreDelta', Number.isFinite(newScore) && Number.isFinite(currentScore) ? newScore - currentScore : NaN);
+                setProposalKpiTone('proposalScoreDelta', fundProposalScoresComparable() && Number.isFinite(newScore) && Number.isFinite(currentScore) ? newScore - currentScore : NaN);
                 setProposalKpiTone('proposalAnnualTerSaving', savings.annualSaving);
                 setProposalKpiTone('proposalSaving5y', savings.compounded[4]);
                 setProposalKpiTone('proposalSaving15y', savings.compounded[14]);
@@ -5689,6 +5689,7 @@
                 renderAggregateCategoryPie(sourceRows);
                 renderSantaluciaFundsTable(sourceRows);
                 ProposalCharts.schedule('aggregate');
+                AggregatePeerTable.render();
             }
 
             function renderAggregateKpis(rows) {
@@ -6494,6 +6495,8 @@
             function renderAssetAllocationWeights() {
                 if (!assetAllocationState) return;
                 const wrap = document.getElementById('assetAllocationWeights');
+                document.querySelectorAll('button[onclick="equalizeAssetAllocationWeights()"],button[onclick="normalizeAssetAllocationWeights()"]').forEach(button=>button.disabled=Boolean(assetAllocationState.portfolioSeries));
+                if(assetAllocationState.portfolioSeries){wrap.innerHTML=assetAllocationState.keys.map(k=>`<div>${escapeHtml(assetAllocationState.labels[k]||k)} · ${fmtPct(assetAllocationState.weights[k])}</div>`).join('');return;}
                 wrap.innerHTML = assetAllocationState.keys.map((key, idx) => {
                     const label = assetAllocationState.labels[key] || key;
                     const weight = (assetAllocationState.weights[key] || 0) * 100;
@@ -6540,6 +6543,7 @@
 
             function normalizeAssetAllocationWeights() {
                 if (!assetAllocationState) return;
+                if(assetAllocationState.portfolioSeries)return;
                 const sum = assetAllocationState.keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
                 if (!sum) return equalizeAssetAllocationWeights();
                 assetAllocationState.keys.forEach(k => assetAllocationState.weights[k] /= sum);
@@ -6549,6 +6553,7 @@
 
             function equalizeAssetAllocationWeights() {
                 if (!assetAllocationState) return;
+                if(assetAllocationState.portfolioSeries)return;
                 const equal = 1 / assetAllocationState.keys.length;
                 assetAllocationState.keys.forEach(k => assetAllocationState.weights[k] = equal);
                 renderAssetAllocationWeights();
@@ -6560,32 +6565,28 @@
                 const keys = assetAllocationState.keys;
                 const rawSum = keys.reduce((acc, k) => acc + (assetAllocationState.weights[k] || 0), 0);
                 const weights = Object.fromEntries(keys.map(k => [k, rawSum ? (assetAllocationState.weights[k] || 0) / rawSum : 1 / keys.length]));
-                const portfolioReturns = assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * (assetAllocationState.returns[k][i] || 0), 0));
+                const series=assetAllocationState.portfolioSeries||HorizonCore.fromReturns(assetAllocationState.dates.map((_, i) => keys.reduce((acc, k) => acc + weights[k] * assetAllocationState.returns[k][i], 0)));
+                const portfolioReturns=priceReturns(series),frequency=assetAllocationState.frequency||'M';
                 const threshold = (parseNumber(document.getElementById('assetAllocationThreshold')?.value || 0) || 0) / 100;
                 const thresholdDirection = document.getElementById('assetAllocationThresholdDirection')?.value === 'gt' ? 'gt' : 'lt';
                 const horizons = [{ label: '1 mes', months: 1 }, { label: '3 meses', months: 3 }, { label: '1 año', months: 12 }, { label: '3 años', months: 36 }, { label: '5 años', months: 60 }, { label: '10 años', months: 120 }, { label: '15 años', months: 180 }];
-                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold, thresholdDirection)).filter(Boolean);
+                const rows = horizons.map(h => calculateAssetAllocationHorizon(portfolioReturns, h.months, h.label, threshold, thresholdDirection,frequency,series)).filter(Boolean);
+                assetAllocationState.analysisRows=rows;
                 document.getElementById('assetAllocationWeightSum').innerText = fmtPct(rawSum);
                 document.getElementById('assetAllocationSource').innerText = assetAllocationState.sourceLabel;
-                document.getElementById('assetAllocationHistory').innerText = `${assetAllocationState.dates[0]} / ${assetAllocationState.dates[assetAllocationState.dates.length - 1]}`;
+                const history=assetAllocationState.portfolioSeries?.map(p=>new Date(p.date).toISOString().slice(0,10))||assetAllocationState.dates;
+                document.getElementById('assetAllocationHistory').innerText = `${history[0]} / ${history[history.length - 1]}`;
                 renderAssetAllocationStats(rows);
                 renderAssetAllocationCharts(rows, portfolioReturns);
             }
 
-            function calculateAssetAllocationHorizon(returns, months, label, threshold, thresholdDirection = 'lt') {
-                if (returns.length < months) return null;
-                const samples = [];
-                const drawdowns = [];
-                for (let i = months - 1; i < returns.length; i++) {
-                    let growth = 1;
-                    for (let j = i - months + 1; j <= i; j++) growth *= (1 + returns[j]);
-                    const total = growth - 1;
-                    const annualized = Math.pow(1 + total, 12 / months) - 1;
-                    samples.push(adjustAnnualizedReturnForHorizon(annualized, months));
-                    drawdowns.push(rollingWindowMaxDrawdownFromReturns(returns, i - months + 1, months));
-                }
+            function calculateAssetAllocationHorizon(returns, months, label, threshold, thresholdDirection = 'lt',frequency='M',series=HorizonCore.fromReturns(returns)) {
+                const stats=HorizonCore.horizon(series,months,frequency);
+                if(!stats?.count)return null;
+                const samples=stats.samples.map(s=>stats.periods>=stats.periodsPerYear?s.annualized:s.total);
+                const drawdowns=stats.samples.map(s=>rollingWindowMaxDrawdownFromReturns(returns,s.start,stats.periods));
                 const probThreshold = samples.filter(v => thresholdDirection === 'gt' ? v > threshold : v < threshold).length / samples.length;
-                return { label, months, annualized: months >= 12, mean: getMean(samples), max: Math.max(...samples), min: Math.min(...samples), maxDrawdown: Math.min(...drawdowns), probThreshold, thresholdDirection, threshold, count: samples.length };
+                return { label, months, annualized: stats.periods>=stats.periodsPerYear, mean: stats.meanAnn, max: stats.maxAnn, min: stats.minAnn, maxDrawdown: drawdowns.reduce((a,b)=>Math.min(a,b),0), probThreshold, thresholdDirection, threshold, count: samples.length };
             }
 
             function renderAssetAllocationStats(rows) {
@@ -6595,7 +6596,7 @@
                     thead.innerHTML = `<tr><th class="px-3 py-2 text-left"></th>${rows.map(r => `<th class="px-3 py-2 text-right">${r.label}</th>`).join('')}</tr>`;
                 }
                 const metricRows = [
-                    { label: 'Rentabilidad media', key: 'mean', cls: 'text-blue-900' },
+                    { label: 'Media de ventanas (anualizada desde 1 año)', key: 'mean', cls: 'text-blue-900' },
                     { label: 'Máximo', key: 'max', cls: 'text-green-700' },
                     { label: 'Mínimo', key: 'min', cls: 'text-red-600' },
                     { label: 'Maximum drawdown', key: 'maxDrawdown', cls: 'text-red-700' },
@@ -6615,7 +6616,7 @@
                     y: rows.map(r => r.min),
                     type: 'bar',
                     name: 'Rango min-max',
-                    marker: { color: 'rgba(249,115,22,0.58)', line: { color: 'rgba(249,115,22,0.85)', width: 1 } },
+                    marker: { color: 'rgba(249,115,22,0.58)', opacity:0.2, line: { color: 'rgba(249,115,22,0.85)', width: 1 } },
                     base: rows.map(r => r.min),
                     width: 0.42,
                     hovertemplate: '%{x}<br>Mínimo: %{base:.1%}<br>Máximo: %{customdata:.1%}<extra></extra>',
@@ -6627,7 +6628,7 @@
                 const traceMin = { x, y: rows.map(r => r.min), type: 'scatter', mode: 'text', name: 'Mínimo', text: rows.map(r => fmtPct(r.min)), textposition: 'bottom center', textfont: { color: '#ff0000', size: 12, family: 'Arial Black' }, hoverinfo: 'skip', showlegend: false };
                 FinancialVisuals.newPlot('assetAllocationScenarioChart', [traceRange, traceMean, traceMax, traceMin], {
                     title: 'Rango de rentabilidades según el plazo de la inversión',
-                    yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad' },
+                    yaxis: { tickformat: '.0%', zeroline: true, zerolinecolor: '#64748b', title: 'Rentabilidad total <1 año; anualizada ≥1 año' },
                     xaxis: { title: 'Plazo de la inversión' },
                     margin: { t: 45, l: 60, r: 20, b: 75 },
                     legend: { orientation: 'h', y: -0.2 },
@@ -6636,8 +6637,8 @@
                 }, { responsive: true });
                 const values = [100];
                 portfolioReturns.forEach(r => values.push(values[values.length - 1] * (1 + r)));
-                const dates = ['Inicio'].concat(assetAllocationState.dates);
-                FinancialVisuals.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: 'Evolución mensual de la asignación', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
+                const dates = assetAllocationState.portfolioSeries?.map(p=>p.date)||['Inicio'].concat(assetAllocationState.dates);
+                FinancialVisuals.newPlot('assetAllocationCumulativeChart', [{ x: dates, y: values, mode: 'lines', name: 'Cartera', line: { color: '#1e40af', width: 2 } }], { title: assetAllocationState.portfolioSeries?'Evolución del backtest de cartera':'Evolución mensual de la asignación', margin: { t: 40, l: 50, r: 20, b: 40 }, yaxis: { title: 'Base 100' } }, { responsive: true });
             }
 
             function parseFlexibleAllocationDate(value) {
@@ -7066,7 +7067,7 @@
             }
 
             function preparePortfolioReportAllocationState() {
-                if (!loadedPortfolio?.returns || !loadedPortfolio?.entries?.length) return false;
+                if (!loadedPortfolio?.portfolioData?.length || !loadedPortfolio?.returns || !loadedPortfolio?.entries?.length) return false;
                 const keys = loadedPortfolio.entries.map(e => e.ticker).filter(k => Array.isArray(loadedPortfolio.returns[k]) && loadedPortfolio.returns[k].length);
                 if (!keys.length) return false;
                 const minLen = Math.min(...keys.map(k => loadedPortfolio.returns[k].length));
@@ -7080,15 +7081,13 @@
                 assetAllocationState = {
                     keys,
                     labels: Object.fromEntries(keys.map(k => [k, portfolioLabelForTicker(k)])),
-                    sourceLabel: `Cartera cargada (${loadedPortfolio.sourceLabel || 'datos actuales'})`,
+                    sourceLabel: `Backtest de cartera (${loadedPortfolio.sourceLabel || 'datos actuales'}). Mismos precios, costes y rebalanceo; media aritmética de ventanas solapadas, no CAGR del periodo completo.`,
+                    portfolioSeries:loadedPortfolio.portfolioData,
+                    frequency:loadedPortfolio.frequency||inferDataFrequency(loadedPortfolio.portfolioData),
                     dates: dateSource.length === minLen ? dateSource : Array.from({ length: minLen }, (_, i) => `${i + 1}`),
                     returns: Object.fromEntries(keys.map(k => [k, loadedPortfolio.returns[k].slice(-minLen)])),
                     weights
                 };
-                const threshold = document.getElementById('assetAllocationThreshold');
-                if (threshold) threshold.value = '0';
-                const thresholdDirection = document.getElementById('assetAllocationThresholdDirection');
-                if (thresholdDirection) thresholdDirection.value = 'lt';
                 try { renderAssetAllocationWeights(); } catch (e) { console.warn('asset allocation controls render failed', e); }
                 try { updateAssetAllocationAnalysis(); } catch (e) { console.warn('asset allocation report render failed', e); }
                 return true;
@@ -7111,7 +7110,7 @@
                     {
                         title: 'Rentabilidades históricas y esperadas',
                         note: 'Rango histórico por plazo, escenarios de distribución de activos, rentabilidades móviles y distribución anual.',
-                        method: `Los escenarios por plazo se calculan con ventanas móviles de los retornos de los activos de la cartera cargada, pesos normalizados y umbral de probabilidad ${allocationThresholdText}. Para plazos de un año o más se expresa la rentabilidad anualizada.`,
+                        method: `Ventanas móviles sobre la serie del backtest, respetando frecuencia, costes y rebalanceo. La media es aritmética de las rentabilidades de cada ventana, no el CAGR del histórico completo ni la anualización de la media acumulada. Desde un año se anualiza cada ventana antes de promediar; por debajo se usa rentabilidad acumulada. Umbral ${allocationThresholdText}.`,
                         items: [
                             { type: 'chart', id: 'assetAllocationScenarioChart', title: 'Rango max/media/min por plazo' },
                             { type: 'table', id: 'assetAllocationStatsBody', title: 'Escenarios por plazo' },
@@ -7204,7 +7203,7 @@
             function reportMethodForItem(id, title) {
                 if (id === 'portfolioChart') return 'Serie de cartera capitalizada, media móvil simple de 50 observaciones, benchmark opcional normalizado base 100 y RSI de 14 periodos en panel secundario.';
                 if (id.startsWith('forecast')) return 'Monte Carlo con log-retornos históricos de la cartera cargada, 10.000 simulaciones, horizonte de 15 años y capital inicial 1.000.';
-                if (id === 'assetAllocationStatsBody') return `Ventanas móviles por plazo sobre retornos de los activos de cartera, pesos normalizados y umbral de probabilidad ${assetAllocationThresholdText()}.`;
+                if (id === 'assetAllocationStatsBody') return `Mismas ventanas y frecuencia que las rentabilidades móviles del backtest. Media aritmética de ventanas; anualizadas desde un año. Umbral ${assetAllocationThresholdText()}.`;
                 if (id === 'annualTableBody') return 'Agregación por años naturales a partir de la serie de cartera cargada.';
                 if (id === 'sigmaEventsTableBody') return 'Eventos detectados cuando el retorno queda fuera de las bandas de tres desviaciones típicas.';
                 if (id === 'drawdownTableBody' || id === 'drawdownDurationTableBody') return 'Episodios calculados desde máximos acumulados, valle y recuperación posterior.';
@@ -7817,6 +7816,7 @@
                         ${concentrationSection}
                         ${opportunitiesSection}
                         ${positionsSection}
+                        ${blocks.valueForMoney?AggregatePeerTable.report():''}
                         ${changesSection}
                         ${exposureSection}
                         ${santaSection}
@@ -8673,7 +8673,7 @@
                                         <tr>
                                             <th class="px-4 py-3">Horizonte</th>
                                             <th class="px-4 py-3 text-right">Media Total</th>
-                                            <th class="px-4 py-3 text-right text-blue-600">Media Anualiz.</th>
+                                            <th class="px-4 py-3 text-right text-blue-600">Media anualizada ≥1 año / total &lt;1 año</th>
                                             <th class="px-4 py-3 text-right text-red-500">Min (Tot)</th>
                                             <th class="px-4 py-3 text-right text-green-600">Max (Tot)</th>
                                         </tr>
@@ -9557,6 +9557,7 @@
                     currentData = rawData;
                     currentTicker = ticker;
                     currentDataFrequency = useLoaded && ticker === 'CARTERA' ? (loadedPortfolio?.frequency || inferDataFrequency(rawData)) : 'D';
+                    if(useLoaded&&ticker==='CARTERA')preparePortfolioReportAllocationState();
                     globalVixData = vixData;
                     globalOilData = oilData;
                     globalRatesData = ratesData;
@@ -11321,11 +11322,8 @@
             }
 
             function getRollingHorizons(freq) {
-                const perYear = periodsPerYear(freq);
-                if (freq === 'M') return { '3 meses': 3, '6 meses': 6, '1 año': 12, '3 años': 36, '5 años': 60, '10 años': 120, '15 años': 180 };
-                if (freq === 'Q') return { '1 año': 4, '3 años': 12, '5 años': 20, '10 años': 40, '15 años': 60 };
-                if (freq === 'A') return { '3 años': 3, '5 años': 5, '10 años': 10, '15 años': 15 };
-                return { '3 meses': Math.round(perYear / 4), '12 meses': perYear, '5 años': perYear * 5, '10 años': perYear * 10, '15 años': perYear * 15 };
+                const perYear=periodsPerYear(freq);
+                return Object.fromEntries([[1,'1 mes'],[3,'3 meses'],[6,'6 meses'],[12,'1 año'],[36,'3 años'],[60,'5 años'],[120,'10 años'],[180,'15 años']].filter(([months])=>months*perYear/12>=1).map(([months,label])=>[label,Math.round(months*perYear/12)]));
             }
 
             function getSeriesHorizons(freq) {
@@ -11339,40 +11337,20 @@
             function calculateRollingStats(d, freq = currentDataFrequency) {
                 const perYear = periodsPerYear(freq);
                 return Object.entries(getRollingHorizons(freq)).map(([k, v]) => {
-                    const r = [];
-                    const annualized = [];
-                    for (let i = 0; i < d.length - v; i++) {
-                        const total = d[i + v].price / d[i].price - 1;
-                        r.push(total);
-                        const ann = Math.pow(1 + total, perYear / v) - 1;
-                        annualized.push(v < perYear ? adjustAnnualizedReturnForHorizon(ann, (v / perYear) * 12) : ann);
-                    }
-                    const minTot = r.length ? Math.min(...r) : 0;
-                    const maxTot = r.length ? Math.max(...r) : 0;
-                    const meanTot = getMean(r);
+                    const samples=HorizonCore.windows(d,v,freq),total=HorizonCore.summary(samples,'total'),annualized=HorizonCore.summary(samples,v<perYear?'total':'annualized');
                     return {
                         horizon: k,
                         periods: v,
                         periodsPerYear: perYear,
-                        meanTot,
-                        meanAnn: getMean(annualized),
-                        minTot,
-                        maxTot,
-                        minAnn: annualized.length ? Math.min(...annualized) : 0,
-                        maxAnn: annualized.length ? Math.max(...annualized) : 0
+                        count:samples.length,meanTot:total.mean,meanAnn:annualized.mean,minTot:total.min,maxTot:total.max,minAnn:annualized.min,maxAnn:annualized.max
                     };
                 });
             }
 
             function calculateTimeSeries(d, freq = currentDataFrequency) {
                 const r = {};
-                const perYear = periodsPerYear(freq);
                 for (const [k, v] of Object.entries(getSeriesHorizons(freq))) {
-                    const x = [], y = [];
-                    for (let i = v; i < d.length; i++) {
-                        x.push(d[i].date);
-                        y.push(Math.pow(d[i].price / d[i - v].price, perYear / v) - 1);
-                    }
+                    const samples=HorizonCore.windows(d,v,freq),x=samples.map(s=>s.date),y=samples.map(s=>s.annualized);
                     r[k] = { x, y };
                 }
                 return r;
@@ -11553,6 +11531,7 @@
                     { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.maxAnn), type: 'bar', name: 'Máximo Anualizado', marker: { color: '#6bbf70' }, text: annualizedData.map(i => fmtPct(i.maxAnn)), textposition: 'auto' }
                 ], {
                     barmode: 'group',
+                    yaxis:{tickformat:'.1%',title:'Rentabilidad anualizada'},
                     margin: { t: 40, l: 40, r: 20, b: 40 },
                     legend: { orientation: "h", y: 1.1 }
                 }, { responsive: true });
@@ -11564,6 +11543,7 @@
                     { x: s.map(i => i.horizon), y: s.map(i => i.maxTot), type: 'bar', name: 'Máximo Total', marker: { color: '#6bbf70' }, text: s.map(i => fmtPct(i.maxTot)), textposition: 'auto' }
                 ], {
                     barmode: 'group',
+                    yaxis:{tickformat:'.1%',title:'Rentabilidad acumulada'},
                     margin: { t: 40, l: 40, r: 20, b: 40 },
                     legend: { orientation: "h", y: 1.1 }
                 }, { responsive: true });

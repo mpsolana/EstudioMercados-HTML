@@ -2,7 +2,7 @@ const ReportControls=(()=>{
     const metrics={risk5:'Riesgo 5A (%)',ret5:'Retorno 5A (%)',ter:'TER (%)',score:'Score',risk3:'Riesgo 3A (%)',ret3:'Retorno 3A (%)',risk1:'Riesgo 1A (%)',ret1:'Retorno 1A (%)',aum:'AUM'};
     const blocks={waterfall:'Cascada de ahorro anual',comparison:'Origen y propuesta: TER / score',concentration:'Concentración por gestora y categoría',positions:'Tabla de posiciones',changes:'Tabla de cambios',classes:'Clases mas baratas',details:'Detalle de metricas',savings:'Grafica de ahorro',overview:'Comparacion global',pairs:'Graficas por sustitucion',flows:'Flujos de categorías (AUM)',manual:'Ajustes manuales',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
     const initial={blocks:Object.fromEntries(Object.keys(blocks).map(k=>[k,true])),x:'risk5',y:'ret5',size:'ter'};
-    const managerBlocks={concentration:'Concentración por gestora y categoría',opportunities:'Mapa de oportunidades (uso interno)',summary:'Resumen ejecutivo',impact:'Cambios de TER y score',classes:'Clases más baratas',positions:'Posiciones',changes:'Sustituciones propuestas',exposure:'Exposición por bloques',santa:'Análisis Santalucía',comparisons:'Comparativas por benchmark',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
+    const managerBlocks={valueForMoney:'TER y score frente a peers',concentration:'Concentración por gestora y categoría',opportunities:'Mapa de oportunidades (uso interno)',summary:'Resumen ejecutivo',impact:'Cambios de TER y score',classes:'Clases más baratas',positions:'Posiciones',changes:'Sustituciones propuestas',exposure:'Exposición por bloques',santa:'Análisis Santalucía',comparisons:'Comparativas por benchmark',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
     const manager={range:'YTD',start:'',end:'',blocks:Object.fromEntries(Object.keys(managerBlocks).map(k=>[k,k!=='opportunities']))};
     let extendApproved=false;
     function options(){const charts=document.getElementById('reportIncludeCharts')?.checked!==false,details=document.getElementById('reportIncludeDetails')?.checked!==false;return {...initial,blocks:{...initial.blocks,waterfall:charts&&initial.blocks.waterfall,comparison:charts&&initial.blocks.comparison,concentration:charts&&initial.blocks.concentration,flows:charts&&initial.blocks.flows,savings:charts&&initial.blocks.savings,overview:charts&&initial.blocks.overview,pairs:charts&&details&&initial.blocks.pairs,details:details&&initial.blocks.details}};}
@@ -10,6 +10,7 @@ const ReportControls=(()=>{
     function init(){
         ProposalCharts.init();
         ProposalPortfolio.init();
+        AggregatePeerTable.init();
         for(const id of ['fundProposalTableBody','fundScoringTableBody','aggregatePositionsTableBody']){
             const table=document.getElementById(id)?.closest('table');if(!table)continue;table.classList.add('scoring-comparison-table');
             table.querySelectorAll('th').forEach(th=>{if(['Acción','Recomendaciones'].includes(th.textContent.trim()))th.textContent='Clases y alternativas';});
@@ -78,6 +79,7 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
     }
     function figure(image,title){return image?`<figure><figcaption>${escapeHtml(title)}</figcaption><img src="${image}" alt="${escapeHtml(title)}"></figure>`:'<p>Sin datos suficientes para los ejes seleccionados.</p>';}
     async function generateInitial(){
+        if(ProposalPortfolio.independent){try{ProposalPortfolio.syncOrigin();}catch(error){alert('Origen: '+error.message);return;}}
         const origins=fundProposalState.rows||[];
         let rows;try{rows=ProposalPortfolio.rows();}catch(error){alert(error.message);return;}
         const invalid=document.querySelector('#workspaceProposal :invalid');if(invalid){alert('Corrige los campos no validos en las posiciones antes del informe.');return;}
@@ -89,6 +91,7 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
         setFundProposalBusy('Generando informe inicial...',true);
         const section=(title,html,chartPage=false)=>`<section class="block${chartPage?' report-chart-page':''}"><h2>${escapeHtml(title)}</h2>${html}</section>`;
         parts.push(section('Resumen ejecutivo',`<p>AUM de origen ${formatEur(fundProposalCapital())}. Ahorro TER anual estimado ${formatEur(savings.annualSaving)}.</p><p>El score procede del ranking. Las comparaciones entre categorias no son homogeneas; los ajustes manuales no recalculan una metodologia de rentabilidad/riesgo.</p>`));
+        parts.push(section('Cobertura de métricas',`<p>TER origen ${(ProposalPortfolio.weighted('ter','current').coverage*100).toFixed(1)}%; TER propuesta ${(ProposalPortfolio.weighted('ter','proposed').coverage*100).toFixed(1)}%. Score origen ${(ProposalPortfolio.weighted('score','current').coverage*100).toFixed(1)}%; score propuesta ${(ProposalPortfolio.weighted('score','proposed').coverage*100).toFixed(1)}%. Medias sobre el peso con datos, orientativas si mezclan categorías. Sin cobertura TER completa en ambos lados no se estima ahorro total.</p>`));
         if(ProposalPortfolio.independent)parts.push(section('Cartera propuesta independiente',`<p>${origins.length} fondos de origen y ${ProposalPortfolio.targetRows().length} fondos propuestos. ${ProposalPortfolio.note}</p>`));
         parts.push(`<section class="summary">${[['Score origen',fmtScore(fundProposalWeighted('score','current'))],['Score propuesta',fmtScore(fundProposalWeighted('score','proposed'))],['TER origen',fmtPercentPoint(savings.currentTer)],['TER propuesta',fmtPercentPoint(savings.proposedTer)],['Ahorro 5 anos',formatEur(savings.compounded[4])],['Ahorro 15 anos',formatEur(savings.compounded[14])]].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</section>`);
         if(b.positions)parts.push(section('Posiciones de origen',`<table><thead><tr><th>ISIN</th><th>Fondo</th><th>Peso</th><th>Score</th><th>TER</th></tr></thead><tbody>${origins.map(r=>`<tr><td>${escapeHtml(r.isin)}</td><td>${escapeHtml(r.current?.name||'Sin identificar')}</td><td>${r.weight.toFixed(2)}%</td><td>${format(r.current?.score,'score')}</td><td>${format(r.current?.ter,'ter')}</td></tr>`).join('')}</tbody></table>`));

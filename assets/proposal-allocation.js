@@ -1,11 +1,15 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.ProposalAllocation=factory();})(globalThis,function(){
     const category=r=>String(r?.category||'').trim().toLowerCase();
     function validate(rows,label){
-        if(!rows.length||rows.some(r=>!r.record||!Number.isFinite(r.weight)||r.weight<0)||Math.abs(rows.reduce((s,r)=>s+r.weight,0)-100)>.01)throw new Error(`${label}: identifica los fondos y ajusta los pesos al 100%.`);
+        if(!rows.length)throw new Error(`${label}: no hay posiciones cargadas.`);
+        if(rows.some(r=>!Number.isFinite(r.weight)||r.weight<0))throw new Error(`${label}: hay pesos vacíos, negativos o no válidos.`);
+        const total=rows.reduce((s,r)=>s+r.weight,0);
+        if(Math.abs(total-100)>.01)throw new Error(`${label}: los pesos suman ${total.toFixed(2)}%; deben sumar 100%. Revisa la unidad de los pesos o normalízalos.`);
+        if(rows.some(r=>r.weight>0&&!r.record))throw new Error(`${label}: identifica los fondos con peso positivo.`);
     }
     function allocate(origin,target){
         validate(origin,'Origen');validate(target,'Propuesta');
-        const copy=rows=>{const total=rows.reduce((s,r)=>s+r.weight,0);return rows.map(r=>({...r,remaining:r.weight*100/total}));};
+        const copy=rows=>{const total=rows.reduce((s,r)=>s+r.weight,0);return rows.filter(r=>r.weight>0).map(r=>({...r,remaining:r.weight*100/total}));};
         const sources=copy(origin),destinations=copy(target),flows=[];
         // Retain common holdings, then categories; remaining flows are illustrative, not orders.
         for(const match of [(a,b)=>a.isin===b.isin,(a,b)=>category(a)&&category(a)===category(b),()=>true]){
