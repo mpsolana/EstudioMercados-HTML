@@ -1,7 +1,7 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory(require('./finance-core.js'));else root.AnalysisCore=factory(root.FinanceCore);})(globalThis,function(finance){
     const normalized=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
     function familyName(value){
-        const words=normalized(value).split(' ');
+        const words=normalized(value).replace(/\b(eur|usd|gbp|chf|jpy)[ -]?(?:h|hdg|hedged)\b/g,'$1 hedged').split(' ');
         const suffix=/^(?:[a-z]{1,2}\d{0,2}|eur|euro|usd|gbp|chf|jpy|acc|accumulation|accumulating|dist|distribution|distributing|inc|hedge|hedged|unhedged|hgd|cap|capitalisation|capitalization|institutional|retail|clean|class|clase|shares)$/;
         while(words.length>2&&suffix.test(words.at(-1)))words.pop();
         return words.join(' ');
@@ -12,7 +12,8 @@
         for(const key of ['currency','hedging'])if(a[key]&&b[key]&&normalized(a[key])!==normalized(b[key]))return '';
         const currency=r=>normalized(r.currency)||normalized(r.name).match(/\b(eur|usd|gbp|chf|jpy)\b/)?.[1];
         if(currency(a)&&currency(b)&&currency(a)!==currency(b))return '';
-        if(/\b(hedge|hedged|hgd)\b/.test(normalized(a.name))!==/\b(hedge|hedged|hgd)\b/.test(normalized(b.name)))return '';
+        const hedged=r=>/\b(hedge|hedged|hgd|hdg|(?:eur|usd|gbp|chf|jpy)[ -]?h)\b/.test(normalized(r.name));
+        if(hedged(a)!==hedged(b))return '';
         if(finance.sameFund(a,b))return 'confirmed';
         if(a.fundId&&b.fundId&&normalized(a.fundId)===normalized(b.fundId))return 'probable';
         if(!normalized(a.category)||normalized(a.category)!==normalized(b.category)||!normalized(a.manager)||normalized(a.manager)!==normalized(b.manager))return '';
@@ -36,9 +37,16 @@
             if(classMatch(record,other))return true;
             const words=new Set(family.split(' ')),otherWords=new Set(familyName(other.name).split(' '));
             const overlap=[...words].filter(word=>otherWords.has(word)).length/new Set([...words,...otherWords]).size;
-            const tenureMatches=Number.isFinite(record.managerTenure)&&Number.isFinite(other.managerTenure)&&Math.abs(record.managerTenure-other.managerTenure)<=.1;
-            const nameMatches=family===familyName(other.name)||(words.size>=3&&overlap>=.8&&tenureMatches);
-            return family.length>=10&&words.size>=2&&nameMatches&&manager&&manager===normalized(other.manager)&&record.aum>0&&other.aum>0&&Math.abs(record.aum-other.aum)/Math.max(record.aum,other.aum)<=.01;
+            const tenureMatches=['managerTenure','fundTenure'].some(key=>Number.isFinite(record[key])&&Number.isFinite(other[key])&&Math.abs(record[key]-other[key])<=.1);
+            const managerWords=value=>new Set(normalized(value).replace(/\b(asset|management|investment|investments|gestion|gestora|funds|ltd|limited|sa|sl|sicav)\b/g,'').split(' ').filter(Boolean));
+            const am=managerWords(manager),bm=managerWords(other.manager),managerMatch=manager&&normalized(other.manager)&&(manager===normalized(other.manager)||(am.size&&bm.size&&[...am].filter(w=>bm.has(w)).length/Math.max(am.size,bm.size)>=.8));
+            const aumMatches=record.aum>0&&other.aum>0&&Math.abs(record.aum-other.aum)/Math.max(record.aum,other.aum)<=.02;
+            const managerTenureMatches=Number.isFinite(record.managerTenure)&&Number.isFinite(other.managerTenure)&&Math.abs(record.managerTenure-other.managerTenure)<=.1;
+            const managerConflict=manager&&normalized(other.manager)&&!managerMatch;
+            // Add a metadata search across all categories, without requiring similar names.
+            if(aumMatches&&(managerMatch||(!managerConflict&&managerTenureMatches)))return true;
+            const nameMatches=family===familyName(other.name)||(words.size>=3&&overlap>=.75&&tenureMatches);
+            return family.length>=10&&words.size>=2&&managerMatch&&nameMatches&&(aumMatches||(!(record.aum>0&&other.aum>0)&&family===familyName(other.name)&&tenureMatches));
         }).sort((a,b)=>(Number.isFinite(a.ter)?a.ter:Infinity)-(Number.isFinite(b.ter)?b.ter:Infinity)||a.isin.localeCompare(b.isin));
     }
     function comparison(rows,field){

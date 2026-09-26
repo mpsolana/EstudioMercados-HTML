@@ -31,6 +31,12 @@ const {pathToFileURL}=require('node:url');
    return resolved;
   });
   assert.equal(classes.isin,'ES0000000001');assert.equal(classes.amount,100000);assert.equal(classes.category,'Otros');assert.equal(classes.changed,false);assert.equal(classes.replaced,true);assert.equal(classes.reset,'ES0000000002');assert.equal(classes.restored,'ES0000000001');assert.match(classes.status,/Sin cambio/);assert.match(classes.classes,/TER 0.50%/);assert.match(classes.report,/Origen de datos seleccionado/);
+  const expanded=await page.evaluate(()=>{
+   const origin=fundUniverseState.records[0],candidate={...origin,isin:'ES0000000099',name:'Different translated name Z',category:'Categoria distinta',ter:.25};
+   fundUniverseState.records.push(candidate);
+   try{return shareClassActions(origin,'applyAggregateRecord',0);}finally{fundUniverseState.records.pop();}
+  });
+  assert.match(expanded,/ES0000000099/);assert.match(expanded,/Different translated name Z/);assert.match(expanded,/TER 0.25%/);
   await page.locator('#aggregatePositionsTableBody').screenshot({path:path.join(out,'origen-agregado.png')});
   const comparison=await page.evaluate(async()=>{
    const [a,b,c]=fundUniverseState.records,rows=[{isin:a.isin,current:a,proposed:b}],old=FinancialVisuals.newPlot;let traces;

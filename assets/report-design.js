@@ -38,6 +38,7 @@ const ReportDesign = (() => {
         const landscape=Boolean(doc.querySelector('.manager-report,.compact-scoring-table'));
         const blocks=(snapshot.kind==='proposal'?snapshot.reportConfiguration?.initial:snapshot.kind==='aggregate'?snapshot.reportConfiguration?.manager:null)?.blocks||{};
         if (!snapshot.reportOptions.charts) doc.querySelectorAll('figure').forEach(el => el.remove());
+        doc.querySelectorAll('.report-origin-chart + .block').forEach(el=>el.classList.add('report-keep-together'));
         if (!snapshot.reportOptions.details) doc.querySelectorAll('section').forEach(el => {
             if (/analisis de sustitucion|detalle por|desglose por/i.test(el.querySelector('h2')?.textContent || '')) el.remove();
         });
@@ -79,6 +80,10 @@ const ReportDesign = (() => {
             const files=Object.entries(snapshot.source||{}).filter(([,name])=>name).map(([key,name])=>`${labels[key]||key}: ${name}`);
             if(files.length){const p=doc.createElement('p');p.textContent=files.join(' · ');footer.append(p);}
         }
+        if(snapshot.kind==='proposal'&&snapshot.reportConfiguration?.initial?.includeProposal===false){
+            footer.querySelectorAll('.method-note').forEach(el=>el.remove());
+        }
+        QualityCore.decorateReport(doc);
         return '<!DOCTYPE html>' + doc.documentElement.outerHTML;
     }
     async function printHtml(html) {
@@ -146,7 +151,7 @@ const ReportDesign = (() => {
                 }
                 summary.replaceWith(table);
             });
-            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
+            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
             doc.querySelectorAll('.report-chart-page').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
             doc.querySelectorAll('.report-keep-together').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({unbreakable:true})));
             const tableWidths=[...doc.querySelectorAll('table')].map(table=>({widths:table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null,compact:table.classList.contains('compact-scoring-table')}));
@@ -159,6 +164,12 @@ const ReportDesign = (() => {
             function format(node) {
                 if (!node || typeof node !== 'object') return;
                 if (Array.isArray(node)) { node.forEach(format); return; }
+                if(typeof node.text==='string'&&/[★☆]/.test(node.text)){
+                    const text=node.text.trim();
+                    if(/^[★☆]{5}$/.test(text)){
+                        node.canvas=[...text].map((star,index)=>({type:'polyline',points:Array.from({length:10},(_,i)=>{const angle=-Math.PI/2+i*Math.PI/5,r=i%2?1.2:2.8;return {x:index*6+3+Math.cos(angle)*r,y:3+Math.sin(angle)*r};}),closePath:true,lineColor:'#215a90',lineWidth:.35,color:star==='★'?'#215a90':'#ffffff'}));delete node.text;
+                    }else node.text=node.text.replace(/[★☆]{5}/g,value=>`${[...value].filter(c=>c==='★').length}/5 estrellas`);
+                }
                 if (node.table) {
                     const count=node.table.body[0].length,spec=tableWidths.shift()||{},weights=spec.widths;
                     const available=usableWidth-count*6;
@@ -173,6 +184,7 @@ const ReportDesign = (() => {
             }
             format(content);
             const definition = {pageSize:'A4',pageOrientation:landscape?'landscape':'portrait',pageMargins:landscape?[30,32,30,36]:[42,40,42,45],defaultStyle:{font:'Roboto',fontSize:9,color:'#263342',lineHeight:1.2},content,footer:(page,pages)=>({text:`${page} / ${pages}`,alignment:'right',margin:[42,12,42,0],fontSize:8,color:'#687787'})};
+            definition.footer=(page,pages)=>({columns:[{text:'Calidad: escala interna de 1 a 5 estrellas derivada del score. Metodología al final.',width:'*'},{text:`${page} / ${pages}`,width:'auto',alignment:'right'}],margin:[42,8,42,0],fontSize:7,color:'#687787'});
             await new Promise(resolve => pdfMake.createPdf(definition).download(filename,resolve));
             return true;
         } catch(error) { alert(`No se ha descargado el PDF: ${error.message}`); return false; }

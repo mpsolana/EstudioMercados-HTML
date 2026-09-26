@@ -179,7 +179,7 @@ function initializePortfolioWorkspace() {
     });
     root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
-        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await original(...args); } catch(error) { alert(error.message); } finally { portfolioWorkflowRefresh(); } };
+        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(name==='importPortfolioExcel'&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');return result;}); } catch(error) { alert(error.message); } finally { portfolioWorkflowRefresh(); } };
     }
     for (const name of ['setFundProposalRecommendation','setFundPortfolioRows','clearFundScoringState','setAggregateManualCategory','setAggregateManualBucket','setAggregateManualScore','applyAggregateRecord','resetAggregateRecord']) {
         const original = window[name]; window[name] = (...args) => { invalidatePortfolioReports(); const result = original(...args); portfolioWorkflowRefresh(); return result; };

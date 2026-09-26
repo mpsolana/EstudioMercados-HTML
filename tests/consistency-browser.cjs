@@ -37,7 +37,7 @@ const {pathToFileURL}=require('node:url');
   await page.locator('#aggregatePeerValue').screenshot({path:path.join(out,'value-for-money.png')});
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);await page.setViewportSize({width:1440,height:1000});
   await page.locator('[data-workspace-step="report"]').click();for(const box of await page.locator('[data-manager-block]').all())await box.uncheck();await page.locator('[data-manager-block="valueForMoney"]').check();await page.evaluate(()=>generateManagerReport());
-  assert.ok(await page.evaluate(()=>managerReportHtml.includes('TER y score frente a peers')));
+  assert.ok(await page.evaluate(()=>managerReportHtml.includes('TER y Calidad frente a peers')));
   download=page.waitForEvent('download');await page.evaluate(()=>ReportDesign.downloadPdf(managerReportHtml,'Peers.pdf'));await(await download).saveAs(path.join(out,'peers.pdf'));
   assert.deepEqual(errors,[]);console.log(JSON.stringify({consistency,metrics,peerCount:peers.count,errors},null,2));
  }finally{await browser.close();}

@@ -7,8 +7,11 @@
     <title id="docTitle">Analyzer v13</title>
     <script src="assets/finance-core.js"></script>
     <script src="assets/horizon-core.js"></script>
+    <script src="assets/rolling-core.js"></script>
+    <script src="assets/quality-core.js"></script>
     <script src="assets/analysis-core.js"></script>
     <script src="assets/financial-visuals.js"></script>
+    <script src="assets/portfolio-loading.js"></script>
     <script src="assets/category-flows.js"></script>
     <script src="assets/proposal-chart-core.js"></script>
     <script src="assets/proposal-charts.js"></script>
@@ -2086,11 +2089,22 @@
                 if (!window.XLSX) return alert('No se ha cargado la libreria XLSX. Revisa la conexion y recarga la pagina.');
                 document.getElementById('portfolioNotice').innerText = 'Leyendo archivo de cartera...';
                 const workbook = await readWorkbook(file);
+                await PortfolioLoading.phase(15,'Archivo leído. Validando posiciones y series…');
                 if (mode === 'real') return importRealPortfolioWorkbook(workbook, file.name);
                 return importBacktestPortfolioWorkbook(workbook, file.name);
             }
 
-            function readWorkbook(file) {
+            async function readWorkbook(file) {
+                if(file.size>1000000&&window.Worker){
+                    const src=[...document.scripts].find(script=>/xlsx.*\.js/.test(script.src))?.src;
+                    if(src){
+                        const url=URL.createObjectURL(new Blob([`importScripts(${JSON.stringify(src)});onmessage=e=>{try{postMessage({book:XLSX.read(e.data,{type:'array',cellDates:true,cellNF:true})});}catch(error){postMessage({error:error.message});}}`],{type:'text/javascript'}));
+                        let worker;
+                        try{worker=new Worker(url);const buffer=await file.arrayBuffer();return await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Lectura del archivo agotada.')),120000);worker.onmessage=e=>{clearTimeout(timer);e.data.error?reject(new Error(e.data.error)):resolve(e.data.book);};worker.onerror=e=>{clearTimeout(timer);reject(new Error(e.message));};worker.postMessage(buffer,[buffer]);});}
+                        catch(error){console.warn('Lectura en worker no disponible; lectura local de respaldo.',error);}
+                        finally{worker?.terminate();URL.revokeObjectURL(url);}
+                    }
+                }
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = e => {
@@ -2120,15 +2134,18 @@
 
                 const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
                 if (pricesSheet) {
+                    await PortfolioLoading.phase(25,'Preparando históricos de posiciones y benchmarks…');
                     if (!portfolioCalculationSettings().pricesInBase) throw new Error('Confirma que los historicos propios estan expresados en la moneda base.');
                     const seriesMap = priceSheetToSeriesMap(workbook, pricesSheet, entries);
                     if (entries.every(e => (seriesMap[e.ticker] || []).length >= 2)) {
                         computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks, seriesMapToComparable(seriesMap, entries), benchCategories);
+                        await portfolioAnalysisPromise;
                         return;
                     }
                     throw new Error('La hoja de precios contiene historicos incompletos. Corrige los datos antes de calcular la cartera.');
                 }
                 document.getElementById('portfolioNotice').innerText = 'Pesos importados. Descargando historicos desde Yahoo...';
+                await PortfolioLoading.phase(35,'Descargando los históricos de las posiciones…');
                 await loadPortfolioSeries();
                 if (loadedPortfolio) {
                     loadedPortfolio.sourceLabel = `Excel pesos + Yahoo: ${fileName}`;
@@ -2203,7 +2220,6 @@
                 renderPortfolioBacktestChart(portfolioData, mode);
                 try { renderPortfolioComposition(entries); } catch (e) { console.warn('composition render failed', e); }
                 try { updatePortfolioCorr(); } catch (e) { console.warn('corr render failed', e); }
-                try { preparePortfolioReportAllocationState(); } catch (e) { console.warn('asset allocation sync failed', e); }
                 document.getElementById('portfolioNotice').innerText = `Cartera cargada (${sourceLabel}) — Frecuencia: ${frequencyLabel(frequency)}. CAGR: ${fmtPct(cagr)}, Vol ann: ${fmtPct(portVolAnn)}, Max DD: ${fmtPct(ddData.maxDD)}.`;
                 document.getElementById('portfolioStartDate').innerText = `Periodo usado: desde ${commonDates[0]} hasta ${commonDates[commonDates.length - 1]}.`;
                 document.getElementById('analyzePortfolioBtn').disabled = false;
@@ -2219,6 +2235,7 @@
                     .catch(e => {
                         console.error('portfolio auto analysis failed', e);
                         document.getElementById('portfolioReportStatus').innerText = 'Informe con analisis parcial';
+                        if(PortfolioLoading.active)throw e;
                     });
             }
 
@@ -2819,6 +2836,7 @@
 
             function formatUniverseMetricValue(value, cfg) {
                 if (!Number.isFinite(value)) return '-';
+                if(cfg?.key==='score')return QualityCore.label(value);
                 return cfg && cfg.pct ? value.toFixed(2) + '%' : value.toLocaleString('es-ES', { maximumFractionDigits: 2 });
             }
 
@@ -3329,7 +3347,7 @@
                 const result=shareClassAssessment(record);
                 const candidates=AnalysisCore.classCandidates(record,fundUniverseState?.records||[]);
                 const selector=candidates.length?renderCompactFundCombobox(candidates,isin=>`${action}(${index},'${isin}')`,'Buscar clase por nombre o ISIN',{id:`classes-${action}-${index}`,buttonText:`Otras clases candidatas (${candidates.length})`}):'';
-                return [['Universo',result.all[0]],['Aprobada',result.approved[0]]].filter(([,fund])=>fund).map(([label,fund])=>`<button type="button" class="initial-origin-button" onclick="${action}(${index},'${escapeHtml(fund.isin)}')">Elegir clase mas barata · ${label}</button>`).join('')+selector+(candidates.length?'<small>Coincidencia de familia e identificador, o gestora y AUM. Pueden variar categoría, divisa o cobertura; revisar antes de elegir. No implica aprobación.</small>':'');
+                return [['Universo',result.all[0]],['Aprobada',result.approved[0]]].filter(([,fund])=>fund).map(([label,fund])=>`<button type="button" class="initial-origin-button" onclick="${action}(${index},'${escapeHtml(fund.isin)}')">Elegir clase mas barata · ${label}</button>`).join('')+selector+(candidates.length?'<small>Candidatas por familia o identificador, y búsqueda adicional por AUM con gestora o antigüedad del gestor, sin limitar categoría ni nombre. Pueden variar divisa o cobertura; revisar antes de elegir. No implica equivalencia ni aprobación.</small>':'');
             }
 
             function cheaperShareClassBadge(row) {
@@ -3907,7 +3925,8 @@
                         ter,
                         aum,
                         manager: String(fundCol(row, ['Entidad*', 'Entidad', 'Manager', 'Provider']) || '').trim(),
-                        managerTenure: parseNumber(fundCol(row, ['Manager Tenure*', 'Manager Tenure', 'Manager Tenure (Years)', 'Antigüedad gestor'])),
+                        managerTenure: parseRankingNumber(fundCol(row, ['Manager Tenure*', 'Manager Tenure', 'Manager Tenure (Years)', 'Manager Tenure (Average)', 'Average Manager Tenure', 'Tenure*', 'Tenure', 'Antigüedad gestor'])),
+                        fundTenure: parseRankingNumber(fundCol(row, ['Fund Tenure', 'Fund Age', 'Antigüedad fondo'])),
                         currency: String(fundCol(row, ['Divisa', 'Currency']) || '').trim(),
                         ranking: String(fundCol(row, ['Ranking']) || '').trim(),
                         ret1: parseRankingNumber(fundCol(row, ['Return 1Y*'])),
@@ -3994,7 +4013,7 @@
                 if (!Number.isFinite(value)) return '<td class="px-3 py-2 text-right text-slate-400">-</td>';
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `financial-q${q}` : '';
-                const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                const text = metricKey==='score'?QualityCore.html(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<td class="px-3 py-2 text-right font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</td>`;
             }
 
@@ -4002,7 +4021,7 @@
                 if (!Number.isFinite(value)) return '<span class="text-slate-400">-</span>';
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `financial-q${q}` : 'bg-slate-50 text-slate-800';
-                const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                const text = metricKey==='score'?QualityCore.html(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<span class="inline-flex justify-end min-w-[72px] rounded px-2 py-1 font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</span>`;
             }
 
@@ -4736,7 +4755,7 @@
             }
 
             function fmtScore(value) {
-                return Number.isFinite(value) ? value.toFixed(2) : '-';
+                return QualityCore.label(value);
             }
 
             function fmtPercentPoint(value) {
@@ -4818,7 +4837,7 @@
                 const idx = fundScoringResults.indexOf(result);
                 const approved = getApprovedFundRecommendations(anchor, 5000);
                 const universe = getBetterFundRecommendations(anchor, 5000);
-                const currentScore = Number.isFinite(anchor.score) ? anchor.score.toFixed(2) : '-';
+                const currentScore = fmtScore(anchor.score);
                 const manualBlock = result.status === 'manual' ? `<div class="mb-2">${fundManualCategoryHtml(result)}</div>` : '';
                 const reset = fundHasAppliedChange(result) ? `<button onclick="resetFundRecommendation(${idx})" class="px-2 py-1 border border-slate-300 rounded bg-white text-[11px] font-bold">Volver al ISIN original</button>` : '';
                 return `<div class="space-y-1">
@@ -5737,7 +5756,7 @@
                 const approved = rows.filter(r => r.approvedMatch?.record);
                 setText('aggregateUniqueFunds', rows.length ? String(rows.length) : '-');
                 setText('aggregateCategories', rows.length ? String(categories.size) : '-');
-                setText('aggregateWeightedScore', Number.isFinite(weightedScore) ? weightedScore.toFixed(2) : '-');
+                setText('aggregateWeightedScore', fmtScore(weightedScore));
                 setText('aggregateWeightedTer', Number.isFinite(weightedTer) ? `${weightedTer.toFixed(2)}%` : '-');
                 setText('aggregateWeakFunds', rows.length ? String(weak.length) : '-');
                 setText('aggregateResolvedAmount', aggregatePositionsState.hasAmounts ? formatEur(matched.reduce((acc, x) => acc + (x.result.position.amount || 0), 0)) : `${totalWeight.toFixed(1)}%`);
@@ -6354,7 +6373,7 @@
                 const durationRows = fixedIncome.filter(r => Number.isFinite(r.duration));
                 const durationWeight = durationRows.reduce((acc, r) => acc + r.weight, 0);
                 const weightedDuration = durationWeight > 0 ? durationRows.reduce((acc, r) => acc + r.duration * r.weight, 0) / durationWeight : NaN;
-                document.getElementById('fundWeightedScore').innerText = Number.isFinite(score) ? score.toFixed(2) : '-';
+                document.getElementById('fundWeightedScore').innerText = fmtScore(score);
                 document.getElementById('fundWeightedTer').innerText = Number.isFinite(ter) ? `${ter.toFixed(2)}%` : '-';
                 document.getElementById('fundResolvedWeight').innerText = fundPortfolioRows.length ? `${resolvedWeight.toFixed(2)}%` : '-';
                 document.getElementById('fundResolvedCount').innerText = fundPortfolioRows.length ? `${included.length}/${fundPortfolioRows.length}` : '-';
@@ -6620,7 +6639,8 @@
                 const stats=HorizonCore.horizon(series,months,frequency);
                 if(!stats?.count)return null;
                 const samples=stats.samples.map(s=>stats.periods>=stats.periodsPerYear?s.annualized:s.total);
-                const drawdowns=stats.samples.map(s=>rollingWindowMaxDrawdownFromReturns(returns,s.start,stats.periods));
+                const allDrawdowns=RollingCore.drawdowns(series,stats.periods);
+                const drawdowns=stats.samples.map(s=>allDrawdowns[s.start]);
                 const probThreshold = samples.filter(v => thresholdDirection === 'gt' ? v > threshold : v < threshold).length / samples.length;
                 return { label, months, annualized: stats.periods>=stats.periodsPerYear, mean: stats.meanAnn, max: stats.maxAnn, min: stats.minAnn, maxDrawdown: drawdowns.reduce((a,b)=>Math.min(a,b),0), probThreshold, thresholdDirection, threshold, count: samples.length };
             }
@@ -6876,6 +6896,7 @@
                 } catch (e) {
                     console.error('Error integrando análisis cartera:', e);
                     document.getElementById('portfolioNotice').innerText = 'Error al generar análisis detallado.';
+                    if(PortfolioLoading.active)throw e;
                 }
             }
 
@@ -6883,7 +6904,7 @@
                 if (!Number.isFinite(value)) return '<td class="num muted">-</td>';
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `q${q}` : '';
-                const text = isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                const text = metricKey==='score'?QualityCore.label(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<td class="num metric-cell ${cls}" title="${q ? `Q${q} dentro de categoría` : ''}">${text}</td>`;
             }
 
@@ -7568,7 +7589,7 @@
                         <div><span>Aprobados</span><strong>${summary.approved.length}</strong></div>
                         <div><span>No aprobados</span><strong>${Math.max(0, summary.rows.length - summary.approved.length)}</strong></div>
                     </section>
-                    <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} Los fondos con score inferior a 2 y los fondos sin score concentran la revisión prioritaria para comité o traspaso.</p>
+                    <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} Los fondos con una o dos estrellas y los fondos sin clasificación concentran la revisión prioritaria para comité o traspaso.</p>
                     <p class="method-note"><b>Metodología:</b> las métricas ponderadas usan el contravalor EUR agregado cuando está disponible; si no, usan el peso normalizado por ISIN único. El registro efectivo incorpora proxies/recomendaciones aplicadas por el usuario.</p>
                 </section>`;
             }
@@ -7957,14 +7978,7 @@
             }
 
             function rollingCompoundedReturns(returns, windowSize) {
-                const out = [];
-                if (!returns?.length || windowSize < 1) return out;
-                for (let i = windowSize - 1; i < returns.length; i++) {
-                    let growth = 1;
-                    for (let j = i - windowSize + 1; j <= i; j++) growth *= (1 + returns[j]);
-                    out.push(growth - 1);
-                }
-                return out;
+                return RollingCore.compounded(returns||[],windowSize);
             }
 
             function renderPortfolioCorrMatrix(labels, z, freqLabel, windowSize, sampleSize) {
@@ -7994,8 +8008,9 @@
                         const b = baseReturns[tickers[j]] || [];
                         const len = Math.min(a.length, b.length);
                         const x = [], y = [];
+                        const correlations=RollingCore.correlations(a,b,rollingWindow);
                         for (let k = rollingWindow; k <= len; k++) {
-                            const corr = getCorrelation(a.slice(k - rollingWindow, k), b.slice(k - rollingWindow, k));
+                            const corr = correlations[k-rollingWindow];
                             if (!Number.isFinite(corr)) continue;
                             x.push(dateAxis[k] || k);
                             y.push(corr);
@@ -9604,6 +9619,7 @@
                     currentData = rawData;
                     currentTicker = ticker;
                     currentDataFrequency = useLoaded && ticker === 'CARTERA' ? (loadedPortfolio?.frequency || inferDataFrequency(rawData)) : 'D';
+                    await PortfolioLoading.phase(50,'Calculando distribución y ventanas móviles…');
                     if(useLoaded&&ticker==='CARTERA')preparePortfolioReportAllocationState();
                     globalVixData = vixData;
                     globalOilData = oilData;
@@ -9625,6 +9641,7 @@
                     const generalData = calculateGeneralMetrics(rawData, currentDataFrequency);
                     const dipData = calculateDipAnalysis(rawData, ddData.drawdowns);
                     const bestDaysData = calculateBestDaysAnalysis(rawData);
+                    await PortfolioLoading.phase(65,'Calculando sensibilidad y escenarios históricos…');
                     const oilAnalysisData = calculateOilAnalysis(rawData, oilData);
                     const ratesAnalysisData = calculateRatesAnalysis(rawData, ratesData);
 
@@ -9639,6 +9656,7 @@
                     globalDipResults = dipData;
 
                     renderTable(stats);
+                    await PortfolioLoading.phase(75,'Dibujando rentabilidad, riesgo y escenarios…');
                     renderForwardReturnsMatrix(rawData);
                     renderBarChart(stats);
                     renderLineChart(timeSeries);
@@ -9649,6 +9667,8 @@
                     renderYearlyTable(yearlyStats);
                     renderTechnicalChart(rawData, techData, ticker);
                     renderGeneralMetrics(generalData, ticker);
+                    await FinancialVisuals.settled();
+                    await PortfolioLoading.phase(85,'Completando gráficos secundarios…');
                     renderSeasonalityCharts(seasonData, ticker);
                     renderAnnualDistributionChart(annualDist, ticker);
                     renderAnnualHistWithYears(annualDist); // NEW REPLACEMENT
@@ -9669,17 +9689,19 @@
 
                     // Render New Sigma Table
                     renderSigmaEvents(generalData);
+                    await FinancialVisuals.settled();
 
                     document.getElementById('loader').classList.add('hidden');
                     document.getElementById('resultsArea').classList.remove('hidden');
                     updateStatus("Análisis completado.");
-                    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+                    await Promise.all([...document.querySelectorAll('#section-cartera .js-plotly-plot, #resultsArea .js-plotly-plot')].filter(el=>el.getClientRects().length&&el.clientWidth>0).map(el=>Plotly.Plots.resize(el)));
 
                 } catch (error) {
                     console.error(error);
                     document.getElementById('loader').classList.add('hidden');
                     updateStatus("Error: " + error.message);
                     alert(`Error: ${error.message}`);
+                    if(useLoaded&&ticker==='CARTERA')throw error;
                 }
             }
 

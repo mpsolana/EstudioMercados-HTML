@@ -41,7 +41,7 @@ const ProposalCharts=(()=>{
                 for(const [index,name,color] of [[0,'Origen',blue],[1,'Propuesta',gray]])traces.push({type:'scatter',xaxis:'x'+axis,yaxis:'y'+axis,x:data.map(r=>r[metric][index]),y:data.map((_,i)=>i),name,legendgroup:name,showlegend:metric==='ter',mode:'markers',marker:{color,size:13,symbol:index?'diamond':'circle'},meta:{financialRole:index?'proposal':'origin'},customdata:data.map(r=>`${text(r.name)} → ${text(r.proposed)}`),hovertemplate:'%{customdata}<br>%{x:.2f}<extra>%{fullData.name}</extra>'});
             }
             note='Score solo para categorías comparables. Un punto ausente indica datos no disponibles o no comparables, nunca cero.';
-            for(const trace of traces.filter(t=>t.name)){trace.mode='markers+text';trace.text=trace.x.map(v=>v===null?'':v.toFixed(2)+(trace.xaxis==='x'?'%':''));trace.textposition=trace.name==='Origen'?'top center':'bottom center';trace.textfont={size:report?16:12};trace.cliponaxis=false;}
+            for(const trace of traces.filter(t=>t.name)){trace.mode='markers+text';trace.text=trace.x.map(v=>v===null?'':trace.xaxis==='x'?v.toFixed(2)+'%':QualityCore.label(v));trace.textposition=trace.name==='Origen'?'top center':'bottom center';trace.textfont={size:report?16:12};trace.cliponaxis=false;}
         }else if(kind==='concentration'){
             height=Math.max(report?950:500,Math.max(data.manager.length,data.category.length)*55+210);
             base.margin.l=report?270:230;base.xaxis={domain:[0,.4],range:[0,110],title:'Peso por gestora (%)'};base.xaxis2={domain:[.65,1],range:[0,110],title:'Peso por categoría (%)',anchor:'y2'};

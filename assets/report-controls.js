@@ -1,7 +1,7 @@
 const ReportControls=(()=>{
     const metrics={risk5:'Riesgo 5A (%)',ret5:'Retorno 5A (%)',ter:'TER (%)',score:'Score',risk3:'Riesgo 3A (%)',ret3:'Retorno 3A (%)',risk1:'Riesgo 1A (%)',ret1:'Retorno 1A (%)',aum:'AUM'};
     const blocks={waterfall:'Cascada de ahorro anual',comparison:'Origen y propuesta: TER / score',concentration:'Concentración por gestora y categoría',positions:'Tabla de posiciones',changes:'Tabla de cambios',classes:'Clases mas baratas',details:'Detalle de metricas',savings:'Grafica de ahorro',overview:'Comparacion global',pairs:'Graficas por sustitucion',flows:'Flujos de categorías (AUM)',manual:'Ajustes manuales',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
-    const initial={blocks:Object.fromEntries(Object.keys(blocks).map(k=>[k,true])),x:'risk5',y:'ret5',size:'ter'};
+    const initial={blocks:Object.fromEntries(Object.keys(blocks).map(k=>[k,true])),includeProposal:true,x:'risk5',y:'ret5',size:'ter'};
     const managerBlocks={valueForMoney:'TER y score frente a peers',concentration:'Concentración por gestora y categoría',opportunities:'Mapa de oportunidades (uso interno)',summary:'Resumen ejecutivo',impact:'Cambios de TER y score',classes:'Clases más baratas',positions:'Posiciones',changes:'Sustituciones propuestas',exposure:'Exposición por bloques',santa:'Análisis Santalucía',comparisons:'Comparativas por benchmark',methodology:'Metodología y cobertura',sources:'Origen de los datos'};
     const manager={range:'YTD',start:'',end:'',blocks:Object.fromEntries(Object.keys(managerBlocks).map(k=>[k,k!=='opportunities']))};
     let extendApproved=false;
@@ -19,6 +19,11 @@ const ReportControls=(()=>{
         const opts=Object.entries(metrics).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
         panel.innerHTML=`<h3>Contenido del informe inicial</h3><div class="workspace-report-options">${Object.entries(blocks).map(([k,v])=>`<label><input type="checkbox" data-report-block="${k}" checked>${v}</label>`).join('')}</div><div class="workspace-settings"><label>Comparacion<select id="reportChartPreset"><option value="risk">Riesgo 5A / retorno 5A</option><option value="pricing">TER / score</option><option value="custom">Personalizada</option></select></label><label>Eje X<select id="reportChartX">${opts}</select></label><label>Eje Y<select id="reportChartY">${opts}</select></label><label>Tamano de burbuja<select id="reportChartSize"><option value="fixed">Fijo</option>${opts}</select></label></div>`;
         document.getElementById('workspaceInitialReports').prepend(panel);
+        panel.insertAdjacentHTML('afterbegin','<label><input id="reportCompareProposal" type="checkbox" checked> Incluir fondos propuestos en el informe</label>');
+        document.getElementById('reportCompareProposal').addEventListener('change',e=>{initial.includeProposal=e.target.checked;changed();});
+        const quality=document.createElement('details');quality.className='quality-explanation';quality.innerHTML='<summary>Calidad: estrellas y metodología</summary><p></p>';quality.querySelector('p').textContent=QualityCore.methodology;document.getElementById('workspaceData').before(quality);
+        for(const th of document.querySelectorAll('#section-cartera th'))if(/score/i.test(th.textContent)){th.textContent=th.textContent.replace(/score/gi,'Calidad');th.title=QualityCore.methodology;}
+        for(const id of ['proposalCurrentScore','proposalNewScore','aggregateWeightedScore','fundWeightedScore']){const label=document.getElementById(id)?.previousElementSibling;if(label)label.textContent=label.textContent.replace(/score/gi,'Calidad');}
         document.getElementById('reportChartX').value=initial.x;document.getElementById('reportChartY').value=initial.y;document.getElementById('reportChartSize').value=initial.size;
         panel.addEventListener('change',e=>{if(e.target.dataset.reportBlock)initial.blocks[e.target.dataset.reportBlock]=e.target.checked;
             if(e.target.id==='reportChartPreset'&&e.target.value!=='custom'){initial.x=e.target.value==='pricing'?'ter':'risk5';initial.y=e.target.value==='pricing'?'score':'ret5';document.getElementById('reportChartX').value=initial.x;document.getElementById('reportChartY').value=initial.y;}
@@ -38,7 +43,7 @@ const ReportControls=(()=>{
     function state(){return JSON.parse(JSON.stringify({initial:options(),manager,extendApproved}));}
     function periodRows(rows){return AnalysisCore.windowRows(rows,manager.range,manager.start,manager.end,manager.asOf);}
     function validatePeriod(){if(manager.range==='CUSTOM'&&(!manager.start||!manager.end||manager.start>manager.end))throw new Error('Indica fechas validas para el informe.');const dates=Object.values(loadedPortfolio?.benchmarks||{}).flatMap(b=>(b.data||[]).map(p=>+new Date(p.date))).filter(Number.isFinite);manager.asOf=dates.length?new Date(dates.reduce((a,b)=>Math.max(a,b))):new Date();}
-    const format=(value,key)=>Number.isFinite(value)?value.toFixed(2)+(key==='ter'?'%':''):'-';
+    const format=(value,key)=>key==='score'?QualityCore.label(value):Number.isFinite(value)?value.toFixed(2)+(key==='ter'?'%':''):'-';
     function aggregateComparison(){
         const rows=aggregateScoringResults.filter(r=>r.included!==false).map(r=>({weight:r.position.weight,current:aggregateStaticRecord(r),proposed:aggregateEffectiveRecord(r)}));
         return `<section class="block"><h2>Impacto de los cambios</h2><table><thead><tr><th>Metrica</th><th>Origen</th><th>Propuesta</th><th>Variacion</th><th>Cobertura comparable</th></tr></thead><tbody>${['ter','score'].map(key=>{const v=AnalysisCore.comparison(rows,key);return `<tr><td>${key==='ter'?'TER ponderado':'Score ponderado'}</td><td>${format(v.current,key)}</td><td>${format(v.proposed,key)}</td><td>${Number.isFinite(v.delta)?v.delta.toFixed(2)+(key==='ter'?' pp':''):'-'}</td><td>${(v.coverage*100).toFixed(1)}%</td></tr>`;}).join('')}</tbody></table><p class="method-note">Mismos pesos y posiciones antes/despues. Variacion calculada sobre posiciones con ambas metricas disponibles; score solo con categoria conservada. La media de scores entre categorias es orientativa, no una medida homogenea de rentabilidad/riesgo.</p></section>`;
@@ -94,6 +99,7 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
         return groups;
     }
     async function generateInitial(){
+        if(!options().includeProposal)return generateOriginOnly();
         if(ProposalPortfolio.independent){try{ProposalPortfolio.syncOrigin();}catch(error){alert('Origen: '+error.message);return;}}
         const origins=fundProposalState.rows||[];
         let rows;try{rows=ProposalPortfolio.rows();}catch(error){alert(error.message);return;}
@@ -127,12 +133,26 @@ traces.push({type:'scatter',mode:'markers+text',meta:{financialRole:side==='curr
                 if(b.details)for(const row of group.rows){const key=(row.current?'current':'proposed')+row.isin;if(!detailed.has(key)){parts.push(section(`${row.isin} · Métricas`,fundProposalMetricReportTable(row),false,true));detailed.add(key);}}
             }
         }else if(b.details||b.pairs)for(const row of rows){await waitForUiFrame();const detail=b.details?fundProposalMetricReportTable(row):'';if(b.pairs)parts.push(section(`${row.isin} - Comparativa con el universo`,figure(await chart([row]),caption())+chartNotes([row])+detail,true));else if(b.details)parts.push(section(`${row.isin} - Analisis de sustitucion`,detail));}
-        const manual=[];for(const row of rows)for(const side of ['current','proposed'])for(const [key,value] of Object.entries(row[side]?.manualOverrides||{}))manual.push(`${row.isin} · ${side==='current'?'origen':'propuesta'} · ${key}: ${value===null?'sin dato':value}`);
+        const manual=[];for(const row of rows)for(const side of ['current','proposed'])for(const [key,value] of Object.entries(row[side]?.manualOverrides||{}))manual.push(`${row.isin} · ${side==='current'?'origen':'propuesta'} · ${key==='score'?'score técnico':key}: ${value===null?'sin dato':value}`);
         if(b.manual&&manual.length)parts.push(section('Ajustes manuales',manual.map(text=>`<p>${escapeHtml(text)}</p>`).join('')));
         const comparison=['ter','score'].map(key=>{if(ProposalPortfolio.independent){const a=ProposalPortfolio.weighted(key,'current'),b=ProposalPortfolio.weighted(key,'proposed');return `<p>${key.toUpperCase()} ponderado origen / propuesta: ${format(a.value,key)} / ${format(b.value,key)}. Cobertura ${(a.coverage*100).toFixed(1)}% / ${(b.coverage*100).toFixed(1)}%. Son composiciones independientes, no sustituciones uno a uno.</p>`;}const v=AnalysisCore.comparison(rows,key);return `<p>${key.toUpperCase()} comparable: ${format(v.current,key)} / ${format(v.proposed,key)}. Variacion ${Number.isFinite(v.delta)?v.delta.toFixed(2)+(key==='ter'?' pp':''):'-'}. Cobertura ${(v.coverage*100).toFixed(1)}%.</p>`;}).join('');
         if(b.methodology)parts.push(section('Metodologia y cobertura',comparison+'<p>Los datos ausentes no son cero. Ahorro anual = AUM x suma de pesos x diferencia TER / 100; no se calcula un ahorro total sin cobertura completa de TER. El efecto compuesto supone rentabilidad bruta cero, sin impuestos ni costes de transaccion. Menor TER no acredita acceso comercial a una clase.</p>'));
         const body=`<main class="report proposal-report"><header class="cover"><h1>Informe de analisis inicial</h1><p>${new Date().toLocaleDateString('es-ES')}</p></header>${parts.join('')}<footer>Analyzer · Datos del universo y ajustes declarados por el usuario.</footer></main>`;
         fundProposalState.reportBodyHtml=body;fundProposalState.reportHtml=buildFundProposalReportDocumentHtml(body);ReportDesign.preview(document.getElementById('fundProposalReportPreview'),fundProposalState.reportHtml);setFundProposalBusy('Informe inicial generado.',false);
+    }
+    async function generateOriginOnly(){
+        ProposalPortfolio.syncOrigin();
+        const rows=fundProposalState.rows.map(r=>({isin:r.isin,current:r.current,weight:r.weight})),b=options().blocks;
+        if(!rows.length||rows.some(r=>!isLikelyIsin(r.isin)||!Number.isFinite(r.weight)||r.weight<0)||Math.abs(rows.reduce((s,r)=>s+r.weight,0)-100)>.01)throw new Error('Identifica las posiciones de origen y ajusta sus pesos al 100%.');
+        const parts=[],section=(title,html)=>`<section class="block"><h2>${escapeHtml(title)}</h2>${html}</section>`;
+        parts.push(section('Diagnóstico de origen','<p>Fondos originales frente a la media de su categoría y peers. No se incluyen alternativas ni estimaciones de ahorro.</p>'));
+        if(b.positions)parts.push(section('Posiciones de origen',`<table><tr><th>ISIN</th><th>Fondo</th><th>Peso</th><th>Calidad</th><th>TER</th></tr>${rows.map(r=>`<tr><td>${escapeHtml(r.isin)}</td><td>${escapeHtml(r.current?.name||'Sin identificar')}</td><td>${r.weight.toFixed(2)}%</td><td>${format(r.current?.score,'score')}</td><td>${format(r.current?.ter,'ter')}</td></tr>`).join('')}</table>`));
+        for(const row of rows){
+            if(b.overview||b.pairs||b.comparison)parts.push(`<section class="block report-origin-chart"><h2>${escapeHtml(row.isin)} · Origen y universo</h2>${figure(await chart([row]),caption())}${chartNotes([row])}</section>`);
+            if(b.details){const peers=(fundUniverseState?.records||[]).filter(r=>row.current?.category&&r.category===row.current.category);parts.push(section(`${row.isin} · Métricas y categoría`,`<table><tr><th>Métrica</th><th>Origen</th><th>Media categoría</th><th>Datos disponibles</th></tr>${['score','ter','risk5','ret5'].map(key=>{const values=peers.map(r=>r[key]).filter(Number.isFinite),mean=values.length?values.reduce((s,v)=>s+v,0)/values.length:NaN;return `<tr><td>${escapeHtml(metrics[key])}</td><td>${format(row.current?.[key],key)}</td><td>${format(mean,key)}</td><td>${values.length}</td></tr>`;}).join('')}</table><p>Media por métrica sobre los registros disponibles de la misma categoría. Los datos ausentes no se consideran cero.</p>`));}
+        }
+        const body=`<main class="report proposal-report"><header class="cover"><h1>Informe de análisis inicial</h1></header>${parts.join('')}<footer>Analyzer · Diagnóstico de origen</footer></main>`;
+        fundProposalState.reportBodyHtml=body;fundProposalState.reportHtml=buildFundProposalReportDocumentHtml(body);ReportDesign.preview(document.getElementById('fundProposalReportPreview'),fundProposalState.reportHtml);setFundProposalBusy('Informe de origen generado.',false);
     }
     return {init,state,options,manager,periodRows,validatePeriod,aggregateComparison,aggregateClasses,generateInitial,chart,chartNotes,independentComparisons,get extendApproved(){return extendApproved;}};
 })();

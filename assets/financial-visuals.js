@@ -94,14 +94,26 @@
         const styled = {...layout, colorway:palette.slice(), paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff', font:{...layout.font,family:'Arial, Helvetica, sans-serif',color:colors.ink}};
         for (const key of Object.keys(layout).filter(key=>/^[xy]axis\d*$/.test(key))) {
             styled[key] = {...layout[key],gridcolor:'#e5e9ed',zerolinecolor:'#a4afb9',linecolor:'#c8d0d8',tickfont:{...layout[key].tickfont,color:colors.ink}};
+            const title=typeof layout[key].title==='string'?layout[key].title:layout[key].title?.text||'';
+            if(globalThis.QualityCore&&/\bscore\b/i.test(title)&&!/delta|variaci|Δ/i.test(title)){styled[key].title=typeof layout[key].title==='string'?title.replace(/score/gi,'Calidad'):{...layout[key].title,text:title.replace(/score/gi,'Calidad')};styled[key].tickmode='array';styled[key].tickvals=[0,1,2,3,4];styled[key].ticktext=[1,2,3,4,5].map(n=>`${n}★`);}
         }
         if (layout.annotations) styled.annotations=layout.annotations.map(a=>({...a,font:{...a.font,color:remap.get(a.font?.color)||colors.ink},...(a.bordercolor ? {bordercolor:remap.get(a.bordercolor)||'#c8d0d8'} : {})}));
         if (layout.shapes) styled.shapes=layout.shapes.map(s=>({...s,line:{...s.line,color: ['drawdownChart','returnsHistogram'].includes(id) ? colors.negative : colors.gray}}));
         return {data:traces,layout:styled};
     }
-    function newPlot(target, data, layout, config) {
-        const styled = prepare(typeof target === 'string' ? target : target.id, data, layout);
-        return globalThis.Plotly.newPlot(target,styled.data,styled.layout,config);
+    const pending=new Set();
+    function thinLine(trace,limit=1600){
+        const n=trace.y?.length;if(trace.mode!=='lines'||trace.fill||trace.stackgroup||!Array.isArray(trace.x)||n<=limit||!trace.y.every(Number.isFinite))return trace;
+        const indices=new Set([0,n-1]),step=Math.ceil(n/(limit/2));
+        for(let start=0;start<n;start+=step){let low=start,high=start;for(let i=start+1;i<Math.min(n,start+step);i++){if(trace.y[i]<trace.y[low])low=i;if(trace.y[i]>trace.y[high])high=i;}indices.add(low);indices.add(high);}
+        const order=[...indices].sort((a,b)=>a-b),copy={...trace};for(const key of ['x','y','text','customdata'])if(Array.isArray(trace[key])&&trace[key].length===n)copy[key]=order.map(i=>trace[key][i]);return copy;
     }
-    return {colors,palette,sequential,diverging,correlation,quartiles,seriesColor,signColor,alpha,prepare,newPlot};
+    function newPlot(target, data, layout, config) {
+        const styled = prepare(typeof target === 'string' ? target : target.id, data.map(t=>thinLine(t)), layout);
+        const el=typeof target==='string'?document.getElementById(target):target;
+        const task=Promise.resolve(el?._fullLayout?globalThis.Plotly.react(el,styled.data,styled.layout,config):globalThis.Plotly.newPlot(target,styled.data,styled.layout,config));
+        pending.add(task);task.then(()=>pending.delete(task),()=>pending.delete(task));return task;
+    }
+    async function settled(){while(pending.size)await Promise.all([...pending]);}
+    return {colors,palette,sequential,diverging,correlation,quartiles,seriesColor,signColor,alpha,prepare,newPlot,thinLine,settled};
 });
