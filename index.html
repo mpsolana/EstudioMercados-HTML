@@ -1598,6 +1598,7 @@
             let marketsPortfolioAssetsState = { assets: [], data: {}, range: '10Y', sortKey: 'name', sortDir: 'asc' };
 
             function setPortfolioReportProgress(percent, label) {
+                PortfolioLoading.update(15+Math.floor(percent*.65),label);
                 const wrap = document.getElementById('portfolioReportProgressWrap');
                 const bar = document.getElementById('portfolioReportProgressBar');
                 const pct = document.getElementById('portfolioReportProgressPct');
@@ -1612,6 +1613,7 @@
             }
 
             function setManagerReportProgress(percent, label) {
+                PortfolioLoading.update(15+Math.floor(percent*.65),label);
                 const wrap = document.getElementById('managerReportProgressWrap');
                 const bar = document.getElementById('managerReportProgressBar');
                 const pct = document.getElementById('managerReportProgressPct');
@@ -3906,14 +3908,16 @@
                     return alert('El Excel debe incluir una hoja llamada Ranking Completo.');
                 }
                 const rows = sheetRowsFromHeader(workbook, sheetName, 8);
-                const records = rows.map((row, idx) => {
+                let records = [];
+                for (const [idx,row] of rows.entries()) {
+                    if(idx%250===0)await PortfolioLoading.phase(15+Math.floor(30*idx/Math.max(1,rows.length)),`Leyendo ranking: ${idx}/${rows.length} fondos…`);
                     const isin = normalizeIsin(fundCol(row, ['ISIN']));
                     const name = String(fundCol(row, ['Name']) || '').trim();
                     const category = String(fundCol(row, ['Morningstar Category', 'Category']) || '').trim();
                     const score = parseRankingNumber(fundCol(row, ['Score']));
                     const ter = parseRankingNumber(fundCol(row, ['KIID Ongoing Charge*']));
                     const aum = parseRankingNumber(fundCol(row, ['AUM*']));
-                    return {
+                    records.push({
                         rowIndex: idx,
                         name,
                         normalizedName: normalizeFundName(name),
@@ -3941,8 +3945,9 @@
                         dd3: parseRankingNumber(fundCol(row, ['Max Drawdown 3Y*', 'Max Drawdown 3Y', 'MD 3Y', 'MDD 3Y'])),
                         dd5: parseRankingNumber(fundCol(row, ['Max Drawdown 5Y*', 'Max Drawdown 5Y', 'MD 5Y', 'MDD 5Y'])),
                         dd10: parseRankingNumber(fundCol(row, ['Max Drawdown 10Y*', 'Max Drawdown 10Y', 'MD 10Y', 'MDD 10Y']))
-                    };
-                }).filter(r => r.isin && r.name);
+                    });
+                }
+                records=records.filter(r => r.isin && r.name);
                 const isinIndex = new Map();
                 records.forEach(r => {
                     const prev = isinIndex.get(r.isin);
@@ -3959,7 +3964,7 @@
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
                 try { renderFundUniverseScreener(); } catch (e) { console.warn('fund screener render failed', e); }
                 try { populateFundUniverseCompareControls(); renderFundUniverseMetricComparison(); } catch (e) { console.warn('fund universe compare render failed', e); }
-                if (fundPortfolioRows.length) runFundScoringAnalysis();
+                if (fundPortfolioRows.length) await runFundScoringAnalysis();
             }
 
             function buildFundQuartiles(records) {
@@ -4564,7 +4569,7 @@
                 fundScoringResults = [];
                 for (const row of fundPortfolioRows) {
                     fundScoringResults.push(await resolveFundPortfolioRow(row));
-                    renderFundScoringResults();
+                    await PortfolioLoading.phase(50+Math.floor(35*fundScoringResults.length/fundPortfolioRows.length),`Resolviendo cartera: ${fundScoringResults.length}/${fundPortfolioRows.length} fondos…`);
                     await waitForUiFrame();
                 }
                 document.getElementById('fundScoringStatus').innerText = 'Analisis completado';
@@ -5387,7 +5392,8 @@
                     const amount = parseRankingNumber(looseRowValue(row, ['DIV INSTITUTION COUNTER VALUE', 'Counter Value', 'Contravalor EUR', 'Contravalor', 'Valor efectivo', 'Market Value', 'MARKET VALUE']));
                     const units = parseRankingNumber(looseRowValue(row, ['UNITS', 'Participaciones', 'Nominal Amount', 'NOMINAL AMOUNT']));
                     return { isin, name, productType, assetType, account, amount, units };
-                }).filter(r => r.isin && /(investment\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`));
+                }).filter(r => r.isin && /(investment\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`)
+                    && !/\betfs?\b|exchange[\s-]*traded|fondos?\s+cotizados?/i.test(`${r.productType} ${r.assetType} ${r.name}`));
             }
 
             function aggregateFundPositions(rows, fileName) {
@@ -11517,7 +11523,7 @@
             }
             function fmtPct(n) { return Number.isFinite(n) ? (n * 100).toFixed(2) + '%' : '-'; }
             function fmtNum(n) { return n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
-            function fmtDate(d) { return d.toISOString().split('T')[0]; }
+            function fmtDate(d) { return d instanceof Date && Number.isFinite(d.getTime()) ? d.toISOString().split('T')[0] : '-'; }
 
             function renderTable(s) { document.getElementById('statsTableBody').innerHTML = s.map(i => `<tr><td class="px-4">${i.horizon}</td>${[i.meanTot,i.meanAnn,i.minTot,i.maxTot].map(value=>`<td class="px-4 text-right" style="color:${FinancialVisuals.signColor(value)}">${fmtPct(value)}</td>`).join('')}</tr>`).join(''); }
 

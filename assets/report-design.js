@@ -125,6 +125,7 @@ const ReportDesign = (() => {
                 await loadScript('https://cdn.jsdelivr.net/npm/html-to-pdfmake@2.5.33/browser.js');
             })().catch(error => { pdfLibraries = null; throw error; });
             await pdfLibraries;
+            await PortfolioLoading.phase(25,'Preparando tablas, imágenes y estilos del PDF…');
             const doc = new DOMParser().parseFromString(html,'text/html');
             const landscape=Boolean(doc.querySelector('.manager-report,.compact-scoring-table'));
             const pageWidth=landscape?841.89:595.28,usableWidth=pageWidth-(landscape?60:84);
@@ -160,6 +161,7 @@ const ReportDesign = (() => {
             const walker=doc.createTreeWalker(doc.body,4),indentation=[];
             while(walker.nextNode())if(/^\s+$/.test(walker.currentNode.textContent)&&/[\r\n]/.test(walker.currentNode.textContent))indentation.push(walker.currentNode);
             indentation.forEach(node=>node.remove());
+            await PortfolioLoading.phase(50,'Componiendo las páginas del PDF…');
             const content = htmlToPdfmake(doc.body.innerHTML,{window,defaultStyles:{h1:{fontSize:23,color:'#263342',bold:true,margin:[0,6,0,14]},h2:{fontSize:13,color:'#215a90',bold:true,margin:[0,16,0,7]},h3:{fontSize:11,color:'#215a90',bold:true},p:{margin:[0,4,0,8]},th:{bold:true,fillColor:'#edf1f5'}}});
             function format(node) {
                 if (!node || typeof node !== 'object') return;
@@ -185,9 +187,14 @@ const ReportDesign = (() => {
             format(content);
             const definition = {pageSize:'A4',pageOrientation:landscape?'landscape':'portrait',pageMargins:landscape?[30,32,30,36]:[42,40,42,45],defaultStyle:{font:'Roboto',fontSize:9,color:'#263342',lineHeight:1.2},content,footer:(page,pages)=>({text:`${page} / ${pages}`,alignment:'right',margin:[42,12,42,0],fontSize:8,color:'#687787'})};
             definition.footer=(page,pages)=>({columns:[{text:'Calidad: escala interna de 1 a 5 estrellas derivada del score. Metodología al final.',width:'*'},{text:`${page} / ${pages}`,width:'auto',alignment:'right'}],margin:[42,8,42,0],fontSize:7,color:'#687787'});
-            await new Promise(resolve => pdfMake.createPdf(definition).download(filename,resolve));
+            await PortfolioLoading.phase(75,'Generando el archivo PDF para descargar…');
+            await new Promise((resolve,reject) => {
+                const timer=setTimeout(()=>reject(new Error('Tiempo agotado al generar el PDF.')),120000);
+                try{pdfMake.createPdf(definition).download(filename,()=>{clearTimeout(timer);resolve();});}
+                catch(error){clearTimeout(timer);reject(error);}
+            });
             return true;
         } catch(error) { alert(`No se ha descargado el PDF: ${error.message}`); return false; }
     }
-    return { styles, metadata, prepare, printHtml, preview, downloadPdf };
+    return { styles, metadata, prepare, printHtml, preview, downloadPdf:(html,filename)=>PortfolioLoading.run(()=>downloadPdf(html,filename),{title:'Generando PDF',start:'Preparando el exportador PDF…',done:'PDF preparado para descargar'}) };
 })();

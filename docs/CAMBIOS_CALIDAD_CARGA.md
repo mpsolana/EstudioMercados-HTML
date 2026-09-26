@@ -39,3 +39,13 @@
 - Pruebas unitarias de limites de estrellas, correlacion, retorno compuesto, drawdown, simplificacion visual y candidatos EURH.
 - Prueba de navegador de carga larga, liberacion tras error, informe sin propuestas y metodologia obligatoria.
 - Regresiones de cartera, propuestas, simulacion visual e informes y revision visual del PDF.
+
+## Revision de cargas e informes (26 septiembre)
+
+- La importacion del ranking espera al analisis de los ISIN de cartera. Los analisis automaticos iniciados desde la sincronizacion de cartera tambien se registran y esperan antes de cerrar la carga.
+- La tabla de scoring se reconstruye una sola vez al finalizar, no despues de cada ISIN. El ranking se transforma en lotes de 250 filas, cediendo tiempo al navegador y mostrando avance.
+- La actualizacion final de las vistas ocurre dentro del bloqueo de carga. El porcentaje no retrocede entre fases.
+- Posiciones agregadas excluye ETF, exchange-traded funds y fondos cotizados detectados en tipo de producto, tipo de activo o nombre. Conserva el filtro previo de fondos/IIC. Importes y pesos se calculan despues de excluirlos; no se cambian las carteras individuales ni el universo.
+- Los tres generadores de informes y la descarga PDF muestran progreso por fases y mantienen el bloqueo hasta terminar. El PDF tiene un limite de espera y libera el indicador ante errores. Los porcentajes representan etapas, no una estimacion de tiempo restante.
+- Corregido un fallo previo en historicos sin periodos negativos: una fecha de peor caida ausente se representa con un guion y ya no interrumpe el analisis ni el informe individual.
+- Nueva regresion de navegador: cartera individual de 20 posiciones con 6.000 fechas y benchmarks, seguida de ranking de 20.000 fondos; comprueba un unico render de scoring dentro de la carga, ausencia de errores, filtro de ETF, recalculo de pesos y progreso PDF.

@@ -178,8 +178,10 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
     root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    const originalScoring=window.runFundScoringAnalysis;
+    window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
-        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(name==='importPortfolioExcel'&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');return result;}); } catch(error) { alert(error.message); } finally { portfolioWorkflowRefresh(); } };
+        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(name==='importPortfolioExcel'&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.settled();await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');portfolioWorkflowRefresh();return result;}); } catch(error) { alert(error.message); } };
     }
     for (const name of ['setFundProposalRecommendation','setFundPortfolioRows','clearFundScoringState','setAggregateManualCategory','setAggregateManualBucket','setAggregateManualScore','applyAggregateRecord','resetAggregateRecord']) {
         const original = window[name]; window[name] = (...args) => { invalidatePortfolioReports(); const result = original(...args); portfolioWorkflowRefresh(); return result; };
@@ -187,6 +189,8 @@ function initializePortfolioWorkspace() {
     for (const [name, kind, previewId] of [['generatePortfolioReport','individual','portfolioReportPreview'],['generateManagerReport','aggregate','managerReportPreview'],['generateFundProposalReport','proposal','fundProposalReportPreview']]) {
         const original = window[name]; window[name] = async (...args) => {
             if (kind === 'individual' && portfolioHistoryStale()) { alert('Vuelve a cargar o importar la cartera con las nuevas hipotesis antes de generar el informe.'); PortfolioWorkspace.step = 'data'; portfolioWorkflowRefresh(); return; }
+            return PortfolioLoading.run(async()=>{
+            await PortfolioLoading.phase(15,'Calculando tablas y gráficos del informe…');
             if (kind === 'aggregate') managerReportHtml = ''; else if (kind === 'individual') portfolioReportHtml = ''; else fundProposalState.reportHtml = '';
             const revision = PortfolioWorkspace.revision;
             try { await original(...args); } catch(error) { invalidatePortfolioReports(); alert(`No se ha generado el informe: ${error.message}`); return; }
@@ -194,12 +198,14 @@ function initializePortfolioWorkspace() {
             const snapshot = portfolioSnapshot(kind);
             let html = kind === 'aggregate' ? managerReportHtml : kind === 'individual' ? portfolioReportHtml : fundProposalState.reportHtml;
             if (!html) return;
+            await PortfolioLoading.phase(80,'Maquetando el informe y la vista previa…');
             html = ReportDesign.prepare(html, snapshot);
             if (kind === 'aggregate') managerReportHtml = html; else if (kind === 'individual') portfolioReportHtml = html; else fundProposalState.reportHtml = html;
             PortfolioWorkspace.snapshots[kind] = JSON.parse(JSON.stringify(snapshot));
             ReportDesign.preview(document.getElementById(previewId), html);
             PortfolioWorkspace.scope = kind === 'proposal' ? 'initial' : kind === 'aggregate' ? 'aggregate' : 'individual';
             PortfolioWorkspace.step = 'report'; portfolioWorkflowRefresh();
+            },{title:'Generando informe',start:'Preparando los apartados seleccionados…',done:'Informe preparado'});
         };
     }
     portfolioWorkflowRefresh();
