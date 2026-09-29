@@ -13,15 +13,16 @@ const FundSelector = (() => {
     }
     function render(items, selectCall, placeholder, options = {}) {
         const id = options.id || `fund-selector-${Math.random().toString(36).slice(2)}`;
-        const normalized = (items || []).map(item => item?.universe || item?.record || item).filter(r => r?.isin);
+        const source=items||[];
+        const normalized=source[0]&&!source[0].universe&&!source[0].record?source:source.map(item => item?.universe || item?.record || item).filter(r => r?.isin);
         const selected = options.selected?.universe || options.selected?.record || options.selected;
         const state = { id, items: normalized, selectCall, query: '', offset: 0 };
         panels.set(id, state);
         if (panels.size > 1000) panels.delete(panels.keys().next().value);
-        return `<div class="relative"><button type="button" class="fund-selector-trigger" aria-expanded="false" aria-controls="${id}" onclick="toggleCompactFundCombobox('${id}')">${esc(selected ? `${selected.isin} · ${selected.name || ''}` : options.buttonText || 'Seleccionar fondo')}</button><div id="${id}" data-compact-fund-panel class="hidden fund-selector-panel"><input type="search" aria-label="Buscar en todos los fondos disponibles" placeholder="${esc(placeholder || 'ISIN, nombre o categoria')}" oninput="filterCompactFundCombobox(this,'${id}')"><div data-fund-selector-results>${rows(state)}</div></div></div>`;
+        return `<div class="relative"><button type="button" class="fund-selector-trigger" aria-expanded="false" aria-controls="${id}" onclick="toggleCompactFundCombobox('${id}')">${esc(selected ? `${selected.isin} · ${selected.name || ''}` : options.buttonText || 'Seleccionar fondo')}</button><div id="${id}" data-compact-fund-panel class="hidden fund-selector-panel"><input type="search" aria-label="Buscar en todos los fondos disponibles" placeholder="${esc(placeholder || 'ISIN, nombre o categoria')}" oninput="filterCompactFundCombobox(this,'${id}')"><div data-fund-selector-results>${normalized.length>250?'':rows(state)}</div></div></div>`;
     }
     function update(id) { const state = panels.get(id), target = document.getElementById(id)?.querySelector('[data-fund-selector-results]'); if (state && target) target.innerHTML = rows(state); }
     function search(query, id) { const state = panels.get(id); if (state) { state.query = query; state.offset = 0; update(id); } }
     function page(id, direction) { const state = panels.get(id); if (state) { state.offset = Math.max(0, state.offset + direction * size); update(id); } }
-    return { render, search, page };
+    return { render, search, page, open:update };
 })();

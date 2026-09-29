@@ -44,3 +44,14 @@ test('EURH share classes cross categories but stay research candidates, not equi
  assert.equal(core.classCandidates(origin,[{...other,aum:NaN,managerTenure:NaN,fundTenure:8}]).length,0);
  assert.equal(core.classCandidates({...origin,managerTenure:NaN,fundTenure:8},[{...other,aum:NaN,managerTenure:NaN,fundTenure:8}]).length,1);
 });
+test('indexed candidate search retains AUM edges, missing AUM family and explicit subfund IDs',()=>{
+ const records=Array.from({length:20000},(_,i)=>({isin:`ES${String(i).padStart(10,'0')}`,name:`Unrelated Strategy ${i} A EUR`,manager:'Other',category:'Other',aum:100000+i,ter:1}));
+ const near={...origin,isin:'NEAR',name:'Entirely Different Name',category:'Other',aum:origin.aum*1.0199,ter:.6};
+ const missing={...origin,isin:'MISSING',name:'Global Strategic Bond I EUR',aum:NaN,ter:.5};
+ const shared={...origin,isin:'SHARED',name:'Another Fund',aum:50000,fundId:'sub-1',ter:.4};
+ records.push(near,missing,shared);
+ const found=core.classCandidates({...origin,fundId:'sub-1'},records).map(r=>r.isin);
+ assert.deepEqual(found,['SHARED','MISSING','NEAR']);
+ records.push({...origin,isin:'LATE',name:'New Label',aum:origin.aum,ter:.3});
+ assert.equal(core.classCandidates({...origin,fundId:'sub-1'},records)[0].isin,'LATE');
+});

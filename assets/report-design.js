@@ -146,14 +146,33 @@ const ReportDesign = (() => {
                     const row = table.insertRow();
                     for (let j=0;j<4;j++) { const cell=row.insertCell(), item=cells[i+j]; if (!item) continue;
                         const label=doc.createElement('div'); label.textContent=item.querySelector('span')?.textContent || '';
-                        const value=doc.createElement('strong'); value.textContent=item.querySelector('strong').textContent;
+                        const value=doc.createElement('strong'); value.append(...[...item.querySelector('strong').childNodes].map(node=>node.cloneNode(true)));
                         cell.append(label,doc.createElement('br'),value);
                     }
                 }
                 summary.replaceWith(table);
             });
             doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
+            doc.querySelectorAll('.quality-rating').forEach(el=>{
+                const stars=[...el.textContent].filter(char=>char==='★'||char==='☆');
+                if(stars.length!==5)return;
+                const canvas=document.createElement('canvas');canvas.width=180;canvas.height=34;
+                const ctx=canvas.getContext('2d'),ink=el.closest('.q1')?'#ffffff':'#215a90';
+                ctx.strokeStyle=ink;ctx.fillStyle=ink;ctx.lineWidth=1.8;
+                stars.forEach((star,index)=>{
+                    ctx.beginPath();for(let point=0;point<10;point++){
+                        const angle=-Math.PI/2+point*Math.PI/5,radius=point%2?6:14;
+                        const x=18+index*36+Math.cos(angle)*radius,y=17+Math.sin(angle)*radius;
+                        if(point===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+                    }
+                    ctx.closePath();if(star==='★')ctx.fill();else ctx.stroke();
+                });
+                const image=doc.createElement('img');image.src=canvas.toDataURL('image/png');
+                image.setAttribute('data-pdfmake',JSON.stringify({width:el.closest('.wide-report-table,.scoring-report-table')?34:56,margin:[0,0,0,0]}));
+                el.replaceWith(image);
+            });
             doc.querySelectorAll('.report-chart-page').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
+            doc.querySelectorAll('.manager-report .scoring-report-table').forEach(table=>table.closest('section')?.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'})));
             doc.querySelectorAll('.report-keep-together').forEach(el=>el.setAttribute('data-pdfmake',JSON.stringify({unbreakable:true})));
             const tableWidths=[...doc.querySelectorAll('table')].map(table=>({widths:table.dataset.pdfWidths?JSON.parse(table.dataset.pdfWidths):null,compact:table.classList.contains('compact-scoring-table')}));
             doc.querySelectorAll('section,header,footer,figure,figcaption').forEach(el => { const div=doc.createElement('div'); for(const attr of el.attributes)div.setAttribute(attr.name,attr.value); div.append(...el.childNodes); el.replaceWith(div); });

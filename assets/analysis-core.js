@@ -28,10 +28,35 @@
         return {status:all.length?'cheaper':!peers.length||peers.some(r=>!Number.isFinite(r.ter))?'unknown':'lowest',all,approved:all.filter(r=>approvedIsins.has(r.isin))};
     }
     // Candidates support manual research; they do not establish economic equivalence or approval.
+    const candidateIndexes=new WeakMap();
+    function candidateIndex(universe){
+        const cached=candidateIndexes.get(universe);if(cached?.length===universe.length)return cached;
+        const byAum=[],byFundId=new Map(),byFamily=new Map(),missingByFamily=new Map();
+        for(const record of universe){
+            if(record.aum>0)byAum.push(record);
+            const id=normalized(record.fundId);if(id){if(!byFundId.has(id))byFundId.set(id,[]);byFundId.get(id).push(record);}
+            const family=familyName(record.name);
+            const map=record.aum>0?byFamily:missingByFamily;
+            if(!map.has(family))map.set(family,[]);map.get(family).push(record);
+        }
+        byAum.sort((a,b)=>a.aum-b.aum);
+        const index={length:universe.length,byAum,byFundId,byFamily,missingByFamily};candidateIndexes.set(universe,index);return index;
+    }
     function classCandidates(record,universe){
         if(!record)return [];
         const family=familyName(record.name),manager=normalized(record.manager);
-        return universe.filter(other=>{
+        const index=candidateIndex(universe),possible=new Set(index.byFundId.get(normalized(record.fundId))||[]);
+        if(record.aum>0){
+            const values=index.byAum,min=record.aum*.98,max=record.aum/.98;
+            let lo=0,hi=values.length;
+            while(lo<hi){const mid=(lo+hi)>>1;if(values[mid].aum<min)lo=mid+1;else hi=mid;}
+            for(let i=lo;i<values.length&&values[i].aum<=max;i++)possible.add(values[i]);
+            for(const item of index.missingByFamily.get(family)||[])possible.add(item);
+        }else{
+            for(const item of index.byFamily.get(family)||[])possible.add(item);
+            for(const item of index.missingByFamily.get(family)||[])possible.add(item);
+        }
+        return [...possible].filter(other=>{
             if(other.isin===record.isin)return false;
             if(record.fundId&&other.fundId)return normalized(record.fundId)===normalized(other.fundId);
             if(classMatch(record,other))return true;

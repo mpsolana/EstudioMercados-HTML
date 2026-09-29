@@ -149,6 +149,7 @@ function initializePortfolioWorkspace() {
     }
     const aggregate = document.getElementById('aggregatePositionsStatus').closest('.grid').parentElement;
     aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
+    document.getElementById('aggregatePositionsTableBody').closest('.mb-5').insertAdjacentHTML('beforebegin','<div class="workspace-tools"><button type="button" onclick="useAggregateChangesInIndividualScoring()"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Llevar cartera tras cambios a análisis individual</button></div>');
     root.querySelectorAll('.portfolio-subtab-content').forEach(el => { el.dataset.workspacePanel = ''; el.classList.add('workspace-panel'); });
     const compositionMode = document.createElement('label'); compositionMode.className = 'workspace-context';
     compositionMode.innerHTML = 'Distribucion por <select id="portfolioCompositionMode" onchange="if(loadedPortfolio) renderPortfolioComposition(loadedPortfolio.entries)"><option value="fund">Fondos</option><option value="category">Categorias</option></select>';
@@ -177,7 +178,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
-    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     const originalScoring=window.runFundScoringAnalysis;
     window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {

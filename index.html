@@ -1110,10 +1110,10 @@
                         <div class="mb-5">
                             <h5 class="font-bold text-slate-800 border-l-4 border-sky-600 pl-3 mb-2">Posiciones agregadas por ISIN</h5>
                             <div class="overflow-x-auto border border-slate-100 rounded">
-                                <table class="min-w-full text-sm text-slate-600">
+                                <table class="min-w-full text-sm text-slate-600 aggregate-positions-table">
                                     <thead class="bg-slate-100 text-xs uppercase text-slate-500">
                                         <tr>
-                                            <th class="px-3 py-2 text-left">Bloque</th><th class="px-3 py-2 text-left">ISIN</th><th class="px-3 py-2 text-left">Fondo</th><th class="px-3 py-2 text-right">Clientes/pos.</th><th class="px-3 py-2 text-right">Importe</th><th class="px-3 py-2 text-right">Peso</th><th class="px-3 py-2 text-left">Categoria</th><th class="px-3 py-2 text-right">Score</th><th class="px-3 py-2 text-right">TER</th><th class="px-3 py-2 text-right">Ret 1Y</th><th class="px-3 py-2 text-right">Risk 3Y</th><th class="px-3 py-2 text-right">MD 1Y</th><th class="px-3 py-2 text-right">MD 3Y</th><th class="px-3 py-2 text-right">MD 5Y</th><th class="px-3 py-2 text-left">Aprobado</th><th class="px-3 py-2 text-left">Recomendaciones</th><th class="px-3 py-2 text-left">Matching</th>
+                                            <th class="px-3 py-2 text-left">Bloque</th><th class="px-3 py-2 text-left">ISIN</th><th class="px-3 py-2 text-left">Fondo</th><th class="px-3 py-2 text-right">Clientes/pos.</th><th class="px-3 py-2 text-right">Importe</th><th class="px-3 py-2 text-right">Peso</th><th class="px-3 py-2 text-left">Categoria</th><th class="px-3 py-2 text-right">Calidad</th><th class="px-3 py-2 text-right">TER</th><th class="px-3 py-2 text-right">Ret 1Y</th><th class="px-3 py-2 text-right">Risk 3Y</th><th class="px-3 py-2 text-right">MD 1Y</th><th class="px-3 py-2 text-right">MD 3Y</th><th class="px-3 py-2 text-right">MD 5Y</th><th class="px-3 py-2 text-left">Recomendaciones</th><th class="px-3 py-2 text-left">Matching</th>
                                         </tr>
                                     </thead>
                                     <tbody id="aggregatePositionsTableBody" class="divide-y divide-slate-100"></tbody>
@@ -3088,6 +3088,7 @@
                 panel.classList.toggle('hidden', !willOpen);
                 panel.parentElement.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', String(willOpen));
                 if (willOpen) {
+                    FundSelector.open(panelId);
                     const input = panel.querySelector('input');
                     if (input) setTimeout(() => input.focus(), 0);
                 }
@@ -3335,8 +3336,20 @@
                 return shareClassAssessment(record).all;
             }
 
+            let classAssessmentUniverse,classAssessmentApproved,classAssessmentSize=0,classAssessmentApprovedSize=0,classAssessmentExtendApproved,classAssessmentApprovedIsins=new Set();
+            const classAssessmentCache=new Map();
             function shareClassAssessment(record) {
-                return AnalysisCore.classes(record, fundUniverseState?.records || [], new Set(approvedClassRecords().map(r => r.isin)));
+                const universe=fundUniverseState?.records||[],approved=approvedFundsState?.records||[];
+                if(classAssessmentUniverse!==universe||classAssessmentApproved!==approved||classAssessmentSize!==universe.length||classAssessmentApprovedSize!==approved.length||classAssessmentExtendApproved!==ReportControls.extendApproved){
+                    classAssessmentUniverse=universe;classAssessmentApproved=approved;classAssessmentSize=universe.length;classAssessmentApprovedSize=approved.length;classAssessmentExtendApproved=ReportControls.extendApproved;classAssessmentApprovedIsins=new Set(approvedClassRecords().map(r=>r.isin));classAssessmentCache.clear();
+                }
+                if(!record)return AnalysisCore.classes(record,universe,new Set());
+                const key=JSON.stringify([record.isin,record.name,record.category,record.manager,record.aum,record.ter,record.currency,record.hedging,record.fundId,record.originSource?.mode]);
+                if(!classAssessmentCache.has(key)){
+                    if(classAssessmentCache.size>500)classAssessmentCache.clear();
+                    classAssessmentCache.set(key,AnalysisCore.classes(record,universe,classAssessmentApprovedIsins));
+                }
+                return classAssessmentCache.get(key);
             }
 
             function shareClassSummary(record) {
@@ -4018,7 +4031,7 @@
                 if (!Number.isFinite(value)) return '<td class="px-3 py-2 text-right text-slate-400">-</td>';
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `financial-q${q}` : '';
-                const text = metricKey==='score'?QualityCore.html(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                const text = metricKey==='score'?QualityCore.withTechnical(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<td class="px-3 py-2 text-right font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</td>`;
             }
 
@@ -4026,7 +4039,7 @@
                 if (!Number.isFinite(value)) return '<span class="text-slate-400">-</span>';
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `financial-q${q}` : 'bg-slate-50 text-slate-800';
-                const text = metricKey==='score'?QualityCore.html(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                const text = metricKey==='score'?QualityCore.withTechnical(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<span class="inline-flex justify-end min-w-[72px] rounded px-2 py-1 font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</span>`;
             }
 
@@ -5119,9 +5132,12 @@
                 updateFundScoringKpis();
             }
 
+            let aggregateCategoryOptionsSource,aggregateCategoryOptions=[];
             function fundManualCategoryHtml(result) {
                 const idx = fundScoringResults.indexOf(result);
-                const categories = [...new Set((fundUniverseState?.records || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+                const universe=fundUniverseState?.records||[];
+                if(aggregateCategoryOptionsSource!==universe){aggregateCategoryOptionsSource=universe;aggregateCategoryOptions=[...new Set(universe.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
+                const categories=aggregateCategoryOptions;
                 const selected = result.manualCategory || '';
                 const categoryListId = `fundCategoryList-${idx}`;
                 const anchorListId = `fundAnchorList-${idx}`;
@@ -5494,7 +5510,25 @@
 
             function aggregateOriginNote(result) {
                 const origin=result?.originOverride;
-                return origin?`<div class="text-xs text-slate-600">Origen de datos seleccionado: ${escapeHtml(origin.name)} · ${escapeHtml(origin.isin)}. Posición importada: ${escapeHtml(result.position.isin)}. No representa una operación; comprobar equivalencia de clase.</div>`:'';
+                return origin?`<div class="text-xs text-slate-600">Origen de datos seleccionado: ${escapeHtml(origin.name)} · ${escapeHtml(origin.isin)}. Posición importada: ${escapeHtml(result.position.isin)}.${origin.manualOverrides?' Métricas de origen ajustadas manualmente.':''} No representa una operación; comprobar equivalencia de clase.</div>`:'';
+            }
+
+            function editAggregateOriginMetrics(index) {
+                const result=findAggregateResult(index);if(!result)return;
+                const base=aggregateStaticRecord(result)||result.position||{};
+                const fields=[['score','Score técnico'],['ter','TER (%)'],['ret1','Retorno 1A (%)'],['ret3','Retorno 3A (%)'],['ret5','Retorno 5A (%)'],['risk1','Riesgo 1A (%)'],['risk3','Riesgo 3A (%)'],['risk5','Riesgo 5A (%)'],['dd1','Caída máxima 1A (%)'],['dd3','Caída máxima 3A (%)'],['dd5','Caída máxima 5A (%)']];
+                const dialog=document.createElement('dialog');dialog.className='initial-origin-dialog';
+                dialog.innerHTML=`<form><div class="initial-origin-heading"><h3>Métricas del origen · ${escapeHtml(result.position.isin)}</h3><button type="button" aria-label="Cerrar" onclick="this.closest('dialog').close()">&times;</button></div><p class="text-sm text-slate-600">Los datos declarados sustituyen las métricas del origen en el análisis y el informe; la posición importada conserva su ISIN y su peso.</p><section class="initial-metric-grid">${fields.map(([key,label])=>`<label>${label}<input name="${key}" type="number" step="any" ${key==='score'?'min="0" max="4"':key==='ter'?'min="0" max="99.99"':key.startsWith('risk')?'min="0"':''} value="${Number.isFinite(base[key])?base[key]:''}"></label>`).join('')}</section><div class="workspace-tools"><button type="submit">Aplicar métricas</button><button type="button" onclick="this.closest('dialog').close()">Cancelar</button></div></form>`;
+                document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+                dialog.querySelector('form').addEventListener('submit',event=>{
+                    event.preventDefault();if(!event.currentTarget.reportValidity())return;
+                    const record={...base,isin:base.isin||result.position.isin,name:base.name||result.position.name,manualBase:base.manualBase||{...base},manualOverrides:{...(base.manualOverrides||{})}};
+                    for(const [key] of fields){const input=event.currentTarget.elements.namedItem(key);const value=input.value===''?NaN:input.valueAsNumber;record[key]=value;record.manualOverrides[key]=Number.isFinite(value)?value:null;}
+                    const changed=aggregateHasAppliedChange(result);result.originOverride=record;
+                    if(!changed){result.currentRecord=record;result.manualCategory=record.category||'';result.manualScore=NaN;result.manualTer=NaN;}
+                    aggregateRecommendationCache.clear();invalidatePortfolioReports();dialog.close();renderAggregateScoringResults();
+                });
+                dialog.showModal();
             }
 
             function findAggregateResult(index) {
@@ -5580,6 +5614,16 @@
                 const original = aggregateStaticRecord(result)?.isin || result?.position?.isin || '';
                 const current = result?.currentRecord?.isin || '';
                 return Boolean(original && current && original !== current);
+            }
+
+            function useAggregateChangesInIndividualScoring() {
+                if(!aggregateScoringResults.length){alert('Analiza primero las posiciones agregadas.');return;}
+                const rows=aggregateScoringResults.filter(r=>r.included!==false).map(result=>({isin:aggregateEffectiveRecord(result)?.isin||result.position?.isin,weight:result.position?.weight||0})).filter(r=>r.isin&&r.weight>0);
+                if(!rows.length){alert('No hay posiciones incluidas con peso para trasladar.');return;}
+                setFundPortfolioRows(rows,'posiciones agregadas tras cambios',{manual:true});
+                PortfolioWorkspace.scope='individual';PortfolioWorkspace.step='diagnosis';PortfolioWorkspace.tool='scoring';
+                showPortfolioSubtab('scoring');portfolioWorkflowRefresh();
+                document.getElementById('fundScoringStatus').title='ISIN y pesos efectivos de posiciones agregadas. Los históricos de precios se cargan por separado.';
             }
 
             function aggregateChangeBadge(result) {
@@ -5762,7 +5806,7 @@
                 const approved = rows.filter(r => r.approvedMatch?.record);
                 setText('aggregateUniqueFunds', rows.length ? String(rows.length) : '-');
                 setText('aggregateCategories', rows.length ? String(categories.size) : '-');
-                setText('aggregateWeightedScore', fmtScore(weightedScore));
+                document.getElementById('aggregateWeightedScore').innerHTML=QualityCore.withTechnical(weightedScore);
                 setText('aggregateWeightedTer', Number.isFinite(weightedTer) ? `${weightedTer.toFixed(2)}%` : '-');
                 setText('aggregateWeakFunds', rows.length ? String(weak.length) : '-');
                 setText('aggregateResolvedAmount', aggregatePositionsState.hasAmounts ? formatEur(matched.reduce((acc, x) => acc + (x.result.position.amount || 0), 0)) : `${totalWeight.toFixed(1)}%`);
@@ -5813,7 +5857,7 @@
                 const body = document.getElementById('aggregatePositionsTableBody');
                 if (!body) return;
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="17" class="px-3 py-6 text-center text-slate-400">Sube posiciones y ejecuta el analisis agregado.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="16" class="px-3 py-6 text-center text-slate-400">Sube posiciones y ejecuta el analisis agregado.</td></tr>';
                     return;
                 }
                 const groups = new Map();
@@ -5829,7 +5873,7 @@
                     const weight = items.reduce((acc, x) => acc + (x.result.position?.weight || 0), 0);
                     const weak = items.filter(x => Number.isFinite(x.rec?.score) && x.rec.score < 2).length;
                     const changed = items.filter(x => aggregateHasAppliedChange(x.result)).length;
-                    const header = `<tr class="bg-slate-50"><td colspan="17" class="px-3 py-2">
+                    const header = `<tr class="bg-slate-50"><td colspan="16" class="px-3 py-2">
                         <button onclick="toggleAggregateBucket('${slug}')" class="font-black text-slate-800 hover:text-blue-700">
                             <i class="fa-solid fa-chevron-down mr-2"></i>${escapeHtml(group.bucket)}
                         </button>
@@ -5851,14 +5895,13 @@
                 const score = rec?.score;
                 const changed = aggregateHasAppliedChange(result);
                 const weakCls = changed ? 'bg-emerald-50' : (Number.isFinite(score) && score < 2 ? 'bg-red-50' : (result.included === false ? 'bg-slate-50 opacity-70' : ''));
-                const approvedText = approved ? `<span class="text-emerald-700 font-bold">Si</span><div class="text-[11px] text-slate-400">${escapeHtml(approved.isin)} · ${escapeHtml(result.approvedMatch.status || '')}</div>` : '<span class="text-amber-700 font-bold">No</span>';
                 const categoryEditor = aggregateCategoryEditorHtml(result, idx, rec);
                 const scoreEditor = aggregateScoreEditorHtml(result, idx, score);
                 const includeEditor = `<label class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 mt-1"><input type="checkbox" ${result.included === false ? '' : 'checked'} onchange="toggleAggregateIncluded(${idx}, this.checked)"> Incluir</label>`;
                 return `<tr class="${weakCls}" data-aggregate-bucket="${escapeHtml(bucketSlug || '')}">
                     <td class="px-3 py-2 font-bold min-w-[120px]">${aggregateBucketEditorHtml(result, idx)}</td>
                     <td class="px-3 py-2 font-mono">${escapeHtml(pos.isin || '-')}</td>
-                    <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(pos.name || rec?.name || '-')} ${approvedFundBadge(rec)}</div><div class="text-[11px] text-slate-400">${escapeHtml(pos.assetType || '')}</div>${aggregateOriginNote(result)}${renderCompactFundCombobox(fundUniverseState?.records||[],isin=>`setAggregateOrigin(${idx},'${isin}')`,'Buscar origen: ISIN o nombre',{id:`aggregate-origin-${idx}`,buttonText:'Editar origen de datos'})}${result.originOverride?`<button type="button" class="initial-origin-button" onclick="clearAggregateOrigin(${idx})">Restaurar origen importado</button>`:''}${aggregateChangeBadge(result)}</td>
+                    <td class="px-3 py-2 min-w-[260px]"><div class="font-bold text-slate-800">${escapeHtml(pos.name || rec?.name || '-')} ${approvedFundBadge(rec)}</div><div class="text-[11px] text-slate-400">${escapeHtml(pos.assetType || '')}</div>${aggregateOriginNote(result)}${renderCompactFundCombobox(fundUniverseState?.records||[],isin=>`setAggregateOrigin(${idx},'${isin}')`,'Buscar origen: ISIN o nombre',{id:`aggregate-origin-${idx}`,buttonText:'Cambiar clase de origen'})}<button type="button" class="initial-origin-button" onclick="editAggregateOriginMetrics(${idx})">Editar métricas origen</button>${result.originOverride?`<button type="button" class="initial-origin-button" onclick="clearAggregateOrigin(${idx})">Restaurar origen importado</button>`:''}${aggregateChangeBadge(result)}</td>
                     <td class="px-3 py-2 text-right">${(pos.clientCount || 0).toLocaleString('es-ES')} / ${(pos.rows || 0).toLocaleString('es-ES')}</td>
                     <td class="px-3 py-2 text-right">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
                     <td class="px-3 py-2 text-right font-bold">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}${includeEditor}</td>
@@ -5870,14 +5913,15 @@
                     ${quartileCell(rec?.dd1, rec, 'dd1', true)}
                     ${quartileCell(rec?.dd3, rec, 'dd3', true)}
                     ${quartileCell(rec?.dd5, rec, 'dd5', true)}
-                    <td class="px-3 py-2 min-w-[170px]">${approvedText}</td>
                     <td class="px-3 py-2 min-w-[360px]">${aggregateRecommendationHtml(result, idx)}</td>
                     <td class="px-3 py-2 min-w-[190px]">${aggregateMatchTraceHtml(result)}</td>
                 </tr>`;
             }
 
             function aggregateCategoryEditorHtml(result, idx, rec) {
-                const categories = [...new Set((fundUniverseState?.records || []).map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+                const universe=fundUniverseState?.records||[];
+                if(aggregateCategoryOptionsSource!==universe){aggregateCategoryOptionsSource=universe;aggregateCategoryOptions=[...new Set(universe.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));}
+                const categories=aggregateCategoryOptions;
                 const selected = result.manualCategory || rec?.category || '';
                 const listId = `aggregateCategoryList-${idx}`;
                 return `<input list="${listId}" value="${escapeHtml(selected)}" onfocus="this.select()" onchange="setAggregateManualCategory(${idx}, this.value)" class="w-full p-1 border border-slate-300 rounded bg-white text-xs" placeholder="Buscar cualquier categoria...">
@@ -5888,7 +5932,7 @@
                 const rec = aggregateEffectiveRecord(result);
                 return `<div class="space-y-1">
                     <div>${quartileValueHtml(score, rec, 'score', false)}</div>
-                    <input type="number" step="0.01" value="${Number.isFinite(result.manualScore) ? result.manualScore : ''}" oninput="setAggregateManualScore(${idx}, this.value)" class="w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="Manual">
+                    <input type="number" step="0.01" value="${Number.isFinite(result.manualScore) ? result.manualScore : ''}" onchange="setAggregateManualScore(${idx}, this.value)" class="aggregate-score-input w-20 p-1 border border-slate-300 rounded text-xs text-right" placeholder="Manual">
                 </div>`;
             }
 
@@ -6910,7 +6954,7 @@
                 if (!Number.isFinite(value)) return '<td class="num muted">-</td>';
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `q${q}` : '';
-                const text = metricKey==='score'?QualityCore.label(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
+                const text = metricKey==='score'?QualityCore.withTechnical(value,true):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
                 return `<td class="num metric-cell ${cls}" title="${q ? `Q${q} dentro de categoría` : ''}">${text}</td>`;
             }
 
@@ -7584,16 +7628,14 @@
                     ? formatEur(summary.matched.reduce((acc, x) => acc + (x.result.position?.amount || 0), 0))
                     : `${summary.totalWeight.toFixed(1)}%`;
                 return `<section class="block">
-                    <h2>Resumen agregado</h2>
+                    <h2>Resumen agregado tras cambios</h2>
                     <section class="summary">
                         <div><span>Fondos únicos</span><strong>${summary.rows.length || '-'}</strong></div>
-                        <div><span>Score ponderado</span><strong>${fmtScore(summary.weightedScore)}</strong></div>
+                        <div><span>Calidad ponderada</span><strong>${QualityCore.withTechnical(summary.weightedScore)}</strong></div>
                         <div><span>TER ponderado</span><strong>${Number.isFinite(summary.weightedTer) ? summary.weightedTer.toFixed(2) + '%' : '-'}</strong></div>
                         <div><span>Deficientes &lt; 2</span><strong>${summary.weak.length}</strong></div>
                         <div><span>Categorías</span><strong>${summary.categories.size || '-'}</strong></div>
                         <div><span>Importe resuelto</span><strong>${resolvedAmount}</strong></div>
-                        <div><span>Aprobados</span><strong>${summary.approved.length}</strong></div>
-                        <div><span>No aprobados</span><strong>${Math.max(0, summary.rows.length - summary.approved.length)}</strong></div>
                     </section>
                     <p class="analysis-note"><b>Descripción:</b> ${escapeHtml(scoreInterpretation(summary.weightedScore))} Los fondos con una o dos estrellas y los fondos sin clasificación concentran la revisión prioritaria para comité o traspaso.</p>
                     <p class="method-note"><b>Metodología:</b> las métricas ponderadas usan el contravalor EUR agregado cuando está disponible; si no, usan el peso normalizado por ISIN único. El registro efectivo incorpora proxies/recomendaciones aplicadas por el usuario.</p>
@@ -7611,7 +7653,7 @@
                     return `<tr>
                         <td class="block-cell">${escapeHtml(aggregateEffectiveBucket(result) || '-')}</td>
                         <td class="isin-cell">${escapeHtml(pos.isin || '-')}</td>
-                        <td class="fund-cell">${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}${aggregateOriginNote(result)}</td>
+                        <td class="fund-cell">${escapeHtml(pos.name || rec?.name || '-')} ${changed ? '<br><span class="badge good-badge">Cambio aplicado</span>' : ''}${aggregateOriginNote(result)}${reportAggregateOriginMetrics(result)}</td>
                         <td class="num">${aggregatePositionsState.hasAmounts ? formatEur(pos.amount || 0) : '-'}</td>
                         <td class="num">${Number.isFinite(pos.weight) ? pos.weight.toFixed(2) + '%' : '-'}</td>
                         <td class="cat-cell">${escapeHtml(rec?.category || '-')}</td>
@@ -7650,7 +7692,7 @@
                         <td>${escapeHtml(pos.isin || '-')}</td>
                         <td>${escapeHtml(pos.name || rec?.name || '-')}</td>
                         <td>${escapeHtml(rec?.category || '-')}</td>
-                        <td class="num">${fmtScore(rec?.score)}</td>
+                        <td class="num">${QualityCore.withTechnical(rec?.score)}</td>
                         <td>${reportAggregateChangeHtml(result)}</td>
                         <td>${approved}</td>
                         <td>${universe}</td>
@@ -7676,12 +7718,20 @@
             }
 
             function reportAggregateChangeHtml(result) {
-                const manual=(Number.isFinite(result.manualTer)?`<br>TER manual: ${result.manualTer.toFixed(2)}%`:'')+aggregateOriginNote(result);
+                const manual=(Number.isFinite(result.manualTer)?`<br>TER manual: ${result.manualTer.toFixed(2)}%`:'')+aggregateOriginNote(result)+reportAggregateOriginMetrics(result);
                 if(result.reviewDecision==='keep')return '<span class="badge">Sin cambio</span>'+manual;
                 if (!aggregateHasAppliedChange(result)) return '<span class="badge warn-badge">Pendiente</span>'+manual;
                 const original = aggregateStaticRecord(result) || result.position || {};
                 const current = result.currentRecord || {};
-                return `<span class="badge good-badge">Cambio aplicado</span><br>${escapeHtml(original.isin || '-')} -> ${escapeHtml(current.isin || '-')}${manual}`;
+                return `<span class="badge good-badge">Cambio aplicado</span><br>${escapeHtml(original.isin || '-')} → ${escapeHtml(current.isin || '-')}<br>${escapeHtml(current.name || '-')}${manual}`;
+            }
+
+            function reportAggregateOriginMetrics(result) {
+                const record=result?.originOverride;if(!record?.manualOverrides)return '';
+                const labels={score:'Calidad origen',ter:'TER origen',ret1:'Retorno 1A',ret3:'Retorno 3A',ret5:'Retorno 5A',risk1:'Riesgo 1A',risk3:'Riesgo 3A',risk5:'Riesgo 5A',dd1:'Caída 1A',dd3:'Caída 3A',dd5:'Caída 5A'};
+                const base=record.manualBase||{};
+                const details=Object.keys(labels).filter(key=>Object.hasOwn(record.manualOverrides,key)&&!((!Number.isFinite(record[key])&&!Number.isFinite(base[key]))||record[key]===base[key])).map(key=>`${labels[key]}: ${key==='score'?QualityCore.withTechnical(record[key],true):Number.isFinite(record[key])?record[key].toFixed(2)+'%':'sin dato'}`);
+                return details.length?`<div class="origin-adjustments"><b>Métricas de origen ajustadas:</b> ${details.join(' · ')}</div>`:'';
             }
 
             function collectSantaluciaReportRows(summary) {
@@ -7761,7 +7811,7 @@
 
             function buildMassiveComparisonTablesHtml(assets, bench) {
                 if (ReportControls.manager.range !== 'ALL') {
-                    const rows=assets.map(asset=>{const aligned=ReportControls.periodRows(alignedSeriesRows(asset.data,bench.data,'ALL'));const ret=periodReturnFromRows(aligned,null);return `<tr><td>${escapeHtml(asset.label)}</td><td>${escapeHtml(ReportControls.manager.range)}</td>${ret?`<td>${fmtPct(ret.asset)}</td><td>${fmtPct(ret.bench)}</td><td>${fmtPct(ret.asset-ret.bench)}</td>`:'<td colspan="3">Sin datos suficientes</td>'}</tr>`;}).join('');
+                    const rows=assets.map(asset=>{const aligned=ReportControls.periodRows(alignedSeriesRows(asset.data,bench.data,'ALL'));const ret=periodReturnFromRows(aligned,null);const alpha=ret?ret.asset-ret.bench:NaN;return `<tr><td>${escapeHtml(asset.label)}</td><td>${escapeHtml(ReportControls.manager.range)}</td>${ret?`<td>${fmtPct(ret.asset)}</td><td>${fmtPct(ret.bench)}</td><td class="num ${alpha>=0?'good':'bad'}">${fmtPct(alpha)}</td>`:'<td colspan="3">Sin datos suficientes</td>'}</tr>`;}).join('');
                     return `<div class="table-block"><h3>Rentabilidad del periodo seleccionado</h3><table><thead><tr><th>Fondo</th><th>Periodo</th><th>Fondo</th><th>Benchmark</th><th>Alfa</th></tr></thead><tbody>${rows}</tbody></table><p>Rentabilidad acumulada sobre fechas comunes. Se conserva el ultimo precio anterior al inicio como base cuando existe.</p></div>`;
                 }
                 const horizons = [

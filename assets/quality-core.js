@@ -3,6 +3,7 @@
     function rating(value){return Number.isFinite(value)&&value>=0&&value<=4?Math.floor(value)+1:null;}
     function label(value){const n=rating(value);return n?'★'.repeat(n)+'☆'.repeat(5-n):'Sin clasificación';}
     function html(value){return `<span class="quality-rating" title="Score técnico: ${Number.isFinite(value)?value:'sin dato'}" aria-label="Calidad ${rating(value)||'sin clasificación'}${rating(value)?' de 5':''}">${label(value)}</span>`;}
+    function withTechnical(value,compact=false){return `${html(value)}${Number.isFinite(value)?`<br><small class="quality-technical" title="Score técnico ${value.toFixed(2)}">${compact?'Téc.':'Score técnico'} ${value.toFixed(2)}</small>`:''}`;}
     function decorateReport(doc){
         const convert=cell=>{const text=cell?.textContent.trim();if(cell&&/^-?\d+(?:[.,]\d+)?$/.test(text))cell.textContent=label(Number(text.replace(',','.')));};
         for(const table of doc.querySelectorAll('table')){
@@ -17,5 +18,5 @@
         for(const node of texts){if(node.parentElement?.closest('script,style'))continue;if(/\bscore\b|scoring/i.test(node.textContent))node.textContent=node.textContent.replace(/scoring/gi,'Calidad').replace(/\bscore\b(?! técnico)/gi,'Calidad');}
         const foot=doc.createElement('p');foot.className='quality-methodology';foot.textContent=methodology;(doc.querySelector('footer')||doc.body).append(foot);
     }
-    return {rating,label,html,methodology,decorateReport};
+    return {rating,label,html,withTechnical,methodology,decorateReport};
 });
