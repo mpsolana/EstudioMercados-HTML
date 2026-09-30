@@ -24,6 +24,9 @@
     <script src="assets/proposal-portfolio.js"></script>
     <script src="assets/peer-value.js"></script>
     <script src="assets/aggregate-peer-table.js"></script>
+    <script defer src="assets/multi-asset-compare.js"></script>
+    <script defer src="assets/model-portfolio-core.js"></script>
+    <script defer src="assets/gdc-model.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
     <script defer src="assets/report-controls.js"></script>
     <script defer src="assets/screener-ui.js"></script>
@@ -2242,8 +2245,8 @@
             }
 
             function findSheet(workbook, names) {
-                const lower = workbook.SheetNames.map(name => ({ name, key: name.toLowerCase() }));
-                const found = lower.find(s => names.some(n => s.key.includes(String(n).toLowerCase())));
+                const lower = workbook.SheetNames.map(name => ({ name, key: name.trim().toLowerCase() }));
+                const found = lower.find(s => names.some(n => s.key === String(n).toLowerCase())) || lower.find(s => names.some(n => s.key.includes(String(n).toLowerCase())));
                 return found?.name || null;
             }
 
@@ -3977,6 +3980,7 @@
                 document.getElementById('fundScoringStatus').innerText = 'Universo listo';
                 try { renderFundUniverseScreener(); } catch (e) { console.warn('fund screener render failed', e); }
                 try { populateFundUniverseCompareControls(); renderFundUniverseMetricComparison(); } catch (e) { console.warn('fund universe compare render failed', e); }
+                GdcModel.render();
                 if (fundPortfolioRows.length) await runFundScoringAnalysis();
             }
 
@@ -4040,7 +4044,7 @@
                 const q = metricQuartile(record, metricKey);
                 const cls = q ? `financial-q${q}` : 'bg-slate-50 text-slate-800';
                 const text = metricKey==='score'?QualityCore.withTechnical(value):isPercentPoint ? `${value.toFixed(2)}%` : value.toFixed(2);
-                return `<span class="inline-flex justify-end min-w-[72px] rounded px-2 py-1 font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</span>`;
+                return `<span class="inline-flex ${metricKey==='score'?'flex-col items-center justify-center':'justify-end'} min-w-[72px] rounded px-2 py-1 font-bold ${cls}" title="${q ? `Q${q} dentro de categoria` : ''}">${text}</span>`;
             }
 
             async function importFundScoringPortfolioFile(file) {
@@ -4054,6 +4058,7 @@
                     if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
                     const workbook = await readWorkbook(file);
                     rows = parseFundPortfolioRows(sheetRows(workbook, workbook.SheetNames[0]));
+                    if(GdcModel.loadWorkbook(workbook,file.name)&&!rows.length)return;
                 }
                 setFundPortfolioRows(rows, file.name, { manual: true });
             }

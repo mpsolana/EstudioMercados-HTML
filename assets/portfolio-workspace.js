@@ -38,6 +38,20 @@ function invalidatePortfolioReports() {
 }
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
+    const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.tool==='compare';
+    document.querySelector('.workspace-steps').hidden=w.scope==='model';
+    if(w.scope==='model'){
+        document.querySelectorAll('[data-workspace-panel]').forEach(el=>el.hidden=true);
+        const panel=document.getElementById('workspaceModel');panel.hidden=false;panel.classList.remove('hidden');
+        document.getElementById('workspaceTools').hidden=true;
+        document.getElementById('workspaceReportOptions').hidden=true;
+        document.querySelectorAll('[data-workspace-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workspaceScope==='model')));
+        document.getElementById('workspaceContext').textContent='GDC · carteras modelo · revision mensual';
+        document.getElementById('workspaceQuality').hidden=false;
+        document.getElementById('workspaceQuality').textContent=`Universo: ${fundUniverseState?.records?.length||0} fondos · Modelos: ${GdcModel.state.models.length} · Historicos: segun cobertura disponible.`;
+        setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
+        return;
+    }
     const steps = w.scope === 'initial' ? ['data','proposal','metrics','report'] : w.scope === 'screener' ? ['data','diagnosis'] : ['data','diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[1];
     if (w.scope === 'screener') w.tool = 'screener';
@@ -62,6 +76,7 @@ function portfolioWorkflowRefresh() {
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
+    if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.tool==='compare';
     const rows = fundProposalState.rows || [];
     const coverage = FinanceCore.weighted(rows, 'ter', 'current').coverage;
     document.getElementById('workspaceContext').textContent = `${w.scope === 'screener' ? 'Screener · universo de fondos' : w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : w.scope === 'initial' ? 'Analisis inicial · cartera de origen del cliente' : 'Cartera individual · comportamiento historico'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
@@ -70,6 +85,7 @@ function portfolioWorkflowRefresh() {
     const unadjusted = (loadedPortfolio?.entries || []).filter(e => MarketData.metadata.get(e.ticker)?.priceType === 'close');
     if (unadjusted.length) document.getElementById('workspaceQuality').textContent += `\n${unadjusted.length} activos con cierre sin ajuste: no equivalen necesariamente a retorno total.`;
     if (w.scope === 'screener') document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length}.`;
+    document.getElementById('workspaceQuality').hidden=w.scope==='individual'&&w.step==='diagnosis'&&w.tool==='compare';
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     if(w.scope==='initial'&&w.step==='proposal')ProposalCharts.schedule('initial');
     if(w.scope==='aggregate'&&w.step==='diagnosis'&&w.tool==='aggregate')ProposalCharts.schedule('aggregate');
@@ -104,6 +120,7 @@ function initializePortfolioWorkspace() {
     root.prepend(shell);
     shell.querySelector('.workspace-scope').insertAdjacentHTML('afterbegin','<button data-workspace-scope="initial">Analisis Inicial</button>');
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="screener">Screener</button>');
+    shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="model">GDC · Cartera modelo</button>');
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="proposal"]').textContent = '02 Analisis inicial';
     shell.querySelector('[data-workspace-step="report"]').textContent = '03 Informe';
@@ -142,13 +159,17 @@ function initializePortfolioWorkspace() {
     const unit = document.createElement('label'); unit.className = 'workspace-context'; unit.innerHTML = 'Unidad de pesos de scoring y propuesta <select id="fundWeightUnit"><option value="percent">Porcentaje (0-100)</option><option value="fraction">Fraccion (0-1)</option><option value="amount">Importes (se normalizan)</option></select>'; data.prepend(unit);
     unit.dataset.workspaceOnly = 'individual initial aggregate';
     const oldNav = document.getElementById('portfolioSubtab-main').parentElement; oldNav.hidden = true;
-    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', aggregate:'Posiciones', massive:'Comparador masivo' };
+    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', compare:'Comparar activos', aggregate:'Posiciones', massive:'Comparador masivo' };
     document.getElementById('workspaceTools').innerHTML = Object.entries(tools).map(([key,label]) => `<button data-workspace-tool="${key}">${label}</button>`).join('');
     for (const id of ['portfolioReportPreview','managerReportPreview']) {
         const target = document.getElementById(id); document.getElementById(id === 'portfolioReportPreview' ? 'workspaceIndividualReports' : 'workspaceManagerReports').append(target.parentElement);
     }
     const aggregate = document.getElementById('aggregatePositionsStatus').closest('.grid').parentElement;
     aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
+    const comparePanel=document.createElement('section');comparePanel.id='portfolioSubtabContent-compare';comparePanel.className='portfolio-subtab-content workspace-panel hidden';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
+    MultiAssetCompare.init();
+    const modelPanel=document.createElement('section');modelPanel.id='workspaceModel';modelPanel.className='workspace-panel';modelPanel.dataset.workspacePanel='';root.append(modelPanel);
+    GdcModel.init();
     document.getElementById('aggregatePositionsTableBody').closest('.mb-5').insertAdjacentHTML('beforebegin','<div class="workspace-tools"><button type="button" onclick="useAggregateChangesInIndividualScoring()"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Llevar cartera tras cambios a análisis individual</button></div>');
     root.querySelectorAll('.portfolio-subtab-content').forEach(el => { el.dataset.workspacePanel = ''; el.classList.add('workspace-panel'); });
     const compositionMode = document.createElement('label'); compositionMode.className = 'workspace-context';
@@ -182,7 +203,7 @@ function initializePortfolioWorkspace() {
     const originalScoring=window.runFundScoringAnalysis;
     window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
-        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(name==='importPortfolioExcel'&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.settled();await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');portfolioWorkflowRefresh();return result;}); } catch(error) { alert(error.message); } };
+        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(name==='importPortfolioExcel'&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.settled();await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');if(name==='importPortfolioExcel')GdcModel.render();portfolioWorkflowRefresh();return result;}); } catch(error) { alert(error.message); } };
     }
     for (const name of ['setFundProposalRecommendation','setFundPortfolioRows','clearFundScoringState','setAggregateManualCategory','setAggregateManualBucket','setAggregateManualScore','applyAggregateRecord','resetAggregateRecord']) {
         const original = window[name]; window[name] = (...args) => { invalidatePortfolioReports(); const result = original(...args); portfolioWorkflowRefresh(); return result; };
