@@ -109,10 +109,28 @@ const GdcModel=(()=>{
         XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(output),'Seleccion');
         XLSX.writeFile(book,`GDC_${selected.name.replace(/[^a-z0-9_-]/gi,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
+    async function peerReportSection(row){
+        const fund=row.selected,peer=peers(fund),current=row.current;
+        const cohort=records().filter(item=>item.isin!==fund?.isin&&core.key(item.category)===core.key(fund?.category)&&Number.isFinite(item.ter)&&Number.isFinite(item.score));
+        let image='';
+        if(fund&&Number.isFinite(fund.ter)&&Number.isFinite(fund.score)&&window.Plotly){
+            const traces=[];
+            if(cohort.length)traces.push({x:cohort.map(item=>item.ter),y:cohort.map(item=>item.score),mode:'markers',name:'Peers',marker:{color:'#a9b4be',size:6,opacity:.42},meta:{financialRole:'proposal'},hoverinfo:'skip'});
+            if(Number.isFinite(peer?.meanTer)&&Number.isFinite(peer?.meanScore))traces.push({x:[peer.meanTer],y:[peer.meanScore],mode:'markers',name:'Media peers',marker:{color:'#6b7785',size:15,symbol:'diamond'}});
+            if(Number.isFinite(current?.ter)&&Number.isFinite(current?.score))traces.push({x:[current.ter],y:[current.score],mode:'markers',name:'Actual',marker:{color:'#6b7785',size:15,symbol:'circle'},meta:{financialRole:'proposal'}});
+            traces.push({x:[fund.ter],y:[fund.score],mode:'markers',name:'Propuesta',marker:{color:'#164e78',size:17,symbol:'circle'},meta:{financialRole:'origin'}});
+            const chart=document.createElement('div');chart.style.cssText='position:fixed;left:-12000px;width:900px;height:275px';document.body.append(chart);
+            try{await FinancialVisuals.newPlot(chart,traces,{title:`${row.generic} · calidad frente a TER`,xaxis:{title:'TER (%)',automargin:true},yaxis:{title:'Puntuación técnica (0-4)',range:[0,4.1]},margin:{t:40,l:65,r:25,b:62},legend:{orientation:'h',y:-.3}},{staticPlot:true});image=await Plotly.toImage(chart,{format:'png',width:900,height:275}).catch(()=> '');}
+            finally{Plotly.purge(chart);chart.remove();}
+        }
+        const cells=(label,item)=>`<tr><td>${label}</td><td>${item?esc(item.name||'Media de categoría'):'-'}</td><td>${Number.isFinite(item?.score)?fmt(item.score):'-'}</td><td>${Number.isFinite(item?.ter)?`${fmt(item.ter)}%`:'-'}</td><td>${Number.isFinite(item?.ret5)?`${fmt(item.ret5)}%`:'-'}</td><td>${Number.isFinite(item?.risk5)?`${fmt(item.risk5)}%`:'-'}</td></tr>`;
+        const mean={name:`${fund?.category||row.generic} · ${peer?.count||0} peers`,score:peer?.meanScore,ter:peer?.meanTer};
+        return `<section class="block report-keep-together"><h3>${esc(row.generic)} · ${esc(fund?.name||'Sin propuesta')}</h3><p>${esc(fund?.isin||'-')} · peso ${fmt(row.weight)}% · ${esc(fund?.category||row.subcategories.join('; '))}</p>${image?`<figure><img src="${image}" alt="Calidad y TER de ${esc(row.generic)} frente a peers"></figure>`:'<p>Sin métricas suficientes para representar la comparación.</p>'}<table class="wide-report-table"><thead><tr><th>Referencia</th><th>Fondo</th><th>Score técnico</th><th>TER</th><th>Ret 5A</th><th>Riesgo 5A</th></tr></thead><tbody>${cells('Actual',current)}${cells('Propuesta',fund)}${cells('Media peers',mean)}</tbody></table></section>`;
+    }
     async function report(){
         const selected=model();if(!selected)return;
         const rows=effectiveRows(),te=teResult(),score=coverage(rows,'score'),ter=coverage(rows,'ter');
-        const chart=panel.querySelector('#gdcPeerChart'),chartImage=chart?.querySelector('.main-svg')&&window.Plotly?await Plotly.toImage(chart,{format:'png',width:1200,height:450}).catch(()=>null):null;
+        const peerSections=[];for(const row of rows)peerSections.push(await peerReportSection(row));
         const comparable=rows.filter(r=>Number.isFinite(r.current?.ter)&&Number.isFinite(r.selected?.ter));
         const saving=comparable.length?comparable.reduce((sum,row)=>sum+row.weight/100*(row.current.ter-row.selected.ter),0):NaN;
         const date=new Date().toLocaleDateString('es-ES');
@@ -128,11 +146,6 @@ const GdcModel=(()=>{
             <td>${Number.isFinite(row.selected?.ter)?`${fmt(row.selected.ter)}%`:'-'}</td>
             <td>${esc(row.benchmark||'-')}</td>
         </tr>`).join('');
-        const peerRows=rows.map(row=>{const peer=peers(row.selected);return `<tr>
-            <td>${esc(row.generic)}</td><td>${QualityCore.withTechnical(row.selected?.score,true)}</td>
-            <td>${fmt(peer?.meanScore)}</td><td>${fmt(row.selected?.ter)}%</td>
-            <td>${fmt(peer?.meanTer)}%</td><td>${peer?`${peer.count}/${peer.total}`:'-'}</td>
-        </tr>`;}).join('');
         const metricRows=rows.map(row=>`<tr>
             <td>${esc(row.generic)}</td>
             <td>${QualityCore.withTechnical(row.current?.score,true)}</td><td>${metricPct(row.current?.ter)}</td>
@@ -156,17 +169,11 @@ const GdcModel=(()=>{
                 <thead><tr><th>Categoria</th><th>Calidad actual</th><th>TER actual</th><th>Ret 5A actual</th><th>Riesgo 5A actual</th><th>Calidad propuesta</th><th>TER propuesto</th><th>Ret 5A propuesto</th><th>Riesgo 5A propuesto</th></tr></thead>
                 <tbody>${metricRows}</tbody>
             </table></section>
-            <section class="block"><h2>Calidad y costes relativos a peers</h2><table class="wide-report-table">
-                <thead><tr><th>Categoria</th><th>Calidad</th><th>Calidad media peers</th><th>TER</th><th>TER medio peers</th><th>Peers</th></tr></thead>
-                <tbody>${peerRows}</tbody>
-            </table>${chartImage?`<figure><img src="${chartImage}" alt="Calidad y TER de fondos seleccionados y peers"></figure>`:''}</section>
+            <section class="block"><h2>Calidad y costes relativos a peers</h2><p>Cada categoria se compara con su propio grupo de fondos Morningstar; los promedios excluyen el ISIN propuesto.</p></section>${peerSections.join('')}
             <footer><p>Tracking error: desviacion estandar muestral de las diferencias mensuales entre la cartera propuesta y el indice compuesto por categorias, anualizada con raiz de 12. Requiere al menos cuatro cierres mensuales comunes de todos los fondos e indices. Rebalanceo mensual a pesos objetivo; no incluye costes, impuestos ni cambio de divisa.</p>
-            <p>${esc(state.source)} · Datos de ranking y series importadas/Yahoo. Score tecnico 0-4 y estrellas de calidad son indicadores internos; no garantizan resultados futuros.</p></footer>
+            <p>${esc(state.source)} · Datos de ranking y series importadas/Yahoo. Score tecnico 0-4 y estrellas son indicadores internos; la calidad ponderada entre categorias es orientativa. Cada fondo se evalua frente a sus peers Morningstar. No garantizan resultados futuros.</p></footer>
         </div>`;
         const reportDoc=new DOMParser().parseFromString(body,'text/html');
-        const relativeSection=[...reportDoc.querySelectorAll('section')].find(section=>section.querySelector('h2')?.textContent==='Calidad y costes relativos a peers');
-        relativeSection?.setAttribute('data-pdfmake',JSON.stringify({pageBreak:'before'}));
-        const note=reportDoc.createElement('p');note.textContent='La calidad ponderada resume scores de categorias distintas y es solo orientativa. Evalua cada fondo frente a los peers de su categoria Morningstar.';reportDoc.querySelector('footer').append(note);
         state.reportHtml=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"></head><body>${reportDoc.body.innerHTML}</body></html>`;
         ReportDesign.preview(panel.querySelector('#gdcReportPreview'),state.reportHtml);
     }

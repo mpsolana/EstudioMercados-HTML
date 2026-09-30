@@ -25,7 +25,10 @@
         for(const record of records||[]){if(!record?.isin||!allowed.has(key(record.category))||!Number.isFinite(record.score))continue;
             const previous=best.get(record.isin);if(!previous||record.score>previous.score)best.set(record.isin,record);
         }
-        return [...best.values()].sort((a,b)=>b.score-a.score||(Number.isFinite(a.ter)?a.ter:Infinity)-(Number.isFinite(b.ter)?b.ter:Infinity)||a.isin.localeCompare(b.isin)).slice(0,limit);
+        const sorted=[...best.values()].sort((a,b)=>b.score-a.score||(Number.isFinite(a.ter)?a.ter:Infinity)-(Number.isFinite(b.ter)?b.ter:Infinity)||a.isin.localeCompare(b.isin));
+        const managers=new Set(),distinct=[];
+        for(const record of sorted){const manager=key(record.manager)||`isin:${record.isin}`;if(managers.has(manager))continue;managers.add(manager);distinct.push(record);if(distinct.length>=limit)break;}
+        return distinct;
     }
     function benchmarkIndex(metadata){
         const map=new Map();for(const [ticker,meta] of Object.entries(metadata||{})){

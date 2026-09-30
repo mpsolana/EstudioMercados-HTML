@@ -39,16 +39,16 @@ function invalidatePortfolioReports() {
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
     const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual';
-    document.querySelector('.workspace-steps').hidden=w.scope==='model';
-    if(w.scope==='model'){
+    document.querySelector('.workspace-steps').hidden=['model','comparison'].includes(w.scope);
+    if(['model','comparison'].includes(w.scope)){
         document.querySelectorAll('[data-workspace-panel]').forEach(el=>el.hidden=true);
-        const panel=document.getElementById('workspaceModel');panel.hidden=false;panel.classList.remove('hidden');
+        const panel=document.getElementById(w.scope==='model'?'workspaceModel':'workspacePortfolioCompare');panel.hidden=false;panel.classList.remove('hidden');
         document.getElementById('workspaceTools').hidden=true;
         document.getElementById('workspaceReportOptions').hidden=true;
-        document.querySelectorAll('[data-workspace-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workspaceScope==='model')));
-        document.getElementById('workspaceContext').textContent='GDC · carteras modelo · revision mensual';
+        document.querySelectorAll('[data-workspace-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workspaceScope===w.scope)));
+        document.getElementById('workspaceContext').textContent=w.scope==='model'?'GDC · carteras modelo · revision mensual':'Comparativa de carteras · históricos comunes';
         document.getElementById('workspaceQuality').hidden=false;
-        document.getElementById('workspaceQuality').textContent=`Universo: ${fundUniverseState?.records?.length||0} fondos · Modelos: ${GdcModel.state.models.length} · Historicos: segun cobertura disponible.`;
+        document.getElementById('workspaceQuality').textContent=w.scope==='model'?`Universo: ${fundUniverseState?.records?.length||0} fondos · Modelos: ${GdcModel.state.models.length} · Historicos: segun cobertura disponible.`:'Las series se comparan en fechas comunes y con los mismos supuestos de rebalanceo y costes.';
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         return;
     }
@@ -121,6 +121,7 @@ function initializePortfolioWorkspace() {
     shell.querySelector('.workspace-scope').insertAdjacentHTML('afterbegin','<button data-workspace-scope="initial">Analisis Inicial</button>');
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="screener">Screener</button>');
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="model">GDC · Cartera modelo</button>');
+    shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="comparison">Comparativa de carteras</button>');
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="proposal"]').textContent = '02 Analisis inicial';
     shell.querySelector('[data-workspace-step="report"]').textContent = '03 Informe';
@@ -168,6 +169,8 @@ function initializePortfolioWorkspace() {
     aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
     const modelPanel=document.createElement('section');modelPanel.id='workspaceModel';modelPanel.className='workspace-panel';modelPanel.dataset.workspacePanel='';root.append(modelPanel);
     GdcModel.init();
+    const comparePanel=document.createElement('section');comparePanel.id='workspacePortfolioCompare';comparePanel.className='workspace-panel';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
+    PortfolioCompare.init();
     document.getElementById('aggregatePositionsTableBody').closest('.mb-5').insertAdjacentHTML('beforebegin','<div class="workspace-tools"><button type="button" onclick="useAggregateChangesInIndividualScoring()"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Llevar cartera tras cambios a análisis individual</button></div>');
     root.querySelectorAll('.portfolio-subtab-content').forEach(el => { el.dataset.workspacePanel = ''; el.classList.add('workspace-panel'); });
     const compositionMode = document.createElement('label'); compositionMode.className = 'workspace-context';
@@ -197,7 +200,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
-    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input,#workspacePortfolioCompare,#workspaceModel')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     const originalScoring=window.runFundScoringAnalysis;
     window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {

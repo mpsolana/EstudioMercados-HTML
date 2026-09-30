@@ -25,6 +25,8 @@
     <script src="assets/peer-value.js"></script>
     <script src="assets/aggregate-peer-table.js"></script>
     <script defer src="assets/multi-asset-compare.js"></script>
+    <script defer src="assets/portfolio-compare-core.js"></script>
+    <script defer src="assets/portfolio-compare.js"></script>
     <script defer src="assets/model-portfolio-core.js"></script>
     <script defer src="assets/gdc-model.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
@@ -10526,34 +10528,7 @@
                 const sortedStats = stats.sort((a, b) => order.indexOf(a.horizon) - order.indexOf(b.horizon));
                 tbody.innerHTML = sortedStats.map(r => `<tr class="border-b hover:bg-gray-50"><td class="px-4 py-3 font-medium">${r.horizon}</td><td class="px-4 py-3 text-center text-gray-500">${r.events}</td><td class="px-4 py-3 text-right font-bold">${fmtPct(r.mean)}</td><td class="px-4 py-3 text-right">${fmtPct(r.median)}</td><td class="px-4 py-3 text-right text-red-500">${fmtPct(r.min)}</td><td class="px-4 py-3 text-right text-green-600">${fmtPct(r.max)}</td><td class="px-4 py-3 text-right">${r.positives}</td><td class="px-4 py-3 text-right font-bold text-purple-600">${fmtPct(r.winRate)}</td></tr>`).join('');
 
-                // VIX Bar Chart with Min/Max Error Bars (Updated to support individual legend items)
-                // Colors: Blue gradient
-                const colors = ['#bfdbfe', '#60a5fa', '#3b82f6', '#1d4ed8', '#1e3a8a'];
-                const traces = sortedStats.map((s, i) => ({
-                    x: [s.horizon],
-                    y: [s.mean],
-                    type: 'bar',
-                    name: `${s.horizon} - Prom: ${fmtPct(s.mean)}, Pos: ${fmtPct(s.winRate)}`, // Legend Text
-                    marker: { color: colors[i % colors.length], line: { color: 'black', width: 1 } },
-                    error_y: {
-                        type: 'data',
-                        symmetric: false,
-                        array: [s.max - s.mean],
-                        arrayminus: [s.mean - s.min],
-                        visible: true,
-                        color: '#0f172a',
-                        thickness: 1.5,
-                        width: 5
-                    },
-                    hoverinfo: 'y+name'
-                }));
-
-                FinancialVisuals.newPlot('vixBarChart', traces, {
-                    yaxis: { tickformat: '.1%', title: 'Rentabilidad' },
-                    margin: { t: 40, l: 50, r: 20, b: 40 },
-                    showlegend: true,
-                    legend: { x: 0, y: 1.1, orientation: 'h', font: { size: 10 } } // Horizontal legend top
-                }, { responsive: true });
+                renderProfessionalRangeChart('vixBarChart', sortedStats, 'horizon', 'mean', 'min', 'max', 'Rentabilidad tras episodios de VIX');
 
                 // VIX Histogram (Removed Normal Curve)
                 const histData = hist12M.map(r => r * 100);
@@ -10624,34 +10599,7 @@
                 const sortedStats = [...stats].sort((a, b) => orderIndex(a.horizon) - orderIndex(b.horizon));
                 tbody.innerHTML = sortedStats.map(r => `<tr class="border-b hover:bg-gray-50"><td class="px-4 py-3 font-medium">${r.horizon}</td><td class="px-4 py-3 text-center text-gray-500">${r.events}</td><td class="px-4 py-3 text-right font-bold">${fmtPct(r.mean)}</td><td class="px-4 py-3 text-right">${fmtPct(r.median)}</td><td class="px-4 py-3 text-right text-red-500">${fmtPct(r.min)}</td><td class="px-4 py-3 text-right text-green-600">${fmtPct(r.max)}</td><td class="px-4 py-3 text-right">${r.positives}</td><td class="px-4 py-3 text-right font-bold text-blue-600">${fmtPct(r.winRate)}</td></tr>`).join('');
 
-                // Oil Bar Chart (Updated Style)
-                const colors = ['#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827']; // Grays
-                const traces = sortedStats.map((s, i) => ({
-                    x: [s.horizon],
-                    y: [s.mean],
-                    type: 'bar',
-                    name: `${s.horizon} - Prom: ${fmtPct(s.mean)}, Pos: ${fmtPct(s.winRate)}`, // Legend Text
-                    marker: { color: colors[i % colors.length], line: { color: 'black', width: 1 } },
-                    error_y: {
-                        type: 'data',
-                        symmetric: false,
-                        array: [s.max - s.mean],
-                        arrayminus: [s.mean - s.min],
-                        visible: true,
-                        color: 'black',
-                        thickness: 1.5,
-                        width: 5
-                    },
-                    hoverinfo: 'y+name'
-                }));
-
-                FinancialVisuals.newPlot('oilBarChart', traces, {
-
-                    yaxis: { tickformat: '.1%', title: 'Rentabilidad' },
-                    margin: { t: 40, l: 50, r: 20, b: 40 },
-                    showlegend: true,
-                    legend: { x: 0, y: 1.1, orientation: 'h', font: { size: 10 } }
-                }, { responsive: true });
+                renderProfessionalRangeChart('oilBarChart', sortedStats, 'horizon', 'mean', 'min', 'max', 'Rentabilidad tras movimientos del petróleo');
 
                 // Oil Histogram (No curve)
                 const histData = hist6M.map(r => r * 100);
@@ -10916,6 +10864,23 @@
                 }
                 results.rawEvents = rawEvents; return results;
             }
+            function renderProfessionalRangeChart(id, rows, labelKey, meanKey, minKey, maxKey, title) {
+                const valid = rows.filter(row => Number.isFinite(row[meanKey]) && Number.isFinite(row[minKey]) && Number.isFinite(row[maxKey]));
+                FinancialVisuals.newPlot(id, [{
+                    x: valid.map(row => row[labelKey]), y: valid.map(row => row[meanKey]),
+                    type: 'scatter', mode: 'lines+markers', name: 'Media',
+                    line: { color: '#164e78', width: 2.5 }, marker: { color: '#164e78', size: 9 },
+                    error_y: { type: 'data', symmetric: false,
+                        array: valid.map(row => Math.max(0, row[maxKey] - row[meanKey])),
+                        arrayminus: valid.map(row => Math.max(0, row[meanKey] - row[minKey])),
+                        color: '#8997a4', thickness: 1.5, width: 8, visible: true },
+                    customdata: valid.map(row => [row[minKey], row[maxKey]]),
+                    hovertemplate: '%{x}<br>Media: %{y:.2%}<br>Mín: %{customdata[0]:.2%}<br>Máx: %{customdata[1]:.2%}<extra></extra>'
+                }], { title: { text: title, font: { size: 14, color: '#263746' } },
+                    yaxis: { tickformat: '.0%', title: 'Rentabilidad', zeroline: true, zerolinecolor: '#c5cdd5' },
+                    margin: { t: 45, l: 60, r: 22, b: 65 }, showlegend: false,
+                    plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
+            }
             function renderDipAnalysisCharts(data, rawEvents, threshold) {
                 const tbody = document.getElementById('dipStatsTableBody');
                 const order = ['1 mes', '6 meses', '12 meses', '36 meses', '60 meses'];
@@ -10926,34 +10891,7 @@
 
                 FinancialVisuals.newPlot('dipFanChart', [{ x: horizonsX, y: p5, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, showlegend: false }, { x: horizonsX, y: p95, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, name: '95-5 Range', fillcolor: 'rgba(135, 206, 250, 0.2)' }, { x: horizonsX, y: p25, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, showlegend: false }, { x: horizonsX, y: p75, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, name: '75-25 Range', fillcolor: 'rgba(70, 130, 180, 0.3)' }, { x: horizonsX, y: p50, type: 'scatter', mode: 'lines+markers', line: { color: 'darkblue', width: 2 }, name: 'Mediana' }], { title: `Fan Chart: Proyección Rentabilidad tras Caída > ${threshold}`, xaxis: { title: 'Meses tras evento', tickvals: [1, 6, 12, 36, 60], ticktext: ['1M', '6M', '12M', '36M', '60M'] }, yaxis: { tickformat: '.0%', title: 'Rentabilidad Acumulada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
 
-                // Dip Bar Chart (Refactored for Legend and Colors)
-                const colors = ['#bfdbfe', '#60a5fa', '#3b82f6', '#1d4ed8', '#1e3a8a']; // Blue Gradient
-                const traces = sortedData.map((d, i) => ({
-                    x: [d.Horizonte],
-                    y: [d.Media],
-                    type: 'bar',
-                    name: `${d.Horizonte} - Prom: ${fmtPct(d.Media)}, Pos: ${fmtPct(d.WinRate)}`, // Legend text
-                    marker: { color: colors[i % colors.length], line: { color: 'black', width: 1 } },
-                    error_y: {
-                        type: 'data',
-                        symmetric: false,
-                        array: [d.Max - d.Media],
-                        arrayminus: [d.Media - d.Min],
-                        visible: true,
-                        color: '#0f172a',
-                        thickness: 1.5,
-                        width: 5
-                    },
-                    hoverinfo: 'y+name'
-                }));
-
-                FinancialVisuals.newPlot('dipBarChart', traces, {
-                    title: `Retorno Medio tras caídas > ${threshold}`,
-                    yaxis: { tickformat: '.0%' },
-                    margin: { t: 40, l: 50, r: 20, b: 40 },
-                    showlegend: true,
-                    legend: { x: 0, y: 1.1, orientation: 'h', font: { size: 10 } } // Top horizontal legend
-                }, { responsive: true });
+                renderProfessionalRangeChart('dipBarChart', sortedData, 'Horizonte', 'Media', 'Min', 'Max', `Retorno medio tras caídas > ${threshold}`);
 
                 // Dip Histogram (Removed Curve)
                 const histData = (rawEvents.forwardRets['12 meses'] || []).map(r => r * 100);
@@ -11148,25 +11086,26 @@
                 const keys = ['3M', '6M', '12M', '24M', '3Y', '5Y'];
                 const labels = ['3 Meses', '6 Meses', '1 Año', '2 Años', '3 Años', '5 Años'];
 
-                const anyDayRet = keys.map(k => (results[k]?.meanAll * 100) || 0);
-                const athDayRet = keys.map(k => (results[k]?.meanRec * 100) || 0);
+                const anyDayRet = keys.map(k => Number.isFinite(results[k]?.meanAll) ? results[k].meanAll * 100 : null);
+                const athDayRet = keys.map(k => Number.isFinite(results[k]?.meanRec) ? results[k].meanRec * 100 : null);
 
                 FinancialVisuals.newPlot('athForwardChart', [
                     {
                         x: labels, y: anyDayRet, type: 'bar',
-                        name: 'Cualquier Día', marker: { color: '#4b5563' }, // gray-600
-                        text: anyDayRet.map(v => v ? v.toFixed(0) + '%' : ''), textposition: 'auto'
+                        name: 'Cualquier día', marker: { color: '#7e8b98' },
+                        text: anyDayRet.map(v => v === null ? '' : v.toFixed(1) + '%'), textposition: 'outside'
                     },
                     {
                         x: labels, y: athDayRet, type: 'bar',
-                        name: 'Día de Máximo', marker: { color: '#84cc16' }, // lime-500
-                        text: athDayRet.map(v => v ? v.toFixed(0) + '%' : ''), textposition: 'auto'
+                        name: 'Día de máximo', marker: { color: '#164e78' },
+                        text: athDayRet.map(v => v === null ? '' : v.toFixed(1) + '%'), textposition: 'outside'
                     }
                 ], {
                     barmode: 'group',
                     yaxis: { tickformat: '.0f', ticksuffix: '%' },
-                    margin: { t: 20, l: 50, r: 20, b: 40 },
-                    legend: { orientation: 'h', y: 1.1, x: 0 }
+                    margin: { t: 40, l: 54, r: 20, b: 55 },
+                    legend: { orientation: 'h', y: 1.12, x: 0 },
+                    plot_bgcolor: '#fff', paper_bgcolor: '#fff'
                 }, { responsive: true });
             }
 
@@ -11650,33 +11589,10 @@
                 document.getElementById('rollingForwardMatrixBody').innerHTML = bodyHtml;
             }
 
-            // --- MODIFIED RENDER BAR CHART (Split into 2) ---
             function renderBarChart(s) {
-                // 1. Annualized Chart (Exclude periods < 1 year)
                 const annualizedData = s.filter(i => (i.periods || 0) >= (i.periodsPerYear || periodsPerYear(currentDataFrequency)));
-
-                FinancialVisuals.newPlot('rollingAnnualizedChart', [
-                    { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.minAnn), type: 'bar', name: 'Mínimo Anualizado', marker: { color: '#2d7a78' }, text: annualizedData.map(i => fmtPct(i.minAnn)), textposition: 'auto' },
-                    { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.meanAnn), type: 'bar', name: 'Promedio Anualizado', marker: { color: '#3b4974' }, text: annualizedData.map(i => fmtPct(i.meanAnn)), textposition: 'auto' },
-                    { x: annualizedData.map(i => i.horizon), y: annualizedData.map(i => i.maxAnn), type: 'bar', name: 'Máximo Anualizado', marker: { color: '#6bbf70' }, text: annualizedData.map(i => fmtPct(i.maxAnn)), textposition: 'auto' }
-                ], {
-                    barmode: 'group',
-                    yaxis:{tickformat:'.1%',title:'Rentabilidad anualizada'},
-                    margin: { t: 40, l: 40, r: 20, b: 40 },
-                    legend: { orientation: "h", y: 1.1 }
-                }, { responsive: true });
-
-                // 2. Total Chart (All periods)
-                FinancialVisuals.newPlot('rollingTotalChart', [
-                    { x: s.map(i => i.horizon), y: s.map(i => i.minTot), type: 'bar', name: 'Mínimo Total', marker: { color: '#2d7a78' }, text: s.map(i => fmtPct(i.minTot)), textposition: 'auto' },
-                    { x: s.map(i => i.horizon), y: s.map(i => i.meanTot), type: 'bar', name: 'Promedio Total', marker: { color: '#3b4974' }, text: s.map(i => fmtPct(i.meanTot)), textposition: 'auto' },
-                    { x: s.map(i => i.horizon), y: s.map(i => i.maxTot), type: 'bar', name: 'Máximo Total', marker: { color: '#6bbf70' }, text: s.map(i => fmtPct(i.maxTot)), textposition: 'auto' }
-                ], {
-                    barmode: 'group',
-                    yaxis:{tickformat:'.1%',title:'Rentabilidad acumulada'},
-                    margin: { t: 40, l: 40, r: 20, b: 40 },
-                    legend: { orientation: "h", y: 1.1 }
-                }, { responsive: true });
+                renderProfessionalRangeChart('rollingAnnualizedChart', annualizedData, 'horizon', 'meanAnn', 'minAnn', 'maxAnn', 'Rentabilidad anualizada por plazo');
+                renderProfessionalRangeChart('rollingTotalChart', s, 'horizon', 'meanTot', 'minTot', 'maxTot', 'Rentabilidad acumulada por plazo');
             }
 
             function renderLineChart(s) {

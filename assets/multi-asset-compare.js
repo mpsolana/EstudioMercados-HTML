@@ -76,6 +76,32 @@
         const benchmarkAsset=benchmark?{...benchmark,base100:rows.map(row=>row.prices[benchmarkIndex]/rows[0].prices[benchmarkIndex]*100),...metrics(rows,benchmarkIndex,frequency,riskFreeAnnual),horizons:horizonReturns(full.rows,benchmarkIndex,full.frequency)}:null;
         return {rows,frequency,assets,benchmark:benchmarkAsset,riskFreeAnnual};
     }
+    function resultsHtml(prefix){
+        return `<div class="multi-asset-charts"><div id="${prefix}BaseChart"></div><div id="${prefix}DrawdownChart"></div><div id="${prefix}ScatterChart"></div></div><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>Divisa</th><th>Retorno periodo</th><th>Retorno anualizado</th><th>Volatilidad anualizada</th><th>Caída máxima</th><th id="${prefix}SharpeHead">Sharpe</th><th>Beta</th><th>Alfa anual</th><th>Observaciones</th></tr></thead><tbody id="${prefix}TableBody"></tbody></table></div><h4 class="multi-asset-section-title">Rentabilidad por plazo</h4><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>YTD</th><th>6 meses</th><th>1 año</th><th>3 años anualizada</th><th>5 años anualizada</th><th>Desde inicio</th></tr></thead><tbody id="${prefix}HorizonBody"></tbody></table></div><p class="workspace-context">La tabla de plazos utiliza todo el histórico común; las demás métricas usan el periodo elegido. YTD, 6 meses, 1 año y desde inicio son acumulados; 3 y 5 años, anualizados. Sin historia completa se muestra «—». Sharpe usa la tasa anual indicada. Alfa de Jensen se anualiza aritméticamente con retornos emparejados frente al benchmark. Divisas distintas o cierres no ajustados pueden distorsionar la comparación.</p>`;
+    }
+    function renderResults(panel,result,prefix='multiAsset'){
+        const el=suffix=>panel.querySelector(`#${prefix}${suffix}`),fmt=value=>Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'-',signed=value=>Number.isFinite(value)?value>0?'good':value<0?'bad':'':'';
+        const safe=value=>typeof escapeHtml==='function'?escapeHtml(String(value??'')):String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+        el('SharpeHead').textContent=`Sharpe (rf ${(result.riskFreeAnnual*100).toFixed(2)}%)`;
+        el('TableBody').innerHTML=result.assets.map(asset=>`<tr><td><span class="multi-asset-key" style="background:${asset.color}"></span>${safe(asset.ticker)}</td><td>${safe(asset.currency||'-')}</td><td class="${signed(asset.total)}">${fmt(asset.total)}</td><td class="${signed(asset.annual)}">${fmt(asset.annual)}</td><td>${fmt(asset.vol)}</td><td class="${signed(asset.drawdown)}">${fmt(asset.drawdown)}</td><td>${Number.isFinite(asset.sharpe)?asset.sharpe.toFixed(2):'-'}</td><td>${Number.isFinite(asset.beta)?asset.beta.toFixed(2):'-'}</td><td class="${signed(asset.alpha)}">${fmt(asset.alpha)}</td><td>${result.rows.length}</td></tr>`).join('');
+        const horizonRow=(asset,isBenchmark=false)=>`<tr><td><span class="multi-asset-key" style="background:${isBenchmark?'#263746':asset.color}"></span>${safe(asset.ticker)}${isBenchmark?' (benchmark)':''}</td>${['ytd','sixMonths','oneYear','threeYears','fiveYears','sinceStart'].map(key=>`<td class="${signed(asset.horizons[key])}">${fmt(asset.horizons[key])}</td>`).join('')}</tr>`;
+        el('HorizonBody').innerHTML=result.assets.map(asset=>horizonRow(asset)).join('')+(result.benchmark&&!result.assets.some(asset=>asset.ticker===result.benchmark.ticker)?horizonRow(result.benchmark,true):'');
+        const x=result.rows.map(row=>row.date),line=asset=>({x,mode:'lines',name:asset.ticker,line:{color:asset.color,width:2.3}});
+        const hasExtra=result.benchmark&&!result.assets.some(asset=>asset.ticker===result.benchmark.ticker);
+        const legendRows=Math.ceil((result.assets.length+(hasExtra?1:0))/4),chartHeight=Math.max(390,300+legendRows*24),marginBottom=55+legendRows*24;
+        for(const suffix of ['BaseChart','DrawdownChart'])el(suffix).style.height=`${chartHeight}px`;
+        const legend={orientation:'h',x:0,y:-.18,font:{size:11}};
+        const benchmarkTrace=hasExtra?[{...line({...result.benchmark,color:'#263746'}),line:{color:'#263746',width:2.4,dash:'dash'},name:`${result.benchmark.ticker} (benchmark)`,base100:result.benchmark.base100,drawdowns:result.benchmark.drawdowns}]:[];
+        const chartAssets=result.assets.concat(benchmarkTrace);
+        FinancialVisuals.newPlot(`${prefix}BaseChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.name||asset.ticker,y:asset.base100})),{title:'Evolución base 100',yaxis:{title:'Base 100'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
+        FinancialVisuals.newPlot(`${prefix}DrawdownChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.name||asset.ticker,y:asset.drawdowns.map(v=>v*100)})),{title:'Caída desde máximo',yaxis:{title:'%'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
+        const scatter=new Map();result.assets.forEach(asset=>{const x=asset.vol*100,y=asset.total*100,key=`${x.toFixed(2)}|${y.toFixed(2)}`;if(!scatter.has(key))scatter.set(key,{x,y,names:[],color:asset.color});scatter.get(key).names.push(asset.ticker);});
+        const points=[...scatter.values()];if(hasExtra)points.push({x:result.benchmark.vol*100,y:result.benchmark.total*100,names:[`${result.benchmark.ticker} (benchmark)`],color:'#263746',symbol:'diamond'});
+        const axis=(values,floor,nonnegative=false)=>{const low=Math.min(...values),high=Math.max(...values),pad=Math.max(floor,(high-low)*.2);return [nonnegative?Math.max(0,low-pad):low-pad,high+pad];};
+        FinancialVisuals.newPlot(`${prefix}ScatterChart`,points.map(point=>({x:[point.x],y:[point.y],text:[point.names.join(', ')],mode:'markers+text',textposition:'top center',name:point.names.join(', '),marker:{color:point.color,size:15,symbol:point.symbol||'circle'}})),{title:'Riesgo anualizado vs retorno del periodo',xaxis:{title:'Volatilidad anualizada (%)',range:axis(points.map(point=>point.x),.5,true),tickformat:'.1f'},yaxis:{title:'Retorno del periodo (%)',range:axis(points.map(point=>point.y),1),tickformat:'.1f'},margin:{t:44,l:65,r:20,b:60},showlegend:false},{responsive:true});
+        const all=result.assets.concat(result.benchmark?[result.benchmark]:[]),currencies=new Set(all.map(asset=>asset.currency).filter(Boolean)),unadjusted=all.filter(asset=>asset.priceType==='close');
+        return `${result.rows.length} fechas comunes · ${result.rows[0].date.toISOString().slice(0,10)} a ${result.rows.at(-1).date.toISOString().slice(0,10)}.${result.benchmark?` Benchmark: ${result.benchmark.ticker}.`:''}${currencies.size>1?' Aviso: divisas distintas sin convertir.':''}${unadjusted.length?` Aviso: ${[...new Set(unadjusted.map(asset=>asset.ticker))].join(', ')} usa cierre no ajustado.`:''}`;
+    }
     function init(){
         const section=document.getElementById('section-individual'),single=section?.querySelector(':scope > .container');if(!single)return;
         const nav=document.createElement('nav');nav.className='individual-mode-tabs';nav.setAttribute('aria-label','Vistas de analisis individual');
@@ -88,23 +114,36 @@
             setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         });
         panel.innerHTML=`<div class="workspace-heading"><div><h3>Comparar activos</h3></div></div><div class="workspace-settings multi-asset-controls"><div id="multiAssetTickerList" class="multi-asset-ticker-list"></div><button type="button" id="multiAssetAdd" title="Añadir activo"><i class="fa-solid fa-plus" aria-hidden="true"></i> Añadir activo</button><label>Periodo<select id="multiAssetRange"><option value="ALL">Todo el histórico común</option><option value="5Y">5 años</option><option value="3Y">3 años</option><option value="1Y">1 año</option></select></label><label>Tasa libre de riesgo anual (%)<input id="multiAssetRiskFree" type="number" min="-99.99" step="0.1" value="0"></label><label>Benchmark<select id="multiAssetBenchmark"><option value="">Sin benchmark</option><option value="CUSTOM">Otro ticker Yahoo</option></select></label><label id="multiAssetBenchmarkCustomLabel" hidden>Ticker del benchmark<input id="multiAssetBenchmarkCustom" placeholder="Ticker Yahoo"></label><button type="button" id="multiAssetLoad"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Comparar</button></div><p id="multiAssetStatus" role="status" class="workspace-status"></p><div class="multi-asset-charts"><div id="multiAssetBaseChart"></div><div id="multiAssetDrawdownChart"></div><div id="multiAssetScatterChart"></div></div><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>Divisa</th><th>Retorno periodo</th><th>Retorno anualizado</th><th>Volatilidad anualizada</th><th>Caída máxima</th><th id="multiAssetSharpeHead">Sharpe</th><th>Beta</th><th>Alfa anual</th><th>Observaciones</th></tr></thead><tbody id="multiAssetTableBody"></tbody></table></div><h4 class="multi-asset-section-title">Rentabilidad por plazo</h4><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>YTD</th><th>6 meses</th><th>1 año</th><th>3 años anualizada</th><th>5 años anualizada</th><th>Desde inicio</th></tr></thead><tbody id="multiAssetHorizonBody"></tbody></table></div><p class="workspace-context">Todos los activos y el benchmark usan fechas comunes. La tabla de plazos utiliza el histórico común completo; las demás métricas usan el periodo elegido. YTD, 6 meses, 1 año y desde inicio son acumulados; 3 y 5 años, anualizados. Sin historia completa para un plazo se muestra «—». Sharpe usa la tasa anual indicada. Alfa es el intercepto de Jensen anualizado aritméticamente frente al benchmark seleccionado; beta y alfa usan retornos emparejados del periodo elegido. Las divisas distintas y los cierres no ajustados pueden distorsionar la comparación.</p>`;
+        panel.querySelector('#multiAssetTickerList').insertAdjacentHTML('afterend','<div class="multi-asset-import-actions"><button type="button" id="multiAssetAddPortfolio"><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Añadir cartera importada</button><label>Benchmark del Excel<select id="multiAssetExcelBench"><option value="">Seleccionar</option></select></label><button type="button" id="multiAssetAddExcelBench"><i class="fa-solid fa-plus" aria-hidden="true"></i> Añadir bench</button></div>');
         let loaded=[],loadedBenchmark=null;
         const status=panel.querySelector('#multiAssetStatus');
         const tickerList=panel.querySelector('#multiAssetTickerList');
         const benchmarkSelect=panel.querySelector('#multiAssetBenchmark');
+        const excelBench=panel.querySelector('#multiAssetExcelBench');
+        const importedBenchmarks=()=>typeof loadedPortfolio==='object'&&loadedPortfolio?.benchmarks||{};
+        function refreshImportedOptions(){
+            const selected=excelBench.value;
+            excelBench.innerHTML='<option value="">Seleccionar</option>'+Object.keys(importedBenchmarks()).map(key=>`<option value="${escapeHtml(key)}">${escapeHtml(key)}</option>`).join('');
+            if(Object.hasOwn(importedBenchmarks(),selected))excelBench.value=selected;
+            updateBenchmarkOptions();
+        }
         function updateBenchmarkOptions(){
             const selected=benchmarkSelect.value;
-            benchmarkSelect.innerHTML='<option value="">Sin benchmark</option>'+[...panel.querySelectorAll('[data-multi-ticker]')].map(input=>input.value.trim().toUpperCase()).filter(Boolean).map(ticker=>`<option value="${escapeHtml(ticker)}">${escapeHtml(ticker)}</option>`).join('')+'<option value="CUSTOM">Otro ticker Yahoo</option>';
+            benchmarkSelect.innerHTML='<option value="">Sin benchmark</option>'+[...panel.querySelectorAll('[data-multi-ticker]')].map(input=>input.value.trim().toUpperCase()).filter(Boolean).map(ticker=>`<option value="${escapeHtml(ticker)}">${escapeHtml(ticker)}</option>`).join('')+Object.keys(importedBenchmarks()).map(key=>`<option value="${escapeHtml(`BENCH:${key.toUpperCase()}`)}">Excel · ${escapeHtml(key)}</option>`).join('')+'<option value="CUSTOM">Otro ticker Yahoo</option>';
             benchmarkSelect.value=[...benchmarkSelect.options].some(option=>option.value===selected)?selected:'';
         }
-        function addTicker(){
+        function addTicker(value=''){
             const count=tickerList.children.length;if(count>=maxAssets)return;
             const row=document.createElement('div');row.className='multi-asset-ticker-row';
-            row.innerHTML=`<label>Activo ${count+1}<input data-multi-ticker="${count}" placeholder="Ticker Yahoo"></label><button type="button" data-multi-remove title="Quitar activo" aria-label="Quitar activo ${count+1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+            row.innerHTML=`<label>Activo ${count+1}<input data-multi-ticker="${count}" placeholder="Ticker Yahoo" value="${escapeHtml(value)}" ${value?'readonly':''}></label><button type="button" data-multi-remove title="Quitar activo" aria-label="Quitar activo ${count+1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
             tickerList.append(row);panel.querySelector('#multiAssetAdd').disabled=tickerList.children.length>=maxAssets;updateBenchmarkOptions();
         }
         addTicker();addTicker();
-        panel.querySelector('#multiAssetAdd').addEventListener('click',addTicker);
+        panel.querySelector('#multiAssetAdd').addEventListener('click',()=>addTicker());
+        panel.querySelector('#multiAssetAddPortfolio').addEventListener('click',()=>{if(!loadedPortfolio?.portfolioData?.length){status.textContent='Carga primero la cartera individual y su histórico.';return;}addTicker('CARTERA IMPORTADA');});
+        panel.querySelector('#multiAssetAddExcelBench').addEventListener('click',()=>{if(!excelBench.value){status.textContent='Elige un benchmark de la hoja bench.';return;}addTicker(`BENCH:${excelBench.value.toUpperCase()}`);});
+        excelBench.addEventListener('focus',refreshImportedOptions);
+        nav.addEventListener('click',refreshImportedOptions);
         tickerList.addEventListener('click',event=>{const button=event.target.closest('[data-multi-remove]');if(!button)return;
             button.parentElement.remove();[...tickerList.children].forEach((row,index)=>{row.querySelector('label').firstChild.textContent=`Activo ${index+1}`;row.querySelector('input').dataset.multiTicker=index;row.querySelector('button').setAttribute('aria-label',`Quitar activo ${index+1}`);});
             panel.querySelector('#multiAssetAdd').disabled=false;updateBenchmarkOptions();
@@ -145,18 +184,30 @@
         }
         panel.querySelector('#multiAssetLoad').addEventListener('click',async()=>{
             const tickers=[...panel.querySelectorAll('[data-multi-ticker]')].map(input=>input.value.trim().toUpperCase()).filter(Boolean);
+            const imported=ticker=>ticker==='CARTERA IMPORTADA'||ticker.startsWith('BENCH:');
             if(tickers.length<1||tickers.length>maxAssets||new Set(tickers).size!==tickers.length){status.textContent=`Introduce entre 1 y ${maxAssets} tickers diferentes.`;return;}
-            if(tickers.some(ticker=>!/^[A-Z0-9^.=\-]{1,32}$/.test(ticker))){status.textContent='Revisa el formato de los tickers Yahoo.';return;}
+            if(tickers.some(ticker=>!imported(ticker)&&!/^[A-Z0-9^.=\-]{1,32}$/.test(ticker))){status.textContent='Revisa el formato de los tickers Yahoo.';return;}
             const choice=benchmarkSelect.value,benchmarkTicker=choice==='CUSTOM'?panel.querySelector('#multiAssetBenchmarkCustom').value.trim().toUpperCase():choice;
             if(choice==='CUSTOM'&&!benchmarkTicker){status.textContent='Introduce el ticker Yahoo del benchmark.';return;}
-            if(benchmarkTicker&&!/^[A-Z0-9^.=\-]{1,32}$/.test(benchmarkTicker)){status.textContent='Revisa el ticker Yahoo del benchmark.';return;}
+            if(benchmarkTicker&&!imported(benchmarkTicker)&&!/^[A-Z0-9^.=\-]{1,32}$/.test(benchmarkTicker)){status.textContent='Revisa el ticker Yahoo del benchmark.';return;}
             const rateInput=panel.querySelector('#multiAssetRiskFree').value,rate=rateInput.trim()===''?NaN:Number(rateInput.replace(',','.'))/100;
             if(!Number.isFinite(rate)||rate<=-1){status.textContent='Introduce una tasa libre de riesgo anual superior a -100%.';return;}
             const button=panel.querySelector('#multiAssetLoad');button.disabled=true;status.textContent=`Cargando historicos de ${tickers.join(', ')}...`;
             try{
                 const end=new Date(),start=new Date(end);start.setUTCFullYear(start.getUTCFullYear()-12);
                 const previous=new Map(loaded.concat(loadedBenchmark?[loadedBenchmark]:[]).map(item=>[item.ticker,item]));
-                const getAsset=async ticker=>previous.get(ticker)||{ticker,data:await fetchYahooData(ticker,start.toISOString().slice(0,10),end.toISOString().slice(0,10)),currency:MarketData.metadata.get(ticker)?.currency||'',priceType:MarketData.metadata.get(ticker)?.priceType||''};
+                const getAsset=async ticker=>{
+                    if(ticker==='CARTERA IMPORTADA'){
+                        if(!loadedPortfolio?.portfolioData?.length||portfolioHistoryStale())throw new Error('Reimporta la cartera individual con los supuestos actuales.');
+                        return {ticker,data:loadedPortfolio.portfolioData,currency:loadedPortfolio.calculationSettings?.currency||''};
+                    }
+                    if(ticker.startsWith('BENCH:')){
+                        const key=Object.keys(importedBenchmarks()).find(value=>value.toUpperCase()===ticker.slice(6));
+                        if(!key)throw new Error(`No se encuentra ${ticker} en la hoja bench de la cartera cargada.`);
+                        return {ticker,data:importedBenchmarks()[key].data||importedBenchmarks()[key]};
+                    }
+                    return previous.get(ticker)||{ticker,data:await fetchYahooData(ticker,start.toISOString().slice(0,10),end.toISOString().slice(0,10)),currency:MarketData.metadata.get(ticker)?.currency||'',priceType:MarketData.metadata.get(ticker)?.priceType||''};
+                };
                 const next=[];for(let offset=0;offset<tickers.length;offset+=4){
                     const batch=tickers.slice(offset,offset+4);
                     next.push(...await Promise.all(batch.map(getAsset)));
@@ -170,6 +221,6 @@
         panel.querySelector('#multiAssetRange').addEventListener('change',renderCurrent);
         panel.querySelector('#multiAssetRiskFree').addEventListener('input',renderCurrent);
     }
-    return {commonSeries,compare,init};
+    return {commonSeries,compare,resultsHtml,renderResults,init};
 });
 if(typeof document!=='undefined')MultiAssetCompare.init();

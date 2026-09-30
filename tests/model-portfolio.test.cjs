@@ -9,6 +9,10 @@ test('ranks only matching categories with numeric scores',()=>{
     const records=[{isin:'A',category:'RF Europa',score:3,ter:.5},{isin:'B',category:'RF Global',score:4,ter:1},{isin:'C',category:'RV Global',score:5,ter:.1},{isin:'D',category:'RF Europa',score:NaN,ter:0}];
     assert.deepEqual(Model.rank(records,['RF Europa','RF Global']).map(r=>r.isin),['B','A']);
 });
+test('top five chooses at most one fund per named manager',()=>{
+    const records=[{isin:'A1',manager:'Gestora A',category:'RF Europa',score:4,ter:.8},{isin:'A2',manager:'Gestora A',category:'RF Europa',score:3.9,ter:.4},{isin:'B1',manager:'Gestora B',category:'RF Europa',score:3.8,ter:.6},{isin:'C1',manager:'Gestora C',category:'RF Europa',score:3.7,ter:.7}];
+    assert.deepEqual(Model.rank(records,['RF Europa']).map(record=>record.isin),['A1','B1','C1']);
+});
 test('tracking error uses common monthly returns and refuses missing histories',()=>{
     const dates=['2026-01-31','2026-02-28','2026-03-31','2026-04-30'];
     const series=values=>values.map((price,i)=>({date:new Date(dates[i]+'T00:00:00Z'),price}));
