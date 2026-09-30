@@ -33,4 +33,33 @@ test('supports ten and up to twenty assets without reusing series colours',()=>{
         assert.equal(new Set(result.assets.map(asset=>asset.color)).size,count);
     }
     assert.throws(()=>Compare.compare(assets.concat(assets[0])),/1 y 20/);
+    assert.equal(Compare.compare(assets,'ALL',0,{ticker:'BENCH',data:series([100,102,101,104])}).assets.length,20);
+});
+test('recalculates Sharpe and Jensen beta and alpha against one shared benchmark',()=>{
+    const benchmark={ticker:'BENCH',data:series([100,102,101,104])};
+    const asset={ticker:'A',data:series([100,105,103,110])};
+    const without=Compare.compare([asset],'ALL',0,benchmark),withRate=Compare.compare([asset],'ALL',.04,benchmark);
+    assert.equal(without.assets[0].beta,withRate.assets[0].beta);
+    assert.notEqual(without.assets[0].sharpe,withRate.assets[0].sharpe);
+    assert.notEqual(without.assets[0].alpha,withRate.assets[0].alpha);
+    assert.ok(Number.isFinite(withRate.assets[0].beta));
+    assert.ok(Number.isFinite(withRate.assets[0].alpha));
+    assert.equal(Compare.compare([benchmark],'ALL',.04,benchmark).assets[0].beta,1);
+    assert.ok(Math.abs(Compare.compare([benchmark],'ALL',.04,benchmark).assets[0].alpha)<1e-10);
+    assert.ok(Number.isNaN(Compare.compare([asset]).assets[0].beta));
+    assert.ok(Number.isNaN(Compare.compare([asset],'ALL',0,{ticker:'FLAT',data:series([100,100,100,100])}).assets[0].alpha));
+    assert.throws(()=>Compare.compare([asset],'ALL',-1),/superior a -100/);
+});
+test('horizon returns require a full lookback and retain the last prior year close',()=>{
+    const monthly=Array.from({length:84},(_,index)=>({date:new Date(Date.UTC(2019,index+1,0)),price:100+index}));
+    const result=Compare.compare([{ticker:'A',data:monthly}]),h=result.assets[0].horizons;
+    assert.ok(Math.abs(h.sixMonths-(183/177-1))<1e-12);
+    assert.ok(Math.abs(h.oneYear-(183/171-1))<1e-12);
+    assert.ok(Math.abs(h.ytd-(183/171-1))<1e-12);
+    assert.ok(Math.abs(h.sinceStart-.83)<1e-12);
+    assert.ok(Number.isFinite(h.threeYears)&&Number.isFinite(h.fiveYears));
+    const short=Compare.compare([{ticker:'A',data:monthly.slice(-12)}]).assets[0].horizons;
+    assert.ok(Number.isNaN(short.oneYear)&&Number.isNaN(short.fiveYears));
+    assert.throws(()=>Compare.compare([{ticker:'A',data:monthly.slice(-12)}],'5Y'),/5 años completos/);
+    assert.ok(Compare.compare([{ticker:'A',data:monthly}],'5Y').rows.length>=60);
 });

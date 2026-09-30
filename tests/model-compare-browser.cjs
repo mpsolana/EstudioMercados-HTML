@@ -8,7 +8,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   const setup=await page.evaluate(async()=>{
    switchSection('individual');document.querySelector('[data-individual-mode="compare"]').click();
    const dates=Array.from({length:15},(_,i)=>new Date(Date.UTC(2025,0+i+1,0))),series=base=>dates.map((date,i)=>({date,price:base+i*(base/100)}));
-   window.fetchYahooData=async ticker=>series(ticker==='AAA'?100:80);
+   window.fetchYahooData=async ticker=>ticker==='BENCH'?dates.map((date,i)=>({date,price:100+i*2+(i%3)*.5})):series(ticker==='AAA'?100:80);
    document.querySelector('[data-multi-ticker="0"]').value='AAA';document.querySelector('[data-multi-ticker="1"]').value='BBB';
    document.getElementById('multiAssetLoad').click();
    switchSection('cartera');
@@ -27,7 +27,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    PortfolioWorkspace.scope='model';portfolioWorkflowRefresh();
    return {loaded,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].selectedIsin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
   });
-  await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===8);
+  await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===10);
   await page.evaluate(()=>{switchSection('individual');document.querySelector('[data-multi-ticker="1"]').value='';document.getElementById('multiAssetLoad').click();});
   await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===1);
   await page.evaluate(()=>{
@@ -37,6 +37,17 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   });
   await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===10);
   assert.equal(await page.locator('#multiAssetBaseChart .scatterlayer .trace').count(),10);
+  await page.evaluate(()=>{
+   document.querySelector('#multiAssetRiskFree').value='2.5';document.querySelector('#multiAssetRiskFree').dispatchEvent(new Event('input',{bubbles:true}));
+   document.querySelector('#multiAssetBenchmark').value='CUSTOM';document.querySelector('#multiAssetBenchmark').dispatchEvent(new Event('change',{bubbles:true}));
+   document.querySelector('#multiAssetBenchmarkCustom').value='BENCH';document.querySelector('#multiAssetLoad').click();
+  });
+  await page.waitForFunction(()=>document.querySelector('#multiAssetStatus').textContent.includes('Benchmark: BENCH'));
+  assert.match(await page.locator('#multiAssetSharpeHead').textContent(),/2\.50%/);
+  assert.equal(await page.locator('#multiAssetHorizonBody tr').count(),11);
+  assert.equal(await page.locator('#multiAssetBaseChart .scatterlayer .trace').count(),11);
+  assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(7).textContent(),'-');
+  assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(8).textContent(),'-');
   await page.evaluate(()=>switchSection('cartera'));
   assert.equal(setup.loaded,true);assert.equal(setup.models,1);assert.equal(setup.te,'ES0000000001');assert.equal(setup.scope,'model');
   assert.match(setup.scoreHtml,/quality-technical/);
@@ -63,6 +74,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    await page.setViewportSize({width:390,height:844});await page.waitForTimeout(700);
    const widths=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,weight:document.querySelector('#gdcWeightChart').getBoundingClientRect().width,table:document.querySelector('#workspaceModel .proposal-chart-scroll').getBoundingClientRect().width,charts:document.querySelector('.gdc-analysis-charts').getBoundingClientRect().width}));
    assert.ok(widths.document<=widths.viewport+2,JSON.stringify(widths));await page.screenshot({path:path.join(out,'gdc-model-mobile.png'),fullPage:true});
+   await page.evaluate(()=>switchSection('individual'));await page.waitForTimeout(350);
+   const compareWidth=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,table:document.querySelector('#multiAssetTableBody').closest('.proposal-chart-scroll').scrollWidth}));
+   assert.ok(compareWidth.document<=compareWidth.viewport+2,JSON.stringify(compareWidth));
+   await page.screenshot({path:path.join(out,'multi-compare-mobile.png'),fullPage:true});
   }
   console.log(JSON.stringify({models:setup.models,comparison:results.comparison,history:results.history,errors}));
  }finally{await browser.close();}
