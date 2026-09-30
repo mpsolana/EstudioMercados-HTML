@@ -41,7 +41,16 @@
         return {rows,frequency,assets:input.map((item,index)=>({...item,color:colors[index],base100:rows.map(row=>row.prices[index]/rows[0].prices[index]*100),...metrics(rows,index,frequency)}))};
     }
     function init(){
-        const panel=document.getElementById('portfolioSubtabContent-compare');if(!panel)return;
+        const section=document.getElementById('section-individual'),single=section?.querySelector(':scope > .container');if(!single)return;
+        const nav=document.createElement('nav');nav.className='individual-mode-tabs';nav.setAttribute('aria-label','Vistas de analisis individual');
+        nav.innerHTML='<button type="button" data-individual-mode="single" aria-pressed="true">Analisis de activo</button><button type="button" data-individual-mode="compare" aria-pressed="false">Comparar activos</button>';
+        const panel=document.createElement('div');panel.id='individualComparePanel';panel.className='individual-compare-panel';panel.hidden=true;
+        single.before(nav);single.after(panel);
+        nav.addEventListener('click',event=>{const button=event.target.closest('[data-individual-mode]');if(!button)return;
+            const compare=button.dataset.individualMode==='compare';single.hidden=compare;panel.hidden=!compare;
+            nav.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+            setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
+        });
         panel.innerHTML=`<div class="workspace-heading"><div><h3>Comparar activos</h3></div></div><div class="workspace-settings multi-asset-controls"><label>Activo 1<input data-multi-ticker="0" placeholder="Ticker Yahoo"></label><label>Activo 2<input data-multi-ticker="1" placeholder="Ticker Yahoo"></label><label>Activo 3<input data-multi-ticker="2" placeholder="Opcional"></label><label>Activo 4<input data-multi-ticker="3" placeholder="Opcional"></label><label>Periodo<select id="multiAssetRange"><option value="ALL">Todo el historico comun</option><option value="5Y">5 anos</option><option value="3Y">3 anos</option><option value="1Y">1 ano</option></select></label><button type="button" id="multiAssetLoad"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Comparar</button></div><p id="multiAssetStatus" role="status" class="workspace-status"></p><div class="multi-asset-charts"><div id="multiAssetBaseChart"></div><div id="multiAssetDrawdownChart"></div><div id="multiAssetScatterChart"></div></div><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>Divisa</th><th>Retorno periodo</th><th>Retorno anualizado</th><th>Volatilidad anualizada</th><th>Caida maxima</th><th>Sharpe (rf 0%)</th><th>Observaciones</th></tr></thead><tbody id="multiAssetTableBody"></tbody></table></div><p class="workspace-context">Mismas fechas para todos los activos; precios base 100. Las diferencias de divisa y los cierres no ajustados pueden distorsionar la comparacion. El retorno anualizado solo se muestra con al menos un ano de historia comun.</p>`;
         let loaded=[];
         const status=panel.querySelector('#multiAssetStatus');
@@ -75,3 +84,4 @@
     }
     return {commonSeries,compare,init};
 });
+if(typeof document!=='undefined')MultiAssetCompare.init();

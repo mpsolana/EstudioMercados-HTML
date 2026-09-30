@@ -38,7 +38,7 @@ function invalidatePortfolioReports() {
 }
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
-    const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.tool==='compare';
+    const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual';
     document.querySelector('.workspace-steps').hidden=w.scope==='model';
     if(w.scope==='model'){
         document.querySelectorAll('[data-workspace-panel]').forEach(el=>el.hidden=true);
@@ -76,7 +76,7 @@ function portfolioWorkflowRefresh() {
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
-    if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.tool==='compare';
+    if(calculationHelp)calculationHelp.hidden=w.scope!=='individual';
     const rows = fundProposalState.rows || [];
     const coverage = FinanceCore.weighted(rows, 'ter', 'current').coverage;
     document.getElementById('workspaceContext').textContent = `${w.scope === 'screener' ? 'Screener · universo de fondos' : w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : w.scope === 'initial' ? 'Analisis inicial · cartera de origen del cliente' : 'Cartera individual · comportamiento historico'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
@@ -85,7 +85,7 @@ function portfolioWorkflowRefresh() {
     const unadjusted = (loadedPortfolio?.entries || []).filter(e => MarketData.metadata.get(e.ticker)?.priceType === 'close');
     if (unadjusted.length) document.getElementById('workspaceQuality').textContent += `\n${unadjusted.length} activos con cierre sin ajuste: no equivalen necesariamente a retorno total.`;
     if (w.scope === 'screener') document.getElementById('workspaceQuality').textContent = `Universo: ${fundUniverseState?.records?.length || 0} fondos · Aprobados por ISIN: ${approvedFundsState.records.length}.`;
-    document.getElementById('workspaceQuality').hidden=w.scope==='individual'&&w.step==='diagnosis'&&w.tool==='compare';
+    document.getElementById('workspaceQuality').hidden=false;
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     if(w.scope==='initial'&&w.step==='proposal')ProposalCharts.schedule('initial');
     if(w.scope==='aggregate'&&w.step==='diagnosis'&&w.tool==='aggregate')ProposalCharts.schedule('aggregate');
@@ -159,15 +159,13 @@ function initializePortfolioWorkspace() {
     const unit = document.createElement('label'); unit.className = 'workspace-context'; unit.innerHTML = 'Unidad de pesos de scoring y propuesta <select id="fundWeightUnit"><option value="percent">Porcentaje (0-100)</option><option value="fraction">Fraccion (0-1)</option><option value="amount">Importes (se normalizan)</option></select>'; data.prepend(unit);
     unit.dataset.workspaceOnly = 'individual initial aggregate';
     const oldNav = document.getElementById('portfolioSubtab-main').parentElement; oldNav.hidden = true;
-    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', compare:'Comparar activos', aggregate:'Posiciones', massive:'Comparador masivo' };
+    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', aggregate:'Posiciones', massive:'Comparador masivo' };
     document.getElementById('workspaceTools').innerHTML = Object.entries(tools).map(([key,label]) => `<button data-workspace-tool="${key}">${label}</button>`).join('');
     for (const id of ['portfolioReportPreview','managerReportPreview']) {
         const target = document.getElementById(id); document.getElementById(id === 'portfolioReportPreview' ? 'workspaceIndividualReports' : 'workspaceManagerReports').append(target.parentElement);
     }
     const aggregate = document.getElementById('aggregatePositionsStatus').closest('.grid').parentElement;
     aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
-    const comparePanel=document.createElement('section');comparePanel.id='portfolioSubtabContent-compare';comparePanel.className='portfolio-subtab-content workspace-panel hidden';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
-    MultiAssetCompare.init();
     const modelPanel=document.createElement('section');modelPanel.id='workspaceModel';modelPanel.className='workspace-panel';modelPanel.dataset.workspacePanel='';root.append(modelPanel);
     GdcModel.init();
     document.getElementById('aggregatePositionsTableBody').closest('.mb-5').insertAdjacentHTML('beforebegin','<div class="workspace-tools"><button type="button" onclick="useAggregateChangesInIndividualScoring()"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Llevar cartera tras cambios a análisis individual</button></div>');

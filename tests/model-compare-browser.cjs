@@ -6,12 +6,12 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.dismiss());
   await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
   const setup=await page.evaluate(async()=>{
-   switchSection('cartera');
+   switchSection('individual');document.querySelector('[data-individual-mode="compare"]').click();
    const dates=Array.from({length:15},(_,i)=>new Date(Date.UTC(2025,0+i+1,0))),series=base=>dates.map((date,i)=>({date,price:base+i*(base/100)}));
    window.fetchYahooData=async ticker=>series(ticker==='AAA'?100:80);
-   PortfolioWorkspace.scope='individual';PortfolioWorkspace.step='diagnosis';PortfolioWorkspace.tool='compare';portfolioWorkflowRefresh();
    document.querySelector('[data-multi-ticker="0"]').value='AAA';document.querySelector('[data-multi-ticker="1"]').value='BBB';
    document.getElementById('multiAssetLoad').click();
+   switchSection('cartera');
    const records=[{isin:'ES0000000001',name:'Fondo RF A',category:'RF Europa',manager:'GDC',score:3.5,ter:.6,ret5:5,risk5:4},{isin:'ES0000000002',name:'Fondo RF B',category:'RF Europa',manager:'GDC',score:3,ter:.8,ret5:4,risk5:5}];
    fundUniverseState={records,isinIndex:new Map(records.map(r=>[r.isin,r])),quartiles:buildFundQuartiles(records)};
    const book=XLSX.utils.book_new(),add=(name,rows)=>XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(rows),name);
@@ -43,11 +43,11 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.equal(results.comparison,2);assert.equal(results.comparisonCharts,true);assert.match(results.te,/Tracking error/);assert.match(results.report,/Posiciones actuales y propuesta/);assert.match(results.report,/Metricas actuales frente a propuestas/);assert.match(results.report,/Reduccion de TER pendiente/);assert.equal(results.breach,true);assert.equal(results.within,true);assert.equal(results.history,true,JSON.stringify({text:results.historyText,priceKeys:results.priceKeys,benchKeys:results.benchKeys,selected:results.selected}));assert.deepEqual(errors,[]);
   const out=process.env.BROWSER_OUTPUT_DIR;if(out){
    fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'gdc-model.png'),fullPage:true});
-   await page.evaluate(()=>{PortfolioWorkspace.scope='individual';PortfolioWorkspace.step='diagnosis';PortfolioWorkspace.tool='compare';portfolioWorkflowRefresh();});
-   const help=await page.evaluate(()=>[...document.querySelectorAll('.workspace-calculation-help')].map(el=>({hidden:el.hidden,display:getComputedStyle(el).display,tool:PortfolioWorkspace.tool})));
-   assert.ok(help.every(item=>item.hidden&&item.display==='none'),JSON.stringify(help));
+   await page.evaluate(()=>switchSection('individual'));
+   assert.equal(await page.locator('[data-individual-mode="compare"]').getAttribute('aria-pressed'),'true');
+   await page.waitForTimeout(350);
    await page.screenshot({path:path.join(out,'multi-compare.png'),fullPage:true});
-   await page.evaluate(()=>{PortfolioWorkspace.scope='model';portfolioWorkflowRefresh();});
+   await page.evaluate(()=>switchSection('cartera'));
    const excel=page.waitForEvent('download');await page.locator('#gdcExport').click();await(await excel).saveAs(path.join(out,'gdc-selection.xlsx'));
    const pdf=page.waitForEvent('download',{timeout:120000});await page.locator('#gdcPdf').click();await(await pdf).saveAs(path.join(out,'gdc-report.pdf'));
    await page.setViewportSize({width:390,height:844});await page.waitForTimeout(700);
