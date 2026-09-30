@@ -4,7 +4,8 @@
     else root.MultiAssetCompare=core;
 })(globalThis,function(finance){
     const periods=finance.annualPeriods;
-    const colors=['#164e78','#6b7785','#168270','#b47736'];
+    const colors=['#164e78','#6b7785','#168270','#b47736','#a34d59','#654c91','#427fa4','#806b39','#548467','#a06597','#315f68','#994f35','#798144','#515eae','#be7080','#407b89','#916b57','#637d9e','#798a71','#a078b1'];
+    const maxAssets=20;
     const clean=series=>(series||[]).filter(p=>p&&Number.isFinite(+new Date(p.date))&&Number.isFinite(p.price)&&p.price>0).map(p=>({date:new Date(p.date),price:p.price})).sort((a,b)=>a.date-b.date);
     function bucket(date,freq){
         const y=date.getUTCFullYear(),m=date.getUTCMonth();
@@ -15,7 +16,7 @@
         return date.toISOString().slice(0,10);
     }
     function commonSeries(input,range='ALL'){
-        if(input.length<2||input.length>4)throw new Error('Selecciona entre dos y cuatro activos.');
+        if(input.length<1||input.length>maxAssets)throw new Error(`Selecciona entre 1 y ${maxAssets} activos.`);
         const sources=input.map(item=>({ticker:item.ticker,points:clean(item.data)}));
         if(sources.some(s=>s.points.length<3))throw new Error('Cada activo necesita al menos tres precios validos.');
         const rank={C:0,D:0,W:1,M:2,Q:3,A:4};
@@ -51,15 +52,31 @@
             nav.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
             setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         });
-        panel.innerHTML=`<div class="workspace-heading"><div><h3>Comparar activos</h3></div></div><div class="workspace-settings multi-asset-controls"><label>Activo 1<input data-multi-ticker="0" placeholder="Ticker Yahoo"></label><label>Activo 2<input data-multi-ticker="1" placeholder="Ticker Yahoo"></label><label>Activo 3<input data-multi-ticker="2" placeholder="Opcional"></label><label>Activo 4<input data-multi-ticker="3" placeholder="Opcional"></label><label>Periodo<select id="multiAssetRange"><option value="ALL">Todo el historico comun</option><option value="5Y">5 anos</option><option value="3Y">3 anos</option><option value="1Y">1 ano</option></select></label><button type="button" id="multiAssetLoad"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Comparar</button></div><p id="multiAssetStatus" role="status" class="workspace-status"></p><div class="multi-asset-charts"><div id="multiAssetBaseChart"></div><div id="multiAssetDrawdownChart"></div><div id="multiAssetScatterChart"></div></div><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>Divisa</th><th>Retorno periodo</th><th>Retorno anualizado</th><th>Volatilidad anualizada</th><th>Caida maxima</th><th>Sharpe (rf 0%)</th><th>Observaciones</th></tr></thead><tbody id="multiAssetTableBody"></tbody></table></div><p class="workspace-context">Mismas fechas para todos los activos; precios base 100. Las diferencias de divisa y los cierres no ajustados pueden distorsionar la comparacion. El retorno anualizado solo se muestra con al menos un ano de historia comun.</p>`;
+        panel.innerHTML=`<div class="workspace-heading"><div><h3>Comparar activos</h3></div></div><div class="workspace-settings multi-asset-controls"><div id="multiAssetTickerList" class="multi-asset-ticker-list"></div><button type="button" id="multiAssetAdd" title="Anadir activo"><i class="fa-solid fa-plus" aria-hidden="true"></i> Anadir activo</button><label>Periodo<select id="multiAssetRange"><option value="ALL">Todo el historico comun</option><option value="5Y">5 anos</option><option value="3Y">3 anos</option><option value="1Y">1 ano</option></select></label><button type="button" id="multiAssetLoad"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Comparar</button></div><p id="multiAssetStatus" role="status" class="workspace-status"></p><div class="multi-asset-charts"><div id="multiAssetBaseChart"></div><div id="multiAssetDrawdownChart"></div><div id="multiAssetScatterChart"></div></div><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>Divisa</th><th>Retorno periodo</th><th>Retorno anualizado</th><th>Volatilidad anualizada</th><th>Caida maxima</th><th>Sharpe (rf 0%)</th><th>Observaciones</th></tr></thead><tbody id="multiAssetTableBody"></tbody></table></div><p class="workspace-context">Mismas fechas para todos los activos; precios base 100. Las diferencias de divisa y los cierres no ajustados pueden distorsionar la comparacion. El retorno anualizado solo se muestra con al menos un ano de historia comun.</p>`;
         let loaded=[];
         const status=panel.querySelector('#multiAssetStatus');
+        const tickerList=panel.querySelector('#multiAssetTickerList');
+        function addTicker(){
+            const count=tickerList.children.length;if(count>=maxAssets)return;
+            const row=document.createElement('div');row.className='multi-asset-ticker-row';
+            row.innerHTML=`<label>Activo ${count+1}<input data-multi-ticker="${count}" placeholder="Ticker Yahoo"></label><button type="button" data-multi-remove title="Quitar activo" aria-label="Quitar activo ${count+1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+            tickerList.append(row);panel.querySelector('#multiAssetAdd').disabled=tickerList.children.length>=maxAssets;
+        }
+        addTicker();addTicker();
+        panel.querySelector('#multiAssetAdd').addEventListener('click',addTicker);
+        tickerList.addEventListener('click',event=>{const button=event.target.closest('[data-multi-remove]');if(!button)return;
+            button.parentElement.remove();[...tickerList.children].forEach((row,index)=>{row.querySelector('label').firstChild.textContent=`Activo ${index+1}`;row.querySelector('input').dataset.multiTicker=index;row.querySelector('button').setAttribute('aria-label',`Quitar activo ${index+1}`);});
+            panel.querySelector('#multiAssetAdd').disabled=false;
+        });
         function show(result){
             const fmt=value=>Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'-';
             panel.querySelector('#multiAssetTableBody').innerHTML=result.assets.map(asset=>`<tr><td><span class="multi-asset-key" style="background:${asset.color}"></span>${escapeHtml(asset.ticker)}</td><td>${escapeHtml(asset.currency||'-')}</td><td class="${asset.total>0?'good':asset.total<0?'bad':''}">${fmt(asset.total)}</td><td class="${asset.annual>0?'good':asset.annual<0?'bad':''}">${fmt(asset.annual)}</td><td>${fmt(asset.vol)}</td><td class="${asset.drawdown<0?'bad':''}">${fmt(asset.drawdown)}</td><td>${Number.isFinite(asset.sharpe)?asset.sharpe.toFixed(2):'-'}</td><td>${result.rows.length}</td></tr>`).join('');
             const x=result.rows.map(row=>row.date),line=asset=>({x,mode:'lines',name:asset.ticker,line:{color:asset.color,width:2.3}});
-            FinancialVisuals.newPlot('multiAssetBaseChart',result.assets.map(asset=>({...line(asset),y:asset.base100})),{title:'Evolucion base 100',yaxis:{title:'Base 100'},margin:{t:44,l:56,r:20,b:55},legend:{orientation:'h',y:-.22}},{responsive:true});
-            FinancialVisuals.newPlot('multiAssetDrawdownChart',result.assets.map(asset=>({...line(asset),y:asset.drawdowns.map(v=>v*100)})),{title:'Caida desde maximo',yaxis:{title:'%'},margin:{t:44,l:56,r:20,b:55},legend:{orientation:'h',y:-.22}},{responsive:true});
+            const legendRows=Math.ceil(result.assets.length/4),chartHeight=Math.max(390,300+legendRows*24),marginBottom=55+legendRows*24;
+            for(const id of ['multiAssetBaseChart','multiAssetDrawdownChart'])panel.querySelector(`#${id}`).style.height=`${chartHeight}px`;
+            const legend={orientation:'h',x:0,y:-.18,font:{size:11}};
+            FinancialVisuals.newPlot('multiAssetBaseChart',result.assets.map(asset=>({...line(asset),y:asset.base100})),{title:'Evolucion base 100',yaxis:{title:'Base 100'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
+            FinancialVisuals.newPlot('multiAssetDrawdownChart',result.assets.map(asset=>({...line(asset),y:asset.drawdowns.map(v=>v*100)})),{title:'Caida desde maximo',yaxis:{title:'%'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
             const scatter=new Map();
             result.assets.forEach(asset=>{const x=asset.vol*100,y=asset.total*100,key=`${x.toFixed(2)}|${y.toFixed(2)}`;
                 if(!scatter.has(key))scatter.set(key,{x,y,names:[],color:asset.color});scatter.get(key).names.push(asset.ticker);
@@ -71,12 +88,16 @@
         }
         panel.querySelector('#multiAssetLoad').addEventListener('click',async()=>{
             const tickers=[...panel.querySelectorAll('[data-multi-ticker]')].map(input=>input.value.trim().toUpperCase()).filter(Boolean);
-            if(tickers.length<2||tickers.length>4||new Set(tickers).size!==tickers.length){status.textContent='Introduce 2 a 4 tickers diferentes.';return;}
+            if(tickers.length<1||tickers.length>maxAssets||new Set(tickers).size!==tickers.length){status.textContent=`Introduce entre 1 y ${maxAssets} tickers diferentes.`;return;}
             if(tickers.some(ticker=>!/^[A-Z0-9^.=\-]{1,32}$/.test(ticker))){status.textContent='Revisa el formato de los tickers Yahoo.';return;}
             const button=panel.querySelector('#multiAssetLoad');button.disabled=true;status.textContent=`Cargando historicos de ${tickers.join(', ')}...`;
             try{
                 const end=new Date(),start=new Date(end);start.setUTCFullYear(start.getUTCFullYear()-12);
-                loaded=await Promise.all(tickers.map(async ticker=>({ticker,data:await fetchYahooData(ticker,start.toISOString().slice(0,10),end.toISOString().slice(0,10)),currency:MarketData.metadata.get(ticker)?.currency||'',priceType:MarketData.metadata.get(ticker)?.priceType||''})));
+                loaded=[];for(let offset=0;offset<tickers.length;offset+=4){
+                    const batch=tickers.slice(offset,offset+4);
+                    loaded.push(...await Promise.all(batch.map(async ticker=>({ticker,data:await fetchYahooData(ticker,start.toISOString().slice(0,10),end.toISOString().slice(0,10)),currency:MarketData.metadata.get(ticker)?.currency||'',priceType:MarketData.metadata.get(ticker)?.priceType||''}))));
+                    status.textContent=`Historicos cargados: ${loaded.length} de ${tickers.length}.`;
+                }
                 show(compare(loaded,panel.querySelector('#multiAssetRange').value));
             }catch(error){status.textContent=`No se ha completado la comparacion: ${error.message}`;}finally{button.disabled=false;}
         });

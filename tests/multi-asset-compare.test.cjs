@@ -14,7 +14,7 @@ test('drawdown and risk use the same selected window',()=>{
     const result=Compare.compare([a,b]);
     assert.equal(result.assets[0].drawdown,-.25);
     assert.equal(result.assets[1].vol,0);
-    assert.throws(()=>Compare.compare([a]),/dos y cuatro/);
+    assert.equal(Compare.compare([a]).assets.length,1);
     assert.throws(()=>Compare.compare([a,{ticker:'C',data:series([1,2,3,4]).slice(3)}]),/tres precios/);
 });
 test('keeps four assets on one shared calendar',()=>{
@@ -23,4 +23,14 @@ test('keeps four assets on one shared calendar',()=>{
     assert.equal(result.assets.length,4);
     assert.equal(result.rows.length,4);
     assert.equal(new Set(result.assets.map(asset=>asset.color)).size,4);
+});
+test('supports ten and up to twenty assets without reusing series colours',()=>{
+    const assets=Array.from({length:20},(_,index)=>({ticker:`F${index}`,data:series([100,101+index,102+index,103+index])}));
+    for(const count of [10,20]){
+        const result=Compare.compare(assets.slice(0,count));
+        assert.equal(result.assets.length,count);
+        assert.equal(result.rows.length,4);
+        assert.equal(new Set(result.assets.map(asset=>asset.color)).size,count);
+    }
+    assert.throws(()=>Compare.compare(assets.concat(assets[0])),/1 y 20/);
 });

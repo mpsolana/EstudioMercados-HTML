@@ -28,6 +28,16 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    return {loaded,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].selectedIsin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
   });
   await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===8);
+  await page.evaluate(()=>{switchSection('individual');document.querySelector('[data-multi-ticker="1"]').value='';document.getElementById('multiAssetLoad').click();});
+  await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===1);
+  await page.evaluate(()=>{
+   document.querySelector('[data-multi-ticker="1"]').value='BBB';
+   for(let index=2;index<10;index++){document.getElementById('multiAssetAdd').click();document.querySelector(`[data-multi-ticker="${index}"]`).value=`T${index}`;}
+   document.getElementById('multiAssetLoad').click();
+  });
+  await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===10);
+  assert.equal(await page.locator('#multiAssetBaseChart .scatterlayer .trace').count(),10);
+  await page.evaluate(()=>switchSection('cartera'));
   assert.equal(setup.loaded,true);assert.equal(setup.models,1);assert.equal(setup.te,'ES0000000001');assert.equal(setup.scope,'model');
   assert.match(setup.scoreHtml,/quality-technical/);
   assert.match(setup.aggregateScoreHtml,/flex-col items-center/);
@@ -40,7 +50,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    await new Promise(resolve=>setTimeout(resolve,2500));
    return {comparison:document.querySelector('#multiAssetTableBody').rows.length,comparisonCharts:['multiAssetBaseChart','multiAssetDrawdownChart','multiAssetScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`)),te:document.querySelector('#gdcStatus').textContent,report:document.querySelector('#gdcReportPreview iframe')?.contentDocument?.body?.textContent||'',history:document.querySelector('#gdcHistory .main-svg')!==null,historyText:document.querySelector('#gdcHistory').textContent,priceKeys:Object.keys(GdcModel.state.prices),benchKeys:Object.keys(GdcModel.state.benchmarks),selected:GdcModel.state.models[0].rows[0],breach,within};
   });
-  assert.equal(results.comparison,2);assert.equal(results.comparisonCharts,true);assert.match(results.te,/Tracking error/);assert.match(results.report,/Posiciones actuales y propuesta/);assert.match(results.report,/Metricas actuales frente a propuestas/);assert.match(results.report,/Reduccion de TER pendiente/);assert.equal(results.breach,true);assert.equal(results.within,true);assert.equal(results.history,true,JSON.stringify({text:results.historyText,priceKeys:results.priceKeys,benchKeys:results.benchKeys,selected:results.selected}));assert.deepEqual(errors,[]);
+  assert.equal(results.comparison,10);assert.equal(results.comparisonCharts,true);assert.match(results.te,/Tracking error/);assert.match(results.report,/Posiciones actuales y propuesta/);assert.match(results.report,/Metricas actuales frente a propuestas/);assert.match(results.report,/Reduccion de TER pendiente/);assert.equal(results.breach,true);assert.equal(results.within,true);assert.equal(results.history,true,JSON.stringify({text:results.historyText,priceKeys:results.priceKeys,benchKeys:results.benchKeys,selected:results.selected}));assert.deepEqual(errors,[]);
   const out=process.env.BROWSER_OUTPUT_DIR;if(out){
    fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'gdc-model.png'),fullPage:true});
    await page.evaluate(()=>switchSection('individual'));
