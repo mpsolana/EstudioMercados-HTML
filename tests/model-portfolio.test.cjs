@@ -56,6 +56,7 @@ test('tracking error uses common monthly returns and refuses missing histories',
     const te=Model.trackingError(rows,funds,benchmarks);
     assert.ok(Number.isFinite(te.value)&&te.value>0);
     assert.equal(te.months,4);
+    assert.equal(Model.trackingError([{weight:100,selectedIsin:'A',benchmark:'ba'}],funds,benchmarks).months,4);
     assert.ok(Number.isNaN(Model.trackingError(rows,{A:funds.A},benchmarks).value));
     const gapped={A:[funds.A[0],funds.A[2],funds.A[3]],B:[funds.B[0],funds.B[2],funds.B[3]]};
     assert.ok(Number.isNaN(Model.trackingError(rows,gapped,benchmarks).value));

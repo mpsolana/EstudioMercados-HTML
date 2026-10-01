@@ -27,6 +27,23 @@ test('reports recovery of the maximum drawdown and return correlations',()=>{
     assert.equal(Compare.compare([a,{ticker:'FLAT',data:series([100,100,100,100])}]).correlations[0][1],null);
     assert.equal(Compare.compare([{ticker:'UNRECOVERED',data:series([100,120,90,110])}]).assets[0].recoveryDays,null);
 });
+test('annual correlations use non-overlapping year-end returns when history permits',()=>{
+    const annual=(values)=>values.map((price,index)=>({date:new Date(Date.UTC(2020+index,11,31)),price}));
+    const a={ticker:'A',data:annual([100,110,120,108,125,130])};
+    const b={ticker:'B',data:annual([100,95,105,115,110,120])};
+    const result=Compare.compare([a,b]);
+    assert.equal(result.correlationFrequency,'A');
+    const left=[.1,120/110-1,108/120-1,125/108-1,130/125-1];
+    const right=[-.05,105/95-1,115/105-1,110/115-1,120/110-1];
+    const avg=values=>values.reduce((sum,value)=>sum+value,0)/values.length;
+    const expected=left.reduce((sum,value,i)=>sum+(value-avg(left))*(right[i]-avg(right)),0)/Math.sqrt(left.reduce((sum,value)=>sum+(value-avg(left))**2,0)*right.reduce((sum,value)=>sum+(value-avg(right))**2,0));
+    assert.ok(Math.abs(result.correlations[0][1]-expected)<1e-12);
+    assert.equal(Compare.compare([a,b],'3Y').rows.length,4);
+    const monthly=Array.from({length:72},(_,index)=>({date:new Date(Date.UTC(2020+Math.floor(index/12),(index%12)+1,0)),price:100+index+(index%12)*.7}));
+    const monthlyResult=Compare.compare([{ticker:'M1',data:monthly},{ticker:'M2',data:monthly.map((point,index)=>({...point,price:95+index*.8-(index%12)*.3}))}]);
+    assert.equal(monthlyResult.frequency,'M');
+    assert.equal(monthlyResult.correlationFrequency,'A');
+});
 test('keeps four assets on one shared calendar',()=>{
     const assets=['A','B','C','D'].map((ticker,index)=>({ticker,data:series([100,101+index,102+index,103+index])}));
     const result=Compare.compare(assets);

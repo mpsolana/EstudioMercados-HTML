@@ -26,6 +26,7 @@
 .gdc-allocation-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:16px;padding:16px 0;border-top:1px solid #dce2e8;border-bottom:1px solid #dce2e8}.gdc-allocation-summary div{display:grid;gap:5px}.gdc-allocation-summary span{font-size:11px;color:#627180}.gdc-allocation-summary strong{font-size:17px;color:#263342}.gdc-allocation-summary .bad{color:#a13d45}.gdc-allocation-summary .good{color:#197052}
 .gdc-band-axis{display:flex;align-items:center;gap:10px;margin:18px 0 0;font-size:11px;color:#536170}.gdc-band-track{position:relative;flex:1;height:16px;background:#e9edf0;border:1px solid #c8d0d8}.gdc-band-track #gdcRvBand{position:absolute;top:0;height:100%;background:#d4e1ed}.gdc-band-track #gdcRvNeutral{position:absolute;top:-5px;height:24px;width:2px;background:#263342;transform:translateX(-1px)}.gdc-band-track #gdcRvMarker{position:absolute;top:-5px;height:24px;width:5px;background:#168270;transform:translateX(-2px)}
 .gdc-overview-title{font-size:15px;font-weight:700;color:#263342;padding-top:20px;margin-top:16px;border-top:1px solid #dce2e8}.gdc-overview-chart{width:100%;height:430px;margin:8px 0 18px}
+.gdc-overview-chart{height:580px}
 @media(max-width:700px){#gdcReportPreview{max-width:100%;overflow-x:auto}#gdcReportPreview .workspace-report-preview{width:900px;min-width:900px}}
 .app-section .financial-q2{background:#a7c2d7!important;color:#203b50!important}
 .app-section .financial-q3{background:#dde6ed!important;color:#34495a!important}

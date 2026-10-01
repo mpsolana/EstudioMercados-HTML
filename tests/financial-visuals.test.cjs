@@ -39,6 +39,8 @@ test('correlation and return heatmaps have different meanings and zero centres',
     const corr=theme.prepare('corrMatrixChart',data).data[0];
     const ret=theme.prepare('monthlyHeatmapChart',data).data[0];
     assert.deepEqual(corr.colorscale,theme.correlation);assert.equal(corr.zmin,-1);assert.equal(corr.zmax,1);
+    assert.equal(theme.correlation[0][1],'#164e78');assert.equal(theme.correlation.at(-1)[1],'#ffffff');
+    assert.deepEqual(theme.prepare('portfolioCompareCorrelationChart',data).data[0].colorscale,theme.correlation);
     assert.deepEqual(ret.colorscale,theme.diverging);assert.equal(ret.zmin,-10);assert.equal(ret.zmax,10);
     assert.deepEqual(ret.z,data[0].z);
     assert.equal(new Set(theme.quartiles.map(q=>q.background)).size,4);

@@ -7,12 +7,12 @@
     const palette = ['#204f78','#78828c','#38889a','#846b91','#ab8044','#51786b','#9a6375','#547bac','#454b53','#8d9470','#986c50','#427076'];
     const sequential = [[0,'#edf2f6'],[.33,'#bed1e0'],[.66,'#7199b8'],[1,colors.blue]];
     const diverging = [[0,'#d99094'],[.5,'#ffffff'],[1,'#83b7a2']];
-    const correlation = [[0,'#b0b8c1'],[.5,'#ffffff'],[1,'#7ca5c6']];
+    const correlation = [[0,'#164e78'],[.5,'#a9c3d7'],[1,'#ffffff']];
     const quartiles = [{background:'#204f78',color:'#ffffff'},{background:'#a7c2d7',color:'#203b50'},{background:'#dde6ed',color:'#34495a'},{background:'#f0f2f4',color:'#536170'}];
     // Explicit policies distinguish returns from prices, frequencies, and risk measurements.
     const signedBars = new Set(['weeklyChart','monthlyChart','quarterlyChart','vixBarChart','oilBarChart','ratesBarChart','dipBarChart','athForwardChart','rollingAnnualizedChart','rollingTotalChart','annualDistChart']);
     const returnHeatmaps = new Set(['monthlyHeatmapChart','ratesHeatmapChart']);
-    const correlationHeatmaps = new Set(['portfolioCorrMatrixChart','corrMatrixChart']);
+    const correlationHeatmaps = new Set(['portfolioCorrMatrixChart','corrMatrixChart','multiAssetCorrelationChart','portfolioCompareCorrelationChart','gdcHistoricalCorrelationChart']);
     const dashStyles = ['solid','dash','dot','dashdot','longdash','longdashdot'];
     function seriesColor(index) { return palette[index % palette.length]; }
     function sliceColor(index) {

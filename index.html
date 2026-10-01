@@ -2373,11 +2373,11 @@
                 const rows = sheetRows(workbook, sheetName);
                 const out = {};
                 rows.forEach(row => {
-                    const ticker = String(firstValue(row, ['ticker', 'benchmark', 'bench']) || '').trim();
+                    const ticker = String(firstValue(row, ['ticker', 'benchmark', 'bench', 'index ticker', 'symbol', 'codigo']) || '').trim();
                     if (!ticker) return;
                     const item = {
-                        name: String(firstValue(row, ['name', 'nombre']) || ticker).trim(),
-                        assetClass: String(firstValue(row, ['asset class', 'asset_class', 'categoria', 'category']) || '').trim()
+                        name: String(firstValue(row, ['name', 'nombre', 'index name', 'benchmark name', 'indice', 'índice']) || ticker).trim(),
+                        assetClass: String(firstValue(row, ['asset class', 'assetclass', 'asset_class', 'categoria', 'categoría', 'categoria generica', 'categoría genérica', 'category', 'gdc category']) || '').trim()
                     };
                     out[ticker] = item;
                     out[ticker.toLowerCase()] = item;
@@ -3889,7 +3889,7 @@
                 const counts = {
                     universe: fundUniverseState?.records?.length || 0,
                     approved: approvedFundsState?.records?.length || 0,
-                    portfolio: fundPortfolioRows.length,
+                    portfolio: fundPortfolioRows.length || GdcModel.state.models.length,
                     positions: aggregatePositionsState?.rows?.length || 0,
                     assetClass: assetClassScreenerState?.records?.length || 0
                 };
@@ -4060,7 +4060,11 @@
                     if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
                     const workbook = await readWorkbook(file);
                     rows = parseFundPortfolioRows(sheetRows(workbook, workbook.SheetNames[0]));
-                    if(GdcModel.loadWorkbook(workbook,file.name)&&!rows.length)return;
+                    if(GdcModel.loadWorkbook(workbook,file.name)&&!rows.length){
+                        document.getElementById('fundPortfolioStatus').innerText=`${GdcModel.state.models.length} carteras modelo cargadas (${file.name})`;
+                        portfolioWorkflowRefresh();
+                        return;
+                    }
                 }
                 setFundPortfolioRows(rows, file.name, { manual: true });
             }
@@ -8008,7 +8012,16 @@
                 const baseReturns = loadedPortfolio.returns;
                 const tickers = (loadedPortfolio.corrTickers || []).filter(t => (baseReturns[t] || []).length >= windowSize + 2);
                 const rollingReturns = {};
-                tickers.forEach(t => rollingReturns[t] = rollingCompoundedReturns(baseReturns[t] || [], windowSize));
+                const dates=(loadedPortfolio.commonDates||[]).map(value=>new Date(value));
+                const periodKey=date=>freq==='A'?`${date.getUTCFullYear()}`:freq==='6M'?`${date.getUTCFullYear()}-${Math.floor(date.getUTCMonth()/6)}`:`${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+                const boundaries=[0];
+                if(freq!=='D'&&dates.length>1){for(let i=1;i<dates.length;i++)if(i===dates.length-1||periodKey(dates[i])!==periodKey(dates[i+1]))boundaries.push(i);}
+                if(freq==='A'&&boundaries.length>1)boundaries.shift();
+                if(freq==='A'&&dates.at(-1)?.getUTCMonth()!==11&&boundaries.length>1)boundaries.pop();
+                tickers.forEach(t=>{
+                    const returns=baseReturns[t]||[];
+                    rollingReturns[t]=freq==='D'?returns:boundaries.slice(1).map((end,i)=>returns.slice(boundaries[i],end).reduce((product,value)=>product*(1+value),1)-1);
+                });
                 const minLen = tickers.length ? Math.min(...tickers.map(t => (rollingReturns[t] || []).length)) : 0;
                 const trimmed = {};
                 tickers.forEach(t => { trimmed[t] = (rollingReturns[t] || []).slice(-minLen); });
@@ -8046,8 +8059,9 @@
 
             function renderPortfolioCorrMatrix(labels, z, freqLabel, windowSize, sampleSize) {
                 const text = z.map(row => row.map(val => Number.isFinite(val) ? val.toFixed(2) : '-'));
-                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: [[0, '#0f172a'], [0.5, '#94a3b8'], [1, '#ffffff']], zmin: -1, zmax: 1, text, hoverinfo: 'x+y+z', texttemplate: '%{text}', textfont: { color: '#111827', size: 11 } }];
-                const layout = { height: Math.max(520, labels.length * 30 + 160), title: { text: `Ventana ${windowSize} periodo(s) · muestra ${sampleSize}`, font: { size: 12 } }, margin: { t: 45, l: 170, r: 45, b: 55 }, xaxis: { tickmode: 'array', tickvals: labels, ticktext: labels.map((_, i) => String(i + 1)), tickangle: 0 }, yaxis: { tickfont: { size: 10 }, tickmode: 'array', tickvals: labels, ticktext: labels.map((label, i) => `${i + 1}. ${String(label).slice(0, 19)}${String(label).length > 19 ? '…' : ''}`), autorange: 'reversed' } };
+                const data = [{ z, x: labels, y: labels, type: 'heatmap', colorscale: FinancialVisuals.correlation, zmin: -1, zmax: 1, hoverinfo: 'x+y+z' }];
+                const annotations=text.flatMap((row,i)=>row.map((value,j)=>({x:labels[j],y:labels[i],text:value,showarrow:false,font:{size:11,color:Number.isFinite(z[i][j])&&z[i][j]<-.45?'#ffffff':'#263342'}})));
+                const layout = { height: Math.max(520, labels.length * 30 + 160), title: { text: `${({D:'Diaria',M:'Mensual','6M':'Semestral',A:'Anual'})[freqLabel]||freqLabel} · ${sampleSize} retornos no solapados${sampleSize<3?' · histórico insuficiente':''}`, font: { size: 12 } }, margin: { t: 45, l: 170, r: 45, b: 55 }, xaxis: { tickmode: 'array', tickvals: labels, ticktext: labels.map((_, i) => String(i + 1)), tickangle: 0 }, yaxis: { tickfont: { size: 10 }, tickmode: 'array', tickvals: labels, ticktext: labels.map((label, i) => `${i + 1}. ${String(label).slice(0, 19)}${String(label).length > 19 ? '…' : ''}`), autorange: 'reversed' },annotations };
                 FinancialVisuals.newPlot('portfolioCorrMatrixChart', data, layout, { responsive: true, displayModeBar: false });
             }
 

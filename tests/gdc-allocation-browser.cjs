@@ -17,7 +17,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    add('bench',[['date','BRF','BRV'],...dates.map((date,i)=>[date,100+i,100+i*2])]);
    add('prices',[['date','ES0000000001','ES0000000002'],...dates.map((date,i)=>[date,100+i*1.1,100+i*2.1])]);
    const file=new File([XLSX.write(book,{bookType:'xlsx',type:'array'})],'base-gdc.xlsx');
-   const input=document.getElementById('gdcFile'),transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+   const input=document.getElementById('fundPortfolioFileInput'),transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
   });
   await page.waitForFunction(()=>GdcModel.state.models.length===5);
   await page.locator('[data-workspace-scope="model"]').click();
@@ -33,6 +33,17 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.equal(await page.locator('#gdcProfileOverviewChart .main-svg').count()>0,true);
   assert.equal(await page.locator('#gdcCategoryOverviewChart .main-svg').count()>0,true);
   await page.evaluate(()=>{GdcModel.select(0,'ES0000000001');GdcModel.select(1,'ES0000000002');});
+  await page.locator('#gdcHistoryRun').click();
+  assert.equal(await page.locator('#gdcHistoryTable tbody tr').count(),2);
+  assert.ok(await page.locator('#gdcHistoricalBaseChart .main-svg').count()>0);
+  assert.match(await page.locator('#gdcHistoryStatus').textContent(),/2\/2 fondos comparables/);
+  const historyExcel=page.waitForEvent('download');await page.locator('#gdcHistoryExcel').click();
+  const historyBytes=fs.readFileSync(await(await historyExcel).path());
+  const historySheets=await page.evaluate(base64=>XLSX.read(Uint8Array.from(atob(base64),char=>char.charCodeAt(0)),{type:'array'}).SheetNames,historyBytes.toString('base64'));
+  assert.ok(historySheets.includes('Resumen')&&historySheets.includes('Fondo 1'));
+  const historyPdf=page.waitForEvent('download',{timeout:120000});await page.locator('#gdcHistoryPdf').click();
+  const historyPdfFile=await historyPdf;
+  if(process.env.BROWSER_OUTPUT_DIR)await historyPdfFile.saveAs(path.join(process.env.BROWSER_OUTPUT_DIR,'gdc-history-report.pdf'));
   await page.locator('#gdcReport').click();
   await page.waitForFunction(()=>document.querySelector('#gdcReportPreview iframe')?.contentDocument?.querySelector('.gdc-allocation-pie img'));
   const report=await page.evaluate(()=>document.querySelector('#gdcReportPreview iframe').contentDocument.body.textContent);
@@ -46,7 +57,8 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.ok(workbook.summary.some(row=>row[0]==='Cartera estratégica Prudente'&&row[4]===25));
   assert.ok(workbook.summary.some(row=>row[0]==='Cartera estratégica Prudente'&&String(row[9]||'').includes('█')));
   assert.ok(workbook.allocation.some(row=>row[0]==='Cartera estratégica Prudente'&&row[1]==='RV Global'&&row[3]===25));
-  await page.locator('#gdcFile').setInputFiles({name:'comite.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
+  await page.evaluate(()=>{GdcModel.state.models=[];GdcModel.state.selected=0;GdcModel.render();});
+  await page.locator('#gdcPriorFile').setInputFiles({name:'comite.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
   await page.waitForFunction(()=>GdcModel.state.models[1]?.rows[1]?.portfolioWeight===25);
   assert.equal(await page.evaluate(()=>GdcModel.state.models[1].rows[1].currentPositions[0]?.isin),'ES0000000002');
   await page.locator('#gdcModels').selectOption('1');

@@ -1,5 +1,5 @@
 const PortfolioWorkspace = { scope: 'data', step: 'diagnosis', tool: 'main', revision: 1, snapshots: {}, engine: 'audit-1' };
-function portfolioWorkspaceReady(){return Boolean(fundUniverseState?.records?.length || fundPortfolioRows?.length);}
+function portfolioWorkspaceReady(){return Boolean(fundUniverseState?.records?.length || fundPortfolioRows?.length || GdcModel.state.models.length);}
 function portfolioWorkspaceWarning(){
     const scope=PortfolioWorkspace.scope,tool=PortfolioWorkspace.tool;
     if(scope==='data')return portfolioWorkspaceReady()?'':'Carga el ranking del universo o el Excel de cartera modelo para empezar.';
@@ -12,7 +12,7 @@ function portfolioWorkspaceWarning(){
     if(scope==='individual'&&tool==='funds'&&!fundUniverseState?.records?.length)missing.push('ranking del universo');
     if(scope==='individual'&&tool==='assets'&&!fundPortfolioRows?.length&&!loadedPortfolio?.entries?.length)missing.push('cartera modelo o cartera con históricos');
     if(scope==='aggregate'&&!aggregatePositionsState.rows.length)missing.push('posiciones agregadas');
-    if(scope==='model'&&!GdcModel.state.models.length)missing.push('Excel base GDC o cartera modelo con hoja Carteras Modelo');
+    if(scope==='model'&&!GdcModel.state.models.length)missing.push('cartera modelo en Carga de datos o selección mensual GDC');
     if(scope==='comparison'&&!PortfolioCompare.state.sources.some(Boolean))return 'Añade una cartera Excel, un activo Yahoo o una cartera Yahoo para iniciar la comparativa.';
     return missing.length?`Para completar esta vista, carga en Carga de datos: ${missing.join(' y ')}.`:'';
 }
@@ -199,7 +199,7 @@ function initializePortfolioWorkspace() {
     const modelPanel=document.createElement('section');modelPanel.id='workspaceModel';modelPanel.className='workspace-panel';modelPanel.dataset.workspacePanel='';root.append(modelPanel);
     GdcModel.init();
     const gdcUploads=document.createElement('div');gdcUploads.className='workspace-data-extra';gdcUploads.innerHTML='<h3>GDC · cartera modelo</h3>';
-    for(const id of ['gdcFile','gdcPriorFile'])gdcUploads.append(document.getElementById(id).closest('label'));
+    gdcUploads.append(document.getElementById('gdcPriorFile').closest('label'));
     data.append(gdcUploads);
     const comparePanel=document.createElement('section');comparePanel.id='workspacePortfolioCompare';comparePanel.className='workspace-panel';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
     PortfolioCompare.init();

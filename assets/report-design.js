@@ -154,8 +154,8 @@ const ReportDesign = (() => {
                 summary.replaceWith(table);
             });
             doc.querySelectorAll('img').forEach(el => {
-                const pie=el.closest('.gdc-allocation-pie'),peer=el.closest('.gdc-peer-report');
-                el.setAttribute('data-pdfmake',JSON.stringify({fit:pie?[450,160]:peer?[650,230]:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:peer?[0,2,0,3]:pie?[0,3,0,6]:[0,6,0,12]}));
+                const pie=el.closest('.gdc-allocation-pie'),peer=el.closest('.gdc-peer-report'),history=el.closest('.gdc-history-report');
+                el.setAttribute('data-pdfmake',JSON.stringify({fit:pie?[450,160]:peer?[650,180]:history?[650,210]:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:peer?[0,2,0,3]:pie?[0,3,0,6]:[0,6,0,12]}));
             });
             doc.querySelectorAll('.quality-rating').forEach(el=>{
                 const stars=[...el.textContent].filter(char=>char==='★'||char==='☆');
@@ -209,7 +209,7 @@ const ReportDesign = (() => {
             }
             format(content);
             const definition = {pageSize:'A4',pageOrientation:landscape?'landscape':'portrait',pageMargins:landscape?[30,32,30,36]:[42,40,42,45],defaultStyle:{font:'Roboto',fontSize:9,color:'#263342',lineHeight:1.2},content,footer:(page,pages)=>({text:`${page} / ${pages}`,alignment:'right',margin:[42,12,42,0],fontSize:8,color:'#687787'})};
-            definition.footer=(page,pages)=>({columns:[{text:'Calidad: escala interna de 1 a 5 estrellas derivada del score. Metodología al final.',width:'*'},{text:`${page} / ${pages}`,width:'auto',alignment:'right'}],margin:[42,8,42,0],fontSize:7,color:'#687787'});
+            definition.footer=(page,pages)=>({columns:[{text:'Calidad: escala interna de 1 a 5 estrellas derivada del score. Véase metodología y fuentes.',width:'*'},{text:`${page} / ${pages}`,width:'auto',alignment:'right'}],margin:[42,8,42,0],fontSize:7,color:'#687787'});
             await PortfolioLoading.phase(75,'Generando el archivo PDF para descargar…');
             await new Promise((resolve,reject) => {
                 const timer=setTimeout(()=>reject(new Error('Tiempo agotado al generar el PDF.')),120000);

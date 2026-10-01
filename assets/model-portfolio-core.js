@@ -82,7 +82,8 @@
     }
     function trackingError(selections,fundSeries,benchmarkSeries){
         if(!selections.length||selections.some(row=>!(row.weight>0)||!row.selectedIsin||!row.benchmark))return {value:NaN,reason:'Faltan fondos o benchmarks seleccionados.'};
-        const pairs=selections.map(row=>({weight:row.weight,fund:monthlyPrices(fundSeries[row.selectedIsin]||fundSeries[row.ticker]),bench:monthlyPrices(benchmarkSeries[row.benchmark]?.data||benchmarkSeries[row.benchmark])}));
+        const lookup=(source,ticker)=>source[ticker]||Object.entries(source).find(([key])=>key.toLowerCase()===String(ticker).toLowerCase())?.[1];
+        const pairs=selections.map(row=>({weight:row.weight,fund:monthlyPrices(lookup(fundSeries,row.selectedIsin)||lookup(fundSeries,row.ticker)),bench:monthlyPrices(lookup(benchmarkSeries,row.benchmark)?.data||lookup(benchmarkSeries,row.benchmark))}));
         if(pairs.some(pair=>pair.fund.size<3||pair.bench.size<3))return {value:NaN,reason:'Faltan historicos mensuales de fondos o benchmarks.'};
         const common=[...pairs[0].fund.keys()].filter(month=>pairs.every(pair=>pair.fund.has(month)&&pair.bench.has(month))).sort();
         let months=[],run=[];

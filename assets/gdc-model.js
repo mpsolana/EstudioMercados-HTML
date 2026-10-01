@@ -1,13 +1,13 @@
 const GdcModel=(()=>{
     const core=ModelPortfolioCore;
-    const state={models:[],selected:0,source:'',benchmarks:{},benchmarkMeta:{},prices:{},maxTe:NaN,historyComparable:false,reportHtml:''};
+    const state={models:[],selected:0,source:'',benchmarks:{},benchmarkMeta:{},prices:{},maxTe:NaN,historyComparable:false,reportHtml:'',history:[],historyHtml:''};
     let panel,peerIndex,peerSource,rankingCache=new Map(),universeCache=new Map(),rankSource,renderedAllocation='';
     const esc=value=>escapeHtml(String(value??''));
     const fmt=value=>Number.isFinite(value)?value.toFixed(2):'-';
     const profileLabel=name=>({'muy_conservador':'Muy cons.','prudente':'Prudente','equilibrado':'Equilibr.','decidido':'Decidido','muy_arriesgado':'Muy arr.'})[core.profile(name)]||String(name).replace(/^Cartera estrat[eé]gica\s*/i,'').slice(0,14);
     const metricPct=value=>Number.isFinite(value)?`${fmt(value)}%`:'-';
     const pct=value=>Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'Pendiente';
-    function invalidateReport(){state.reportHtml='';const preview=panel?.querySelector('#gdcReportPreview');if(preview)preview.textContent='Datos modificados. Genera un nuevo informe.';}
+    function invalidateReport(){state.reportHtml='';state.history=[];state.historyHtml='';const preview=panel?.querySelector('#gdcReportPreview');if(preview)preview.textContent='Datos modificados. Genera un nuevo informe.';}
     function model(){return state.models[state.selected];}
     function records(){return fundUniverseState?.records||[];}
     function shortlist(row){
@@ -23,8 +23,16 @@ const GdcModel=(()=>{
     function record(isin){return fundUniverseState?.isinIndex?.get(isin)||null;}
     function peers(fund){if(!fund)return null;if(!peerIndex||peerSource!==records()){peerSource=records();peerIndex=PeerValue.index(peerSource);}return PeerValue.compare(fund,peerIndex);}
     function categoryBenchmarks(){return core.benchmarkIndex(Object.keys(state.benchmarkMeta).length?state.benchmarkMeta:loadedPortfolio?.benchCategories||{});}
-    function benchmarkNames(row){const index=categoryBenchmarks(),metadata=Object.keys(state.benchmarkMeta).length?state.benchmarkMeta:loadedPortfolio?.benchCategories||{};
-        return [...new Set(row.subcategories.flatMap(category=>(index.get(core.key(category))||[]).map(ticker=>`${metadata[ticker]?.name||ticker} (${ticker})`)))];
+    function benchmarkTickers(row){
+        const index=categoryBenchmarks(),generic=core.key(row.generic);
+        if(index.has(generic))return index.get(generic);
+        const compact=value=>core.key(value).replace(/[^a-z0-9]/g,'');
+        const variants=[...index].filter(([category])=>compact(category)===compact(generic));
+        if(variants.length===1)return variants[0][1];
+        return row.subcategories.flatMap(category=>index.get(core.key(category))||[]);
+    }
+    function benchmarkNames(row){const metadata=Object.keys(state.benchmarkMeta).length?state.benchmarkMeta:loadedPortfolio?.benchCategories||{};
+        return [...new Set(benchmarkTickers(row).map(ticker=>`${metadata[ticker]?.name||ticker} (${ticker})`))];
     }
     function allocation(){return core.allocation(model());}
     function fundHistories(){return {...Object.fromEntries(Object.entries(loadedPortfolio?.priceSeries||{}).map(([key,item])=>[key.toUpperCase(),item.data||item])),...state.prices};}
@@ -34,8 +42,7 @@ const GdcModel=(()=>{
     }
     function effectiveRows(){return (model()?.rows||[]).map(row=>({...row,current:positions(row,'current'),proposed:positions(row,'proposed')}));}
     function proposalRows(rows=effectiveRows()){
-        const index=categoryBenchmarks();
-        return rows.flatMap(row=>row.proposed.filter(item=>item.weight>0).map(item=>({generic:row.generic,weight:item.weight,selectedIsin:item.isin,selected:item.fund,benchmark:index.get(core.key(item.fund?.category||row.subcategories[0]))?.[0]||''})));
+        return rows.flatMap(row=>row.proposed.filter(item=>item.weight>0).map(item=>({generic:row.generic,weight:item.weight,selectedIsin:item.isin,selected:item.fund,benchmark:benchmarkTickers(row)[0]||''})));
     }
     function teResult(){
         if(Math.abs(allocation().portfolioTotal-100)>.05)return {value:NaN,reason:'Los pesos de la cartera no suman 100%.'};
@@ -63,16 +70,10 @@ const GdcModel=(()=>{
         state.benchmarkMeta=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
         if(!Object.keys(state.benchmarkMeta).length)state.benchmarkMeta=loadedPortfolio?.benchCategories||{};
         state.benchmarks=benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['bench','benchmark','benchmarks']));
-        state.prices=Object.fromEntries(Object.entries(benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['prices','precios','historicos','historico']))).map(([key,value])=>[key.toUpperCase(),value.data]));
+        state.prices=Object.fromEntries(Object.entries(benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['prices','precios','historicos','historico','posis']))).map(([key,value])=>[key.toUpperCase(),value.data]));
         if(findSheet(workbook,['Asignacion'])||findSheet(workbook,['GDC Estado']))loadPriorWorkbook(workbook);
         else {invalidateReport();render();}
         return true;
-    }
-    async function importFile(){
-        const file=document.getElementById('gdcFile')?.files?.[0];if(!file)return;
-        const status=panel.querySelector('#gdcStatus');status.textContent='Leyendo carteras modelo...';
-        try{if(!loadWorkbook(await readWorkbook(file),file.name))throw new Error('No se encontro la hoja Carteras Modelo.');}
-        catch(error){status.textContent=error.message;}
     }
     function select(index,isin,slot=0){
         const row=model()?.rows[index];if(!row)return;
@@ -127,7 +128,8 @@ const GdcModel=(()=>{
             const outside=item.isin&&!options.some(fund=>fund.isin===item.isin)?`<option value="${esc(item.isin)}" selected>${esc(item.isin)} · ${esc(record(item.isin)?.name||'Fuera del top 5')}</option>`:'';
             return `<div class="gdc-proposal-line"><span class="gdc-proposal-number">${slot+1}</span><div><select aria-label="Top 5 para ${esc(row.generic)}, fondo ${slot+1}" data-gdc-select="${index}:${slot}"><option value="">Top 5 · elegir fondo</option>${outside}${top}</select><select aria-label="Universo completo para ${esc(row.generic)}, fondo ${slot+1}" data-gdc-universe="${index}:${slot}"><option value="${esc(item.isin||'')}">${item.isin?`${esc(item.isin)} · ${esc(record(item.isin)?.name||'-')}`:'Universo completo · abrir para buscar'}</option></select></div><label>Dentro de categoría (%)<input type="number" min="0" max="100" step="0.01" value="${fmt(item.share)}" data-gdc-weight="${index}:${slot}" ${row.keepCurrent?'disabled':''}></label><button type="button" data-gdc-remove="${index}:${slot}" title="Quitar fondo" aria-label="Quitar fondo ${slot+1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>`;
         }).join('');
-        const info=proposed.map(item=>`<div>${esc(item.fund?.name||item.isin)}<br>${QualityCore.withTechnical(item.fund?.score,true)} · TER ${fmt(item.fund?.ter)}% · ${fmt(item.weight)}% cartera</div>`).join('');
+        const currentTer=weightedMetric(currentFunds,'ter').value,currentScore=weightedMetric(currentFunds,'score').value;
+        const info=proposed.map(item=>`<div>${esc(item.fund?.name||item.isin)}<br>${QualityCore.withTechnical(item.fund?.score,true)} · TER ${fmt(item.fund?.ter)}% · ${fmt(item.weight)}% cartera${Number.isFinite(currentTer)&&Number.isFinite(item.fund?.ter)?`<br><small>TER vs actual ${fmt(item.fund.ter-currentTer)} pp</small>`:''}${Number.isFinite(currentScore)&&Number.isFinite(item.fund?.score)?`<br><small>Score vs actual ${fmt(item.fund.score-currentScore)}</small>`:''}</div>`).join('');
         const peersHtml=proposed.map(item=>{const peer=peers(item.fund);return `<div>${esc(item.fund?.category||'-')}<br>Calidad ${fmt(peer?.meanScore)} · TER ${fmt(peer?.meanTer)}%</div>`;}).join('');
         return `<tr><td><b>${esc(row.generic)}</b><br><small>${row.subcategories.map(esc).join(' · ')}</small><select class="gdc-asset-type" data-gdc-asset-type="${index}" aria-label="Tipo de activo ${esc(row.generic)}"><option value="RV" ${row.assetType==='RV'?'selected':''}>RV</option><option value="RF" ${row.assetType==='RF'?'selected':''}>RF</option><option value="Otros" ${row.assetType==='Otros'?'selected':''}>Otros</option></select></td><td class="gdc-benchmark-name">${benchmarkNames(row).map(esc).join('<br>')||'Sin índice asociado'}</td><td>${fmt(row.weight)}%</td><td><input class="gdc-portfolio-weight" type="number" min="0" max="100" step="0.01" value="${fmt(row.portfolioWeight)}" data-gdc-portfolio-weight="${index}" aria-label="Peso de cartera ${esc(row.generic)}">%</td><td><textarea class="gdc-current" rows="${Math.max(2,Math.min(4,currentFunds.length))}" aria-label="ISIN actuales ${esc(row.generic)}" data-gdc-current="${index}" placeholder="Un ISIN por línea">${esc(currentFunds.map(item=>item.isin).join('\n'))}</textarea><small>${currentFunds.map(item=>`${esc(item.fund?.name||item.isin)} · ${fmt(item.share)}%`).join('<br>')}</small></td><td><label class="gdc-keep-current"><input type="checkbox" data-gdc-keep="${index}" ${row.keepCurrent?'checked':''} ${!currentFunds.length?'disabled':''}> Mantener posiciones actuales</label>${controls}<button type="button" data-gdc-add="${index}" ${row.keepCurrent?'disabled':''}><i class="fa-solid fa-plus" aria-hidden="true"></i> Añadir fondo</button><details><summary>Ver los 5 mejores</summary><table class="gdc-top-table"><thead><tr><th>#</th><th>Fondo</th><th>Calidad</th><th>TER</th><th>Ret 5A</th><th>Riesgo 5A</th></tr></thead><tbody>${list||'<tr><td colspan="6">Sin fondos scoreados para estas categorías.</td></tr>'}</tbody></table></details></td><td class="gdc-position-summary">${info||'-'}</td><td class="gdc-position-summary">${peersHtml||'-'}</td></tr>`;
     }
@@ -205,7 +207,15 @@ const GdcModel=(()=>{
         XLSX.writeFile(book,`GDC_comite_${date}.xlsx`);
     }
     function loadPriorWorkbook(workbook){
-        if(!state.models.length)throw new Error('Importa primero el Excel base con Carteras Modelo.');
+        if(!state.models.length){
+            const base=findSheet(workbook,['Carteras Modelo']);
+            if(!base)throw new Error('El archivo mensual no contiene Carteras Modelo; carga primero la cartera modelo en Carga de datos.');
+            state.models=core.parseGrid(XLSX.utils.sheet_to_json(workbook.Sheets[base],{header:1,defval:null,raw:true}));
+            state.selected=0;state.source='Archivo mensual importado';
+            state.benchmarkMeta=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
+            state.benchmarks=benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['bench','benchmark','benchmarks']));
+            state.prices=Object.fromEntries(Object.entries(benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['prices','precios','historicos','historico','posis']))).map(([key,value])=>[key.toUpperCase(),value.data]));
+        }
         const sheet=findSheet(workbook,['GDC Estado']),allocationSheet=findSheet(workbook,['Asignacion']);
         if(!sheet&&!allocationSheet)throw new Error('El archivo anterior no contiene GDC Estado ni Asignacion.');
         const groups=new Map();
@@ -240,8 +250,9 @@ const GdcModel=(()=>{
     }
     async function importPriorFile(){
         const file=document.getElementById('gdcPriorFile')?.files?.[0];if(!file)return;
-        try{const result=loadPriorWorkbook(await readWorkbook(file));panel.querySelector('#gdcStatus').textContent=`${result.positions} posiciones anteriores y ${result.weights} pesos de categoria cargados. Revisa la banda RV y genera la nueva propuesta.`;}
+        try{const result=loadPriorWorkbook(await readWorkbook(file));state.source=file.name;renderScoringDataStatus();portfolioWorkflowRefresh();panel.querySelector('#gdcStatus').textContent=`${result.positions} posiciones anteriores y ${result.weights} pesos de categoria cargados. Revisa la banda RV y genera la nueva propuesta.`;}
         catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}
+        finally{document.getElementById('gdcPriorFile').value='';}
     }
     function weightedMetric(items,key){return FinanceCore.weighted(items.map(item=>({weight:item.share,[key]:item.fund?.[key]})),key);}
     async function allocationPieImage(rows){
@@ -273,7 +284,7 @@ const GdcModel=(()=>{
         const cells=(label,value)=>`<tr><td>${label}</td><td>${value?esc(value.name||'Media de categoría'):'-'}</td><td>${QualityCore.withTechnical(value?.score,true)}</td><td>${metricPct(value?.ter)}</td><td>${metricPct(value?.ret5)}</td><td>${metricPct(value?.risk5)}</td></tr>`;
         const currentSummary={name:row.current.map(position=>position.fund?.name||position.isin).join('; '),score:weightedMetric(row.current,'score').value,ter:weightedMetric(row.current,'ter').value,ret5:weightedMetric(row.current,'ret5').value,risk5:weightedMetric(row.current,'risk5').value};
         const mean={name:`${fund?.category||row.generic} · ${peer?.count||0} peers`,score:peer?.meanScore,ter:peer?.meanTer,ret5:ret.value,risk5:risk.value};
-        return `<section class="block report-keep-together gdc-peer-report"><h3>${esc(row.generic)} · ${esc(fund?.name||item.isin)}</h3><p>${esc(item.isin)} · peso en cartera ${fmt(item.weight)}% · ${esc(fund?.category||row.subcategories.join('; '))}</p>${image?`<figure><img src="${image}" alt="Calidad y TER de ${esc(row.generic)} frente a peers"></figure>`:'<p>Sin métricas suficientes para representar la comparación.</p>'}<table class="wide-report-table"><thead><tr><th>Referencia</th><th>Fondo</th><th>Calidad</th><th>TER</th><th>Ret 5A</th><th>Riesgo 5A</th></tr></thead><tbody>${cells('Actual',row.current.length?currentSummary:null)}${cells(row.keepCurrent?'Sin cambio':'Propuesta',fund)}${cells('Media peers',mean)}</tbody></table><p class="gdc-peer-coverage">Ret 5A: ${ret.count}/${cohort.length} peers con dato; riesgo 5A: ${risk.count}/${cohort.length}. Las medias se calculan con los peers que tienen cada métrica.</p></section>`;
+        return `<section class="block report-keep-together gdc-peer-report"><h3>${esc(row.generic)} · ${esc(fund?.name||item.isin)}</h3><p>${esc(item.isin)} · peso en cartera ${fmt(item.weight)}% · ${esc(fund?.category||row.subcategories.join('; '))}</p>${image?`<figure><img src="${image}" alt="Calidad y TER de ${esc(row.generic)} frente a peers"></figure>`:'<p>Sin métricas suficientes para representar la comparación.</p>'}<table class="wide-report-table"><thead><tr><th>Referencia</th><th>Fondo</th><th>Calidad</th><th>TER</th><th>Ret 5A</th><th>Riesgo 5A</th></tr></thead><tbody>${row.keepCurrent?'':cells('Actual',row.current.length?currentSummary:null)}${cells(row.keepCurrent?'Sin cambio':'Propuesta',fund)}${cells('Media peers',mean)}</tbody></table><p class="gdc-peer-coverage">Ret 5A: ${ret.count}/${cohort.length} peers con dato; riesgo 5A: ${risk.count}/${cohort.length}. Las medias se calculan con los peers que tienen cada métrica.</p></section>`;
     }
     async function report(){
         const selected=model();if(!selected)return;
@@ -288,6 +299,12 @@ const GdcModel=(()=>{
             : 'Reduccion de TER pendiente de informar las posiciones actuales y sus costes.';
         const positions=rows.flatMap(row=>row.proposed.map(item=>`<tr><td>${esc(row.generic)}</td><td>${fmt(row.weight)}%</td><td>${fmt(row.portfolioWeight)}%</td><td>${esc(row.current.map(position=>position.isin).join('; ')||'-')}</td><td>${esc(item.isin)}</td><td>${esc(item.fund?.name||'-')}</td><td>${fmt(item.weight)}%</td><td>${QualityCore.withTechnical(item.fund?.score,true)}</td><td>${metricPct(item.fund?.ter)}</td></tr>`)).join('');
         const metricRows=rows.flatMap(row=>row.proposed.map(item=>`<tr><td>${esc(row.generic)}<br><small>${esc(item.isin)}</small></td><td>${QualityCore.withTechnical(weightedMetric(row.current,'score').value,true)}</td><td>${metricPct(weightedMetric(row.current,'ter').value)}</td><td>${metricPct(weightedMetric(row.current,'ret5').value)}</td><td>${metricPct(weightedMetric(row.current,'risk5').value)}</td><td>${QualityCore.withTechnical(item.fund?.score,true)}</td><td>${metricPct(item.fund?.ter)}</td><td>${metricPct(item.fund?.ret5)}</td><td>${metricPct(item.fund?.risk5)}</td></tr>`)).join('');
+        const peerSummary=rows.flatMap(row=>row.proposed.map(item=>{const peer=peers(item.fund),score=item.fund?.score,ter=item.fund?.ter;
+            const quality=Number.isFinite(score)&&Number.isFinite(peer?.meanScore)?score-peer.meanScore:NaN;
+            const cost=Number.isFinite(ter)&&Number.isFinite(peer?.meanTer)?ter-peer.meanTer:NaN;
+            const klass=Number.isFinite(quality)&&Number.isFinite(cost)?quality>=0&&cost<=0?'good':quality<0&&cost>0?'bad':'':'';
+            return `<tr><td>${esc(item.isin)}<br><small>${esc(item.fund?.name||'-')}</small></td><td>${esc(item.fund?.category||row.generic)}</td><td>${QualityCore.withTechnical(score,true)}</td><td>${QualityCore.withTechnical(peer?.meanScore,true)}</td><td>${metricPct(ter)}</td><td>${metricPct(peer?.meanTer)}</td><td class="${klass}">${Number.isFinite(quality)?`${quality>=0?'+':''}${fmt(quality)}`:'-'} / ${Number.isFinite(cost)?`${cost>=0?'+':''}${fmt(cost)} pp`:'-'}</td></tr>`;
+        })).join('');
         const pie=await allocationPieImage(rows),band=values.band?`${values.band[0]}–${values.band[1]}%`:'Sin perfil asignado';
         const bandStatus=values.band?(values.portfolioRv>=values.band[0]-1e-6&&values.portfolioRv<=values.band[1]+1e-6?'Dentro de banda':'Fuera de banda'):'Pendiente';
         const body=`<div class="report manager-report">
@@ -299,6 +316,7 @@ const GdcModel=(()=>{
                 <div><span>Tracking error</span><strong>${pct(te.value)}</strong></div>
             </div><p>${esc(statusText(rows))}</p><p>${savingText}</p></section>
             <section class="block"><h2>Asignación y límites del perfil</h2><table class="wide-report-table"><thead><tr><th>Banda RV</th><th>Punto neutral</th><th>RV benchmark</th><th>RV cartera</th><th>RF cartera</th><th>Otros</th><th>Estado</th></tr></thead><tbody><tr><td>${band}</td><td>${metricPct(values.neutral)}</td><td>${metricPct(values.benchmarkRv)}</td><td>${metricPct(values.portfolioRv)}</td><td>${metricPct(values.portfolioRf)}</td><td>${metricPct(values.portfolioOther)}</td><td>${bandStatus}</td></tr></tbody></table><p>Los pesos de la hoja Carteras Modelo son el benchmark fijo. La banda se comprueba sobre la asignación actual. Las categorías clasificadas como Otros no se imputan a RV ni a RF.</p>${pie?`<figure class="gdc-allocation-pie" style="margin:10px 0;text-align:center"><img style="display:block;width:100%;max-width:900px;height:auto;margin:0 auto" src="${pie}" alt="Distribución de la cartera por categoría genérica"></figure>`:''}</section>
+            <section class="block"><h2>Metodología y fuentes</h2><p>Tracking error: desviación estándar de retornos activos mensuales, anualizada con raíz de 12; exige cuatro cierres consecutivos comunes. Rebalanceo mensual; sin costes, impuestos ni cambio de divisa.</p><p>Fuente: ${esc(state.source)}. Score interno 0-4 convertido en 1-5 estrellas; media entre categorías orientativa. Peers Morningstar. Resultados no garantizados.</p></section>
             <section class="block"><h2>Posiciones actuales y propuesta</h2><table class="wide-report-table"><colgroup><col style="width:13%"><col style="width:7%"><col style="width:7%"><col style="width:15%"><col style="width:12%"><col style="width:22%"><col style="width:8%"><col style="width:10%"><col style="width:6%"></colgroup>
                 <thead><tr><th>Categoria</th><th>Bench</th><th>Cartera</th><th>ISIN actual(es)</th><th>ISIN seleccionado</th><th>Fondo seleccionado</th><th>Peso fondo</th><th>Calidad</th><th>TER</th></tr></thead>
                 <tbody>${positions}</tbody>
@@ -308,20 +326,77 @@ const GdcModel=(()=>{
                 <tbody>${metricRows}</tbody>
             </table></section>
             <section class="block"><h2>Calidad y costes relativos a peers</h2><p>Cada fondo seleccionado se compara por separado con su categoria Morningstar. Las medias excluyen ese ISIN; los puntos actuales se mantienen aunque no haya cambios.</p></section>${peerSections.join('')}
-            <footer><p>Tracking error: desviacion estandar de retornos activos mensuales, anualizada con raiz de 12; exige cuatro cierres consecutivos comunes. Rebalanceo mensual; sin costes, impuestos ni cambio de divisa.</p>
-            <p>Fuente: ${esc(state.source)}. Score interno 0-4 convertido en 1-5 estrellas; media entre categorias orientativa. Peers Morningstar. Resultados no garantizados.</p></footer>
+            <section class="block"><h2>Resumen final frente a peers</h2><table class="wide-report-table"><thead><tr><th>ISIN / fondo final</th><th>Categoría</th><th>Calidad</th><th>Calidad peers</th><th>TER</th><th>TER peers</th><th>Δ Calidad / Δ TER</th></tr></thead><tbody>${peerSummary}</tbody></table><p>Verde: calidad igual o mayor y coste igual o menor que la media. Rojo: calidad menor y coste mayor. Los casos mixtos se muestran sin color.</p></section>
         </div>`;
         const reportDoc=new DOMParser().parseFromString(body,'text/html');
         state.reportHtml=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"></head><body>${reportDoc.body.innerHTML}</body></html>`;
         ReportDesign.preview(panel.querySelector('#gdcReportPreview'),state.reportHtml);
     }
+    function historyRows(){
+        const prices=fundHistories(),benchmarks={...loadedPortfolio?.benchmarks,...state.benchmarks};
+        const find=(source,key)=>source[key]||Object.entries(source).find(([ticker])=>ticker.toLowerCase()===key.toLowerCase())?.[1];
+        return effectiveRows().flatMap(row=>row.proposed.filter(item=>item.weight>0).map(item=>{
+            const ticker=benchmarkTickers(row)[0]||'',fund=find(prices,item.isin),bench=find(benchmarks,ticker);
+            if(!fund||!bench)return {row,item,ticker,reason:!ticker?'Índice sin mapear':!fund?'Falta histórico del fondo':'Falta histórico del índice'};
+            try{return {row,item,ticker,result:MultiAssetCompare.compare([{ticker:item.isin,data:fund.data||fund}], 'ALL',0,{ticker,data:bench.data||bench})};}
+            catch(error){return {row,item,ticker,reason:error.message};}
+        }));
+    }
+    function historicalTable(){
+        const metric=value=>Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'-';
+        return `<table class="wide-report-table"><thead><tr><th>Fondo</th><th>Índice Morningstar</th><th>Periodo</th><th>Retorno periodo</th><th>Retorno anual</th><th>Volatilidad</th><th>Alfa anual</th><th>Beta</th><th>Caída máxima</th><th>Estado</th></tr></thead><tbody>${state.history.map(({item,ticker,result,reason})=>{const asset=result?.assets[0];return `<tr><td>${esc(item.fund?.name||item.isin)}<br><small>${esc(item.isin)}</small></td><td>${esc(ticker||'-')}</td><td>${result?`${result.rows[0].date.toISOString().slice(0,10)} a ${result.rows.at(-1).date.toISOString().slice(0,10)}`:'-'}</td><td>${metric(asset?.total)}</td><td>${metric(asset?.annual)}</td><td>${metric(asset?.vol)}</td><td class="${Number.isFinite(asset?.alpha)?asset.alpha>=0?'good':'bad':''}">${metric(asset?.alpha)}</td><td>${Number.isFinite(asset?.beta)?fmt(asset.beta):'-'}</td><td>${metric(asset?.drawdown)}</td><td>${esc(reason||'Comparable')}</td></tr>`;}).join('')}</tbody></table>`;
+    }
+    function runHistory(){
+        if(!model())throw new Error('Carga primero una cartera modelo.');
+        state.history=historyRows();state.historyHtml='';
+        const select=panel.querySelector('#gdcHistorySelect');
+        select.innerHTML=state.history.map(({item,ticker},index)=>`<option value="${index}">${esc(item.isin)} · ${esc(item.fund?.name||'-')} / ${esc(ticker||'sin índice')}</option>`).join('');
+        panel.querySelector('#gdcHistoryTable').innerHTML=historicalTable();
+        showHistory();
+        panel.querySelector('#gdcHistoryStatus').textContent=`${state.history.filter(item=>item.result).length}/${state.history.length} fondos comparables. Se usan fechas comunes y retornos según la frecuencia detectada; sin conversión automática de divisa.`;
+    }
+    function showHistory(){
+        const selected=state.history[Number(panel.querySelector('#gdcHistorySelect').value)],container=panel.querySelector('#gdcHistoryCharts');
+        container.innerHTML='';if(!selected?.result){container.textContent=selected?.reason||'Sin comparación disponible.';return;}
+        container.innerHTML=MultiAssetCompare.resultsHtml('gdcHistorical');
+        MultiAssetCompare.renderResults(container,selected.result,'gdcHistorical');
+    }
+    async function historicalReport(){
+        if(!state.history.length)runHistory();
+        const figures=[];
+        for(const entry of state.history.filter(item=>item.result)){
+            const result=entry.result,chart=document.createElement('div');chart.style.cssText='position:fixed;left:-12000px;width:950px;height:340px';document.body.append(chart);
+            try{await FinancialVisuals.newPlot(chart,[{x:result.rows.map(row=>row.date),y:result.assets[0].base100,name:entry.item.isin,type:'scatter',mode:'lines',line:{color:'#164e78',width:2.5}},{x:result.rows.map(row=>row.date),y:result.benchmark.base100,name:entry.ticker,type:'scatter',mode:'lines',line:{color:'#78828c',width:2.5}}],{title:`${entry.item.isin} frente a ${entry.ticker}`,yaxis:{title:'Base 100'},margin:{t:50,l:60,r:20,b:45},legend:{orientation:'h',y:-.2}},{staticPlot:true});
+                const image=await Plotly.toImage(chart,{format:'png',width:950,height:340});figures.push(`<section class="block report-keep-together gdc-history-report"><h3>${esc(entry.item.fund?.name||entry.item.isin)} · ${esc(entry.ticker)}</h3><figure><img style="width:100%;height:auto" src="${image}" alt="Evolución fondo frente a índice"></figure></section>`);
+            }finally{Plotly.purge(chart);chart.remove();}
+        }
+        state.historyHtml=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"></head><body><div class="report manager-report"><header class="cover"><h1>GDC · comparativa histórica</h1><p>${esc(model().name)} · ${new Date().toLocaleDateString('es-ES')}</p></header><section class="block"><h2>Métricas frente al índice Morningstar</h2>${historicalTable()}</section>${figures.join('')}<footer>Retorno y volatilidad anualizados según la frecuencia observada; alfa anual y beta sobre fechas comunes. Las series deben ser comparables en divisa y ajustes. Los fondos sin histórico suficiente figuran como pendientes.</footer></div></body></html>`;
+        return state.historyHtml;
+    }
+    function exportHistoryExcel(){
+        if(!state.history.length)runHistory();
+        const book=XLSX.utils.book_new(),summary=[['Fondo','ISIN','Índice','Inicio','Fin','Retorno periodo (%)','Retorno anual (%)','Volatilidad (%)','Alfa anual (%)','Beta','Caída máxima (%)','Estado']];
+        state.history.forEach((entry,index)=>{const asset=entry.result?.assets[0],rows=entry.result?.rows||[];
+            summary.push([entry.item.fund?.name||'',entry.item.isin,entry.ticker,rows[0]?.date.toISOString().slice(0,10)||'',rows.at(-1)?.date.toISOString().slice(0,10)||'',Number.isFinite(asset?.total)?asset.total*100:'',Number.isFinite(asset?.annual)?asset.annual*100:'',Number.isFinite(asset?.vol)?asset.vol*100:'',Number.isFinite(asset?.alpha)?asset.alpha*100:'',Number.isFinite(asset?.beta)?asset.beta:'',Number.isFinite(asset?.drawdown)?asset.drawdown*100:'',entry.reason||'Comparable']);
+            if(!rows.length)return;const grid=[['Fecha','Fondo base 100','Índice base 100'],...rows.map((row,i)=>[row.date.toISOString().slice(0,10),asset.base100[i],entry.result.benchmark.base100[i]])];
+            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(grid),`Fondo ${index+1}`);
+        });
+        XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(summary),'Resumen');
+        XLSX.writeFile(book,`GDC_comparativa_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
     function init(){
         panel=document.getElementById('workspaceModel');if(!panel)return;
         panel.innerHTML=`<div class="workspace-heading"><div><h3>Cartera modelo GDC</h3></div></div><div class="workspace-tools"><label class="gdc-upload">Importar Excel base <input id="gdcFile" type="file" accept=".xlsx,.xls"></label><label class="gdc-upload">Selección del mes anterior <input id="gdcPriorFile" type="file" accept=".xlsx,.xls"></label><select id="gdcModels" aria-label="Cartera modelo"></select><button type="button" id="gdcExport"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Exportar Excel mensual</button><button type="button" id="gdcReport"><i class="fa-solid fa-file-lines" aria-hidden="true"></i> Generar informe</button><button type="button" id="gdcPdf"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Descargar PDF</button></div><p id="gdcSource" class="workspace-context"></p><div id="gdcControls"><div class="gdc-risk-controls"><label class="workspace-context">Limite de tracking error anual (%) <input id="gdcMaxTe" type="number" min="0" step="0.1" placeholder="Sin definir"></label><label class="workspace-context"><input id="gdcComparable" type="checkbox"> Confirmo misma divisa y series comparables (distribuciones/ajustes)</label></div><p id="gdcStatus" class="workspace-status" role="status"></p><div id="gdcWeightChart" class="gdc-weight-chart"></div><div class="proposal-chart-scroll"><table class="wide-report-table gdc-selection-table"><thead><tr><th>Categoria y mapeo</th><th>Peso</th><th>Posiciones actuales</th><th>Selección de fondos</th><th>Propuesta</th><th>Peers</th></tr></thead><tbody id="gdcBody"></tbody></table></div></div><div id="gdcReportPreview"></div>`;
+        panel.querySelector('#gdcFile').closest('label').remove();
         panel.querySelector('#gdcStatus').insertAdjacentHTML('beforebegin','<div class="gdc-allocation-controls"><label>Perfil de riesgo<select id="gdcProfile" aria-label="Perfil de riesgo"></select></label><button type="button" id="gdcNormalizeWeights"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Normalizar pesos de cartera</button></div><div id="gdcAllocationSummary" class="gdc-allocation-summary"></div><div class="gdc-band-axis"><span>0% RV</span><div class="gdc-band-track"><div id="gdcRvBand"></div><div id="gdcRvNeutral" title="Punto neutral"></div><div id="gdcRvMarker" title="Cartera"></div></div><span>100% RV</span></div><p class="workspace-context">La banda se controla con los pesos de la cartera. El benchmark importado no cambia. Revisa la clasificación RV/RF/Otros de cada categoría.</p>');
-        panel.querySelector('#gdcWeightChart').insertAdjacentHTML('afterend','<div id="gdcDeviationChart" class="gdc-weight-chart"></div><h4 class="gdc-overview-title">Resumen de perfiles</h4><div id="gdcProfileOverviewChart" class="gdc-overview-chart"></div><div id="gdcCategoryOverviewChart" class="gdc-overview-chart"></div>');
+        panel.querySelector('#gdcWeightChart').insertAdjacentHTML('afterend','<div id="gdcDeviationChart" class="gdc-weight-chart"></div>');
+        panel.querySelector('.proposal-chart-scroll').insertAdjacentHTML('afterend','<h4 class="gdc-overview-title">Resumen de perfiles</h4><div id="gdcProfileOverviewChart" class="gdc-overview-chart"></div><div id="gdcCategoryOverviewChart" class="gdc-overview-chart"></div>');
         panel.querySelector('.gdc-selection-table thead tr').innerHTML='<th>Categoría genérica y mapeo</th><th>Índice Morningstar</th><th>Benchmark fijo</th><th>Peso cartera</th><th>Posiciones actuales</th><th>Selección de fondos</th><th>Propuesta</th><th>Peers</th>';
-        panel.querySelector('#gdcFile').addEventListener('change',importFile);
+        panel.querySelector('#gdcCategoryOverviewChart').insertAdjacentHTML('afterend','<section class="gdc-history"><h4 class="gdc-overview-title">Comparativa de fondos frente a índices</h4><div class="workspace-tools"><button type="button" id="gdcHistoryRun">Comparar fondos</button><select id="gdcHistorySelect" aria-label="Fondo para visualizar"></select><button type="button" id="gdcHistoryPdf">Descargar informe PDF</button><button type="button" id="gdcHistoryExcel">Exportar histórico Excel</button></div><p id="gdcHistoryStatus" class="workspace-status" role="status"></p><div id="gdcHistoryTable" class="proposal-chart-scroll"></div><div id="gdcHistoryCharts"></div></section>');
+        panel.querySelector('#gdcHistoryRun').addEventListener('click',()=>{try{runHistory();}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
+        panel.querySelector('#gdcHistorySelect').addEventListener('change',showHistory);
+        panel.querySelector('#gdcHistoryPdf').addEventListener('click',async()=>{try{await ReportDesign.downloadPdf(await historicalReport(),`GDC_comparativa_${model().name.replace(/[^a-z0-9_-]/gi,'_')}.pdf`);}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
+        panel.querySelector('#gdcHistoryExcel').addEventListener('click',()=>{try{exportHistoryExcel();}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
         panel.querySelector('#gdcPriorFile').addEventListener('change',importPriorFile);
         panel.querySelector('#gdcModels').addEventListener('change',event=>{state.selected=Number(event.target.value);invalidateReport();render();});
         panel.querySelector('#gdcProfile').addEventListener('change',event=>{model().profile=event.target.value;invalidateReport();render();});
