@@ -24,6 +24,7 @@ const ReportDesign = (() => {
         .report .report-chart-page{break-before:page!important}.report .report-chart-page img{max-height:none!important;width:100%!important}.report .report-chart-page figure{margin:0!important}
         .report .compact-scoring-table{table-layout:fixed!important;width:100%!important}.report .compact-scoring-table :is(th,td){font-size:8px!important;line-height:1.15!important;padding:3px 2px!important;overflow-wrap:break-word}.report .compact-scoring-table .isin-cell{font-size:8px!important;white-space:nowrap!important}
         .manager-report{max-width:1120px!important}.manager-report .wide-report-table{table-layout:fixed!important;width:100%!important}.manager-report .wide-report-table :is(th,td){font-size:9px!important;padding:5px 3px!important;overflow-wrap:break-word}.manager-report .wide-report-table .num{white-space:nowrap}
+        .manager-report .gdc-report-summary{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:18px!important}.manager-report .gdc-report-summary>div{min-width:0!important}.manager-report .gdc-report-summary span,.manager-report .gdc-report-summary strong,.manager-report .gdc-report-summary small{display:block!important;line-height:1.35!important}.manager-report .gdc-report-summary strong{font-size:17px!important;margin-top:5px!important;white-space:normal!important}.manager-report .gdc-peer-report figure img{width:100%!important;height:auto!important;max-height:320px!important;object-fit:contain!important}.manager-report .gdc-peer-coverage{font-size:9px!important;color:#657486!important}
         @media print{body{background:white!important;margin:0!important}.report{padding:0!important}.report .wide-report-table{font-size:9px!important}}
         </style>`; }
     function metadata(snapshot) {
@@ -152,7 +153,7 @@ const ReportDesign = (() => {
                 }
                 summary.replaceWith(table);
             });
-            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:[0,6,0,12]})));
+            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:el.closest('.gdc-peer-report')?[0,2,0,3]:[0,6,0,12]})));
             doc.querySelectorAll('.quality-rating').forEach(el=>{
                 const stars=[...el.textContent].filter(char=>char==='★'||char==='☆');
                 if(stars.length!==5)return;

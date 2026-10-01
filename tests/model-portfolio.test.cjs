@@ -13,6 +13,19 @@ test('top five chooses at most one fund per named manager',()=>{
     const records=[{isin:'A1',manager:'Gestora A',category:'RF Europa',score:4,ter:.8},{isin:'A2',manager:'Gestora A',category:'RF Europa',score:3.9,ter:.4},{isin:'B1',manager:'Gestora B',category:'RF Europa',score:3.8,ter:.6},{isin:'C1',manager:'Gestora C',category:'RF Europa',score:3.7,ter:.7}];
     assert.deepEqual(Model.rank(records,['RF Europa']).map(record=>record.isin),['A1','B1','C1']);
 });
+test('full universe keeps every matching share class and ranks missing scores last',()=>{
+    const records=[{isin:'A',category:'RF Europa',score:3,ter:.7},{isin:'B',category:'RF Global',score:4,ter:.6},{isin:'C',category:'RF Europa',score:NaN,ter:.3},{isin:'D',category:'RV Global',score:4,ter:.1}];
+    assert.deepEqual(Model.fullRank(records,['RF Europa','RF Global']).map(item=>item.isin),['B','A','C']);
+});
+test('category positions start equal and edited shares keep a 100 percent total',()=>{
+    const positions=Model.equalPositions(['A','B','A','C']);
+    assert.deepEqual(positions.map(item=>item.isin),['A','B','C']);
+    assert.ok(Math.abs(positions.reduce((sum,item)=>sum+item.share,0)-100)<1e-10);
+    const edited=Model.setShare(positions,0,60);
+    assert.deepEqual(edited.map(item=>item.share),[60,20,20]);
+    assert.deepEqual(Model.normalizePositions(edited.slice(0,2)).map(item=>item.share),[75,25]);
+    assert.throws(()=>Model.setShare(positions,0,101),/entre 0% y 100%/);
+});
 test('tracking error uses common monthly returns and refuses missing histories',()=>{
     const dates=['2026-01-31','2026-02-28','2026-03-31','2026-04-30'];
     const series=values=>values.map((price,i)=>({date:new Date(dates[i]+'T00:00:00Z'),price}));

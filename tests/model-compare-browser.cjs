@@ -12,7 +12,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    document.querySelector('[data-multi-ticker="0"]').value='AAA';document.querySelector('[data-multi-ticker="1"]').value='BBB';
    document.getElementById('multiAssetLoad').click();
    switchSection('cartera');
-   const records=[{isin:'ES0000000001',name:'Fondo RF A',category:'RF Europa',manager:'GDC',score:3.5,ter:.6,ret5:5,risk5:4},{isin:'ES0000000002',name:'Fondo RF B',category:'RF Europa',manager:'GDC',score:3,ter:.8,ret5:4,risk5:5}];
+   const records=[{isin:'ES0000000001',name:'Fondo RF A',category:'RF Europa',manager:'GDC',score:3.5,ter:.6,ret5:5,risk5:4},{isin:'ES0000000002',name:'Fondo RF B',category:'RF Europa',manager:'GDC',score:3,ter:.8,ret5:4,risk5:5},{isin:'ES0000000003',name:'Fondo RF C',category:'RF Europa',manager:'Otra gestora',score:2.8,ter:.9,ret5:3,risk5:6}];
    fundUniverseState={records,isinIndex:new Map(records.map(r=>[r.isin,r])),quartiles:buildFundQuartiles(records)};
    const book=XLSX.utils.book_new(),add=(name,rows)=>XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(rows),name);
    add('Cartera scoring',[['ISIN','peso'],['ES0000000001',100]]);
@@ -25,7 +25,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    const loaded=GdcModel.state.models.length===1&&fundPortfolioRows.length===1;
    GdcModel.select(0,'ES0000000001');
    PortfolioWorkspace.scope='model';portfolioWorkflowRefresh();
-   return {loaded,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].selectedIsin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
+   return {loaded,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].proposedPositions[0].isin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
   });
   await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===10);
   await page.evaluate(()=>{switchSection('individual');document.querySelector('[data-multi-ticker="1"]').value='';document.getElementById('multiAssetLoad').click();});
@@ -53,15 +53,33 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.match(setup.scoreHtml,/quality-technical/);
   assert.match(setup.aggregateScoreHtml,/flex-col items-center/);
   const results=await page.evaluate(async()=>{
-   await GdcModel.history(0);
    const limit=document.getElementById('gdcMaxTe');limit.value='0.01';limit.dispatchEvent(new Event('change',{bubbles:true}));
    document.getElementById('gdcComparable').click();const breach=document.getElementById('gdcStatus').classList.contains('gdc-te-breach');
    limit.value='1';limit.dispatchEvent(new Event('change',{bubbles:true}));const within=document.getElementById('gdcStatus').classList.contains('gdc-te-ok');
+   const current=document.querySelector('[data-gdc-current="0"]');current.value='ES0000000001';current.dispatchEvent(new Event('change',{bubbles:true}));
+   document.querySelector('[data-gdc-add="0"]').click();
+   const shares=GdcModel.state.models[0].rows[0].proposedPositions.map(item=>item.share);
+   const universe=document.querySelector('[data-gdc-universe="0:1"]');universe.dispatchEvent(new Event('focusin',{bubbles:true}));
+   const universeCount=universe.options.length,topCount=document.querySelector('[data-gdc-select="0:1"]').options.length;
+   const weight=document.querySelector('[data-gdc-weight="0:0"]');weight.value='70';weight.dispatchEvent(new Event('change',{bubbles:true}));
    document.getElementById('gdcReport').click();
-   await new Promise(resolve=>setTimeout(resolve,2500));
-   return {comparison:document.querySelector('#multiAssetTableBody').rows.length,comparisonCharts:['multiAssetBaseChart','multiAssetDrawdownChart','multiAssetScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`)),te:document.querySelector('#gdcStatus').textContent,report:document.querySelector('#gdcReportPreview iframe')?.contentDocument?.body?.textContent||'',history:document.querySelector('#gdcHistory .main-svg')!==null,historyText:document.querySelector('#gdcHistory').textContent,priceKeys:Object.keys(GdcModel.state.prices),benchKeys:Object.keys(GdcModel.state.benchmarks),selected:GdcModel.state.models[0].rows[0],breach,within};
+   return {comparison:document.querySelector('#multiAssetTableBody').rows.length,comparisonCharts:['multiAssetBaseChart','multiAssetDrawdownChart','multiAssetScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`)),te:document.querySelector('#gdcStatus').textContent,shares,universeCount,topCount,adjusted:GdcModel.state.models[0].rows[0].proposedPositions.map(item=>item.share),breach,within};
   });
-  assert.equal(results.comparison,10);assert.equal(results.comparisonCharts,true);assert.match(results.te,/Tracking error/);assert.match(results.report,/Posiciones actuales y propuesta/);assert.match(results.report,/Metricas actuales frente a propuestas/);assert.match(results.report,/Reduccion de TER pendiente/);assert.equal(results.breach,true);assert.equal(results.within,true);assert.equal(results.history,true,JSON.stringify({text:results.historyText,priceKeys:results.priceKeys,benchKeys:results.benchKeys,selected:results.selected}));assert.deepEqual(errors,[]);
+  await page.waitForFunction(()=>document.querySelector('#gdcReportPreview iframe')?.contentDocument?.body?.textContent?.includes('Media peers'));
+  const firstReport=await page.evaluate(()=>({text:document.querySelector('#gdcReportPreview iframe').contentDocument.body.textContent,charts:document.querySelector('#gdcReportPreview iframe').contentDocument.querySelectorAll('.gdc-peer-report img').length}));
+  assert.equal(results.comparison,10);assert.equal(results.comparisonCharts,true);assert.match(results.te,/Calidad ponderada 3\.35/);assert.match(results.te,/TER ponderado 0\.66%/);assert.deepEqual(results.shares,[50,50]);assert.equal(results.universeCount,4);assert.equal(results.topCount,4);assert.deepEqual(results.adjusted,[70,30]);assert.equal(firstReport.charts,2);assert.match(firstReport.text,/Posiciones actuales y propuesta/);assert.match(firstReport.text,/Metricas actuales frente a propuestas/);assert.match(firstReport.text,/Media peers/);assert.equal(results.breach,true);assert.equal(results.within,true);
+  await page.evaluate(()=>{const other=structuredClone(GdcModel.state.models[0]);other.name='Dinamica';other.rows[0].proposedPositions=[{isin:'ES0000000003',share:100}];GdcModel.state.models.push(other);});
+  const priorDownload=page.waitForEvent('download');await page.locator('#gdcExport').click();const monthly=await priorDownload;
+  await page.locator('#gdcPriorFile').setInputFiles({name:'mes-anterior.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:fs.readFileSync(await monthly.path())});
+  await page.waitForFunction(()=>GdcModel.state.models[0].rows[0].currentPositions.length===2);
+  assert.deepEqual(await page.evaluate(()=>GdcModel.state.models[0].rows[0].currentPositions.map(item=>item.share)),[70,30]);
+  assert.deepEqual(await page.evaluate(()=>GdcModel.state.models[1].rows[0].currentPositions.map(item=>item.isin)),['ES0000000003']);
+  await page.locator('[data-gdc-current="0"]').fill('ES0000000001');await page.locator('[data-gdc-current="0"]').dispatchEvent('change');
+  await page.locator('[data-gdc-keep="0"]').check();
+  await page.locator('#gdcReport').click();
+  await page.waitForFunction(()=>document.querySelector('#gdcReportPreview iframe')?.contentDocument?.body?.textContent?.includes('Sin cambio'));
+  const unchanged=await page.evaluate(()=>({positions:GdcModel.state.models[0].rows[0].proposedPositions,charts:document.querySelector('#gdcReportPreview iframe').contentDocument.querySelectorAll('.gdc-peer-report img').length,ret:document.querySelector('#gdcReportPreview iframe').contentDocument.body.textContent.includes('Ret 5A: 2/2 peers con dato')}));
+  assert.equal(unchanged.positions.length,1);assert.equal(unchanged.charts,1);assert.equal(unchanged.ret,true);assert.deepEqual(errors,[]);
   const out=process.env.BROWSER_OUTPUT_DIR;if(out){
    fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'gdc-model.png'),fullPage:true});
    await page.evaluate(()=>switchSection('individual'));
@@ -72,13 +90,13 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    const excel=page.waitForEvent('download');await page.locator('#gdcExport').click();await(await excel).saveAs(path.join(out,'gdc-selection.xlsx'));
    const pdf=page.waitForEvent('download',{timeout:120000});await page.locator('#gdcPdf').click();await(await pdf).saveAs(path.join(out,'gdc-report.pdf'));
    await page.setViewportSize({width:390,height:844});await page.waitForTimeout(700);
-   const widths=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,weight:document.querySelector('#gdcWeightChart').getBoundingClientRect().width,table:document.querySelector('#workspaceModel .proposal-chart-scroll').getBoundingClientRect().width,charts:document.querySelector('.gdc-analysis-charts').getBoundingClientRect().width}));
+   const widths=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,weight:document.querySelector('#gdcWeightChart').getBoundingClientRect().width,table:document.querySelector('#workspaceModel .proposal-chart-scroll').getBoundingClientRect().width}));
    assert.ok(widths.document<=widths.viewport+2,JSON.stringify(widths));await page.screenshot({path:path.join(out,'gdc-model-mobile.png'),fullPage:true});
    await page.evaluate(()=>switchSection('individual'));await page.waitForTimeout(350);
    const compareWidth=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,table:document.querySelector('#multiAssetTableBody').closest('.proposal-chart-scroll').scrollWidth}));
    assert.ok(compareWidth.document<=compareWidth.viewport+2,JSON.stringify(compareWidth));
    await page.screenshot({path:path.join(out,'multi-compare-mobile.png'),fullPage:true});
   }
-  console.log(JSON.stringify({models:setup.models,comparison:results.comparison,history:results.history,errors}));
+  console.log(JSON.stringify({models:setup.models,comparison:results.comparison,proposalCharts:firstReport.charts,errors}));
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

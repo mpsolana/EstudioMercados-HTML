@@ -14,7 +14,7 @@
         const models=names.map((name,i)=>{
             if(!name)return null;
             const total=rows.reduce((sum,row)=>sum+(Number.isFinite(row.raw[i])&&row.raw[i]>0?row.raw[i]:0),0),scale=total<=1.5?100:1;
-            return {name,rows:rows.filter(row=>row.raw[i]>0).map(row=>({id:row.id,generic:row.generic,subcategories:row.subcategories,weight:row.raw[i]*scale,selectedIsin:'',ticker:''})),total:total*scale};
+            return {name,rows:rows.filter(row=>row.raw[i]>0).map(row=>({id:row.id,generic:row.generic,subcategories:row.subcategories,weight:row.raw[i]*scale,currentPositions:[],proposedPositions:[],keepCurrent:false})),total:total*scale};
         }).filter(model=>model&&model.rows.length);
         if(!models.length)throw new Error('Ninguna cartera modelo tiene pesos positivos.');
         return models;
@@ -29,6 +29,27 @@
         const managers=new Set(),distinct=[];
         for(const record of sorted){const manager=key(record.manager)||`isin:${record.isin}`;if(managers.has(manager))continue;managers.add(manager);distinct.push(record);if(distinct.length>=limit)break;}
         return distinct;
+    }
+    function fullRank(records,subcategories){
+        const allowed=new Set(subcategories.map(key)),best=new Map();
+        for(const record of records||[]){if(!record?.isin||!allowed.has(key(record.category)))continue;
+            const prior=best.get(record.isin);if(!prior||Number.isFinite(record.score)&&(!Number.isFinite(prior.score)||record.score>prior.score))best.set(record.isin,record);
+        }
+        return [...best.values()].sort((a,b)=>(Number.isFinite(b.score)?b.score:-Infinity)-(Number.isFinite(a.score)?a.score:-Infinity)||(Number.isFinite(a.ter)?a.ter:Infinity)-(Number.isFinite(b.ter)?b.ter:Infinity)||a.isin.localeCompare(b.isin));
+    }
+    function equalPositions(isins){
+        const unique=[...new Set((isins||[]).map(value=>String(value||'').trim().toUpperCase()).filter(Boolean))];
+        return unique.map(isin=>({isin,share:100/unique.length}));
+    }
+    function normalizePositions(positions){
+        const total=(positions||[]).reduce((sum,item)=>sum+Math.max(0,item.share||0),0);
+        return total>0?positions.map(item=>({...item,share:Math.max(0,item.share||0)/total*100})):equalPositions(positions.map(item=>item.isin));
+    }
+    function setShare(positions,index,value){
+        if(!positions[index]||!Number.isFinite(value)||value<0||value>100)throw new Error('El peso dentro de la categoria debe estar entre 0% y 100%.');
+        if(positions.length===1)return [{...positions[0],share:100}];
+        const remainder=100-value,others=positions.reduce((sum,item,i)=>sum+(i===index?0:Math.max(0,item.share||0)),0);
+        return positions.map((item,i)=>({...item,share:i===index?value:others>0?remainder*Math.max(0,item.share||0)/others:remainder/(positions.length-1)}));
     }
     function benchmarkIndex(metadata){
         const map=new Map();for(const [ticker,meta] of Object.entries(metadata||{})){
@@ -63,5 +84,5 @@
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};
     }
-    return {key,parseGrid,rank,benchmarkIndex,trackingError};
+    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,setShare,benchmarkIndex,trackingError};
 });
