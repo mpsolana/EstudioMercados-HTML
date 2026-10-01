@@ -17,6 +17,16 @@ test('drawdown and risk use the same selected window',()=>{
     assert.equal(Compare.compare([a]).assets.length,1);
     assert.throws(()=>Compare.compare([a,{ticker:'C',data:series([1,2,3,4]).slice(3)}]),/tres precios/);
 });
+test('reports recovery of the maximum drawdown and return correlations',()=>{
+    const a={ticker:'A',data:series([100,120,90,125])},b={ticker:'B',data:series([50,60,45,62.5])};
+    const result=Compare.compare([a,b]);
+    assert.equal(result.assets[0].drawdown,-.25);
+    assert.equal(result.assets[0].recoveryDays,60);
+    assert.ok(Math.abs(result.correlations[0][1]-1)<1e-12);
+    assert.equal(result.correlations[0][0],1);
+    assert.equal(Compare.compare([a,{ticker:'FLAT',data:series([100,100,100,100])}]).correlations[0][1],null);
+    assert.equal(Compare.compare([{ticker:'UNRECOVERED',data:series([100,120,90,110])}]).assets[0].recoveryDays,null);
+});
 test('keeps four assets on one shared calendar',()=>{
     const assets=['A','B','C','D'].map((ticker,index)=>({ticker,data:series([100,101+index,102+index,103+index])}));
     const result=Compare.compare(assets);

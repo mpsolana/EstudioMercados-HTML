@@ -5,7 +5,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
-  await page.evaluate(()=>{switchSection('cartera');document.querySelector('[data-workspace-scope="comparison"]').click();});
+  await page.evaluate(()=>{switchSection('cartera');fundUniverseState={records:[{isin:'TEST',name:'Test'}]};portfolioWorkflowRefresh();document.querySelector('[data-workspace-scope="comparison"]').click();});
   await page.evaluate(async()=>{
    const dates=Array.from({length:18},(_,index)=>new Date(Date.UTC(2024,index+1,0)));
    const make=(name,weights,prices)=>{
@@ -30,6 +30,26 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   await page.waitForFunction(()=>document.querySelectorAll('#portfolioCompareTableBody tr').length===3);
   const compared=await page.evaluate(()=>({assets:PortfolioCompare.state.result.assets.length,bench:PortfolioCompare.state.result.benchmark?.ticker,returns:PortfolioCompare.state.result.assets.map(asset=>asset.total),rows:PortfolioCompare.state.result.rows.length,charts:['portfolioCompareBaseChart','portfolioCompareDrawdownChart','portfolioCompareScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`))}));
   assert.equal(compared.assets,3);assert.equal(compared.bench,'indice');assert.equal(compared.charts,true);assert.notEqual(compared.returns[0],compared.returns[2]);
+  assert.ok(await page.locator('#portfolioCompareCorrelationChart .main-svg').count()>0);
+  assert.match(await page.locator('#portfolioCompareTableBody').innerText(),/días|No recuperado/);
+  await page.locator('#portfolioCompareAddExcel').click();
+  await page.evaluate(()=>{
+   const dates=Array.from({length:18},(_,index)=>new Date(Date.UTC(2024,index+1,0)));
+   const book=XLSX.utils.book_new();
+   XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['ticker','weight'],['C',1]]),'weights');
+   XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['date','C'],...dates.map((date,index)=>[date,100+index*1.1])]),'prices');
+   const input=document.getElementById('portfolioCompareFile2'),transfer=new DataTransfer();
+   transfer.items.add(new File([XLSX.write(book,{bookType:'xlsx',type:'array'})],'C.xlsx'));input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  await page.waitForFunction(()=>PortfolioCompare.state.sources[2]?.entries?.[0]?.ticker==='C');
+  await page.evaluate(()=>{window.fetchYahooData=async ticker=>Array.from({length:18},(_,index)=>({date:new Date(Date.UTC(2024,index+1,0)),price:100+index*(ticker==='VTI'?1.5:ticker==='VXUS'?1.1:.5)+(index%3)*.2}));});
+  await page.locator('#portfolioComparePreset').selectOption('bogleheads');
+  assert.equal(await page.locator('.portfolio-compare-yahoo-row').count(),3);
+  await page.locator('#portfolioCompareAddYahoo').click();
+  await page.locator('#portfolioCompareRun').click();
+  await page.waitForFunction(()=>PortfolioCompare.state.result?.assets.length===5);
+  assert.equal(await page.locator('#portfolioCompareTableBody tr').count(),5);
+  assert.equal(await page.evaluate(()=>PortfolioCompare.state.result.correlations.length),5);
   await page.evaluate(()=>{
    const source=PortfolioCompare.state.sources[0],built=PortfolioCompareCore.build([source]);
    loadedPortfolio={entries:source.entries,portfolioData:built.assets[0].data,priceSeries:Object.fromEntries(Object.entries(source.series).map(([key,data])=>[key,{data}])),benchmarks:source.benchmarks,calculationSettings:portfolioCalculationSettings(),sourceLabel:'A.xlsx'};
@@ -42,6 +62,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   await page.waitForFunction(()=>document.querySelector('#multiAssetStatus').textContent.includes('Benchmark: BENCH:INDICE'));
   assert.equal(await page.locator('#multiAssetTableBody tr').count(),2);
   assert.equal(await page.locator('#multiAssetHorizonBody tr').count(),2);
+  assert.ok(await page.locator('#multiAssetCorrelationChart .main-svg').count()>0);
   await page.evaluate(()=>{
    document.querySelector('[data-individual-mode="single"]').click();
    const target=document.createElement('div');target.id='rangeTestChart';target.style.cssText='width:800px;height:400px';document.body.append(target);
