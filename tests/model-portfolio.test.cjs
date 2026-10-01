@@ -5,6 +5,27 @@ test('parses model weights in fraction or percent and multiple Morningstar categ
     assert.deepEqual(models[0].rows[0].subcategories,['RF Europa','RF Global']);
     assert.equal(models[1].rows[1].weight,70);
 });
+test('keeps benchmark weights fixed while committee allocation and RV bands change',()=>{
+    const models=Model.parseGrid([['Categoria','Subcategorias','Cartera estratégica Prudente','Cartera estratégica Decidido'],['RF EUR','EUR Government Bond',77.5,37.5],['RV Global','Global Large-Cap Blend Equity',22.5,62.5]]);
+    const prudent=models[0],decided=models[1];
+    assert.equal(prudent.profile,'prudente');assert.equal(decided.profile,'decidido');
+    prudent.rows[0].portfolioWeight=72;prudent.rows[1].portfolioWeight=28;
+    assert.deepEqual(Model.allocation(prudent).band,[15,30]);
+    assert.equal(Model.allocation(prudent).neutral,22.5);
+    assert.equal(Model.allocation(prudent).benchmarkRv,22.5);
+    assert.equal(Model.allocation(prudent).portfolioRv,28);
+    assert.equal(prudent.rows[1].weight,22.5);
+    assert.equal(Model.allocation(prudent).portfolioTotal,100);
+});
+test('retains zero-benchmark categories and does not invent RV classification for ambiguous names',()=>{
+    const [model]=Model.parseGrid([['Categoria','Subcategorias','Muy Arriesgado'],['RF EUR','EUR Government Bond',20],['RV EM','Emerging Markets Equity',80],['Alternativos','Other',0]]);
+    assert.equal(model.rows.length,3);
+    assert.deepEqual(Model.allocation(model).band,[75,100]);
+    assert.equal(model.rows[2].assetType,'Otros');
+    model.rows[2].portfolioWeight=5;model.rows[0].portfolioWeight=15;
+    assert.equal(Model.allocation(model).portfolioOther,5);
+    assert.deepEqual(Model.allocation(model).unknown,['Alternativos']);
+});
 test('ranks only matching categories with numeric scores',()=>{
     const records=[{isin:'A',category:'RF Europa',score:3,ter:.5},{isin:'B',category:'RF Global',score:4,ter:1},{isin:'C',category:'RV Global',score:5,ter:.1},{isin:'D',category:'RF Europa',score:NaN,ter:0}];
     assert.deepEqual(Model.rank(records,['RF Europa','RF Global']).map(r=>r.isin),['B','A']);

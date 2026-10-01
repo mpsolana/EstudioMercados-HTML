@@ -153,7 +153,10 @@ const ReportDesign = (() => {
                 }
                 summary.replaceWith(table);
             });
-            doc.querySelectorAll('img').forEach(el => el.setAttribute('data-pdfmake',JSON.stringify({fit:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:el.closest('.gdc-peer-report')?[0,2,0,3]:[0,6,0,12]})));
+            doc.querySelectorAll('img').forEach(el => {
+                const pie=el.closest('.gdc-allocation-pie'),peer=el.closest('.gdc-peer-report');
+                el.setAttribute('data-pdfmake',JSON.stringify({fit:pie?[450,160]:peer?[650,230]:[usableWidth,el.closest('.report-chart-page,.report-origin-chart')?(landscape?360:620):landscape?360:310],margin:peer?[0,2,0,3]:pie?[0,3,0,6]:[0,6,0,12]}));
+            });
             doc.querySelectorAll('.quality-rating').forEach(el=>{
                 const stars=[...el.textContent].filter(char=>char==='★'||char==='☆');
                 if(stars.length!==5)return;

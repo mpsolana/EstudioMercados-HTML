@@ -5,17 +5,33 @@
 })(globalThis,function(finance){
     const key=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
     const number=value=>{if(typeof value==='number')return value;if(value===null||value===undefined||value==='')return NaN;return Number(String(value).trim().replace('%','').replace(',','.'));};
+    const bands={muy_conservador:[0,15],prudente:[15,30],equilibrado:[30,50],decidido:[50,75],muy_arriesgado:[75,100]};
+    function profile(name){const value=key(name);if(/muy\s*(conservador|conservadora)/.test(value))return 'muy_conservador';if(/muy\s*(arriesgado|arriesgada)/.test(value))return 'muy_arriesgado';return Object.keys(bands).find(id=>value.includes(id))||'';}
+    function assetType(generic,subcategories=[]){
+        const label=key(generic),details=key(subcategories.join(' '));
+        if(/(^|\b)(rv|renta variable|equity|acciones|bolsa)(\b|$)/.test(label))return 'RV';
+        if(/(^|\b)(rf|renta fija|bonos|bond|deuda|monetario|liquidez)(\b|$)/.test(label))return 'RF';
+        if(/(^|\b)(equity|renta variable|acciones)(\b|$)/.test(details))return 'RV';
+        if(/(^|\b)(bond|renta fija|bonos|fixed income)(\b|$)/.test(details))return 'RF';
+        return 'Otros';
+    }
+    function allocation(model){
+        const rows=model?.rows||[],sum=field=>rows.reduce((total,row)=>total+(Number(row[field])||0),0);
+        const byType=(field,type)=>rows.reduce((total,row)=>total+(row.assetType===type?(Number(row[field])||0):0),0);
+        const band=bands[model?.profile]||null;
+        return {benchmarkTotal:sum('weight'),portfolioTotal:sum('portfolioWeight'),benchmarkRv:byType('weight','RV'),portfolioRv:byType('portfolioWeight','RV'),benchmarkRf:byType('weight','RF'),portfolioRf:byType('portfolioWeight','RF'),benchmarkOther:byType('weight','Otros'),portfolioOther:byType('portfolioWeight','Otros'),band,neutral:band?(band[0]+band[1])/2:NaN,unknown:rows.filter(row=>row.assetType==='Otros'&&(row.weight>0||row.portfolioWeight>0)).map(row=>row.generic)};
+    }
     function parseGrid(grid){
         if(!Array.isArray(grid)||grid.length<2)throw new Error('La hoja Carteras Modelo no contiene categorias y pesos.');
         const header=grid[0]||[],names=header.slice(2).map(v=>String(v||'').trim());
         if(!names.some(Boolean))throw new Error('Faltan nombres de carteras modelo a partir de la columna C.');
-        const rows=grid.slice(1).map((cells,index)=>({id:index,generic:String(cells?.[0]||'').trim(),subcategories:String(cells?.[1]||'').split(';').map(v=>v.trim()).filter(Boolean),raw:names.map((_,i)=>number(cells?.[i+2]))})).filter(row=>row.generic&&row.subcategories.length&&row.raw.some(v=>Number.isFinite(v)&&v>0));
+        const rows=grid.slice(1).map((cells,index)=>({id:index,generic:String(cells?.[0]||'').trim(),subcategories:String(cells?.[1]||'').split(';').map(v=>v.trim()).filter(Boolean),raw:names.map((_,i)=>number(cells?.[i+2]))})).filter(row=>row.generic&&row.subcategories.length&&row.raw.some(v=>Number.isFinite(v)&&v>=0));
         if(!rows.length)throw new Error('No hay filas validas con categoria, subcategoria y pesos.');
         const models=names.map((name,i)=>{
             if(!name)return null;
             const total=rows.reduce((sum,row)=>sum+(Number.isFinite(row.raw[i])&&row.raw[i]>0?row.raw[i]:0),0),scale=total<=1.5?100:1;
-            return {name,rows:rows.filter(row=>row.raw[i]>0).map(row=>({id:row.id,generic:row.generic,subcategories:row.subcategories,weight:row.raw[i]*scale,currentPositions:[],proposedPositions:[],keepCurrent:false})),total:total*scale};
-        }).filter(model=>model&&model.rows.length);
+            return {name,profile:profile(name),rows:rows.map(row=>({id:row.id,generic:row.generic,subcategories:row.subcategories,assetType:assetType(row.generic,row.subcategories),weight:(Number.isFinite(row.raw[i])&&row.raw[i]>0?row.raw[i]:0)*scale,portfolioWeight:(Number.isFinite(row.raw[i])&&row.raw[i]>0?row.raw[i]:0)*scale,currentPositions:[],proposedPositions:[],keepCurrent:false})),total:total*scale};
+        }).filter(model=>model&&model.total>0);
         if(!models.length)throw new Error('Ninguna cartera modelo tiene pesos positivos.');
         return models;
     }
@@ -84,5 +100,5 @@
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};
     }
-    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,setShare,benchmarkIndex,trackingError};
+    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,setShare,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
 });

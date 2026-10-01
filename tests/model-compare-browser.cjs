@@ -27,7 +27,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    PortfolioWorkspace.scope='model';portfolioWorkflowRefresh();
    return {loaded,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].proposedPositions[0].isin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
   });
-  await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===10);
+  await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===11);
   await page.evaluate(()=>{switchSection('individual');document.querySelector('[data-multi-ticker="1"]').value='';document.getElementById('multiAssetLoad').click();});
   await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===1);
   await page.evaluate(()=>{
@@ -46,8 +46,8 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.match(await page.locator('#multiAssetSharpeHead').textContent(),/2\.50%/);
   assert.equal(await page.locator('#multiAssetHorizonBody tr').count(),11);
   assert.equal(await page.locator('#multiAssetBaseChart .scatterlayer .trace').count(),11);
-  assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(7).textContent(),'-');
   assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(8).textContent(),'-');
+  assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(9).textContent(),'-');
   await page.evaluate(()=>switchSection('cartera'));
   assert.equal(setup.loaded,true);assert.equal(setup.models,1);assert.equal(setup.te,'ES0000000001');assert.equal(setup.scope,'model');
   assert.match(setup.scoreHtml,/quality-technical/);
