@@ -1,6 +1,6 @@
 const GdcModel=(()=>{
     const core=ModelPortfolioCore;
-    const state={models:[],selected:0,source:'',benchmarks:{},benchmarkMeta:{},prices:{},maxTe:NaN,historyComparable:false,reportHtml:'',history:[],historyHtml:''};
+    const state={models:[],selected:0,source:'',benchmarks:{},benchmarkMeta:{},prices:{},fundNames:{},maxTe:NaN,historyComparable:false,reportHtml:'',history:[],historyHtml:''};
     let panel,peerIndex,peerSource,rankingCache=new Map(),universeCache=new Map(),rankSource,renderedAllocation='';
     const esc=value=>escapeHtml(String(value??''));
     const fmt=value=>Number.isFinite(value)?value.toFixed(2):'-';
@@ -21,6 +21,12 @@ const GdcModel=(()=>{
         return universeCache.get(key);
     }
     function record(isin){return fundUniverseState?.isinIndex?.get(isin)||null;}
+    function fundName(isin){return state.fundNames[normalizeIsin(isin)]||record(isin)?.name||'';}
+    function benchmarkInfo(ticker){
+        const key=String(ticker||'').toUpperCase(),source=Object.keys(state.benchmarkMeta).length?state.benchmarkMeta:loadedPortfolio?.benchCategories||{};
+        const found=Object.entries(source).find(([name])=>name.toUpperCase()===key)?.[1]||{};
+        return {ticker:key,name:found.name||key,category:found.assetClass||found.category||''};
+    }
     function peers(fund){if(!fund)return null;if(!peerIndex||peerSource!==records()){peerSource=records();peerIndex=PeerValue.index(peerSource);}return PeerValue.compare(fund,peerIndex);}
     function categoryBenchmarks(){return core.benchmarkIndex(Object.keys(state.benchmarkMeta).length?state.benchmarkMeta:loadedPortfolio?.benchCategories||{});}
     function benchmarkTickers(row){
@@ -65,7 +71,7 @@ const GdcModel=(()=>{
     function loadWorkbook(workbook,fileName){
         const sheet=findSheet(workbook,['Carteras Modelo']);if(!sheet)return false;
         const grid=XLSX.utils.sheet_to_json(workbook.Sheets[sheet],{header:1,defval:null,raw:true});
-        state.models=core.parseGrid(grid);state.selected=0;state.source=fileName;state.historyComparable=false;
+        state.models=core.parseGrid(grid);state.selected=0;state.source=fileName;state.historyComparable=false;state.fundNames={};
         const comparable=panel?.querySelector('#gdcComparable');if(comparable)comparable.checked=false;
         state.benchmarkMeta=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
         if(!Object.keys(state.benchmarkMeta).length)state.benchmarkMeta=loadedPortfolio?.benchCategories||{};
@@ -163,7 +169,8 @@ const GdcModel=(()=>{
             const profiles=state.models.map(item=>profileLabel(item.name)),fullNames=state.models.map(item=>item.name),summaries=state.models.map(core.allocation);
             FinancialVisuals.newPlot('gdcProfileOverviewChart',[['RV','portfolioRv'],['RF','portfolioRf'],['Otros','portfolioOther']].map(([name,key])=>({type:'bar',name,x:profiles,y:summaries.map(item=>item[key]),customdata:fullNames,hovertemplate:'%{customdata}<br>'+name+': %{y:.2f}%<extra></extra>'})),{title:'Asignación RV / RF / Otros por perfil',barmode:'stack',yaxis:{title:'Peso (%)',range:[0,105]},xaxis:{tickfont:{size:10}},margin:{t:50,l:54,r:20,b:95},legend:{orientation:'h',y:-.3}},{responsive:true});
             const generics=[...new Set(state.models.flatMap(item=>item.rows.map(row=>row.generic)))];
-            FinancialVisuals.newPlot('gdcCategoryOverviewChart',generics.map(name=>({type:'bar',name,x:profiles,y:state.models.map(item=>item.rows.find(row=>row.generic===name)?.portfolioWeight||0),customdata:fullNames,hovertemplate:'%{customdata}<br>'+name+': %{y:.2f}%<extra></extra>'})),{title:'Categorías genéricas por perfil',barmode:'stack',yaxis:{title:'Peso (%)',range:[0,105]},xaxis:{tickfont:{size:10}},margin:{t:50,l:54,r:20,b:Math.max(115,Math.min(210,90+generics.length*13))},legend:{orientation:'h',y:-.3}},{responsive:true});
+            const categoryColors=['#1268a3','#13a89e','#8057a7','#df8842','#ce5871','#408d5e','#5376c5','#ae8f2c','#587f99','#a556a1','#287f87','#bb6547'];
+            FinancialVisuals.newPlot('gdcCategoryOverviewChart',generics.map((name,index)=>({type:'bar',name,marker:{color:categoryColors[index%categoryColors.length]},x:profiles,y:state.models.map(item=>item.rows.find(row=>row.generic===name)?.portfolioWeight||0),customdata:fullNames,hovertemplate:'%{customdata}<br>'+name+': %{y:.2f}%<extra></extra>'})),{title:'Categorías genéricas por perfil',barmode:'stack',yaxis:{title:'Peso (%)',range:[0,105]},xaxis:{tickfont:{size:10}},margin:{t:50,l:54,r:20,b:Math.max(115,Math.min(210,90+generics.length*13))},legend:{orientation:'h',y:-.3}},{responsive:true});
         }
     }
     function exportExcel(){
@@ -174,8 +181,8 @@ const GdcModel=(()=>{
         add('Carteras Modelo',[['Categoria','Subcategoria',...state.models.map(item=>item.name)],...original.map(row=>[row.generic,row.subcategories.join('; '),...state.models.map(item=>item.rows.find(candidate=>candidate.id===row.id)?.weight||0)])]);
         const summary=[['Comité GDC · benchmark frente a cartera'],['Fecha',date],['Barras: █ RV · ▒ RF · ░ Otros; cada símbolo representa aproximadamente 2 puntos porcentuales'],[],['Perfil','Banda RV','Neutral RV (%)','RV benchmark (%)','RV cartera (%)','RF cartera (%)','Otros cartera (%)','Peso total cartera (%)','Estado','RV / RF / Otros · cartera']];
         const allocationRows=[['Modelo','Categoria GDC','Peso benchmark (%)','Peso cartera (%)','Tipo activo','Perfil RV']];
-        const monthly=[['Modelo','Categoria GDC','ISIN','Peso dentro categoria (%)','Peso categoria cartera (%)','Peso benchmark (%)','Fecha']];
-        const usedNames=new Set(['resumen','carteras modelo','gdc estado','asignacion']),profileSheets=[];
+        const monthly=[['Modelo','Categoria GDC','ISIN','Peso dentro categoria (%)','Peso categoria cartera (%)','Peso benchmark (%)','Fecha','Nombre fondo']];
+        const usedNames=new Set(['resumen','carteras modelo','gdc estado','gdc nombres','asignacion']),profileSheets=[];
         const tabName=name=>{const base=String(name||'Perfil').replace(/[\\/?*\[\]:]/g,' ').trim().slice(0,26)||'Perfil';let candidate=base,n=2;while(usedNames.has(candidate.toLowerCase()))candidate=`${base.slice(0,26-String(n).length-1)} ${n++}`;usedNames.add(candidate.toLowerCase());return candidate;};
         state.models.forEach(portfolio=>{
             const values=core.allocation(portfolio),band=values.band,inside=band&&values.portfolioRv>=band[0]-1e-6&&values.portfolioRv<=band[1]+1e-6;
@@ -185,9 +192,9 @@ const GdcModel=(()=>{
             portfolio.rows.forEach(row=>{
                 allocationRows.push([portfolio.name,row.generic,row.weight,row.portfolioWeight,row.assetType,portfolio.profile]);
                 const selectedPositions=row.keepCurrent?row.currentPositions:row.proposedPositions;
-                selectedPositions.filter(item=>item.isin).forEach(item=>monthly.push([portfolio.name,row.generic,item.isin,item.share,row.portfolioWeight,row.weight,date]));
+                selectedPositions.filter(item=>item.isin).forEach(item=>monthly.push([portfolio.name,row.generic,item.isin,item.share,row.portfolioWeight,row.weight,date,fundName(item.isin)]));
                 const entries=selectedPositions.length?selectedPositions:[{isin:'',share:0}];
-                entries.forEach(item=>{const fund=record(item.isin);detail.push([row.generic,row.subcategories.join('; '),benchmarkNames(row).join('; '),row.assetType,row.weight,row.portfolioWeight,row.portfolioWeight-row.weight,row.currentPositions.map(position=>position.isin).join('; '),item.isin,fund?.name||'',item.share,row.portfolioWeight*item.share/100,fund?.ter??'',fund?.score??'']);});
+                entries.forEach(item=>{const fund=record(item.isin);detail.push([row.generic,row.subcategories.join('; '),benchmarkNames(row).join('; '),row.assetType,row.weight,row.portfolioWeight,row.portfolioWeight-row.weight,row.currentPositions.map(position=>position.isin).join('; '),item.isin,fundName(item.isin),item.share,row.portfolioWeight*item.share/100,fund?.ter??'',fund?.score??'']);});
             });
             profileSheets.push([tabName(portfolio.name),detail]);
         });
@@ -197,6 +204,7 @@ const GdcModel=(()=>{
         summary.push([],['Asignacion por categoria generica · benchmark frente a cartera'],['Perfil','Categoria','Tipo','Benchmark (%)','Cartera (%)','Desviacion (pp)','Barra cartera']);
         state.models.forEach(portfolio=>portfolio.rows.forEach(row=>summary.push([portfolio.name,row.generic,row.assetType,row.weight,row.portfolioWeight,row.portfolioWeight-row.weight,'█'.repeat(Math.round(row.portfolioWeight/2))])));
         add('Resumen',summary);profileSheets.forEach(([name,grid])=>add(name,grid));add('Asignacion',allocationRows);add('GDC Estado',monthly);
+        if(Object.keys(state.fundNames).length)add('GDC Nombres',[['ISIN','Nombre fondo'],...Object.entries(state.fundNames)]);
         const meta=Object.entries(state.benchmarkMeta).filter(([ticker])=>ticker===ticker.toUpperCase());
         if(meta.length)add('bench categ',[['ticker','name','asset class'],...meta.map(([ticker,item])=>[ticker,item.name,item.assetClass])]);
         const addHistory=(name,source)=>{const tickers=Object.keys(source),dates=[...new Set(tickers.flatMap(ticker=>(source[ticker]?.data||source[ticker]||[]).map(point=>new Date(point.date).toISOString().slice(0,10))))].sort();if(!dates.length)return;
@@ -207,23 +215,27 @@ const GdcModel=(()=>{
         XLSX.writeFile(book,`GDC_comite_${date}.xlsx`);
     }
     function loadPriorWorkbook(workbook){
-        if(!state.models.length){
-            const base=findSheet(workbook,['Carteras Modelo']);
-            if(!base)throw new Error('El archivo mensual no contiene Carteras Modelo; carga primero la cartera modelo en Carga de datos.');
+        const base=findSheet(workbook,['Carteras Modelo']);
+        if(base){
             state.models=core.parseGrid(XLSX.utils.sheet_to_json(workbook.Sheets[base],{header:1,defval:null,raw:true}));
-            state.selected=0;state.source='Archivo mensual importado';
+            state.selected=0;state.source='Excel GDC importado';state.fundNames={};
             state.benchmarkMeta=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
             state.benchmarks=benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['bench','benchmark','benchmarks']));
             state.prices=Object.fromEntries(Object.entries(benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['prices','precios','historicos','historico','posis']))).map(([key,value])=>[key.toUpperCase(),value.data]));
         }
+        else if(!state.models.length)throw new Error('El Excel GDC necesita la hoja Carteras Modelo.');
         const sheet=findSheet(workbook,['GDC Estado']),allocationSheet=findSheet(workbook,['Asignacion']);
-        if(!sheet&&!allocationSheet)throw new Error('El archivo anterior no contiene GDC Estado ni Asignacion.');
+        if(!sheet&&!allocationSheet){invalidateReport();render();return {positions:0,weights:0,baseOnly:true};}
+        const namesSheet=findSheet(workbook,['GDC Nombres']);
+        for(const item of namesSheet?sheetRows(workbook,namesSheet):[]){const isin=normalizeIsin(firstValue(item,['ISIN'])),name=String(firstValue(item,['Nombre fondo'])||'').trim();if(isin&&name)state.fundNames[isin]=name;}
         const groups=new Map();
         for(const item of sheet?sheetRows(workbook,sheet):[]){
             const name=String(firstValue(item,['Modelo'])||''),category=String(firstValue(item,['Categoria GDC'])||''),isin=normalizeIsin(firstValue(item,['ISIN']));
             const share=parseNumber(firstValue(item,['Peso dentro categoria (%)']));
             if(!name||!category||!isin||!Number.isFinite(share)||share<0)continue;
             const key=`${core.key(name)}|${core.key(category)}`;if(!groups.has(key))groups.set(key,[]);
+            const savedName=String(firstValue(item,['Nombre fondo','Fondo seleccionado','Nombre'])||'').trim();
+            if(savedName&&!record(isin)&&!state.fundNames[isin])state.fundNames[isin]=savedName;
             groups.get(key).push({isin,share});
         }
         let count=0,weights=0;
@@ -250,9 +262,9 @@ const GdcModel=(()=>{
     }
     async function importPriorFile(){
         const file=document.getElementById('gdcPriorFile')?.files?.[0];if(!file)return;
-        try{const result=loadPriorWorkbook(await readWorkbook(file));state.source=file.name;renderScoringDataStatus();portfolioWorkflowRefresh();panel.querySelector('#gdcStatus').textContent=`${result.positions} posiciones anteriores y ${result.weights} pesos de categoria cargados. Revisa la banda RV y genera la nueva propuesta.`;}
-        catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}
-        finally{document.getElementById('gdcPriorFile').value='';}
+        try{const result=loadPriorWorkbook(await readWorkbook(file));state.source=file.name;render();renderScoringDataStatus();PortfolioWorkspace.scope='model';portfolioWorkflowRefresh();panel.querySelector('#gdcStatus').textContent=result.baseOnly?'Benchmark GDC cargado. Añade las posiciones y pesos de cartera para preparar el primer comité.':`${result.positions} posiciones anteriores y ${result.weights} pesos de categoria cargados. Revisa la banda RV y genera la nueva propuesta.`;document.getElementById('scoringDataStatus-gdc').textContent=file.name;}
+        catch(error){panel.querySelector('#gdcStatus').textContent=error.message;document.getElementById('scoringDataStatus-gdc').textContent=`Error: ${error.message}`;}
+        finally{const input=document.getElementById('gdcPriorFile');if(input)input.value='';}
     }
     function weightedMetric(items,key){return FinanceCore.weighted(items.map(item=>({weight:item.share,[key]:item.fund?.[key]})),key);}
     async function allocationPieImage(rows){
@@ -336,21 +348,27 @@ const GdcModel=(()=>{
         const prices=fundHistories(),benchmarks={...loadedPortfolio?.benchmarks,...state.benchmarks};
         const find=(source,key)=>source[key]||Object.entries(source).find(([ticker])=>ticker.toLowerCase()===key.toLowerCase())?.[1];
         return effectiveRows().flatMap(row=>row.proposed.filter(item=>item.weight>0).map(item=>{
-            const ticker=benchmarkTickers(row)[0]||'',fund=find(prices,item.isin),bench=find(benchmarks,ticker);
+            const ticker=String(benchmarkTickers(row)[0]||'').toUpperCase(),fund=find(prices,item.isin),bench=find(benchmarks,ticker);
             if(!fund||!bench)return {row,item,ticker,reason:!ticker?'Índice sin mapear':!fund?'Falta histórico del fondo':'Falta histórico del índice'};
-            try{return {row,item,ticker,result:MultiAssetCompare.compare([{ticker:item.isin,data:fund.data||fund}], 'ALL',0,{ticker,data:bench.data||bench})};}
+            try{return {row,item,ticker,result:MultiAssetCompare.compare([{ticker:item.isin,name:fundName(item.isin)||item.isin,data:fund.data||fund}], 'ALL',0,{ticker,name:benchmarkInfo(ticker).name,data:bench.data||bench})};}
             catch(error){return {row,item,ticker,reason:error.message};}
         }));
     }
-    function historicalTable(){
+    function historicalTable(forReport=false){
         const metric=value=>Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'-';
-        return `<table class="wide-report-table"><thead><tr><th>Fondo</th><th>Índice Morningstar</th><th>Periodo</th><th>Retorno periodo</th><th>Retorno anual</th><th>Volatilidad</th><th>Alfa anual</th><th>Beta</th><th>Caída máxima</th><th>Estado</th></tr></thead><tbody>${state.history.map(({item,ticker,result,reason})=>{const asset=result?.assets[0];return `<tr><td>${esc(item.fund?.name||item.isin)}<br><small>${esc(item.isin)}</small></td><td>${esc(ticker||'-')}</td><td>${result?`${result.rows[0].date.toISOString().slice(0,10)} a ${result.rows.at(-1).date.toISOString().slice(0,10)}`:'-'}</td><td>${metric(asset?.total)}</td><td>${metric(asset?.annual)}</td><td>${metric(asset?.vol)}</td><td class="${Number.isFinite(asset?.alpha)?asset.alpha>=0?'good':'bad':''}">${metric(asset?.alpha)}</td><td>${Number.isFinite(asset?.beta)?fmt(asset.beta):'-'}</td><td>${metric(asset?.drawdown)}</td><td>${esc(reason||'Comparable')}</td></tr>`;}).join('')}</tbody></table>`;
+        if(forReport){
+            const metrics=state.history.map(({row,item,ticker,result,reason})=>{const asset=result?.assets[0],info=benchmarkInfo(ticker);return `<tr><td>${esc(fundName(item.isin)||item.isin)}<br><small>${esc(item.isin)}</small></td><td>${esc(row.generic)}</td><td>${esc(info.name)}<br><small>${esc(info.ticker)}</small></td><td>${metric(asset?.total)}</td><td>${metric(asset?.annual)}</td><td>${metric(asset?.vol)}</td><td class="${Number.isFinite(asset?.alpha)?asset.alpha>=0?'good':'bad':''}">${metric(asset?.alpha)}</td><td>${Number.isFinite(asset?.beta)?fmt(asset.beta):'-'}</td><td>${metric(asset?.drawdown)}</td><td>${esc(reason||'Comparable')}</td></tr>`;}).join('');
+            const alphas=state.history.map(({item,ticker,result})=>{const h=result?.assets[0]?.horizonAlphas||{};return `<tr><td>${esc(fundName(item.isin)||item.isin)}<br><small>${esc(item.isin)}</small></td><td>${esc(benchmarkInfo(ticker).name)}<br><small>${esc(ticker)}</small></td>${['oneMonth','threeMonths','sixMonths','ytd','oneYear','threeYears','fiveYears','sinceStart'].map(key=>`<td class="${Number.isFinite(h[key])?h[key]>=0?'good':'bad':''}">${metric(h[key])}</td>`).join('')}</tr>`;}).join('');
+            return `<table class="wide-report-table gdc-history-report-table"><thead><tr><th>Fondo / ISIN</th><th>Categoría</th><th>Índice / ticker</th><th>Ret. periodo</th><th>Ret. anual</th><th>Vol.</th><th>Alfa anual</th><th>Beta</th><th>Caída máx.</th><th>Estado</th></tr></thead><tbody>${metrics}</tbody></table><h3>Alfa anualizada por plazo</h3><table class="wide-report-table gdc-history-report-table"><thead><tr><th>Fondo / ISIN</th><th>Índice / ticker</th><th>1M</th><th>3M</th><th>6M</th><th>YTD</th><th>1A</th><th>3A</th><th>5A</th><th>Inicio</th></tr></thead><tbody>${alphas}</tbody></table>`;
+        }
+        return `<table class="wide-report-table gdc-history-table"><thead><tr><th>Fondo / ISIN</th><th>Categoría GDC</th><th>Índice Morningstar</th><th>Periodo común</th><th>Ret. periodo</th><th>Ret. anual</th><th>Vol.</th><th>Alfa anual</th><th>Alfa 1M</th><th>Alfa 3M</th><th>Alfa 6M</th><th>Alfa YTD</th><th>Beta</th><th>Caída máx.</th><th>Estado</th></tr></thead><tbody>${state.history.map(({row,item,ticker,result,reason})=>{const asset=result?.assets[0],info=benchmarkInfo(ticker),name=fundName(item.isin),h=asset?.horizonAlphas||{};return `<tr><td>${name?esc(name):forReport?esc(item.isin):`<input class="gdc-history-name" data-gdc-history-name="${esc(item.isin)}" aria-label="Nombre de ${esc(item.isin)}" placeholder="Añadir nombre del fondo">`}<br><small>${esc(item.isin)}</small></td><td>${esc(row.generic)}<br><small>${esc(row.subcategories.join('; '))}</small></td><td>${esc(info.name||'-')}<br><small>${esc(info.ticker||'-')}${info.category?` · ${esc(info.category)}`:''}</small></td><td>${result?`${result.rows[0].date.toISOString().slice(0,10)} a ${result.rows.at(-1).date.toISOString().slice(0,10)}`:'-'}</td><td>${metric(asset?.total)}</td><td>${metric(asset?.annual)}</td><td>${metric(asset?.vol)}</td><td class="${Number.isFinite(asset?.alpha)?asset.alpha>=0?'good':'bad':''}">${metric(asset?.alpha)}</td>${['oneMonth','threeMonths','sixMonths','ytd'].map(key=>`<td class="${Number.isFinite(h[key])?h[key]>=0?'good':'bad':''}">${metric(h[key])}</td>`).join('')}<td>${Number.isFinite(asset?.beta)?fmt(asset.beta):'-'}</td><td>${metric(asset?.drawdown)}</td><td>${esc(reason||'Comparable')}</td></tr>`;}).join('')}</tbody></table>`;
     }
     function runHistory(){
         if(!model())throw new Error('Carga primero una cartera modelo.');
         state.history=historyRows();state.historyHtml='';
-        const select=panel.querySelector('#gdcHistorySelect');
-        select.innerHTML=state.history.map(({item,ticker},index)=>`<option value="${index}">${esc(item.isin)} · ${esc(item.fund?.name||'-')} / ${esc(ticker||'sin índice')}</option>`).join('');
+        const select=panel.querySelector('#gdcHistorySelect'),previous=select.value;
+        select.innerHTML=state.history.map(({item,ticker},index)=>`<option value="${index}">${esc(fundName(item.isin)||item.isin)} · ${esc(item.isin)} / ${esc(benchmarkInfo(ticker).name||'sin índice')} (${esc(ticker)})</option>`).join('');
+        if([...select.options].some(option=>option.value===previous))select.value=previous;
         panel.querySelector('#gdcHistoryTable').innerHTML=historicalTable();
         showHistory();
         panel.querySelector('#gdcHistoryStatus').textContent=`${state.history.filter(item=>item.result).length}/${state.history.length} fondos comparables. Se usan fechas comunes y retornos según la frecuencia detectada; sin conversión automática de divisa.`;
@@ -359,25 +377,29 @@ const GdcModel=(()=>{
         const selected=state.history[Number(panel.querySelector('#gdcHistorySelect').value)],container=panel.querySelector('#gdcHistoryCharts');
         container.innerHTML='';if(!selected?.result){container.textContent=selected?.reason||'Sin comparación disponible.';return;}
         container.innerHTML=MultiAssetCompare.resultsHtml('gdcHistorical');
-        MultiAssetCompare.renderResults(container,selected.result,'gdcHistorical');
+        MultiAssetCompare.renderResults(container,selected.result,'gdcHistorical',{rollingPair:true});
+        const horizon=container.querySelector('#gdcHistoricalHorizonBody'),asset=selected.result.assets[0],keys=['ytd','sixMonths','oneYear','threeYears','fiveYears','sinceStart'];
+        const cells=keys.map(key=>{const value=asset.horizonAlphas[key];return `<td class="${Number.isFinite(value)?value>=0?'good':'bad':''}">${Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'-'}</td>`;}).join('');
+        horizon.insertAdjacentHTML('beforeend',`<tr class="gdc-alpha-row"><th>Alfa anualizada · ${esc(fundName(selected.item.isin)||selected.item.isin)} frente a ${esc(benchmarkInfo(selected.ticker).name)} (${esc(selected.ticker)})</th>${cells}</tr>`);
     }
     async function historicalReport(){
         if(!state.history.length)runHistory();
         const figures=[];
         for(const entry of state.history.filter(item=>item.result)){
             const result=entry.result,chart=document.createElement('div');chart.style.cssText='position:fixed;left:-12000px;width:950px;height:340px';document.body.append(chart);
-            try{await FinancialVisuals.newPlot(chart,[{x:result.rows.map(row=>row.date),y:result.assets[0].base100,name:entry.item.isin,type:'scatter',mode:'lines',line:{color:'#164e78',width:2.5}},{x:result.rows.map(row=>row.date),y:result.benchmark.base100,name:entry.ticker,type:'scatter',mode:'lines',line:{color:'#78828c',width:2.5}}],{title:`${entry.item.isin} frente a ${entry.ticker}`,yaxis:{title:'Base 100'},margin:{t:50,l:60,r:20,b:45},legend:{orientation:'h',y:-.2}},{staticPlot:true});
-                const image=await Plotly.toImage(chart,{format:'png',width:950,height:340});figures.push(`<section class="block report-keep-together gdc-history-report"><h3>${esc(entry.item.fund?.name||entry.item.isin)} · ${esc(entry.ticker)}</h3><figure><img style="width:100%;height:auto" src="${image}" alt="Evolución fondo frente a índice"></figure></section>`);
+            try{const info=benchmarkInfo(entry.ticker),fund=fundName(entry.item.isin)||entry.item.isin;await FinancialVisuals.newPlot(chart,[{x:result.rows.map(row=>row.date),y:result.assets[0].base100,name:`${fund} (${entry.item.isin})`,type:'scatter',mode:'lines',line:{color:'#164e78',width:2.5}},{x:result.rows.map(row=>row.date),y:result.benchmark.base100,name:`${info.name} (${info.ticker})`,type:'scatter',mode:'lines',line:{color:'#78828c',width:2.5}}],{title:`${fund} frente a ${info.name}`,yaxis:{title:'Base 100'},margin:{t:50,l:60,r:20,b:75},legend:{orientation:'h',y:-.2}},{staticPlot:true});
+                const image=await Plotly.toImage(chart,{format:'png',width:950,height:340});figures.push(`<section class="block report-keep-together gdc-history-report"><h3>${esc(fund)} (${esc(entry.item.isin)}) · ${esc(info.name)} (${esc(info.ticker)})</h3><figure><img style="width:100%;height:auto" src="${image}" alt="Evolución fondo frente a índice"></figure></section>`);
             }finally{Plotly.purge(chart);chart.remove();}
         }
-        state.historyHtml=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"></head><body><div class="report manager-report"><header class="cover"><h1>GDC · comparativa histórica</h1><p>${esc(model().name)} · ${new Date().toLocaleDateString('es-ES')}</p></header><section class="block"><h2>Métricas frente al índice Morningstar</h2>${historicalTable()}</section>${figures.join('')}<footer>Retorno y volatilidad anualizados según la frecuencia observada; alfa anual y beta sobre fechas comunes. Las series deben ser comparables en divisa y ajustes. Los fondos sin histórico suficiente figuran como pendientes.</footer></div></body></html>`;
+        state.historyHtml=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"></head><body><div class="report manager-report"><header class="cover"><h1>GDC · comparativa histórica</h1><p>${esc(model().name)} · ${new Date().toLocaleDateString('es-ES')}</p></header><section class="block"><h2>Métricas frente al índice Morningstar</h2>${historicalTable(true)}</section>${figures.join('')}<footer>Retorno y volatilidad anualizados según la frecuencia observada; alfa de Jensen anualizada y beta sobre fechas comunes. Alfa por plazo: al menos cuatro retornos emparejados y un cierre inicial próximo. Las series deben ser comparables en divisa y ajustes. Los fondos sin histórico suficiente figuran como pendientes.</footer></div></body></html>`;
         return state.historyHtml;
     }
     function exportHistoryExcel(){
         if(!state.history.length)runHistory();
-        const book=XLSX.utils.book_new(),summary=[['Fondo','ISIN','Índice','Inicio','Fin','Retorno periodo (%)','Retorno anual (%)','Volatilidad (%)','Alfa anual (%)','Beta','Caída máxima (%)','Estado']];
+        const book=XLSX.utils.book_new(),summary=[['Fondo','ISIN','Categoría GDC','Índice Morningstar','Ticker índice','Categoría Morningstar','Inicio','Fin','Retorno periodo (%)','Retorno anual (%)','Volatilidad (%)','Alfa anual (%)','Alfa 1M (%)','Alfa 3M (%)','Alfa 6M (%)','Alfa YTD (%)','Beta','Caída máxima (%)','Estado']];
         state.history.forEach((entry,index)=>{const asset=entry.result?.assets[0],rows=entry.result?.rows||[];
-            summary.push([entry.item.fund?.name||'',entry.item.isin,entry.ticker,rows[0]?.date.toISOString().slice(0,10)||'',rows.at(-1)?.date.toISOString().slice(0,10)||'',Number.isFinite(asset?.total)?asset.total*100:'',Number.isFinite(asset?.annual)?asset.annual*100:'',Number.isFinite(asset?.vol)?asset.vol*100:'',Number.isFinite(asset?.alpha)?asset.alpha*100:'',Number.isFinite(asset?.beta)?asset.beta:'',Number.isFinite(asset?.drawdown)?asset.drawdown*100:'',entry.reason||'Comparable']);
+            const info=benchmarkInfo(entry.ticker),percent=value=>Number.isFinite(value)?value*100:'';
+            summary.push([fundName(entry.item.isin),entry.item.isin,entry.row.generic,info.name,info.ticker,info.category,rows[0]?.date.toISOString().slice(0,10)||'',rows.at(-1)?.date.toISOString().slice(0,10)||'',percent(asset?.total),percent(asset?.annual),percent(asset?.vol),percent(asset?.alpha),...['oneMonth','threeMonths','sixMonths','ytd'].map(key=>percent(asset?.horizonAlphas?.[key])),Number.isFinite(asset?.beta)?asset.beta:'',percent(asset?.drawdown),entry.reason||'Comparable']);
             if(!rows.length)return;const grid=[['Fecha','Fondo base 100','Índice base 100'],...rows.map((row,i)=>[row.date.toISOString().slice(0,10),asset.base100[i],entry.result.benchmark.base100[i]])];
             XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(grid),`Fondo ${index+1}`);
         });
@@ -394,6 +416,7 @@ const GdcModel=(()=>{
         panel.querySelector('.gdc-selection-table thead tr').innerHTML='<th>Categoría genérica y mapeo</th><th>Índice Morningstar</th><th>Benchmark fijo</th><th>Peso cartera</th><th>Posiciones actuales</th><th>Selección de fondos</th><th>Propuesta</th><th>Peers</th>';
         panel.querySelector('#gdcCategoryOverviewChart').insertAdjacentHTML('afterend','<section class="gdc-history"><h4 class="gdc-overview-title">Comparativa de fondos frente a índices</h4><div class="workspace-tools"><button type="button" id="gdcHistoryRun">Comparar fondos</button><select id="gdcHistorySelect" aria-label="Fondo para visualizar"></select><button type="button" id="gdcHistoryPdf">Descargar informe PDF</button><button type="button" id="gdcHistoryExcel">Exportar histórico Excel</button></div><p id="gdcHistoryStatus" class="workspace-status" role="status"></p><div id="gdcHistoryTable" class="proposal-chart-scroll"></div><div id="gdcHistoryCharts"></div></section>');
         panel.querySelector('#gdcHistoryRun').addEventListener('click',()=>{try{runHistory();}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
+        panel.querySelector('#gdcHistoryTable').addEventListener('change',event=>{const input=event.target.closest('[data-gdc-history-name]');if(!input)return;const isin=normalizeIsin(input.dataset.gdcHistoryName),name=input.value.trim();if(name)state.fundNames[isin]=name;else delete state.fundNames[isin];invalidateReport();setTimeout(runHistory,0);});
         panel.querySelector('#gdcHistorySelect').addEventListener('change',showHistory);
         panel.querySelector('#gdcHistoryPdf').addEventListener('click',async()=>{try{await ReportDesign.downloadPdf(await historicalReport(),`GDC_comparativa_${model().name.replace(/[^a-z0-9_-]/gi,'_')}.pdf`);}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
         panel.querySelector('#gdcHistoryExcel').addEventListener('click',()=>{try{exportHistoryExcel();}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});

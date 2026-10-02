@@ -56,3 +56,8 @@ test('large pies extend tones and repeated old colours do not detach endpoint la
     const data=[trace('red'),trace('red'),{mode:'markers+text',showlegend:false,marker:{color:'red'}}];
     assert.equal(theme.prepare('price',data).data[2].marker.color,theme.colors.gray);
 });
+test('GDC category overview keeps its dedicated palette without changing other charts',()=>{
+    const data=[{type:'bar',name:'RF',x:['Perfil'],y:[60],marker:{color:'#1268a3'}},{type:'bar',name:'RV',x:['Perfil'],y:[40],marker:{color:'#13a89e'}}];
+    assert.deepEqual(theme.prepare('gdcCategoryOverviewChart',data).data.map(item=>item.marker.color),['#1268a3','#13a89e']);
+    assert.deepEqual(theme.prepare('otherChart',data).data.map(item=>item.marker.color),[theme.colors.blue,theme.colors.gray]);
+});

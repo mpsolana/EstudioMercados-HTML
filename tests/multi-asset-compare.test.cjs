@@ -90,3 +90,14 @@ test('horizon returns require a full lookback and retain the last prior year clo
     assert.throws(()=>Compare.compare([{ticker:'A',data:monthly.slice(-12)}],'5Y'),/5 años completos/);
     assert.ok(Compare.compare([{ticker:'A',data:monthly}],'5Y').rows.length>=60);
 });
+test('Jensen alpha by horizon uses paired returns and rolling correlation keeps its window',()=>{
+    const prices=Array.from({length:430},(_,index)=>({date:new Date(Date.UTC(2025,0,index+1)),price:100*Math.exp(index*.0003+Math.sin(index/13)*.02)}));
+    const asset={ticker:'FUND',name:'Fondo',data:prices},bench={ticker:'BENCH',name:'Indice',data:prices.map(point=>({...point}))};
+    const result=Compare.compare([asset],'ALL',.02,bench),alphas=result.assets[0].horizonAlphas;
+    for(const key of ['oneMonth','threeMonths','sixMonths','ytd','oneYear','sinceStart'])assert.ok(Math.abs(alphas[key])<1e-10,key);
+    assert.ok(Number.isNaN(alphas.threeYears));
+    const rolling=Compare.rollingCorrelation(result.rows,0,1,30);
+    assert.equal(rolling.length,result.rows.length-30);
+    assert.ok(rolling.every(point=>Math.abs(point.value-1)<1e-10));
+    assert.deepEqual(Compare.rollingCorrelation(result.rows.slice(0,20),0,1,30),[]);
+});

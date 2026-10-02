@@ -635,8 +635,8 @@
                             <div class="md:col-span-3">
                                 <label class="text-[11px] uppercase font-bold text-slate-500">Modalidad</label>
                                 <select id="portfolioExcelMode" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm bg-white">
-                                    <option value="backtest">Backtesting teorico: tickers/pesos</option>
-                                    <option value="real">Evolucion real: fecha/valor</option>
+                                    <option value="backtest">Backtest: pesos y precios</option>
+                                    <option value="real">Evolución real: fecha y valor</option>
                                 </select>
                             </div>
                             <div class="md:col-span-3">
@@ -3908,6 +3908,7 @@
                 try {
                     await importer(files);
                     renderScoringDataStatus();
+                    if(key==='portfolio'&&fundPortfolioRows.length){PortfolioWorkspace.scope='individual';PortfolioWorkspace.step='diagnosis';PortfolioWorkspace.tool='scoring';showPortfolioSubtab('scoring');portfolioWorkflowRefresh();}
                 } catch (error) {
                     renderScoringDataStatus();
                     if (badge) badge.textContent += ' - Error de carga';
@@ -4060,11 +4061,7 @@
                     if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
                     const workbook = await readWorkbook(file);
                     rows = parseFundPortfolioRows(sheetRows(workbook, workbook.SheetNames[0]));
-                    if(GdcModel.loadWorkbook(workbook,file.name)&&!rows.length){
-                        document.getElementById('fundPortfolioStatus').innerText=`${GdcModel.state.models.length} carteras modelo cargadas (${file.name})`;
-                        portfolioWorkflowRefresh();
-                        return;
-                    }
+                    if(!rows.length&&findSheet(workbook,['Carteras Modelo']))throw new Error('Este Excel contiene Carteras Modelo pero no posiciones de scoring. Impórtalo en la casilla GDC.');
                 }
                 setFundPortfolioRows(rows, file.name, { manual: true });
             }

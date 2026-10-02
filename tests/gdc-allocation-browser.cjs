@@ -17,9 +17,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    add('bench',[['date','BRF','BRV'],...dates.map((date,i)=>[date,100+i,100+i*2])]);
    add('prices',[['date','ES0000000001','ES0000000002'],...dates.map((date,i)=>[date,100+i*1.1,100+i*2.1])]);
    const file=new File([XLSX.write(book,{bookType:'xlsx',type:'array'})],'base-gdc.xlsx');
-   const input=document.getElementById('fundPortfolioFileInput'),transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+   const input=document.getElementById('gdcPriorFile'),transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
   });
   await page.waitForFunction(()=>GdcModel.state.models.length===5);
+  assert.equal(await page.evaluate(()=>PortfolioWorkspace.scope),'model');
   await page.locator('[data-workspace-scope="model"]').click();
   await page.locator('#gdcModels').selectOption('1');
   const initial=await page.evaluate(()=>({profile:GdcModel.state.models[1].profile,band:ModelPortfolioCore.allocation(GdcModel.state.models[1]).band,neutral:ModelPortfolioCore.allocation(GdcModel.state.models[1]).neutral,benchRv:ModelPortfolioCore.allocation(GdcModel.state.models[1]).benchmarkRv,indices:document.querySelector('#gdcBody').textContent}));
@@ -62,6 +63,23 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   await page.waitForFunction(()=>GdcModel.state.models[1]?.rows[1]?.portfolioWeight===25);
   assert.equal(await page.evaluate(()=>GdcModel.state.models[1].rows[1].currentPositions[0]?.isin),'ES0000000002');
   await page.locator('#gdcModels').selectOption('1');
+  await page.evaluate(()=>{const row=GdcModel.state.models[1].rows[0];row.keepCurrent=false;row.proposedPositions=[{isin:'ES0000000003',share:100}];GdcModel.state.prices.ES0000000003=GdcModel.state.prices.ES0000000001.map((point,index)=>({...point,price:point.price+index*.2}));GdcModel.render();});
+  await page.locator('#gdcHistoryRun').click();
+  await page.locator('[data-gdc-history-name="ES0000000003"]').fill('Proxy RF Cliente');
+  await page.locator('[data-gdc-history-name="ES0000000003"]').dispatchEvent('change');
+  assert.match(await page.locator('#gdcHistorySelect').textContent(),/Proxy RF Cliente/);
+  assert.match(await page.locator('#gdcHistoricalBaseChart').textContent(),/Proxy RF Cliente/);
+  const namedDownload=page.waitForEvent('download');await page.locator('#gdcExport').click();const namedFile=await namedDownload,namedBuffer=fs.readFileSync(await namedFile.path());
+  await page.locator('#gdcPriorFile').setInputFiles({name:'comite-con-nombre.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:namedBuffer});
+  await page.waitForFunction(()=>GdcModel.state.fundNames.ES0000000003==='Proxy RF Cliente');
+  assert.match(await page.locator('#scoringDataStatus-gdc').textContent(),/comite-con-nombre.xlsx/);
+  await page.locator('#gdcModels').selectOption('1');await page.locator('#gdcHistoryRun').click();
+  assert.match(await page.locator('#gdcHistorySelect').textContent(),/Proxy RF Cliente/);
+  const namedHistory=page.waitForEvent('download');await page.locator('#gdcHistoryExcel').click();const namedHistoryFile=await namedHistory,namedHistoryBytes=fs.readFileSync(await namedHistoryFile.path());
+  const namedSummary=await page.evaluate(base64=>{const book=XLSX.read(Uint8Array.from(atob(base64),char=>char.charCodeAt(0)),{type:'array'});return XLSX.utils.sheet_to_json(book.Sheets.Resumen,{header:1});},namedHistoryBytes.toString('base64'));
+  assert.ok(namedSummary.some(row=>row[0]==='Proxy RF Cliente'&&row[1]==='ES0000000003'));
+  const namedPdf=page.waitForEvent('download',{timeout:120000});await page.locator('#gdcHistoryPdf').click();await namedPdf;
+  assert.match(await page.evaluate(()=>GdcModel.state.historyHtml),/Proxy RF Cliente/);
   if(out){await page.screenshot({path:path.join(out,'gdc-allocation.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.waitForTimeout(400);const width=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth}));assert.ok(width.document<=width.viewport+2,JSON.stringify(width));await page.screenshot({path:path.join(out,'gdc-allocation-mobile.png'),fullPage:true});}
   assert.deepEqual(errors,[]);console.log(JSON.stringify({profiles:5,rv:weights.rv,sheets:workbook.names.length,errors}));
  }finally{await browser.close();}

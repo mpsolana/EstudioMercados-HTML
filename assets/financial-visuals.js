@@ -36,6 +36,7 @@
             else if (trace.meta?.financialRole==='proposal') color=colors.gray;
             else if (/^(Universo\b|Peer group\b)/i.test(trace.name || '')) color = '#b6c4cf';
             else if (/^Media\b/i.test(trace.name || '') && trace.marker?.symbol === 'diamond') color = '#454b53';
+            else if(id==='gdcCategoryOverviewChart'&&/^#[0-9a-f]{6}$/i.test(trace.marker?.color||''))color=trace.marker.color;
             else { ordinals.set(index,next); color = seriesColor(next++); }
             assignments.set(index,color);
             if (oldColor(trace) && !remap.has(oldColor(trace))) remap.set(oldColor(trace),color);

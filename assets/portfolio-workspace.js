@@ -12,7 +12,7 @@ function portfolioWorkspaceWarning(){
     if(scope==='individual'&&tool==='funds'&&!fundUniverseState?.records?.length)missing.push('ranking del universo');
     if(scope==='individual'&&tool==='assets'&&!fundPortfolioRows?.length&&!loadedPortfolio?.entries?.length)missing.push('cartera modelo o cartera con históricos');
     if(scope==='aggregate'&&!aggregatePositionsState.rows.length)missing.push('posiciones agregadas');
-    if(scope==='model'&&!GdcModel.state.models.length)missing.push('cartera modelo en Carga de datos o selección mensual GDC');
+    if(scope==='model'&&!GdcModel.state.models.length)missing.push('Excel GDC en Carga de datos');
     if(scope==='comparison'&&!PortfolioCompare.state.sources.some(Boolean))return 'Añade una cartera Excel, un activo Yahoo o una cartera Yahoo para iniciar la comparativa.';
     return missing.length?`Para completar esta vista, carga en Carga de datos: ${missing.join(' y ')}.`:'';
 }
@@ -24,6 +24,10 @@ function portfolioHistoryStale() {
     if (!loadedPortfolio?.calculationSettings) return false;
     const current = portfolioCalculationSettings();
     return ['rebalance','costBps','currency','pricesInBase','frequencyOverride'].some(key => current[key] !== loadedPortfolio.calculationSettings[key]);
+}
+function openYahooPortfolioAnalysis(){
+    if(!loadedPortfolio?.analysisReady){document.getElementById('portfolioNotice').textContent='Carga y analiza la cartera Yahoo antes de abrir el análisis individual.';return;}
+    switchSection('individual');document.querySelector('[data-individual-mode="single"]')?.click();
 }
 async function portfolioConvertCurrencies(seriesMap, entries, start, end) {
     const settings = portfolioCalculationSettings();
@@ -55,7 +59,7 @@ function invalidatePortfolioReports() {
 }
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
-    const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual';
+    const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.step!=='diagnosis'||!['main','yahoo'].includes(w.tool);
     document.querySelectorAll('[data-workspace-scope]').forEach(b=>{if(b.dataset.workspaceScope!=='data')b.disabled=!portfolioWorkspaceReady();});
     document.querySelector('.workspace-steps').hidden=['data','model','comparison'].includes(w.scope);
     const warning=document.getElementById('workspaceMissingData');warning.textContent=portfolioWorkspaceWarning();warning.hidden=!warning.textContent;
@@ -65,7 +69,7 @@ function portfolioWorkflowRefresh() {
         document.getElementById('workspaceTools').hidden=true;
         document.getElementById('workspaceReportOptions').hidden=true;
         document.getElementById('workspaceQuality').hidden=true;
-        document.getElementById('workspaceContext').textContent='Archivos comunes y configuración del análisis';
+        document.getElementById('workspaceContext').textContent='Seis cargas independientes para cada proceso';
         document.querySelectorAll('[data-workspace-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workspaceScope==='data')));
         document.querySelectorAll('[data-workspace-only]').forEach(el=>el.hidden=!el.dataset.workspaceOnly.split(' ').includes('data'));
         return;
@@ -87,6 +91,7 @@ function portfolioWorkflowRefresh() {
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
     const show = id => { const el = document.getElementById(id); if (el) { el.hidden = false; el.classList.remove('hidden'); } };
+    if(w.scope==='individual'&&w.step==='diagnosis'&&['main','yahoo'].includes(w.tool))show('workspaceIndividualSetup');
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
     if (w.step === 'metrics' && w.scope === 'initial') show('workspaceUniverseMetrics');
@@ -107,7 +112,7 @@ function portfolioWorkflowRefresh() {
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
-    if(calculationHelp)calculationHelp.hidden=w.scope!=='individual';
+    if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.step!=='diagnosis'||!['main','yahoo'].includes(w.tool);
     const rows = fundProposalState.rows || [];
     const coverage = FinanceCore.weighted(rows, 'ter', 'current').coverage;
     document.getElementById('workspaceContext').textContent = `${w.scope === 'screener' ? 'Screener · universo de fondos' : w.scope === 'aggregate' ? 'Posiciones agregadas · sin backtest consolidado' : w.scope === 'initial' ? 'Analisis inicial · cartera de origen del cliente' : 'Cartera individual · comportamiento historico'} · ${portfolioCalculationSettings().currency} · Revision ${w.revision}`;
@@ -161,12 +166,22 @@ function initializePortfolioWorkspace() {
     reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);
     const data = document.getElementById('workspaceData');
     const importGrid = document.getElementById('portfolioExcelInput').closest('.grid').parentElement.parentElement;
+    const individualSetup=document.createElement('section');individualSetup.id='workspaceIndividualSetup';individualSetup.className='workspace-panel workspace-individual-setup';individualSetup.dataset.workspacePanel='';root.append(individualSetup);
     const clientControls = root.querySelector('button[onclick="generatePortfolioReport()"]')?.closest('.rounded-lg');
     const managerControls = root.querySelector('button[onclick="generateManagerReport()"]')?.closest('.rounded-lg');
     if (clientControls) document.getElementById('workspaceIndividualReports').append(clientControls);
     if (managerControls) document.getElementById('workspaceManagerReports').append(managerControls);
-    data.append(importGrid); importGrid.dataset.workspaceOnly = 'data';
-    const builder = document.getElementById('portfolioBuilder'); data.append(builder); builder.dataset.workspaceOnly = 'data';
+    individualSetup.append(importGrid);
+    importGrid.classList.remove('xl:grid-cols-3');importGrid.firstElementChild.classList.remove('xl:col-span-2');
+    const portfolioInfo=document.getElementById('portfolioInfo');individualSetup.append(portfolioInfo);
+    importGrid.querySelector('h3').textContent='Excel con histórico de cartera';
+    importGrid.querySelector('h3+p').textContent='Elige backtest si el archivo contiene pesos y precios; elige evolución real si contiene una serie de valor liquidativo.';
+    importGrid.querySelector('#portfolioImportHelp').textContent='Backtest: hoja weights (ticker, weight) y hoja prices (date y una columna por ticker). Real: hoja portfolio (date, value).';
+    const yahooPanel=document.createElement('section');yahooPanel.id='portfolioSubtabContent-yahoo';yahooPanel.className='portfolio-subtab-content workspace-panel';yahooPanel.dataset.workspacePanel='';root.append(yahooPanel);
+    yahooPanel.innerHTML='<h3 class="workspace-subtitle">Crear cartera con Yahoo Finance</h3><div class="workspace-settings workspace-yahoo-dates"><label>Desde<input type="date" id="workspaceYahooStart"></label><label>Hasta<input type="date" id="workspaceYahooEnd"></label></div>';
+    for(const [local,global] of [['workspaceYahooStart','startDate'],['workspaceYahooEnd','endDate']]){const field=yahooPanel.querySelector(`#${local}`),source=document.getElementById(global);field.value=source?.value||(global==='endDate'?new Date().toISOString().slice(0,10):'');if(source)source.value=field.value;field.addEventListener('change',()=>{if(source)source.value=field.value;});}
+    const builder = document.getElementById('portfolioBuilder'); yahooPanel.append(builder);
+    builder.insertAdjacentHTML('afterend','<button type="button" class="workspace-view-individual" onclick="openYahooPortfolioAnalysis()"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Ver análisis individual</button>');
     const manualActions = document.getElementById('loadPortfolioBtn').parentElement;
     manualActions.classList.add('workspace-manual-actions');
     for (const [selector, icon, label] of [['[onclick="addPortfolioRow()"]','plus','Agregar activo'],['[onclick="normalizeWeights()"]','scale-balanced','Normalizar pesos'],['#analyzePortfolioBtn','rotate','Recalcular analisis']]) {
@@ -174,12 +189,11 @@ function initializePortfolioWorkspace() {
         button.title = label; button.setAttribute('aria-label',label); button.classList.add('workspace-icon');
     }
     document.getElementById('loadPortfolioBtn').textContent = 'Cargar tickers Yahoo y analizar';
-    manualActions.insertAdjacentHTML('afterend','<p class="workspace-context">Carga Yahoo: utiliza este boton para los tickers introducidos arriba. Al cargar un Excel, el analisis se ejecuta automaticamente; no es necesario volver a pulsarlo.</p>');
     const upload = document.getElementById('fundUniverseFileInput').closest('.mt-6'); data.append(upload);
-    document.getElementById('fundPortfolioFileInput').closest('.min-w-0').querySelector('div').textContent='Cartera modelo';
-    const settings = document.createElement('div'); settings.className = 'workspace-settings'; settings.dataset.workspaceOnly = 'data';
+    upload.querySelector('h3').textContent='Archivos de análisis';
+    const settings = document.createElement('div'); settings.className = 'workspace-settings'; settings.dataset.workspaceOnly = 'individual';
     settings.innerHTML = `<label>Rebalanceo<select id="portfolioRebalance"><option value="period">Cada observacion (pesos constantes)</option><option value="monthly">Mensual</option><option value="hold">Comprar y mantener</option></select></label><label>Coste por volumen negociado (pb)<input id="portfolioCostBps" type="number" min="0" max="1000" value="0"></label><label>Tipo libre de riesgo anual (%)<input id="portfolioRiskFree" type="number" min="-99" step="0.1" value="0"></label><label>Moneda base<select id="portfolioBaseCurrency"><option>EUR</option><option>USD</option><option>GBP</option></select></label><label><input id="portfolioPricesInBase" type="checkbox"> Historicos propios ya expresados en moneda base</label>`;
-    data.prepend(settings);
+    individualSetup.prepend(settings);
     const help = document.createElement('footer'); help.className = 'workspace-calculation-help'; help.dataset.workspaceOnly = 'individual';
     help.innerHTML = '<h3>Hipotesis del analisis</h3><dl><dt>Rebalanceo</dt><dd>Define cuando se recuperan los pesos objetivo: en cada observacion, al cambiar de mes o nunca (comprar y mantener, dejando evolucionar los pesos).</dd><dt>Coste por volumen negociado</dt><dd>Coste aplicado a las compras y ventas de cada rebalanceo. 10 puntos basicos equivalen a 0,10% del importe negociado, no de toda la cartera. No incluye impuestos ni la inversion inicial.</dd><dt>Tipo libre de riesgo</dt><dd>Rentabilidad anual de referencia utilizada para calcular el Sharpe. Se convierte a la frecuencia de los datos; no modifica la evolucion del patrimonio.</dd><dt>Moneda base</dt><dd>Divisa en la que se construye la cartera. Los historicos Yahoo en otra divisa se convierten cuando hay datos de cambio disponibles.</dd><dt>Historicos propios</dt><dd>Marca esta casilla solo si los precios importados ya estan expresados en la moneda base. Evita convertirlos otra vez. No debe marcarse para omitir una conversion que falta.</dd></dl><p>Si cambias rebalanceo, costes, moneda o tratamiento de historicos, vuelve a cargar la cartera o importar el Excel para recalcularla.</p>';
     root.append(help);
@@ -189,7 +203,7 @@ function initializePortfolioWorkspace() {
     const unit = document.createElement('label'); unit.className = 'workspace-context'; unit.innerHTML = 'Unidad de pesos de scoring y propuesta <select id="fundWeightUnit"><option value="percent">Porcentaje (0-100)</option><option value="fraction">Fraccion (0-1)</option><option value="amount">Importes (se normalizan)</option></select>'; data.prepend(unit);
     unit.dataset.workspaceOnly = 'data';
     const oldNav = document.getElementById('portfolioSubtab-main').parentElement; oldNav.hidden = true;
-    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', aggregate:'Posiciones', massive:'Comparador masivo' };
+    const tools = { main:'Evolucion y riesgo', scoring:'Scoring', assets:'Distribucion', funds:'Comparativa fondos', yahoo:'Cartera Yahoo', aggregate:'Posiciones', massive:'Comparador masivo' };
     document.getElementById('workspaceTools').innerHTML = Object.entries(tools).map(([key,label]) => `<button data-workspace-tool="${key}">${label}</button>`).join('');
     for (const id of ['portfolioReportPreview','managerReportPreview']) {
         const target = document.getElementById(id); document.getElementById(id === 'portfolioReportPreview' ? 'workspaceIndividualReports' : 'workspaceManagerReports').append(target.parentElement);
@@ -198,9 +212,13 @@ function initializePortfolioWorkspace() {
     aggregate.id = 'workspaceAggregate'; aggregate.dataset.workspacePanel = ''; aggregate.classList.add('workspace-panel'); root.append(aggregate);
     const modelPanel=document.createElement('section');modelPanel.id='workspaceModel';modelPanel.className='workspace-panel';modelPanel.dataset.workspacePanel='';root.append(modelPanel);
     GdcModel.init();
-    const gdcUploads=document.createElement('div');gdcUploads.className='workspace-data-extra';gdcUploads.innerHTML='<h3>GDC · cartera modelo</h3>';
-    gdcUploads.append(document.getElementById('gdcPriorFile').closest('label'));
-    data.append(gdcUploads);
+    const gdcInput=document.getElementById('gdcPriorFile');
+    const gdcCard=document.createElement('div');gdcCard.className='min-w-0 border border-slate-200 bg-slate-50 p-3';
+    gdcCard.innerHTML='<div class="text-[11px] uppercase font-bold text-slate-500">GDC · comité mensual</div><div id="scoringDataStatus-gdc" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div><label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Subir Excel</label>';
+    gdcCard.querySelector('label').append(gdcInput);gdcInput.hidden=true;gdcInput.style.display='none';
+    upload.querySelector('.grid').append(gdcCard);
+    document.getElementById('fundPortfolioFileInput').closest('.min-w-0').querySelector('div').textContent='Cartera individual · scoring';
+    upload.querySelector('.grid').classList.replace('xl:grid-cols-5','xl:grid-cols-3');
     const comparePanel=document.createElement('section');comparePanel.id='workspacePortfolioCompare';comparePanel.className='workspace-panel';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
     PortfolioCompare.init();
     document.getElementById('aggregatePositionsTableBody').closest('.mb-5').insertAdjacentHTML('beforebegin','<div class="workspace-tools"><button type="button" onclick="useAggregateChangesInIndividualScoring()"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Llevar cartera tras cambios a análisis individual</button></div>');

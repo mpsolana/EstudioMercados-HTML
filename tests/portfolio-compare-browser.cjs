@@ -73,6 +73,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.deepEqual(range,{type:'scatter',mode:'lines+markers',color:'#204f78',range:'#8997a4',points:2});
   assert.deepEqual(errors,[]);
   const out=process.env.BROWSER_OUTPUT_DIR;if(out){fs.mkdirSync(out,{recursive:true});await page.locator('#rangeTestChart').screenshot({path:path.join(out,'professional-range-chart.png')});await page.evaluate(()=>{document.getElementById('rangeTestChart').remove();document.querySelector('[data-individual-mode="compare"]').click();});await page.screenshot({path:path.join(out,'portfolio-vs-bench.png'),fullPage:true});await page.evaluate(()=>switchSection('cartera'));await page.screenshot({path:path.join(out,'portfolio-comparison.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.waitForTimeout(500);const width=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth}));assert.ok(width.document<=width.viewport+2,JSON.stringify(width));await page.screenshot({path:path.join(out,'portfolio-comparison-mobile.png'),fullPage:true});}
+  await page.evaluate(()=>switchSection('cartera'));
   await page.locator('[data-compare-remove="0"]').click();
   await page.locator('[data-compare-remove="1"]').click();
   assert.equal(await page.evaluate(()=>PortfolioCompare.state.sources[0]===null&&PortfolioCompare.state.sources[1]===null),true);

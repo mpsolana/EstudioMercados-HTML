@@ -22,10 +22,12 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    add('prices',[['date','ES0000000001'],...dates.map((date,i)=>[date,100+i])]);
    const file=new File([XLSX.write(book,{bookType:'xlsx',type:'array'})],'modelo-prueba.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
    await importFundScoringPortfolioFile(file);
+   const isolated=GdcModel.state.models.length===0;
+   GdcModel.loadWorkbook(book,file.name);
    const loaded=GdcModel.state.models.length===1&&fundPortfolioRows.length===1;
    GdcModel.select(0,'ES0000000001');
    PortfolioWorkspace.scope='model';portfolioWorkflowRefresh();
-   return {loaded,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].proposedPositions[0].isin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
+   return {loaded,isolated,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].proposedPositions[0].isin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
   });
   await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===11);
   await page.evaluate(()=>{switchSection('individual');document.querySelector('[data-multi-ticker="1"]').value='';document.getElementById('multiAssetLoad').click();});
@@ -49,7 +51,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(8).textContent(),'-');
   assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(9).textContent(),'-');
   await page.evaluate(()=>switchSection('cartera'));
-  assert.equal(setup.loaded,true);assert.equal(setup.models,1);assert.equal(setup.te,'ES0000000001');assert.equal(setup.scope,'model');
+  assert.equal(setup.loaded,true);assert.equal(setup.isolated,true);assert.equal(setup.models,1);assert.equal(setup.te,'ES0000000001');assert.equal(setup.scope,'model');
   assert.match(setup.scoreHtml,/quality-technical/);
   assert.match(setup.aggregateScoreHtml,/flex-col items-center/);
   const results=await page.evaluate(async()=>{

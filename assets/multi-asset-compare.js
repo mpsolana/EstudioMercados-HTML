@@ -60,6 +60,32 @@
         const annualPeriods=periods[freq]||252,rfPeriod=(1+rfAnnual)**(1/annualPeriods)-1;
         return {beta,alpha:(assetMean-rfPeriod-beta*(benchMean-rfPeriod))*annualPeriods};
     }
+    function horizonAlphas(rows,index,benchmarkIndex,freq,rfAnnual){
+        if(benchmarkIndex<0)return {};
+        const end=rows.at(-1).date,grace={C:7,D:7,W:14,M:45,Q:105,A:380}[freq]||7;
+        const monthStart=months=>{const year=end.getUTCFullYear(),month=end.getUTCMonth()-months,day=Math.min(end.getUTCDate(),new Date(Date.UTC(year,month+1,0)).getUTCDate());return new Date(Date.UTC(year,month,day));};
+        const cutoffs={oneMonth:monthStart(1),threeMonths:monthStart(3),sixMonths:monthStart(6),ytd:new Date(Date.UTC(end.getUTCFullYear(),0,1)),oneYear:monthStart(12),threeYears:monthStart(36),fiveYears:monthStart(60)};
+        const result={};
+        for(const [key,cutoff] of Object.entries(cutoffs)){
+            const base=rows.findLastIndex(row=>row.date<=cutoff);
+            result[key]=base>=0&&(cutoff-rows[base].date)/86400000<=grace&&rows.length-base>=5?benchmarkMetrics(rows.slice(base),index,benchmarkIndex,freq,rfAnnual).alpha:NaN;
+        }
+        result.sinceStart=rows.length>=5?benchmarkMetrics(rows,index,benchmarkIndex,freq,rfAnnual).alpha:NaN;
+        return result;
+    }
+    function rollingCorrelation(rows,leftIndex,rightIndex,windowSize){
+        const count=Math.max(6,Math.floor(windowSize)),left=[],right=[],points=[];
+        for(let i=1;i<rows.length;i++){
+            left.push(rows[i].prices[leftIndex]/rows[i-1].prices[leftIndex]-1);
+            right.push(rows[i].prices[rightIndex]/rows[i-1].prices[rightIndex]-1);
+            if(left.length<count)continue;
+            const a=left.slice(-count),b=right.slice(-count),am=finance.mean(a),bm=finance.mean(b);
+            const cov=a.reduce((sum,value,k)=>sum+(value-am)*(b[k]-bm),0);
+            const av=a.reduce((sum,value)=>sum+(value-am)**2,0),bv=b.reduce((sum,value)=>sum+(value-bm)**2,0);
+            points.push({date:rows[i].date,value:av>1e-20&&bv>1e-20?Math.max(-1,Math.min(1,cov/Math.sqrt(av*bv))):null});
+        }
+        return points;
+    }
     function metrics(rows,index,freq,rfAnnual=0){
         const prices=rows.map(row=>row.prices[index]),returns=prices.slice(1).map((p,i)=>p/prices[i]-1),years=(rows.at(-1).date-rows[0].date)/86400000/365.25;
         const total=prices.at(-1)/prices[0]-1,annual=years>=1?Math.pow(1+total,1/years)-1:NaN;
@@ -85,7 +111,7 @@
         if(!Number.isFinite(riskFreeAnnual)||riskFreeAnnual<=-1)throw new Error('La tasa libre de riesgo anual debe ser superior a -100%.');
         const all=input.concat(benchmark?[benchmark]:[]),full=commonSeries(all,'ALL',maxAssets+1),{rows,frequency}=range==='ALL'?full:commonSeries(all,range,maxAssets+1);
         const benchmarkIndex=benchmark?input.length:-1;
-        const assets=input.map((item,index)=>({...item,color:colors[index],base100:rows.map(row=>row.prices[index]/rows[0].prices[index]*100),...metrics(rows,index,frequency,riskFreeAnnual),...benchmarkMetrics(rows,index,benchmarkIndex,frequency,riskFreeAnnual),horizons:horizonReturns(full.rows,index,full.frequency)}));
+        const assets=input.map((item,index)=>({...item,color:colors[index],base100:rows.map(row=>row.prices[index]/rows[0].prices[index]*100),...metrics(rows,index,frequency,riskFreeAnnual),...benchmarkMetrics(rows,index,benchmarkIndex,frequency,riskFreeAnnual),horizons:horizonReturns(full.rows,index,full.frequency),horizonAlphas:horizonAlphas(full.rows,index,benchmarkIndex,full.frequency,riskFreeAnnual)}));
         const benchmarkAsset=benchmark?{...benchmark,base100:rows.map(row=>row.prices[benchmarkIndex]/rows[0].prices[benchmarkIndex]*100),...metrics(rows,benchmarkIndex,frequency,riskFreeAnnual),horizons:horizonReturns(full.rows,benchmarkIndex,full.frequency)}:null;
         const annualRows=rows.filter((row,index)=>row.date.getUTCMonth()===11&&row.date.getUTCDate()>=20&&(!rows[index+1]||rows[index+1].date.getUTCFullYear()!==row.date.getUTCFullYear()));
         const annual=annualRows.length>=5;
@@ -94,26 +120,35 @@
     function resultsHtml(prefix){
         return `<div class="multi-asset-charts"><div id="${prefix}BaseChart"></div><div id="${prefix}DrawdownChart"></div><div id="${prefix}ScatterChart"></div></div><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>Divisa</th><th>Retorno periodo</th><th>Retorno anualizado</th><th>Volatilidad anualizada</th><th>Caída máxima</th><th>Recuperación caída máxima</th><th id="${prefix}SharpeHead">Sharpe</th><th>Beta</th><th>Alfa anual</th><th>Observaciones</th></tr></thead><tbody id="${prefix}TableBody"></tbody></table></div><h4 class="multi-asset-section-title">Rentabilidad por plazo</h4><div class="proposal-chart-scroll"><table class="wide-report-table multi-asset-table"><thead><tr><th>Activo</th><th>YTD</th><th>6 meses</th><th>1 año</th><th>3 años anualizada</th><th>5 años anualizada</th><th>Desde inicio</th></tr></thead><tbody id="${prefix}HorizonBody"></tbody></table></div><h4 class="multi-asset-section-title">Correlación de retornos</h4><div class="proposal-chart-scroll"><div id="${prefix}CorrelationChart" class="multi-asset-correlation"></div></div><p class="workspace-context">Las métricas y correlaciones usan retornos emparejados del periodo elegido. Recuperación: días naturales desde el máximo anterior a la peor caída hasta volver a ese nivel; «No recuperado» si no ocurre dentro del periodo. La tabla de plazos usa todo el histórico común. YTD, 6 meses, 1 año y desde inicio son acumulados; 3 y 5 años, anualizados. Sin historia completa se muestra «—». Sharpe usa la tasa anual indicada. Alfa de Jensen se anualiza aritméticamente frente al benchmark. Divisas distintas o cierres no ajustados pueden distorsionar la comparación.</p>`;
     }
-    function renderResults(panel,result,prefix='multiAsset'){
+    function renderResults(panel,result,prefix='multiAsset',options={}){
         const el=suffix=>panel.querySelector(`#${prefix}${suffix}`),fmt=value=>Number.isFinite(value)?`${(value*100).toFixed(2)}%`:'-',signed=value=>Number.isFinite(value)?value>0?'good':value<0?'bad':'':'';
         const safe=value=>typeof escapeHtml==='function'?escapeHtml(String(value??'')):String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
         el('SharpeHead').textContent=`Sharpe (rf ${(result.riskFreeAnnual*100).toFixed(2)}%)`;
-        el('TableBody').innerHTML=result.assets.map(asset=>`<tr><td><span class="multi-asset-key" style="background:${asset.color}"></span>${safe(asset.ticker)}</td><td>${safe(asset.currency||'-')}</td><td class="${signed(asset.total)}">${fmt(asset.total)}</td><td class="${signed(asset.annual)}">${fmt(asset.annual)}</td><td>${fmt(asset.vol)}</td><td class="${signed(asset.drawdown)}">${fmt(asset.drawdown)}</td><td>${asset.recoveryDays===null?'No recuperado':`${asset.recoveryDays} días`}</td><td>${Number.isFinite(asset.sharpe)?asset.sharpe.toFixed(2):'-'}</td><td>${Number.isFinite(asset.beta)?asset.beta.toFixed(2):'-'}</td><td class="${signed(asset.alpha)}">${fmt(asset.alpha)}</td><td>${result.rows.length}</td></tr>`).join('');
-        const horizonRow=(asset,isBenchmark=false)=>`<tr><td><span class="multi-asset-key" style="background:${isBenchmark?'#263746':asset.color}"></span>${safe(asset.ticker)}${isBenchmark?' (benchmark)':''}</td>${['ytd','sixMonths','oneYear','threeYears','fiveYears','sinceStart'].map(key=>`<td class="${signed(asset.horizons[key])}">${fmt(asset.horizons[key])}</td>`).join('')}</tr>`;
+        el('TableBody').innerHTML=result.assets.map(asset=>`<tr><td><span class="multi-asset-key" style="background:${asset.color}"></span>${safe(asset.name||asset.ticker)}${asset.name&&asset.name!==asset.ticker?`<br><small>${safe(asset.ticker)}</small>`:''}</td><td>${safe(asset.currency||'-')}</td><td class="${signed(asset.total)}">${fmt(asset.total)}</td><td class="${signed(asset.annual)}">${fmt(asset.annual)}</td><td>${fmt(asset.vol)}</td><td class="${signed(asset.drawdown)}">${fmt(asset.drawdown)}</td><td>${asset.recoveryDays===null?'No recuperado':`${asset.recoveryDays} días`}</td><td>${Number.isFinite(asset.sharpe)?asset.sharpe.toFixed(2):'-'}</td><td>${Number.isFinite(asset.beta)?asset.beta.toFixed(2):'-'}</td><td class="${signed(asset.alpha)}">${fmt(asset.alpha)}</td><td>${result.rows.length}</td></tr>`).join('');
+        const horizonRow=(asset,isBenchmark=false)=>`<tr><td><span class="multi-asset-key" style="background:${isBenchmark?'#263746':asset.color}"></span>${safe(asset.name||asset.ticker)}${isBenchmark?' (benchmark)':''}${asset.name&&asset.name!==asset.ticker?`<br><small>${safe(asset.ticker)}</small>`:''}</td>${['ytd','sixMonths','oneYear','threeYears','fiveYears','sinceStart'].map(key=>`<td class="${signed(asset.horizons[key])}">${fmt(asset.horizons[key])}</td>`).join('')}</tr>`;
         el('HorizonBody').innerHTML=result.assets.map(asset=>horizonRow(asset)).join('')+(result.benchmark&&!result.assets.some(asset=>asset.ticker===result.benchmark.ticker)?horizonRow(result.benchmark,true):'');
         const x=result.rows.map(row=>row.date),line=asset=>({x,mode:'lines',name:asset.ticker,line:{color:asset.color,width:2.3}});
         const hasExtra=result.benchmark&&!result.assets.some(asset=>asset.ticker===result.benchmark.ticker);
         const legendRows=Math.ceil((result.assets.length+(hasExtra?1:0))/4),chartHeight=Math.max(390,300+legendRows*24),marginBottom=55+legendRows*24;
         for(const suffix of ['BaseChart','DrawdownChart'])el(suffix).style.height=`${chartHeight}px`;
         const legend={orientation:'h',x:0,y:-.18,font:{size:11}};
-        const benchmarkTrace=hasExtra?[{...line({...result.benchmark,color:'#263746'}),line:{color:'#263746',width:2.4,dash:'dash'},name:`${result.benchmark.ticker} (benchmark)`,base100:result.benchmark.base100,drawdowns:result.benchmark.drawdowns}]:[];
+        const label=asset=>asset.name&&asset.name!==asset.ticker?`${asset.name} (${asset.ticker})`:asset.ticker;
+        const benchmarkTrace=hasExtra?[{...line({...result.benchmark,color:'#263746'}),line:{color:'#263746',width:2.4,dash:'dash'},name:`${label(result.benchmark)} (benchmark)`,isBenchmark:true,base100:result.benchmark.base100,drawdowns:result.benchmark.drawdowns}]:[];
         const chartAssets=result.assets.concat(benchmarkTrace);
-        FinancialVisuals.newPlot(`${prefix}BaseChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.name||asset.ticker,y:asset.base100})),{title:'Evolución base 100',yaxis:{title:'Base 100'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
-        FinancialVisuals.newPlot(`${prefix}DrawdownChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.name||asset.ticker,y:asset.drawdowns.map(v=>v*100)})),{title:'Caída desde máximo',yaxis:{title:'%'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
-        const scatter=new Map();result.assets.forEach(asset=>{const x=asset.vol*100,y=asset.total*100,key=`${x.toFixed(2)}|${y.toFixed(2)}`;if(!scatter.has(key))scatter.set(key,{x,y,names:[],color:asset.color});scatter.get(key).names.push(asset.ticker);});
-        const points=[...scatter.values()];if(hasExtra)points.push({x:result.benchmark.vol*100,y:result.benchmark.total*100,names:[`${result.benchmark.ticker} (benchmark)`],color:'#263746',symbol:'diamond'});
+        FinancialVisuals.newPlot(`${prefix}BaseChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.isBenchmark?asset.name:label(asset),y:asset.base100})),{title:'Evolución base 100',yaxis:{title:'Base 100'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
+        FinancialVisuals.newPlot(`${prefix}DrawdownChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.isBenchmark?asset.name:label(asset),y:asset.drawdowns.map(v=>v*100)})),{title:'Caída desde máximo',yaxis:{title:'%'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
+        const scatter=new Map();result.assets.forEach(asset=>{const x=asset.vol*100,y=asset.total*100,key=`${x.toFixed(2)}|${y.toFixed(2)}`;if(!scatter.has(key))scatter.set(key,{x,y,names:[],color:asset.color});scatter.get(key).names.push(label(asset));});
+        const points=[...scatter.values()];if(hasExtra)points.push({x:result.benchmark.vol*100,y:result.benchmark.total*100,names:[`${label(result.benchmark)} (benchmark)`],color:'#263746',symbol:'diamond'});
         const axis=(values,floor,nonnegative=false)=>{const low=Math.min(...values),high=Math.max(...values),pad=Math.max(floor,(high-low)*.2);return [nonnegative?Math.max(0,low-pad):low-pad,high+pad];};
         FinancialVisuals.newPlot(`${prefix}ScatterChart`,points.map(point=>({x:[point.x],y:[point.y],text:[point.names.join(', ')],mode:'markers+text',textposition:'top center',name:point.names.join(', '),marker:{color:point.color,size:15,symbol:point.symbol||'circle'}})),{title:'Riesgo anualizado vs retorno del periodo',xaxis:{title:'Volatilidad anualizada (%)',range:axis(points.map(point=>point.x),.5,true),tickformat:'.1f'},yaxis:{title:'Retorno del periodo (%)',range:axis(points.map(point=>point.y),1),tickformat:'.1f'},margin:{t:44,l:65,r:20,b:60},showlegend:false},{responsive:true});
+        if(options.rollingPair&&result.benchmark){
+            const windowSize=periods[result.frequency]||252,points=rollingCorrelation(result.rows,0,result.assets.length,windowSize);
+            const chart=el('CorrelationChart');chart.style.height='350px';
+            const heading=chart.closest('.proposal-chart-scroll')?.previousElementSibling;if(heading)heading.textContent='Correlación móvil fondo–índice';
+            if(points.length)FinancialVisuals.newPlot(chart,[{x:points.map(point=>point.date),y:points.map(point=>point.value),mode:'lines',name:'Correlación',line:{color:'#164e78',width:2.4},connectgaps:false}],{title:`Correlación móvil · ${windowSize} retornos ${result.frequency}`,yaxis:{title:'Correlación',range:[-1,1],zeroline:true,zerolinecolor:'#a9b4be'},margin:{t:52,l:58,r:20,b:45},showlegend:false},{responsive:true});
+            else chart.textContent=`Histórico insuficiente para una ventana móvil de ${windowSize} retornos ${result.frequency}.`;
+            return `${result.rows.length} fechas comunes. Alfa de Jensen anualizado sobre retornos emparejados; cada plazo exige al menos cuatro retornos y un cierre inicial próximo. Correlación móvil: ventana de ${windowSize} retornos ${result.frequency}.`;
+        }
         const names=result.assets.map(asset=>asset.ticker);
         el('CorrelationChart').style.height=`${Math.max(350,Math.min(880,120+names.length*33))}px`;
         const annotations=result.correlations.flatMap((row,i)=>row.map((value,j)=>({x:names[j],y:names[i],text:value===null?'—':value.toFixed(2),showarrow:false,font:{size:names.length>12?9:11,color:value!==null&&value<-.45?'#ffffff':'#263342'}})));
@@ -217,6 +252,6 @@
         panel.querySelector('#multiAssetRange').addEventListener('change',renderCurrent);
         panel.querySelector('#multiAssetRiskFree').addEventListener('input',renderCurrent);
     }
-    return {commonSeries,compare,resultsHtml,renderResults,init};
+    return {commonSeries,compare,rollingCorrelation,resultsHtml,renderResults,init};
 });
 if(typeof document!=='undefined')MultiAssetCompare.init();
