@@ -6,15 +6,17 @@ function portfolioWorkspaceWarning(){
     const missing=[];
     if(['initial','aggregate','screener','model'].includes(scope)&&!fundUniverseState?.records?.length)missing.push('ranking del universo');
     if(scope==='initial'&&!fundPortfolioRows?.length&&!fundProposalState?.rows?.length)missing.push('cartera modelo u origen manual');
-    if(scope==='individual'&&tool==='main'&&!loadedPortfolio?.portfolioData?.length)missing.push('cartera con históricos o tickers Yahoo');
+    if(scope==='individual'&&tool==='main'&&!loadedPortfolio?.portfolioData?.length)missing.push('Maestro con históricos posis/prices o cartera Yahoo');
     if(scope==='individual'&&tool==='scoring'&&!fundPortfolioRows?.length)missing.push('cartera modelo');
     if(scope==='individual'&&tool==='scoring'&&!fundUniverseState?.records?.length)missing.push('ranking del universo');
     if(scope==='individual'&&tool==='funds'&&!fundUniverseState?.records?.length)missing.push('ranking del universo');
-    if(scope==='individual'&&tool==='assets'&&!fundPortfolioRows?.length&&!loadedPortfolio?.entries?.length)missing.push('cartera modelo o cartera con históricos');
+    if(scope==='individual'&&tool==='funds'&&!Object.keys(loadedPortfolio?.priceSeries||{}).length)missing.push('Maestro con históricos posis/prices o cartera Yahoo');
+    if(scope==='individual'&&tool==='assets'&&!loadedPortfolio?.portfolioData?.length)missing.push('Maestro con históricos posis/prices o cartera Yahoo');
     if(scope==='aggregate'&&!aggregatePositionsState.rows.length)missing.push('posiciones agregadas');
+    if(scope==='aggregate'&&tool==='massive'&&!Object.keys(loadedPortfolio?.priceSeries||{}).length)missing.push('Maestro con históricos posis/prices');
     if(scope==='model'&&!GdcModel.state.models.length)missing.push('Excel GDC en Carga de datos');
     if(scope==='comparison'&&!PortfolioCompare.state.sources.some(Boolean))return 'Añade una cartera Excel, un activo Yahoo o una cartera Yahoo para iniciar la comparativa.';
-    return missing.length?`Para completar esta vista, carga en Carga de datos: ${missing.join(' y ')}.`:'';
+    return missing.length?`Para completar esta vista, carga: ${missing.join(' y ')}.`:'';
 }
 function portfolioCalculationSettings() {
     const value = (id, fallback) => document.getElementById(id)?.value ?? fallback;
@@ -23,7 +25,7 @@ function portfolioCalculationSettings() {
 function portfolioHistoryStale() {
     if (!loadedPortfolio?.calculationSettings) return false;
     const current = portfolioCalculationSettings();
-    return ['rebalance','costBps','currency','pricesInBase','frequencyOverride'].some(key => current[key] !== loadedPortfolio.calculationSettings[key]);
+    return ['rebalance','costBps','currency','pricesInBase','frequencyOverride'].some(key => !(key==='pricesInBase'&&loadedPortfolio.priceSource==='yahoo')&&current[key] !== loadedPortfolio.calculationSettings[key]);
 }
 function openYahooPortfolioAnalysis(){
     if(!loadedPortfolio?.analysisReady){document.getElementById('portfolioNotice').textContent='Carga y analiza la cartera Yahoo antes de abrir el análisis individual.';return;}
@@ -31,7 +33,6 @@ function openYahooPortfolioAnalysis(){
 }
 async function portfolioConvertCurrencies(seriesMap, entries, start, end) {
     const settings = portfolioCalculationSettings();
-    if (settings.pricesInBase) return;
     for (const entry of entries) {
         const meta = MarketData.metadata.get(entry.ticker);
         if (!meta?.currency) throw new Error(`${entry.ticker}: divisa no disponible. Confirma que los precios ya estan en la moneda base.`);
@@ -171,10 +172,9 @@ function initializePortfolioWorkspace() {
     const managerControls = root.querySelector('button[onclick="generateManagerReport()"]')?.closest('.rounded-lg');
     if (clientControls) document.getElementById('workspaceIndividualReports').append(clientControls);
     if (managerControls) document.getElementById('workspaceManagerReports').append(managerControls);
-    individualSetup.append(importGrid);
     importGrid.classList.remove('xl:grid-cols-3');importGrid.firstElementChild.classList.remove('xl:col-span-2');
     const portfolioInfo=document.getElementById('portfolioInfo');individualSetup.append(portfolioInfo);
-    importGrid.querySelector('h3').textContent='Excel con histórico de cartera';
+    importGrid.querySelector('h3').textContent='Formato alternativo de cartera';
     importGrid.querySelector('h3+p').textContent='Elige backtest si el archivo contiene pesos y precios; elige evolución real si contiene una serie de valor liquidativo.';
     importGrid.querySelector('#portfolioImportHelp').textContent='Backtest: hoja weights (ticker, weight) y hoja prices (date y una columna por ticker). Real: hoja portfolio (date, value).';
     const yahooPanel=document.createElement('section');yahooPanel.id='portfolioSubtabContent-yahoo';yahooPanel.className='portfolio-subtab-content workspace-panel';yahooPanel.dataset.workspacePanel='';root.append(yahooPanel);
@@ -217,7 +217,16 @@ function initializePortfolioWorkspace() {
     gdcCard.innerHTML='<div class="text-[11px] uppercase font-bold text-slate-500">GDC · comité mensual</div><div id="scoringDataStatus-gdc" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div><label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Subir Excel</label>';
     gdcCard.querySelector('label').append(gdcInput);gdcInput.hidden=true;gdcInput.style.display='none';
     upload.querySelector('.grid').append(gdcCard);
-    document.getElementById('fundPortfolioFileInput').closest('.min-w-0').querySelector('div').textContent='Cartera individual · scoring';
+    const masterCard=document.getElementById('fundPortfolioFileInput').closest('.min-w-0');
+    masterCard.querySelector('div').textContent='Maestro · cartera individual';
+    masterCard.querySelector('[id="scoringDataStatus-portfolio"]').insertAdjacentHTML('afterend','<p class="workspace-master-note">ISIN y peso para scoring; posis/prices, bench y bench categ para históricos y comparativas.</p><p id="masterHistoryStatus" class="workspace-master-note" role="status">Históricos pendientes</p>');
+    const basePricesLabel=document.getElementById('portfolioPricesInBase').closest('label');
+    basePricesLabel.classList.add('workspace-master-base');basePricesLabel.title='Necesario para calcular históricos propios del Maestro sin convertir divisa dos veces.';
+    masterCard.append(basePricesLabel);
+    const frequencyLabel=document.getElementById('portfolioDataFrequency').closest('div');
+    frequencyLabel.classList.add('workspace-master-frequency');masterCard.append(frequencyLabel);
+    const alternate=document.createElement('details');alternate.className='workspace-master-alternate';alternate.innerHTML='<summary>Otro formato: backtest o evolución real</summary>';
+    alternate.append(importGrid);masterCard.append(alternate);
     upload.querySelector('.grid').classList.replace('xl:grid-cols-5','xl:grid-cols-3');
     const comparePanel=document.createElement('section');comparePanel.id='workspacePortfolioCompare';comparePanel.className='workspace-panel';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
     PortfolioCompare.init();
@@ -254,7 +263,7 @@ function initializePortfolioWorkspace() {
     const originalScoring=window.runFundScoringAnalysis;
     window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
-        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(name==='importPortfolioExcel'&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.settled();await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');if(name==='importPortfolioExcel')GdcModel.render();portfolioWorkflowRefresh();return result;}); } catch(error) { alert(error.message); } };
+        const original = window[name]; window[name] = async (...args) => { invalidatePortfolioReports(); try { return await PortfolioLoading.run(async()=>{const result=await original(...args);if(['importPortfolioExcel','importFundScoringPortfolioFile'].includes(name)&&portfolioAnalysisPromise)await portfolioAnalysisPromise;await PortfolioLoading.settled();await PortfolioLoading.phase(90,'Actualizando estado de las vistas…');if(['importPortfolioExcel','importFundScoringPortfolioFile'].includes(name))GdcModel.render();portfolioWorkflowRefresh();return result;}); } catch(error) { alert(error.message); } };
     }
     for (const name of ['setFundProposalRecommendation','setFundPortfolioRows','clearFundScoringState','setAggregateManualCategory','setAggregateManualBucket','setAggregateManualScore','applyAggregateRecord','resetAggregateRecord']) {
         const original = window[name]; window[name] = (...args) => { invalidatePortfolioReports(); const result = original(...args); portfolioWorkflowRefresh(); return result; };

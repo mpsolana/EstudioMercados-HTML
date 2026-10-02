@@ -7,7 +7,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
   await page.evaluate(()=>{
    switchSection('cartera');
-   const records=[{isin:'ES0000000001',name:'Bonos EUR',category:'EUR Government Bond',manager:'Gestora RF',score:3.4,ter:.3},{isin:'ES0000000002',name:'Bolsa global',category:'Global Large-Cap Blend Equity',manager:'Gestora RV',score:3.8,ter:.4}];
+   const records=[{isin:'ES0000000001',name:'Bonos EUR',category:'EUR Government Bond',manager:'Gestora RF',score:3.4,ter:.3},{isin:'ES0000000002',name:'Bolsa global',category:'Global Large-Cap Blend Equity',manager:'Gestora RV',score:3.8,ter:.4},{isin:'ES0000000003',name:'Bonos Select EUR',category:'EUR Government Bond',manager:'Gestora Select',score:2.7,ter:.2}];
    fundUniverseState={records,isinIndex:new Map(records.map(row=>[row.isin,row])),quartiles:buildFundQuartiles(records)};
    portfolioWorkflowRefresh();
    const book=XLSX.utils.book_new(),add=(name,rows)=>XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(rows),name);
@@ -15,7 +15,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    add('bench categ',[['ticker','name','asset class'],['BRF','Morningstar EUR Government','EUR Government Bond'],['BRV','Morningstar Global Equity','Global Large-Cap Blend Equity']]);
    const dates=Array.from({length:6},(_,i)=>new Date(Date.UTC(2025,i+1,0)));
    add('bench',[['date','BRF','BRV'],...dates.map((date,i)=>[date,100+i,100+i*2])]);
-   add('prices',[['date','ES0000000001','ES0000000002'],...dates.map((date,i)=>[date,100+i*1.1,100+i*2.1])]);
+   add('prices',[['date','ES0000000001','ES0000000002','ES0000000003'],...dates.map((date,i)=>[date,100+i*1.1,100+i*2.1,100+i*.8])]);
    const file=new File([XLSX.write(book,{bookType:'xlsx',type:'array'})],'base-gdc.xlsx');
    const input=document.getElementById('gdcPriorFile'),transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
   });
@@ -38,6 +38,13 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.equal(await page.locator('#gdcHistoryTable tbody tr').count(),2);
   assert.ok(await page.locator('#gdcHistoricalBaseChart .main-svg').count()>0);
   assert.match(await page.locator('#gdcHistoryStatus').textContent(),/2\/2 fondos comparables/);
+  await page.locator('[data-gdc-universe-search="0:0"]').fill('select eur');
+  assert.ok(await page.locator('[data-gdc-universe="0:0"] option').count()>=2);
+  await page.locator('[data-gdc-universe="0:0"]').selectOption('ES0000000003');
+  assert.equal(await page.evaluate(()=>GdcModel.state.models[1].rows[0].proposedPositions[0].isin),'ES0000000003');
+  assert.match(await page.locator('#gdcBody tr').first().textContent(),/Bonos Select EUR/);
+  assert.match(await page.locator('#gdcHistorySelect').textContent(),/Bonos Select EUR/);
+  await page.evaluate(()=>GdcModel.select(0,'ES0000000001'));
   const historyExcel=page.waitForEvent('download');await page.locator('#gdcHistoryExcel').click();
   const historyBytes=fs.readFileSync(await(await historyExcel).path());
   const historySheets=await page.evaluate(base64=>XLSX.read(Uint8Array.from(atob(base64),char=>char.charCodeAt(0)),{type:'array'}).SheetNames,historyBytes.toString('base64'));

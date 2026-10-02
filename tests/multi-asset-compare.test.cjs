@@ -84,8 +84,10 @@ test('horizon returns require a full lookback and retain the last prior year clo
     assert.ok(Math.abs(h.oneYear-(183/171-1))<1e-12);
     assert.ok(Math.abs(h.ytd-(183/171-1))<1e-12);
     assert.ok(Math.abs(h.sinceStart-.83)<1e-12);
+    assert.ok(Number.isFinite(h.oneMonth)&&Number.isFinite(h.threeMonths));
     assert.ok(Number.isFinite(h.threeYears)&&Number.isFinite(h.fiveYears));
     const short=Compare.compare([{ticker:'A',data:monthly.slice(-12)}]).assets[0].horizons;
+    assert.ok(Number.isFinite(short.oneMonth)&&Number.isFinite(short.threeMonths));
     assert.ok(Number.isNaN(short.oneYear)&&Number.isNaN(short.fiveYears));
     assert.throws(()=>Compare.compare([{ticker:'A',data:monthly.slice(-12)}],'5Y'),/5 años completos/);
     assert.ok(Compare.compare([{ticker:'A',data:monthly}],'5Y').rows.length>=60);

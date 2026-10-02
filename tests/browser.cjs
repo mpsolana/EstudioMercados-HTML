@@ -36,6 +36,7 @@ const fs = require('node:fs');
         assert.ok(await page.locator('#workspaceData').isVisible());
         assert.equal(await page.locator('#portfolioBuilder').isVisible(),false);
         assert.equal(await page.locator('#workspaceData .min-w-0').count(),6);
+        assert.ok(await page.locator('#masterHistoryStatus').isVisible());
         if(process.env.BROWSER_OUTPUT_DIR){fs.mkdirSync(process.env.BROWSER_OUTPUT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.BROWSER_OUTPUT_DIR,'data-desktop.png'),fullPage:true});}
         await page.locator('[data-workspace-scope="screener"]').click();
         await page.locator('[data-workspace-step="diagnosis"]').click();
@@ -43,7 +44,7 @@ const fs = require('node:fs');
         assert.equal(await page.locator('#portfolioSubtabContent-main').isVisible(), false);
         await page.locator('[data-workspace-scope="individual"]').click();
         await page.locator('[data-workspace-step="diagnosis"]').click();
-        assert.ok(await page.locator('#portfolioExcelInput').isVisible());
+        assert.equal(await page.locator('#portfolioExcelInput').isVisible(),false);
         await page.locator('[data-workspace-tool="yahoo"]').click();
         assert.ok(await page.locator('#portfolioBuilder').isVisible());
         assert.ok(await page.locator('#workspaceYahooStart').isVisible());

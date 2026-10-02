@@ -2139,7 +2139,7 @@
                 const benchCategories = benchmarkCategorySheetToMap(workbook, findSheet(workbook, ['bench categ', 'bench category', 'benchmark categ']));
                 applyBenchmarkCategoryMetadata(benchmarks, benchCategories);
 
-                const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav']);
+                const pricesSheet = findSheet(workbook, ['prices', 'precios', 'historico', 'historicos', 'nav', 'posis']);
                 if (pricesSheet) {
                     await PortfolioLoading.phase(25,'Preparando históricos de posiciones y benchmarks…');
                     if (!portfolioCalculationSettings().pricesInBase) throw new Error('Confirma que los historicos propios estan expresados en la moneda base.');
@@ -2195,7 +2195,7 @@
                 validTickers.forEach(t => { maps[t] = new Map(seriesMap[t].map(d => [d.date.toISOString().slice(0, 10), d.price])); });
                 const baseTicker = validTickers.sort((a, b) => seriesMap[b].length - seriesMap[a].length)[0];
                 const commonDates = seriesMap[baseTicker].map(d => d.date.toISOString().slice(0, 10)).filter(ds => validTickers.every(t => maps[t].has(ds)));
-                if (commonDates.length < 2) return alert('El historico Excel no tiene fechas comunes suficientes.');
+                if (commonDates.length < 2) throw new Error('El historico Excel no tiene fechas comunes suficientes.');
                 const returns = {};
                 validTickers.forEach(t => {
                     const prices = commonDates.map(ds => maps[t].get(ds));
@@ -2219,7 +2219,7 @@
                 const cagr = FinanceCore.cagr(portfolioData);
                 const portVolAnn = getStdDev(portfolioReturns) * Math.sqrt(periodsPerYear(frequency));
                 const ddData = calculateDrawdownData(portfolioData);
-                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries, benchCategories, calculationSettings: portfolioCalculationSettings() };
+                loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, corrTickers, sourceLabel, mode, priceSource: mode==='backtest'?'excel':'real', maxDD: ddData.maxDD, portfolioReturns, benchmarks, priceSeries, benchCategories, calculationSettings: portfolioCalculationSettings() };
                 portfolioImportMode = mode;
                 syncFundScoringPortfolioFromEntries(entries, sourceLabel, { auto: true });
                 populatePortfolioBenchmarkSelect();
@@ -3889,7 +3889,7 @@
                 const counts = {
                     universe: fundUniverseState?.records?.length || 0,
                     approved: approvedFundsState?.records?.length || 0,
-                    portfolio: fundPortfolioRows.length || GdcModel.state.models.length,
+                    portfolio: fundPortfolioRows.length,
                     positions: aggregatePositionsState?.rows?.length || 0,
                     assetClass: assetClassScreenerState?.records?.length || 0
                 };
@@ -4052,7 +4052,8 @@
 
             async function importFundScoringPortfolioFile(file) {
                 if (!file) return;
-                document.getElementById('fundPortfolioStatus').innerText = 'Leyendo cartera...';
+                document.getElementById('fundPortfolioStatus').innerText = 'Leyendo Maestro...';
+                const historyStatus=document.getElementById('masterHistoryStatus');if(historyStatus)historyStatus.textContent='Comprobando históricos...';
                 let rows = [];
                 if (file.name.toLowerCase().endsWith('.csv')) {
                     const text = await file.text();
@@ -4060,16 +4061,61 @@
                 } else {
                     if (!window.XLSX) return alert('No se ha cargado XLSX. Recarga la pagina.');
                     const workbook = await readWorkbook(file);
-                    rows = parseFundPortfolioRows(sheetRows(workbook, workbook.SheetNames[0]));
+                    const preferred = findSheet(workbook, ['cartera scoring', 'cartera individual', 'weights', 'pesos', 'cartera']);
+                    const candidates = [...new Set([preferred, ...workbook.SheetNames].filter(Boolean))];
+                    for (const sheet of candidates) {
+                        const parsed = parseFundPortfolioRows(sheetRows(workbook, sheet));
+                        if (parsed.length) { rows = parsed; break; }
+                    }
                     if(!rows.length&&findSheet(workbook,['Carteras Modelo']))throw new Error('Este Excel contiene Carteras Modelo pero no posiciones de scoring. Impórtalo en la casilla GDC.');
+                    if (!rows.length) throw new Error('No se encontraron ISIN y pesos en el Maestro.');
+                    setFundPortfolioRows(rows, file.name, { manual: true });
+                    clearMasterPortfolioHistory();
+                    const pricesSheet=findSheet(workbook,['prices','precios','historico','historicos','nav','posis']);
+                    if (pricesSheet) {
+                        if (!portfolioCalculationSettings().pricesInBase) {if(historyStatus)historyStatus.textContent='Históricos pendientes: confirma la moneda base';throw new Error('Confirma en la casilla Maestro que los históricos propios están expresados en la moneda base y vuelve a cargarlo.');}
+                        const entries=fundPortfolioRows.map(row=>({ticker:row.isin,weight:row.weight/100,name:row.name||fundUniverseState?.isinIndex?.get(row.isin)?.name||row.isin,assetClass:row.assetClass||fundUniverseState?.isinIndex?.get(row.isin)?.category||''}));
+                        const seriesMap=priceSheetToSeriesMap(workbook,pricesSheet,entries);
+                        const missing=entries.filter(entry=>(seriesMap[entry.ticker]||[]).length<2).map(entry=>entry.ticker);
+                        if(missing.length){if(historyStatus)historyStatus.textContent=`Históricos incompletos: ${missing.join(', ')}`;throw new Error(`Faltan históricos en ${pricesSheet} para ${missing.join(', ')}. El scoring sí se ha cargado.`);}
+                        const benchmarks=benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['bench','benchmark','benchmarks']));
+                        const benchCategories=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
+                        applyBenchmarkCategoryMetadata(benchmarks,benchCategories);
+                        computeImportedBacktestPortfolio(entries,seriesMap,`Maestro: ${file.name}`,benchmarks,seriesMapToComparable(seriesMap,entries),benchCategories);
+                        await portfolioAnalysisPromise;
+                        if(historyStatus)historyStatus.textContent=`Históricos cargados: ${entries.length} fondos · ${Object.keys(benchmarks).length} índices`;
+                    } else {
+                        document.getElementById('portfolioNotice').textContent='Maestro cargado para scoring. No contiene hoja posis/prices; evolución, distribución y comparativas requieren históricos.';
+                        if(historyStatus)historyStatus.textContent='Sin hoja posis/prices: solo scoring';
+                        populateFundComparisonControls();
+                    }
+                    return;
                 }
                 setFundPortfolioRows(rows, file.name, { manual: true });
+                clearMasterPortfolioHistory();
+                document.getElementById('portfolioNotice').textContent='CSV cargado para scoring. Importa un Maestro con históricos posis/prices para las vistas de riesgo y comparativas.';
+                if(historyStatus)historyStatus.textContent='CSV sin históricos: solo scoring';
+            }
+
+            function clearMasterPortfolioHistory() {
+                loadedPortfolio=null;portfolioAnalysisPromise=null;assetAllocationState=null;
+                document.getElementById('analyzePortfolioBtn').disabled=true;
+                document.getElementById('portfolioStartDate').textContent='';
+                for(const id of ['assetAllocationWeights','assetAllocationStatsBody','fundComparePeriodBody','fundCompareMetricsBody','fundCompareAnnualBody'])document.getElementById(id)?.replaceChildren();
+                for(const id of ['portfolioChart','portfolioCompositionChart','portfolioCorrMatrixChart','portfolioRollingCorrChart','fundCompareChart','massiveFundCompareChart','assetAllocationScenarioChart','assetAllocationCumulativeChart']){
+                    const element=document.getElementById(id);if(!element)continue;
+                    if(window.Plotly&&element.data)Plotly.purge(element);
+                    element.replaceChildren();
+                }
+                populatePortfolioBenchmarkSelect();populateFundComparisonControls();
             }
 
             function parseFundPortfolioRows(rows) {
                 return rows.filter(row => firstValue(row, ['isin', 'ISIN', 'ticker', 'symbol', 'codigo', 'código', 'fund isin'])).map(row => ({
                     isin: normalizeIsin(firstValue(row, ['isin', 'ISIN', 'ticker', 'symbol', 'codigo', 'código', 'fund isin'])),
-                    weight: parseFundWeight(firstValue(row, ['peso', 'Peso', 'weight', 'Weight', 'peso (%)', 'Peso (%)', 'allocation']))
+                    weight: parseFundWeight(firstValue(row, ['peso', 'Peso', 'weight', 'Weight', 'peso (%)', 'Peso (%)', 'allocation'])),
+                    name: String(firstValue(row,['name','nombre','fondo','fund name'])||'').trim(),
+                    assetClass: String(firstValue(row,['asset class','asset_class','categoria','categoría','category'])||'').trim()
                 })).filter(r => r.isin && Number.isFinite(r.weight) && r.weight > 0);
             }
 
@@ -6904,7 +6950,7 @@
                     const corrTickers = tickers.slice();
                     const ddData = calculateDrawdownData(portfolioData);
                     // store returns aligned (arrays of length n-1)
-                    loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', maxDD: ddData.maxDD, portfolioReturns: portReturns, priceSeries: seriesMapToComparable(seriesMap, entries), benchmarks: {}, calculationSettings: portfolioCalculationSettings() };
+                    loadedPortfolio = { entries, commonDates, portfolioData, frequency, cagr, portVolAnn, returns, cov, corrTickers, sourceLabel: 'Manual/Yahoo', mode: 'backtest', priceSource:'yahoo', maxDD: ddData.maxDD, portfolioReturns: portReturns, priceSeries: seriesMapToComparable(seriesMap, entries), benchmarks: {}, calculationSettings: portfolioCalculationSettings() };
                     syncFundScoringPortfolioFromEntries(entries, 'Manual/Yahoo', { auto: true });
                     populatePortfolioBenchmarkSelect();
                     populateFundComparisonControls();
