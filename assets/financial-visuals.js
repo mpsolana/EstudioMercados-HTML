@@ -10,7 +10,7 @@
     const correlation = [[0,'#164e78'],[.5,'#a9c3d7'],[1,'#ffffff']];
     const quartiles = [{background:'#204f78',color:'#ffffff'},{background:'#a7c2d7',color:'#203b50'},{background:'#dde6ed',color:'#34495a'},{background:'#f0f2f4',color:'#536170'}];
     // Explicit policies distinguish returns from prices, frequencies, and risk measurements.
-    const signedBars = new Set(['weeklyChart','monthlyChart','quarterlyChart','vixBarChart','oilBarChart','ratesBarChart','dipBarChart','athForwardChart','rollingAnnualizedChart','rollingTotalChart','annualDistChart']);
+    const signedBars = new Set(['weeklyChart','monthlyChart','quarterlyChart','vixBarChart','oilBarChart','ratesBarChart','initialRateScenarioChart','dipBarChart','athForwardChart','rollingAnnualizedChart','rollingTotalChart','annualDistChart']);
     const returnHeatmaps = new Set(['monthlyHeatmapChart','ratesHeatmapChart']);
     const correlationHeatmaps = new Set(['portfolioCorrMatrixChart','corrMatrixChart','multiAssetCorrelationChart','portfolioCompareCorrelationChart','gdcHistoricalCorrelationChart']);
     const dashStyles = ['solid','dash','dot','dashdot','longdash','longdashdot'];

@@ -1,4 +1,20 @@
 const PortfolioWorkspace = { scope: 'data', step: 'diagnosis', tool: 'main', revision: 1, snapshots: {}, engine: 'audit-1' };
+function renderInitialRateSensitivity(){
+    const panel=document.getElementById('workspaceInitialRates');if(!panel)return;
+    const read=id=>{const value=panel.querySelector(`#${id}`).value.trim();return value===''?NaN:Number(value.replace(',','.'));};
+    const amount=read('initialRateAmount'),rfWeightPct=read('initialRateWeight'),duration=read('initialRateDuration'),custom=read('initialRateCustom');
+    const status=panel.querySelector('#initialRateStatus'),body=panel.querySelector('#initialRateBody'),chart=panel.querySelector('#initialRateScenarioChart');
+    const currency=portfolioCalculationSettings().currency;
+    const money=value=>new Intl.NumberFormat('es-ES',{style:'currency',currency,maximumFractionDigits:0}).format(value);
+    if(![amount,rfWeightPct,duration].every(Number.isFinite)||amount<=0||rfWeightPct<0||rfWeightPct>100||duration<0||duration>100){
+        status.textContent='Introduce un importe positivo, el peso de RF (0–100%) y su duración modificada ponderada.';body.replaceChildren();if(chart.data&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();return;
+    }
+    const shocks=[-200,-100,-50,-25,0,25,50,100,200];if(Number.isFinite(custom)&&Math.abs(custom)<=1000)shocks.push(custom);
+    const rows=[...new Set(shocks)].sort((a,b)=>a-b).map(changeBps=>RateSensitivity.scenario({amount,rfWeightPct,duration,changeBps}));
+    status.textContent=`RF: ${money(amount*rfWeightPct/100)} · Duración modificada ponderada: ${duration.toFixed(2)} años. Impacto de precio aproximado, instantáneo y solo sobre la parte de RF.`;
+    body.innerHTML=rows.map(row=>`<tr><td>${row.changeBps>0?'+':''}${row.changeBps} pb</td><td class="${row.rfReturn>=0?'good':'bad'}">${(row.rfReturn*100).toFixed(2)}%</td><td class="${row.change>=0?'good':'bad'}">${money(row.change)}</td><td class="${row.portfolioReturn>=0?'good':'bad'}">${(row.portfolioReturn*100).toFixed(2)}%</td><td>${money(row.portfolioValue)}</td></tr>`).join('');
+    if(window.Plotly)FinancialVisuals.newPlot('initialRateScenarioChart',[{type:'bar',x:rows.map(row=>row.changeBps),y:rows.map(row=>row.change),name:'Cambio estimado'}],{title:'Impacto estimado en la cartera',xaxis:{title:'Cambio paralelo de tipos (pb)',type:'category'},yaxis:{title:`Variación (${currency})`,zeroline:true},margin:{t:45,l:70,r:20,b:65},showlegend:false},{responsive:true});
+}
 function portfolioWorkspaceReady(){return Boolean(fundUniverseState?.records?.length || fundPortfolioRows?.length || GdcModel.state.models.length);}
 function portfolioWorkspaceWarning(){
     const scope=PortfolioWorkspace.scope,tool=PortfolioWorkspace.tool;
@@ -87,7 +103,7 @@ function portfolioWorkflowRefresh() {
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         return;
     }
-    const steps = w.scope === 'initial' ? ['proposal','metrics','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
+    const steps = w.scope === 'initial' ? ['proposal','metrics','rates','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[0];
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
@@ -96,6 +112,7 @@ function portfolioWorkflowRefresh() {
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
     if (w.step === 'metrics' && w.scope === 'initial') show('workspaceUniverseMetrics');
+    if (w.step === 'rates' && w.scope === 'initial') show('workspaceInitialRates');
     if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
     document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope === 'screener';
     document.querySelectorAll('[data-workspace-tool]').forEach(b => {
@@ -109,7 +126,8 @@ function portfolioWorkflowRefresh() {
         if (b.dataset.workspaceStep === 'diagnosis') b.textContent = w.scope === 'screener' ? '01 Screener' : '01 Diagnostico';
         if (b.dataset.workspaceStep === 'proposal') b.textContent = '01 Analisis inicial';
         if (b.dataset.workspaceStep === 'metrics') b.textContent = '02 Comparativa universo';
-        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '03 Informe' : '02 Informe';
+        if (b.dataset.workspaceStep === 'rates') b.textContent = '03 Sensibilidad tipos';
+        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '04 Informe' : '02 Informe';
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
@@ -125,6 +143,7 @@ function portfolioWorkflowRefresh() {
     document.getElementById('workspaceQuality').hidden=false;
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     if(w.scope==='initial'&&w.step==='proposal')ProposalCharts.schedule('initial');
+    if(w.scope==='initial'&&w.step==='rates')renderInitialRateSensitivity();
     if(w.scope==='aggregate'&&w.step==='diagnosis'&&w.tool==='aggregate')ProposalCharts.schedule('aggregate');
 }
 function portfolioSnapshot(kind) {
@@ -162,6 +181,9 @@ function initializePortfolioWorkspace() {
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="comparison">Comparativa de carteras</button>');
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="metrics">02 Comparativa universo</button>');
+    shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="rates">03 Sensibilidad tipos</button>');
+    const ratesPanel=document.createElement('section');ratesPanel.id='workspaceInitialRates';ratesPanel.className='workspace-panel initial-rates';ratesPanel.dataset.workspacePanel='';ratesPanel.innerHTML='<h3>Sensibilidad de tipos · renta fija</h3><div class="workspace-settings"><label>Importe total de cartera<input id="initialRateAmount" type="number" min="0" step="1000" placeholder="Importe"></label><label>Peso de renta fija (%)<input id="initialRateWeight" type="number" min="0" max="100" step="0.1" placeholder="0–100"></label><label>Duración modificada ponderada de RF (años)<input id="initialRateDuration" type="number" min="0" max="100" step="0.1" placeholder="Años"></label><label>Escenario adicional (pb)<input id="initialRateCustom" type="number" min="-1000" max="1000" step="25" placeholder="Opcional"></label></div><p id="initialRateStatus" class="workspace-status" role="status"></p><div id="initialRateScenarioChart" class="initial-rate-chart"></div><div class="proposal-chart-scroll"><table class="wide-report-table initial-rate-table"><thead><tr><th>Movimiento de tipos</th><th>RF (%)</th><th>Impacto RF</th><th>Cartera (%)</th><th>Valor estimado</th></tr></thead><tbody id="initialRateBody"></tbody></table></div><p class="workspace-context">ΔPrecio RF ≈ − duración modificada × Δrentabilidad exigida. Se aplica al importe de RF; el resto de la cartera se mantiene constante. Escenario paralelo e instantáneo, sin convexidad, cupones, cambios de diferenciales, divisa ni reacción de otros activos. Para movimientos grandes o bonos con opciones, la aproximación puede desviarse.</p>';root.append(ratesPanel);
+    ratesPanel.addEventListener('input',renderInitialRateSensitivity);
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
     reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
     reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);
@@ -259,7 +281,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
-    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input,#workspacePortfolioCompare,#workspaceModel')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input,#workspacePortfolioCompare,#workspaceModel,#workspaceInitialRates')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     const originalScoring=window.runFundScoringAnalysis;
     window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {

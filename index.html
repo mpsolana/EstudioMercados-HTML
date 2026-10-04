@@ -10,6 +10,7 @@
     <script src="assets/rolling-core.js"></script>
     <script src="assets/quality-core.js"></script>
     <script src="assets/analysis-core.js"></script>
+    <script src="assets/rate-sensitivity.js"></script>
     <script src="assets/financial-visuals.js"></script>
     <script src="assets/portfolio-loading.js"></script>
     <script src="assets/category-flows.js"></script>
@@ -7450,7 +7451,7 @@
                 [
                     ['VIX', globalVixData, 'riesgo/volatilidad implicita'],
                     ['Petroleo', globalOilData, 'energia'],
-                    ['Tipos 10Y EEUU', globalRatesData, 'tipos de interes']
+                    ['Letra 13 semanas EE. UU. (^IRX)', globalRatesData, 'tipos de interes']
                 ].forEach(([factor, factorData, description]) => {
                     const row = calculatePortfolioFactorSensitivity(data, factorData, factor, description);
                     if (row) rows.push(row);
@@ -9169,6 +9170,7 @@
                                 Petróleo (CL=F)</h3>
                             <p class="text-sm text-gray-500 mb-4">Línea roja indica el umbral de 100 USD.</p>
                             <div id="oilPriceChart" class="w-full h-[400px]"></div>
+                            <p class="workspace-context">Referencia: futuros continuos de crudo West Texas Intermediate (WTI), ticker Yahoo CL=F, cotizados en USD por barril. No es Brent ni el precio al contado; el encadenamiento de contratos puede introducir efectos de renovación.</p>
                         </div>
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                             <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-black pl-3">Resumen del Estudio:
@@ -9208,10 +9210,8 @@
                     <!-- TAB: TIPOS DE INTERÉS -->
                     <div id="content-rates" class="tab-content space-y-6">
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Evolución de los
-                                Tipos de Interés a Corto Plazo (^IRX: 13-Week Treasury Bill)</h3>
-                            <p class="text-sm text-gray-500 mb-4">La línea roja indica la media móvil de 200 días para
-                                identificar la tendencia primaria de los tipos a corto plazo.</p>
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Tipo a corto plazo de EE. UU. (^IRX)</h3>
+                            <p class="workspace-context">^IRX representa el rendimiento de la letra del Tesoro estadounidense a 13 semanas, en %. No es el tipo oficial del BCE ni la rentabilidad de una inversión en esa letra. La línea discontinua es su media de 200 observaciones.</p>
                             <div id="ratesPriceChart" class="w-full h-[400px]"></div>
                         </div>
 
@@ -9222,33 +9222,30 @@
                                 <div>
                                     <h3 class="text-gray-800 font-bold border-l-4 border-emerald-600 pl-3">Matriz de
                                         Sensibilidad: Rentabilidad según Nivel y Variación de Tipos</h3>
-                                    <p class="text-xs text-gray-500 mt-1 pl-4">El color de la celda representa la
-                                        Rentabilidad Media a futuro para el plazo seleccionado.</p>
+                                    <p class="workspace-context">Cada celda muestra la rentabilidad futura media del activo según el nivel de ^IRX y su cambio en los 12 meses anteriores. Una observación por mes; los horizontes forward pueden solaparse.</p>
                                 </div>
-                                <div
-                                    class="flex items-center gap-2 bg-emerald-50 p-2 rounded-lg border border-emerald-100">
-                                    <label class="text-sm font-bold text-gray-700">Plazo (Forward):</label>
+                                <div class="rates-controls flex items-center gap-2 bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                                    <label class="text-sm font-bold text-gray-700" for="ratesHorizonSelect">Plazo forward</label>
                                     <select id="ratesHorizonSelect" onchange="updateRatesMatrix()"
                                         class="bg-white border border-emerald-300 text-sm rounded cursor-pointer p-1.5 font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500">
-                                        <option value="1M">1 Mes (21d)</option>
-                                        <option value="3M">3 Meses (63d)</option>
-                                        <option value="6M">6 Meses (126d)</option>
-                                        <option value="12M" selected>1 Año (252d)</option>
+                                        <option value="1M">1 mes</option>
+                                        <option value="3M">3 meses</option>
+                                        <option value="6M">6 meses</option>
+                                        <option value="12M" selected>12 meses</option>
                                     </select>
                                 </div>
                             </div>
+                            <p id="ratesPairStatus" class="workspace-status" role="status"></p>
                             <div id="ratesHeatmapChart" class="w-full h-[450px] mb-6"></div>
 
-                            <p class="text-xs text-gray-500 mb-4">La siguiente tabla (1D) agrupa la estadística
-                                agrupando
-                                únicamente por Variación de Tipos (Δ%) sin discriminar por el Nivel absoluto actual.</p>
+                            <p class="workspace-context">La tabla resume esos mismos casos solo por variación de tipos (puntos porcentuales), sin separar niveles.</p>
 
                             <div class="overflow-x-auto custom-scrollbar">
                                 <table class="min-w-full text-sm text-center border border-gray-200 rounded-lg">
                                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
                                         <tr>
-                                            <th class="px-3 py-3 text-left">Variación Tipos (Δ%)</th>
-                                            <th class="px-3 py-3">N (Eventos)</th>
+                                            <th class="px-3 py-3 text-left">Cambio ^IRX en 12M (pp)</th>
+                                            <th class="px-3 py-3">N (observaciones)</th>
                                             <th class="px-3 py-3">Rentabilidad (Media)</th>
                                             <th class="px-3 py-3">Rentabilidad (Mediana)</th>
                                             <th class="px-3 py-3">Volatilidad (σ)</th>
@@ -9262,19 +9259,24 @@
                             </div>
                         </div>
 
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200"><h3 class="text-gray-800 font-bold mb-2 border-l-4 border-emerald-600 pl-3">Tras subidas de tipos</h3><div id="ratesUpRangeChart" class="rates-range-chart"></div></div>
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200"><h3 class="text-gray-800 font-bold mb-2 border-l-4 border-emerald-600 pl-3">Tras bajadas de tipos</h3><div id="ratesDownRangeChart" class="rates-range-chart"></div></div>
+                        </div>
+                        <p class="workspace-context">Subida: ^IRX aumenta más de 25 pb en 12 meses. Bajada: desciende más de 25 pb. Cada punto representa rentabilidad acumulada media y rango mínimo–máximo del activo a 1, 3, 6 o 12 meses; no es una simulación causal.</p>
+
                         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Resumen
-                                Histórico
-                                Mensual: Retornos de la cartera según tendencia de los tipos</h3>
+                            <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Rendimiento del activo según nivel de ^IRX frente a su media</h3>
+                            <p class="workspace-context">Esta clasificación no significa que los tipos estén subiendo o bajando: compara el nivel de ^IRX con su media de 200 observaciones.</p>
                             <div class="overflow-x-auto custom-scrollbar">
                                 <table class="min-w-full text-sm text-left text-gray-600">
                                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
                                         <tr>
                                             <th class="px-4 py-3">Régimen</th>
-                                            <th class="px-4 py-3 text-center">Días en régimen</th>
+                                            <th class="px-4 py-3 text-center">Observaciones</th>
                                             <th class="px-4 py-3 text-right">Rent. Anualizada</th>
                                             <th class="px-4 py-3 text-right">Volatilidad Anual.</th>
-                                            <th class="px-4 py-3 text-right font-bold">Ratio Días Positivos</th>
+                                            <th class="px-4 py-3 text-right font-bold">Ratio positivos</th>
                                         </tr>
                                     </thead>
                                     <tbody id="ratesStatsTableBody" class="divide-y divide-gray-100"></tbody>
@@ -9284,13 +9286,12 @@
 
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                                <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Rentabilidad
-                                    Anualizada por Régimen</h3>
+                                <h3 class="text-gray-800 font-bold mb-4 border-l-4 border-emerald-600 pl-3">Rentabilidad anualizada por nivel relativo</h3>
                                 <div id="ratesBarChart" class="w-full h-[400px]"></div>
                             </div>
                             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                                <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-emerald-600 pl-3">Correlación
-                                    Forward: Cambio Tipos vs Retorno</h3>
+                                <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-emerald-600 pl-3">Cambio de tipos y retorno forward</h3>
+                                <p id="ratesCorrelationStatus" class="workspace-context"></p>
                                 <div id="ratesScatterChart" class="w-full h-[400px]"></div>
                             </div>
                         </div>
@@ -9724,7 +9725,7 @@
                             fetchYahooData('^IRX', startDate, endDate).catch(e => [])
                         ]);
                     } else {
-                        // Fetch main Ticker, Oil (CL=F), VIX (^VIX) and Rates (10Y)
+                        // Fetch main ticker, WTI futures, VIX and the 13-week US Treasury yield.
                         [rawData, oilData, vixData, ratesData] = await Promise.all([
                             fetchYahooData(ticker, startDate, endDate),
                             fetchYahooData('CL=F', startDate, endDate).catch(e => []),
@@ -10715,14 +10716,14 @@
 
                 const stats = [
                     {
-                        regime: "Tipos Subiendo (> Media 200)",
+                        regime: "^IRX sobre media 200",
                         days: upTrendRet.length,
                         annRet: getAnnRet(upTrendRet),
                         volAnn: (upTrendRet.length > 1 ? getStdDev(upTrendRet) : 0) * Math.sqrt(periodsPerYear(currentDataFrequency)),
                         winRate: upTrendRet.length > 0 ? upTrendRet.filter(r => r > 0).length / upTrendRet.length : 0
                     },
                     {
-                        regime: "Tipos Bajando (< Media 200)",
+                        regime: "^IRX bajo media 200",
                         days: downTrendRet.length,
                         annRet: getAnnRet(downTrendRet),
                         volAnn: (downTrendRet.length > 1 ? getStdDev(downTrendRet) : 0) * Math.sqrt(periodsPerYear(currentDataFrequency)),
@@ -10741,8 +10742,8 @@
                 const ratesMA = merged.map(d => d.rateMA);
 
                 FinancialVisuals.newPlot('ratesPriceChart', [
-                    { x: dates, y: rates, type: 'scatter', mode: 'lines', line: { color: 'black', width: 1.5 }, name: 'Tipos Corto Plazo (^IRX)' },
-                    { x: dates, y: ratesMA, type: 'scatter', mode: 'lines', line: { color: 'red', width: 1.5, dash: 'dot' }, name: 'Media Móvil 200' }
+                    { x: dates, y: rates, type: 'scatter', mode: 'lines', line: { color: '#164e78', width: 2 }, name: '^IRX' },
+                    { x: dates, y: ratesMA, type: 'scatter', mode: 'lines', line: { color: '#8997a4', width: 1.5, dash: 'dot' }, name: 'Media 200' }
                 ], { title: 'Evolución Histórica', yaxis: { title: 'Tasa/Rendimiento (%)' }, margin: { t: 40, l: 50, r: 20, b: 40 }, showlegend: true }, { responsive: true });
 
                 const tbody = document.getElementById('ratesStatsTableBody');
@@ -10756,28 +10757,19 @@
                 </tr>
             `).join('');
 
-                const colors = ['#ef4444', '#22c55e'];
+                const colors = stats.map(s => s.annRet >= 0 ? '#1b7963' : '#b9464b');
                 FinancialVisuals.newPlot('ratesBarChart', [
                     { x: stats.map(s => s.regime), y: stats.map(s => s.annRet), type: 'bar', marker: { color: colors }, text: stats.map(s => fmtPct(s.annRet)), textposition: 'auto' }
-                ], { title: 'Régimen Trend Following Tipos Corto', yaxis: { tickformat: '.1%', title: 'Rentabilidad Anualizada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+                ], { title: 'Retorno por nivel relativo de ^IRX', yaxis: { tickformat: '.1%', title: 'Rentabilidad anualizada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
             }
 
             function updateRatesMatrix() {
                 if (!globalRatesData || !currentData) return;
 
                 const horizonLabel = document.getElementById('ratesHorizonSelect').value;
-                const fwDays = periodsForMonths(({ "1M": 1, "3M": 3, "6M": 6, "12M": 12 })[horizonLabel] || 12, currentDataFrequency);
-                const bwDays = periodsForMonths(12, currentDataFrequency);
-                const validPairs = [];
-                for (let i = bwDays; i < currentData.length - fwDays; i++) {
-                    const currentRate = getAlignedValueOnOrBefore(globalRatesData, currentData[i].date);
-                    const prevRate = getAlignedValueOnOrBefore(globalRatesData, currentData[i - bwDays].date);
-                    if (Number.isFinite(currentRate) && Number.isFinite(prevRate)) {
-                        const rateChange = currentRate - prevRate;
-                        const forwardRet = (currentData[i + fwDays].price / currentData[i].price) - 1;
-                        validPairs.push({ rateLevel: currentRate, rateChange: rateChange, forwardRet: forwardRet });
-                    }
-                }
+                const horizonMonths = ({ "1M": 1, "3M": 3, "6M": 6, "12M": 12 })[horizonLabel] || 12;
+                const validPairs = RateSensitivity.forwardPairs(currentData, globalRatesData, horizonMonths);
+                document.getElementById('ratesPairStatus').textContent = `${validPairs.length} observaciones mensuales con ^IRX disponible · retorno posterior a ${horizonMonths} ${horizonMonths === 1 ? 'mes' : 'meses'}. Los periodos forward pueden solaparse.`;
 
                 const yBins = [
                     { label: '< 1%', filter: (r) => r.rateLevel < 1.0 },
@@ -10788,26 +10780,16 @@
                 ];
 
                 const xBins = [
-                    { id: 'caida-fuerte', label: 'Caída Fuerte (< -1.0%)', filter: (r) => r.rateChange < -1.0 },
-                    { id: 'caida-leve', label: 'Caída Leve (-1.0% a -0.25%)', filter: (r) => r.rateChange >= -1.0 && r.rateChange < -0.25 },
-                    { id: 'estable', label: 'Estable (±0.25%)', filter: (r) => r.rateChange >= -0.25 && r.rateChange <= 0.25 },
-                    { id: 'subida-leve', label: 'Subida Leve (+0.25% a +1.0%)', filter: (r) => r.rateChange > 0.25 && r.rateChange <= 1.0 },
-                    { id: 'subida-fuerte', label: 'Subida Fuerte (> +1.0%)', filter: (r) => r.rateChange > 1.0 }
+                    { id: 'caida-fuerte', label: 'Bajada > 100 pb', filter: (r) => r.rateChange < -1.0 },
+                    { id: 'caida-leve', label: 'Bajada 25–100 pb', filter: (r) => r.rateChange >= -1.0 && r.rateChange < -0.25 },
+                    { id: 'estable', label: 'Estable (±25 pb)', filter: (r) => r.rateChange >= -0.25 && r.rateChange <= 0.25 },
+                    { id: 'subida-leve', label: 'Subida 25–100 pb', filter: (r) => r.rateChange > 0.25 && r.rateChange <= 1.0 },
+                    { id: 'subida-fuerte', label: 'Subida > 100 pb', filter: (r) => r.rateChange > 1.0 }
                 ];
 
                 // Calculate 1D Table
                 const matrixStats1D = xBins.map(g => {
-                    const group = validPairs.filter(p => g.filter(p));
-                    const rets = group.map(p => p.forwardRet);
-                    if (rets.length === 0) return { label: g.label, n: 0, mean: 0, median: 0, winRate: 0, sd: 0 };
-                    return {
-                        label: g.label,
-                        n: rets.length,
-                        mean: getMean(rets),
-                        median: getPercentile(rets, 50),
-                        sd: getStdDev(rets),
-                        winRate: rets.filter(r => r > 0).length / rets.length
-                    };
+                    return { label: g.label, ...RateSensitivity.summarize(validPairs, g.filter) };
                 });
 
                 const zData = [];
@@ -10818,13 +10800,13 @@
                     const rowText = [];
                     xBins.forEach(xBin => {
                         const group = validPairs.filter(p => yBin.filter(p) && xBin.filter(p));
-                        if (group.length > 5) {
+                        if (group.length >= 3) {
                             const meanRet = getMean(group.map(g => g.forwardRet));
                             rowVal.push(meanRet * 100);
-                            rowText.push(`${(meanRet * 100).toFixed(2)}%<br>Eventos: ${group.length}`);
+                            rowText.push(`${(meanRet * 100).toFixed(2)}%<br>Observaciones: ${group.length}`);
                         } else {
                             rowVal.push(null);
-                            rowText.push(`-`);
+                            rowText.push(`${group.length} observaciones; mínimo 3`);
                         }
                     });
                     zData.push(rowVal);
@@ -10842,7 +10824,7 @@
                     texttemplate: "%{text}",
                     hoverinfo: 'text',
                     type: 'heatmap',
-                    colorscale: [[0, '#ef4444'], [0.5, '#fef08a'], [1, '#22c55e']],
+                    colorscale: [[0, '#b9464b'], [0.5, '#f5f7f9'], [1, '#1b7963']],
                     zmid: 0,
                     zmin: -maxAbs,
                     zmax: maxAbs,
@@ -10850,14 +10832,14 @@
                     colorbar: { title: 'Rentabilidad<br>Media (%)' }
                 }], {
                     margin: { t: 30, l: 120, r: 20, b: 120 },
-                    xaxis: { title: 'Variación de Tipos (12 Meses)', side: 'bottom', fixedrange: true, tickangle: -45 },
+                    xaxis: { title: 'Cambio de ^IRX en 12 meses (pp)', side: 'bottom', fixedrange: true, tickangle: -35 },
                     yaxis: { title: 'Nivel del Tipo de Interés (^IRX)', fixedrange: true }
                 }, { responsive: true, displayModeBar: false });
 
                 // Render 1D Matrix Table
                 const mbody = document.getElementById('ratesMatrixTableBody');
                 mbody.innerHTML = matrixStats1D.map(r => `
-                <tr class="border-b hover:bg-emerald-50 transition-colors">
+                <tr class="border-b hover:bg-gray-50 transition-colors">
                     <td class="px-3 py-3 text-left font-bold text-gray-800">${r.label}</td>
                     <td class="px-3 py-3 text-gray-500 font-mono">${r.n}</td>
                     <td class="px-3 py-3 font-bold ${r.mean >= 0 ? 'text-green-600' : 'text-red-500'}">${r.n > 0 ? fmtPct(r.mean) : '-'}</td>
@@ -10868,23 +10850,36 @@
             `).join('');
 
                 // Scatter Chart calculation and render
-                if (validPairs.length > 2) {
+                if (validPairs.length > 2 && new Set(validPairs.map(pair => pair.rateChange)).size > 1 && new Set(validPairs.map(pair => pair.forwardRet)).size > 1) {
                     const xs = validPairs.map(p => p.rateChange);
                     const ys = validPairs.map(p => p.forwardRet * 100);
                     const reg = calculateRegressionStats(xs, ys);
                     const minX = Math.min(...xs), maxX = Math.max(...xs);
+                    const correlation = Number.isFinite(reg.r2) ? Math.sign(reg.slope) * Math.sqrt(reg.r2) : NaN;
+                    document.getElementById('ratesCorrelationStatus').textContent = `Correlación: ${Number.isFinite(correlation) ? correlation.toFixed(2) : '—'} · R²: ${Number.isFinite(reg.r2) ? reg.r2.toFixed(2) : '—'} · N: ${validPairs.length}. Cambio previo de ^IRX (pp) frente a retorno posterior del activo (${horizonLabel}). Asociación, no causalidad.`;
                     FinancialVisuals.newPlot('ratesScatterChart', [
-                        { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#059669', opacity: 0.1 }, name: `Datos ${horizonLabel}` },
-                        { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: 'red', width: 2 }, name: 'Regresión' }
+                        { x: xs, y: ys, mode: 'markers', type: 'scatter', marker: { color: '#477fa6', opacity: 0.45, size: 6 }, name: `Observaciones ${horizonLabel}` },
+                        { x: [minX, maxX], y: [reg.slope * minX + reg.intercept, reg.slope * maxX + reg.intercept], mode: 'lines', line: { color: '#354657', width: 2 }, name: 'Ajuste lineal' }
                     ], {
-                        title: `y = ${reg.slope.toFixed(2)}x ${reg.intercept >= 0 ? '+' : ''}${reg.intercept.toFixed(2)} | R² = ${reg.r2.toFixed(3)}`,
-                        xaxis: { title: `Cambio Absoluto Tipos 12M (%)` },
-                        yaxis: { title: `Retorno del Activo Forward ${horizonLabel} (%)` },
+                        xaxis: { title: 'Cambio de ^IRX en 12 meses (pp)' },
+                        yaxis: { title: `Retorno posterior ${horizonLabel} (%)` },
                         margin: { t: 40, l: 50, r: 20, b: 40 },
-                        showlegend: false
+                        showlegend: true
                     }, { responsive: true });
                 } else {
-                    document.getElementById('ratesScatterChart').innerHTML = '<div class="text-sm text-gray-500 text-center mt-20">Faltan datos</div>';
+                    document.getElementById('ratesCorrelationStatus').textContent = `Correlación no calculable: ${validPairs.length < 3 ? 'se necesitan al menos 3 observaciones' : 'una de las dos series no varía'} en este horizonte.`;
+                    document.getElementById('ratesScatterChart').innerHTML = '<div class="text-sm text-gray-500 text-center mt-20">Correlación no calculable</div>';
+                }
+                for (const [id, predicate, title] of [
+                    ['ratesUpRangeChart', pair => pair.rateChange > 0.25, 'Retorno posterior a subidas de ^IRX'],
+                    ['ratesDownRangeChart', pair => pair.rateChange < -0.25, 'Retorno posterior a bajadas de ^IRX']
+                ]) {
+                    const rows = [1, 3, 6, 12].map(months => {
+                        const pairs = RateSensitivity.forwardPairs(currentData, globalRatesData, months);
+                        return { label: `${months} ${months === 1 ? 'mes' : 'meses'}`, ...RateSensitivity.summarize(pairs, predicate) };
+                    }).filter(row => row.n);
+                    if (rows.length) renderProfessionalRangeChart(id, rows, 'label', 'mean', 'min', 'max', title);
+                    else document.getElementById(id).innerHTML = '<div class="workspace-status">Sin observaciones suficientes para este escenario.</div>';
                 }
             }
 
