@@ -67,6 +67,48 @@
         const remainder=100-value,others=positions.reduce((sum,item,i)=>sum+(i===index?0:Math.max(0,item.share||0)),0);
         return positions.map((item,i)=>({...item,share:i===index?value:others>0?remainder*Math.max(0,item.share||0)/others:remainder/(positions.length-1)}));
     }
+    function setPortfolioWeight(rows,index,value){
+        if(!rows[index]||!Number.isFinite(value)||value<0||value>100)throw new Error('El peso de cartera debe estar entre 0% y 100%.');
+        if(rows.length===1){rows[0].portfolioWeight=100;return rows;}
+        const target=Math.round(value*100),remaining=10000-target;
+        const others=rows.map((row,i)=>({row,i})).filter(item=>item.i!==index);
+        let basis=others.map(({row})=>Math.max(0,Number(row.portfolioWeight)||0));
+        if(!basis.some(Boolean))basis=others.map(({row})=>Math.max(0,Number(row.weight)||0));
+        if(!basis.some(Boolean))basis=others.map(()=>1);
+        const total=basis.reduce((sum,item)=>sum+item,0);
+        const allocations=basis.map((weight,i)=>({i,exact:remaining*weight/total}));
+        const cents=allocations.map(item=>Math.floor(item.exact));
+        let leftover=remaining-cents.reduce((sum,item)=>sum+item,0);
+        allocations.sort((a,b)=>(b.exact-Math.floor(b.exact))-(a.exact-Math.floor(a.exact))||a.i-b.i);
+        for(const item of allocations){if(!leftover)break;cents[item.i]++;leftover--;}
+        rows[index].portfolioWeight=target/100;
+        others.forEach(({row},i)=>row.portfolioWeight=cents[i]/100);
+        return rows;
+    }
+    function copyCategoryPositions(models,sourceIndex,rowIndex,kind){
+        const source=models[sourceIndex]?.rows[rowIndex];
+        if(!source||!['current','proposal'].includes(kind))return 0;
+        const sourcePositions=kind==='current'?source.currentPositions:source.proposedPositions;
+        if(!sourcePositions)return 0;
+        let copied=0;
+        models.forEach((portfolio,index)=>{
+            if(index===sourceIndex)return;
+            const target=portfolio.rows.find(row=>row.id===source.id&&key(row.generic)===key(source.generic));
+            if(!target)return;
+            if(kind==='current'){
+                target.currentPositions=sourcePositions.map(item=>({...item}));
+                if(target.keepCurrent)target.proposedPositions=target.currentPositions.map(item=>({...item}));
+            }else if(source.keepCurrent){
+                target.keepCurrent=true;
+                target.proposedPositions=target.currentPositions.map(item=>({...item}));
+            }else{
+                target.keepCurrent=false;
+                target.proposedPositions=sourcePositions.map(item=>({...item}));
+            }
+            copied++;
+        });
+        return copied;
+    }
     function benchmarkIndex(metadata){
         const map=new Map();for(const [ticker,meta] of Object.entries(metadata||{})){
             if(ticker!==ticker.toLowerCase())continue;
@@ -101,5 +143,5 @@
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};
     }
-    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,setShare,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
+    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,setShare,setPortfolioWeight,copyCategoryPositions,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
 });

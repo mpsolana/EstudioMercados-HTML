@@ -2,6 +2,7 @@ const GdcModel=(()=>{
     const core=ModelPortfolioCore;
     const state={models:[],selected:0,source:'',benchmarks:{},benchmarkMeta:{},prices:{},fundNames:{},maxTe:NaN,historyComparable:false,reportHtml:'',history:[],historyHtml:''};
     let panel,peerIndex,peerSource,rankingCache=new Map(),universeCache=new Map(),rankSource,renderedAllocation='';
+    const sharedCurrent=new Set(),sharedProposal=new Set();
     const esc=value=>escapeHtml(String(value??''));
     const fmt=value=>Number.isFinite(value)?value.toFixed(2):'-';
     const profileLabel=name=>({'muy_conservador':'Muy cons.','prudente':'Prudente','equilibrado':'Equilibr.','decidido':'Decidido','muy_arriesgado':'Muy arr.'})[core.profile(name)]||String(name).replace(/^Cartera estrat[eé]gica\s*/i,'').slice(0,14);
@@ -71,7 +72,7 @@ const GdcModel=(()=>{
     function loadWorkbook(workbook,fileName){
         const sheet=findSheet(workbook,['Carteras Modelo']);if(!sheet)return false;
         const grid=XLSX.utils.sheet_to_json(workbook.Sheets[sheet],{header:1,defval:null,raw:true});
-        state.models=core.parseGrid(grid);state.selected=0;state.source=fileName;state.historyComparable=false;state.fundNames={};
+        state.models=core.parseGrid(grid);state.selected=0;state.source=fileName;state.historyComparable=false;state.fundNames={};sharedCurrent.clear();sharedProposal.clear();
         const comparable=panel?.querySelector('#gdcComparable');if(comparable)comparable.checked=false;
         state.benchmarkMeta=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
         if(!Object.keys(state.benchmarkMeta).length)state.benchmarkMeta=loadedPortfolio?.benchCategories||{};
@@ -86,39 +87,55 @@ const GdcModel=(()=>{
         const value=normalizeIsin(isin);if(value&&row.proposedPositions.some((item,i)=>item.isin===value&&i!==slot)){panel.querySelector('#gdcStatus').textContent='Ese ISIN ya esta en la categoria.';return;}
         const refreshHistory=state.history.length>0;
         if(!row.proposedPositions[slot])row.proposedPositions.push({isin:'',share:100});
-        row.proposedPositions[slot].isin=value;row.keepCurrent=false;invalidateReport();render();if(refreshHistory)runHistory();
+        row.proposedPositions[slot].isin=value;row.keepCurrent=false;syncProfiles(index,'proposal');invalidateReport();render();if(refreshHistory)runHistory();
+    }
+    function syncProfiles(index,kind){
+        const row=model()?.rows[index],shared=kind==='current'?sharedCurrent:sharedProposal;
+        if(row&&shared.has(row.id))core.copyCategoryPositions(state.models,state.selected,index,kind);
+    }
+    function shareWithProfiles(index,kind,enabled){
+        const row=model()?.rows[index];if(!row)return;
+        const shared=kind==='current'?sharedCurrent:sharedProposal;
+        if(enabled){
+            shared.add(row.id);
+            if((kind==='current'?row.currentPositions:row.proposedPositions).length){
+                syncProfiles(index,kind);
+                if(kind==='current'&&row.keepCurrent&&sharedProposal.has(row.id))syncProfiles(index,'proposal');
+            }
+        }else shared.delete(row.id);
+        invalidateReport();render();
     }
     function current(index,value){
         const row=model()?.rows[index];if(!row)return;
         const isins=String(value).split(/[;,\s]+/).map(normalizeIsin).filter(Boolean);
-        row.currentPositions=core.equalPositions(isins);if(row.keepCurrent)row.proposedPositions=row.currentPositions.map(item=>({...item}));invalidateReport();setTimeout(render,0);
+        row.currentPositions=core.equalPositions(isins);if(row.keepCurrent)row.proposedPositions=row.currentPositions.map(item=>({...item}));syncProfiles(index,'current');if(row.keepCurrent)syncProfiles(index,'proposal');invalidateReport();setTimeout(render,0);
     }
     function addPosition(index){
         const row=model()?.rows[index];if(!row)return;
         const used=new Set(row.proposedPositions.map(item=>item.isin)),next=categoryUniverse(row).find(item=>!used.has(item.isin));
         if(!next){panel.querySelector('#gdcStatus').textContent='No quedan fondos de esta categoria en el universo.';return;}
-        row.proposedPositions=core.equalPositions([...row.proposedPositions.map(item=>item.isin),next.isin]);row.keepCurrent=false;invalidateReport();render();
+        row.proposedPositions=core.equalPositions([...row.proposedPositions.map(item=>item.isin),next.isin]);row.keepCurrent=false;syncProfiles(index,'proposal');invalidateReport();render();
     }
-    function removePosition(index,slot){const row=model()?.rows[index];if(!row)return;row.proposedPositions.splice(slot,1);row.proposedPositions=core.normalizePositions(row.proposedPositions);row.keepCurrent=false;invalidateReport();render();}
+    function removePosition(index,slot){const row=model()?.rows[index];if(!row)return;row.proposedPositions.splice(slot,1);row.proposedPositions=core.normalizePositions(row.proposedPositions);row.keepCurrent=false;syncProfiles(index,'proposal');invalidateReport();render();}
     function positionWeight(index,slot,value){
         const row=model()?.rows[index];if(!row)return;
-        try{row.proposedPositions=core.setShare(row.proposedPositions,slot,Number(String(value).replace(',','.')));row.keepCurrent=false;invalidateReport();render();}
+        try{row.proposedPositions=core.setShare(row.proposedPositions,slot,Number(String(value).replace(',','.')));row.keepCurrent=false;syncProfiles(index,'proposal');invalidateReport();render();}
         catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}
     }
     function keepCurrent(index,enabled){
         const row=model()?.rows[index];if(!row)return;
         row.keepCurrent=enabled;if(enabled&&row.currentPositions.length)row.proposedPositions=row.currentPositions.map(item=>({...item}));
-        invalidateReport();render();
+        syncProfiles(index,'proposal');invalidateReport();render();
     }
     function portfolioWeight(index,value){
         const row=model()?.rows[index],weight=Number(String(value).replace(',','.'));
         if(!row||!Number.isFinite(weight)||weight<0||weight>100){panel.querySelector('#gdcStatus').textContent='El peso de cartera debe estar entre 0% y 100%.';return;}
-        row.portfolioWeight=weight;invalidateReport();render();
+        core.setPortfolioWeight(model().rows,index,weight);invalidateReport();render();
     }
     function normalizeAllocation(){
         const rows=model()?.rows||[],total=rows.reduce((sum,row)=>sum+row.portfolioWeight,0);
         if(!(total>0)){panel.querySelector('#gdcStatus').textContent='Introduce pesos positivos antes de normalizar.';return;}
-        rows.forEach(row=>row.portfolioWeight=row.portfolioWeight/total*100);invalidateReport();render();
+        core.setPortfolioWeight(rows,0,rows[0].portfolioWeight/total*100);invalidateReport();render();
     }
     function populateUniverse(select,query=''){
         const [index,slot]=select.dataset.gdcUniverse.split(':').map(Number),row=model()?.rows[index];if(!row)return;
@@ -150,6 +167,17 @@ const GdcModel=(()=>{
         panel.querySelector('#gdcSource').textContent=state.source?`Benchmark importado: ${state.source}`:'Importa el Excel de cartera modelo con la hoja Carteras Modelo.';
         panel.querySelector('#gdcControls').hidden=!selected;panel.querySelector('#gdcBody').innerHTML=selected?selected.rows.map(rowHtml).join(''):'';
         if(!selected)return;
+        for(const [kind,selector] of [['current','[data-gdc-current]'],['proposal','[data-gdc-keep]']]){
+            const shared=kind==='current'?sharedCurrent:sharedProposal;
+            panel.querySelectorAll(selector).forEach((control,index)=>{
+                const label=document.createElement('label'),checkbox=document.createElement('input');
+                label.className='gdc-share-profiles';label.title='Sincroniza los fondos de esta categoría con los demás perfiles, sin cambiar sus pesos de cartera.';
+                checkbox.type='checkbox';checkbox.dataset[kind==='current'?'gdcShareCurrent':'gdcShareProposal']=String(index);
+                checkbox.checked=shared.has(selected.rows[index].id);checkbox.disabled=state.models.length<2;
+                label.append(checkbox,document.createTextNode(' Aplicar a otros perfiles'));
+                (kind==='proposal'?control.closest('label'):control).insertAdjacentElement('afterend',label);
+            });
+        }
         const values=allocation(),profileSelect=panel.querySelector('#gdcProfile');
         profileSelect.innerHTML='<option value="">Asignar perfil</option>'+[['muy_conservador','Muy Conservador'],['prudente','Prudente'],['equilibrado','Equilibrado'],['decidido','Decidido'],['muy_arriesgado','Muy Arriesgado']].map(([id,label])=>`<option value="${id}" ${selected.profile===id?'selected':''}>${label}</option>`).join('');
         const inBand=values.band&&values.portfolioRv>=values.band[0]-1e-6&&values.portfolioRv<=values.band[1]+1e-6;
@@ -219,6 +247,7 @@ const GdcModel=(()=>{
         XLSX.writeFile(book,`GDC_comite_${date}.xlsx`);
     }
     function loadPriorWorkbook(workbook){
+        sharedCurrent.clear();sharedProposal.clear();
         const base=findSheet(workbook,['Carteras Modelo']);
         if(base){
             state.models=core.parseGrid(XLSX.utils.sheet_to_json(workbook.Sheets[base],{header:1,defval:null,raw:true}));
@@ -434,6 +463,7 @@ const GdcModel=(()=>{
         panel.querySelector('#gdcWeightChart').insertAdjacentHTML('afterend','<div id="gdcDeviationChart" class="gdc-weight-chart"></div>');
         panel.querySelector('.proposal-chart-scroll').insertAdjacentHTML('afterend','<h4 class="gdc-overview-title">Resumen de perfiles</h4><div id="gdcProfileOverviewChart" class="gdc-overview-chart"></div><div id="gdcCategoryOverviewChart" class="gdc-overview-chart"></div>');
         panel.querySelector('.gdc-selection-table thead tr').innerHTML='<th>Categoría genérica y mapeo</th><th>Índice Morningstar</th><th>Benchmark fijo</th><th>Peso cartera</th><th>Posiciones actuales</th><th>Selección de fondos</th><th>Propuesta</th><th>Peers</th>';
+        panel.querySelector('.gdc-selection-table').closest('.proposal-chart-scroll').insertAdjacentHTML('beforebegin','<p class="workspace-context">Las casillas comparten los ISIN y su reparto dentro de la categoría con los demás perfiles. Cada perfil conserva sus propios pesos de cartera. Al editar un peso, las demás categorías se ajustan proporcionalmente al 100%.</p>');
         panel.querySelector('#gdcCategoryOverviewChart').insertAdjacentHTML('afterend','<section class="gdc-history"><h4 class="gdc-overview-title">Comparativa de fondos frente a índices</h4><div class="workspace-tools"><button type="button" id="gdcHistoryRun">Comparar fondos</button><select id="gdcHistorySelect" aria-label="Fondo para visualizar"></select><button type="button" id="gdcHistoryPdf">Descargar informe PDF</button><button type="button" id="gdcHistoryExcel">Exportar histórico Excel</button></div><p id="gdcHistoryStatus" class="workspace-status" role="status"></p><div id="gdcHistoryTable" class="proposal-chart-scroll"></div><div id="gdcHistoryCharts"></div></section>');
         panel.querySelector('#gdcHistoryRun').addEventListener('click',()=>{try{runHistory();}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
         panel.querySelector('#gdcHistoryTable').addEventListener('change',event=>{const input=event.target.closest('[data-gdc-history-name]');if(!input)return;const isin=normalizeIsin(input.dataset.gdcHistoryName),name=input.value.trim();if(name)state.fundNames[isin]=name;else delete state.fundNames[isin];invalidateReport();setTimeout(runHistory,0);});
@@ -454,6 +484,8 @@ const GdcModel=(()=>{
         panel.addEventListener('change',event=>{
             const el=event.target,slot=el.dataset.gdcSelect??el.dataset.gdcUniverse??el.dataset.gdcWeight;
             if(slot!==undefined){const [index,position]=slot.split(':').map(Number);if(el.dataset.gdcWeight!==undefined)positionWeight(index,position,el.value);else if(el.dataset.gdcUniverse===undefined||el.value)select(index,el.value,position);}
+            else if(el.dataset.gdcShareCurrent!==undefined)shareWithProfiles(Number(el.dataset.gdcShareCurrent),'current',el.checked);
+            else if(el.dataset.gdcShareProposal!==undefined)shareWithProfiles(Number(el.dataset.gdcShareProposal),'proposal',el.checked);
             else if(el.dataset.gdcCurrent!==undefined)current(Number(el.dataset.gdcCurrent),el.value);
             else if(el.dataset.gdcKeep!==undefined)keepCurrent(Number(el.dataset.gdcKeep),el.checked);
             else if(el.dataset.gdcPortfolioWeight!==undefined)portfolioWeight(Number(el.dataset.gdcPortfolioWeight),el.value);
