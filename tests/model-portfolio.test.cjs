@@ -14,6 +14,9 @@ test('keeps benchmark weights fixed while committee allocation and RV bands chan
     assert.equal(Model.allocation(prudent).neutral,22.5);
     assert.equal(Model.allocation(prudent).benchmarkRv,22.5);
     assert.equal(Model.allocation(prudent).portfolioRv,28);
+    assert.ok(Math.abs(Model.allocation(prudent).bandPosition-(28-15)/(30-15)*100)<1e-10);
+    prudent.rows[0].portfolioWeight=77.5;prudent.rows[1].portfolioWeight=22.5;
+    assert.equal(Model.allocation(prudent).bandPosition,50);
     assert.equal(prudent.rows[1].weight,22.5);
     assert.equal(Model.allocation(prudent).portfolioTotal,100);
 });
@@ -67,22 +70,25 @@ test('sharing current and proposed funds preserves profile allocations and indep
     const models=Model.parseGrid([['Categoria','Subcategoria','Prudente','Decidido'],['Bonos','RF Europa',70,40],['Acciones','RV Global',30,60]]);
     const [source,target]=models,origin=source.rows[0],destination=target.rows[0];
     origin.currentPositions=Model.equalPositions(['A','B']);
-    destination.currentPositions=Model.equalPositions(['OLD']);
+    destination.currentPositions=Model.setShare(Model.equalPositions(['A','B']),0,80);
     destination.keepCurrent=true;
     assert.equal(Model.copyCategoryPositions(models,0,0,'current'),1);
-    assert.deepEqual(destination.currentPositions,origin.currentPositions);
-    assert.deepEqual(destination.proposedPositions,origin.currentPositions);
+    assert.deepEqual(destination.currentPositions.map(item=>item.isin),origin.currentPositions.map(item=>item.isin));
+    assert.deepEqual(destination.currentPositions.map(item=>item.share),[80,20]);
+    assert.deepEqual(destination.proposedPositions,destination.currentPositions);
     assert.notEqual(destination.currentPositions[0],origin.currentPositions[0]);
     origin.proposedPositions=Model.setShare(Model.equalPositions(['C','D']),0,70);
+    destination.proposedPositions=Model.setShare(Model.equalPositions(['C','D']),0,20);
     assert.equal(Model.copyCategoryPositions(models,0,0,'proposal'),1);
-    assert.deepEqual(destination.proposedPositions,origin.proposedPositions);
+    assert.deepEqual(destination.proposedPositions.map(item=>item.isin),['C','D']);
+    assert.deepEqual(destination.proposedPositions.map(item=>item.share),[20,80]);
     assert.equal(destination.keepCurrent,false);
     assert.equal(destination.weight,40);
     assert.equal(destination.portfolioWeight,40);
     origin.currentPositions=[];
     Model.copyCategoryPositions(models,0,0,'current');
     assert.deepEqual(destination.currentPositions,[]);
-    assert.deepEqual(destination.proposedPositions,origin.proposedPositions);
+    assert.deepEqual(destination.proposedPositions.map(item=>item.share),[20,80]);
     origin.proposedPositions=[];
     Model.copyCategoryPositions(models,0,0,'proposal');
     assert.deepEqual(destination.proposedPositions,[]);
@@ -91,6 +97,32 @@ test('sharing current and proposed funds preserves profile allocations and indep
     Model.copyCategoryPositions(models,0,0,'proposal');
     assert.equal(destination.keepCurrent,true);
     assert.deepEqual(destination.proposedPositions,destination.currentPositions);
+});
+test('sharing a changed ISIN set redistributes only the destination profile',()=>{
+    const old=Model.setShare(Model.equalPositions(['A','B']),0,80);
+    assert.deepEqual(Model.transferIsins([{isin:'A'},{isin:'B'}],old).map(item=>item.share),[80,20]);
+    const added=Model.transferIsins([{isin:'A'},{isin:'B'},{isin:'C'}],old);
+    assert.ok(Math.abs(added[0].share-80*2/3)<1e-10);
+    assert.ok(Math.abs(added[1].share-20*2/3)<1e-10);
+    assert.ok(Math.abs(added[2].share-100/3)<1e-10);
+    assert.deepEqual(Model.transferIsins([{isin:'B'}],old),[{isin:'B',share:100}]);
+    assert.deepEqual(Model.transferIsins([{isin:'C'},{isin:'D'}],old),Model.equalPositions(['C','D']));
+    assert.deepEqual(Model.transferIsins([],old),[]);
+});
+test('monthly committee views restore the last date and retain history on export',()=>{
+    const old=[{date:'2026-08-20',category:'RV Global',view:'Neutral',comment:'Sin cambios'},
+        {date:'2026-09-20',category:'RV Global',view:'UW',comment:'Valoración'},
+        {date:'2026-09-20',category:'RF EUR',view:'OW',comment:'Duración'}];
+    const prior=Model.latestCommitteeViews(old);
+    assert.equal(prior.date,'2026-09-20');
+    assert.deepEqual(prior.views['rv global'],{view:'UW',comment:'Valoración'});
+    const next=Model.appendCommitteeViews(prior.history,'2026-10-20',['RV Global','RF EUR'],{
+        'rv global':{view:'OW',comment:'Mejor momentum'},'rf eur':prior.views['rf eur']});
+    assert.equal(next.length,5);
+    assert.equal(Model.latestCommitteeViews(next).views['rv global'].view,'OW');
+    assert.equal(next.find(item=>item.date==='2026-09-20'&&item.category==='RV Global').view,'UW');
+    assert.equal(Model.appendCommitteeViews(next,'2026-10-20',['RV Global'],{'rv global':{view:'Neutral'}}).filter(item=>item.date==='2026-10-20').length,1);
+    assert.throws(()=>Model.appendCommitteeViews([], '', ['RV Global'],{}),/fecha/);
 });
 test('tracking error uses common monthly returns and refuses missing histories',()=>{
     const dates=['2026-01-31','2026-02-28','2026-03-31','2026-04-30'];

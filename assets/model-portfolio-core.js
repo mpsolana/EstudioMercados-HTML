@@ -19,7 +19,8 @@
         const rows=model?.rows||[],sum=field=>rows.reduce((total,row)=>total+(Number(row[field])||0),0);
         const byType=(field,type)=>rows.reduce((total,row)=>total+(row.assetType===type?(Number(row[field])||0):0),0);
         const band=bands[model?.profile]||null;
-        return {benchmarkTotal:sum('weight'),portfolioTotal:sum('portfolioWeight'),benchmarkRv:byType('weight','RV'),portfolioRv:byType('portfolioWeight','RV'),benchmarkRf:byType('weight','RF'),portfolioRf:byType('portfolioWeight','RF'),benchmarkOther:byType('weight','Otros'),portfolioOther:byType('portfolioWeight','Otros'),band,neutral:band?(band[0]+band[1])/2:NaN,unknown:rows.filter(row=>row.assetType==='Otros'&&(row.weight>0||row.portfolioWeight>0)).map(row=>row.generic)};
+        const portfolioRv=byType('portfolioWeight','RV');
+        return {benchmarkTotal:sum('weight'),portfolioTotal:sum('portfolioWeight'),benchmarkRv:byType('weight','RV'),portfolioRv,benchmarkRf:byType('weight','RF'),portfolioRf:byType('portfolioWeight','RF'),benchmarkOther:byType('weight','Otros'),portfolioOther:byType('portfolioWeight','Otros'),band,neutral:band?(band[0]+band[1])/2:NaN,bandPosition:band&&band[1]>band[0]?(portfolioRv-band[0])/(band[1]-band[0])*100:NaN,unknown:rows.filter(row=>row.assetType==='Otros'&&(row.weight>0||row.portfolioWeight>0)).map(row=>row.generic)};
     }
     function parseGrid(grid){
         if(!Array.isArray(grid)||grid.length<2)throw new Error('La hoja Carteras Modelo no contiene categorias y pesos.');
@@ -61,6 +62,19 @@
         const total=(positions||[]).reduce((sum,item)=>sum+Math.max(0,item.share||0),0);
         return total>0?positions.map(item=>({...item,share:Math.max(0,item.share||0)/total*100})):equalPositions(positions.map(item=>item.isin));
     }
+    function transferIsins(sourcePositions,targetPositions){
+        const isins=[...new Set((sourcePositions||[]).map(item=>String(item.isin||'').trim().toUpperCase()).filter(Boolean))];
+        if(!isins.length)return [];
+        const old=new Map((targetPositions||[]).map(item=>[String(item.isin||'').trim().toUpperCase(),Math.max(0,Number(item.share)||0)]));
+        const newcomers=isins.filter(isin=>!old.has(isin));
+        const retained=isins.filter(isin=>old.has(isin));
+        if(!retained.length)return equalPositions(isins);
+        const base=retained.reduce((sum,isin)=>sum+old.get(isin),0);
+        if(!(base>0))return equalPositions(isins);
+        const newShare=newcomers.length?100/isins.length:0;
+        const remaining=100-newShare*newcomers.length;
+        return isins.map(isin=>({isin,share:old.has(isin)?remaining*old.get(isin)/base:newShare}));
+    }
     function setShare(positions,index,value){
         if(!positions[index]||!Number.isFinite(value)||value<0||value>100)throw new Error('El peso dentro de la categoria debe estar entre 0% y 100%.');
         if(positions.length===1)return [{...positions[0],share:100}];
@@ -96,18 +110,36 @@
             const target=portfolio.rows.find(row=>row.id===source.id&&key(row.generic)===key(source.generic));
             if(!target)return;
             if(kind==='current'){
-                target.currentPositions=sourcePositions.map(item=>({...item}));
+                target.currentPositions=transferIsins(sourcePositions,target.currentPositions);
                 if(target.keepCurrent)target.proposedPositions=target.currentPositions.map(item=>({...item}));
             }else if(source.keepCurrent){
                 target.keepCurrent=true;
                 target.proposedPositions=target.currentPositions.map(item=>({...item}));
             }else{
                 target.keepCurrent=false;
-                target.proposedPositions=sourcePositions.map(item=>({...item}));
+                target.proposedPositions=transferIsins(sourcePositions,target.proposedPositions);
             }
             copied++;
         });
         return copied;
+    }
+    function latestCommitteeViews(entries){
+        const normalizeView=value=>({uw:'UW',neutral:'Neutral',ow:'OW'})[String(value||'').trim().toLowerCase()]||'';
+        const history=(entries||[]).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(item.date)&&key(item.category))
+            .map(item=>({date:item.date,category:String(item.category).trim(),view:normalizeView(item.view),comment:String(item.comment||'')}));
+        const date=history.reduce((latest,item)=>item.date>latest?item.date:latest,'');
+        const views={};
+        history.filter(item=>item.date===date).forEach(item=>{views[key(item.category)]={view:item.view,comment:item.comment};});
+        return {date,views,history};
+    }
+    function appendCommitteeViews(history,date,categories,views){
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('Introduce una fecha de comité válida.');
+        const previous=(history||[]).filter(item=>item.date!==date);
+        const snapshot=categories.map(category=>{
+            const choice=views[key(category)]||{};
+            return {date,category,view:['UW','Neutral','OW'].includes(choice.view)?choice.view:'',comment:String(choice.comment||'')};
+        });
+        return [...previous,...snapshot].sort((a,b)=>a.date.localeCompare(b.date)||key(a.category).localeCompare(key(b.category)));
     }
     function benchmarkIndex(metadata){
         const map=new Map();for(const [ticker,meta] of Object.entries(metadata||{})){
@@ -143,5 +175,5 @@
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};
     }
-    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,setShare,setPortfolioWeight,copyCategoryPositions,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
+    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,transferIsins,setShare,setPortfolioWeight,copyCategoryPositions,latestCommitteeViews,appendCommitteeViews,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
 });
