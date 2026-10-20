@@ -99,6 +99,69 @@
         others.forEach(({row},i)=>row.portfolioWeight=cents[i]/100);
         return rows;
     }
+    function setBandPosition(model,position){
+        const rows=model?.rows||[],band=bands[model?.profile];
+        if(!band||!Number.isFinite(position)||position<0||position>100)throw new Error('Selecciona un perfil y una posición de banda entre 0% y 100%.');
+        if(rows.some(row=>!Number.isFinite(row.portfolioWeight)||row.portfolioWeight<0))throw new Error('Hay pesos de cartera no válidos.');
+        const total=rows.reduce((sum,row)=>sum+row.portfolioWeight,0);
+        if(!(total>0))throw new Error('No hay posiciones positivas que se puedan ajustar.');
+        const groups={RV:[],RF:[],Otros:[]};
+        rows.forEach((row,index)=>{if(row.portfolioWeight>0)(groups[row.assetType]||groups.Otros).push(index);});
+        const current=rows.map(row=>row.portfolioWeight/total*100),other=groups.Otros.reduce((sum,index)=>sum+current[index],0);
+        const rv=band[0]+(band[1]-band[0])*position/100,rf=100-other-rv;
+        if(rf< -0.00001)throw new Error('El peso fijo de Otros impide alcanzar esa posición de banda.');
+        if(rv>0&&!groups.RV.length||rf>0&&!groups.RF.length)throw new Error('No se puede alcanzar la banda sin activar una categoría que está al 0%.');
+        const targets={RV:Math.round(rv*100),Otros:Math.round(other*100)};targets.RF=10000-targets.RV-targets.Otros;
+        const cents=Array(rows.length).fill(0);
+        for(const [kind,indexes] of Object.entries(groups)){
+            const target=targets[kind],basis=indexes.reduce((sum,index)=>sum+current[index],0);
+            if(target>0&&!(basis>0))throw new Error('Faltan posiciones positivas para la asignación solicitada.');
+            const parts=indexes.map(index=>({index,exact:target*current[index]/basis}));
+            parts.forEach(part=>cents[part.index]=Math.floor(part.exact));
+            let rest=target-indexes.reduce((sum,index)=>sum+cents[index],0);
+            parts.sort((a,b)=>(b.exact-Math.floor(b.exact))-(a.exact-Math.floor(a.exact))||a.index-b.index);
+            for(const part of parts){if(!rest)break;cents[part.index]++;rest--;}
+        }
+        rows.forEach((row,index)=>row.portfolioWeight=cents[index]/100);
+        return allocation(model);
+    }
+    function indexStatistics(points){
+        const clean=(points||[]).filter(point=>Number.isFinite(point.price)&&point.price>0&&Number.isFinite(new Date(point.date).getTime())).sort((a,b)=>new Date(a.date)-new Date(b.date));
+        const months=new Map();clean.forEach(point=>months.set(new Date(point.date).toISOString().slice(0,7),point));
+        const series=[...months.values()],returns=series.slice(1).flatMap((point,i)=>{
+            const previous=new Date(series[i].date),current=new Date(point.date);
+            return (current.getUTCFullYear()-previous.getUTCFullYear())*12+current.getUTCMonth()-previous.getUTCMonth()===1?[point.price/series[i].price-1]:[];
+        });
+        if(series.length<13)return {count:series.length,reason:'Se necesitan al menos 13 cierres mensuales.'};
+        const first=new Date(series[0].date),last=new Date(series.at(-1).date),years=(last-first)/86400000/365.25;
+        if(years<1)return {count:series.length,reason:'Se necesita al menos un año de histórico.'};
+        let peak=series[0].price,drawdown=0;
+        series.forEach(point=>{peak=Math.max(peak,point.price);drawdown=Math.min(drawdown,point.price/peak-1);});
+        const rolling=[];for(let i=12;i<series.length;i++){
+            const start=new Date(series[i-12].date),end=new Date(series[i].date),span=(end-start)/86400000/365.25;
+            if(span<.9||span>1.1)continue;
+            rolling.push({value:series[i].price/series[i-12].price-1,from:start.toISOString().slice(0,10),to:end.toISOString().slice(0,10)});
+        }
+        return {count:series.length,from:first.toISOString().slice(0,10),to:last.toISOString().slice(0,10),cagr:(series.at(-1).price/series[0].price)**(1/years)-1,vol:returns.length>=12?finance.stdev(returns)*Math.sqrt(12):NaN,drawdown,rollingMin:rolling.reduce((a,b)=>!a||b.value<a.value?b:a,null),rollingMax:rolling.reduce((a,b)=>!a||b.value>a.value?b:a,null)};
+    }
+    function projection(expectedReturn,expectedRisk,riskFree=0){
+        if(!Number.isFinite(expectedReturn)||!Number.isFinite(expectedRisk)||expectedRisk<0||!Number.isFinite(riskFree))return {min:NaN,max:NaN,sharpe:NaN};
+        return {min:Math.max(-1,expectedReturn-1.96*expectedRisk),max:expectedReturn+1.96*expectedRisk,sharpe:expectedRisk>0?(expectedReturn-riskFree)/expectedRisk:NaN};
+    }
+    function rfSummary(model,benchmarks,metrics){
+        const collect=side=>{let weight=0,covered=0,ytm=0,duration=0;
+            for(const row of model?.rows||[]){if(row.assetType!=='RF')continue;
+                const entries=side==='benchmark'?(benchmarks(row)||[]).slice(0,1).map(id=>({id,weight:row.weight})):(row.keepCurrent?row.currentPositions:row.proposedPositions).map(item=>({id:item.isin,weight:row.portfolioWeight*item.share/100}));
+                if(side==='portfolio'&&!entries.length&&row.portfolioWeight>0)weight+=row.portfolioWeight;
+                if(side==='benchmark'&&!entries.length&&row.weight>0)weight+=row.weight;
+                for(const entry of entries){if(!(entry.weight>0))continue;weight+=entry.weight;
+                    const item=metrics[`${side==='benchmark'?'B':'F'}:${String(entry.id).toUpperCase()}`];
+                    if(Number.isFinite(item?.ytm)&&Number.isFinite(item?.duration)){covered+=entry.weight;ytm+=entry.weight*item.ytm;duration+=entry.weight*item.duration;}
+                }
+            }
+            return {weight,coverage:weight?covered/weight:0,ytm:covered>=weight-1e-6&&weight>0?ytm/weight:NaN,duration:covered>=weight-1e-6&&weight>0?duration/weight:NaN};
+        };return {benchmark:collect('benchmark'),portfolio:collect('portfolio')};
+    }
     function copyCategoryPositions(models,sourceIndex,rowIndex,kind){
         const source=models[sourceIndex]?.rows[rowIndex];
         if(!source||!['current','proposal'].includes(kind))return 0;
@@ -175,5 +238,5 @@
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};
     }
-    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,transferIsins,setShare,setPortfolioWeight,copyCategoryPositions,latestCommitteeViews,appendCommitteeViews,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
+    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,transferIsins,setShare,setPortfolioWeight,setBandPosition,indexStatistics,projection,rfSummary,copyCategoryPositions,latestCommitteeViews,appendCommitteeViews,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
 });

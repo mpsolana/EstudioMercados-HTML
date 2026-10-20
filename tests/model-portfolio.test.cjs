@@ -20,6 +20,53 @@ test('keeps benchmark weights fixed while committee allocation and RV bands chan
     assert.equal(prudent.rows[1].weight,22.5);
     assert.equal(Model.allocation(prudent).portfolioTotal,100);
 });
+test('band control preserves zero categories, within-sleeve ratios, Others and exact total',()=>{
+    const model={profile:'prudente',rows:[
+        {assetType:'RV',weight:10,portfolioWeight:10},{assetType:'RV',weight:10,portfolioWeight:20},{assetType:'RV',weight:0,portfolioWeight:0},
+        {assetType:'RF',weight:50,portfolioWeight:40},{assetType:'RF',weight:20,portfolioWeight:20},{assetType:'Otros',weight:10,portfolioWeight:10}
+    ]};
+    const benchmark=model.rows.map(row=>row.weight);
+    const result=Model.setBandPosition(model,50);
+    assert.equal(result.portfolioRv,22.5);
+    assert.equal(result.portfolioOther,10);
+    assert.equal(result.portfolioTotal,100);
+    assert.equal(model.rows[2].portfolioWeight,0);
+    assert.deepEqual(model.rows.map(row=>row.weight),benchmark);
+    assert.ok(Math.abs(model.rows[0].portfolioWeight/model.rows[1].portfolioWeight-.5)<.01);
+    assert.ok(Math.abs(model.rows[3].portfolioWeight/model.rows[4].portfolioWeight-2)<.01);
+    const before=model.rows.map(row=>row.portfolioWeight);
+    assert.throws(()=>Model.setBandPosition(model,101),/entre 0% y 100%/);
+    assert.deepEqual(model.rows.map(row=>row.portfolioWeight),before);
+    const impossible={profile:'prudente',rows:[{assetType:'RF',portfolioWeight:100},{assetType:'RV',portfolioWeight:0}]};
+    assert.throws(()=>Model.setBandPosition(impossible,50),/sin activar/);
+    assert.deepEqual(impossible.rows.map(row=>row.portfolioWeight),[100,0]);
+});
+test('index stats, projection and RF summaries use explicit units and full coverage',()=>{
+    const points=Array.from({length:25},(_,i)=>({date:new Date(Date.UTC(2024+Math.floor(i/12),i%12+1,0)),price:100*Math.pow(1.01,i)}));
+    const stats=Model.indexStatistics(points);
+    assert.equal(stats.count,25);
+    assert.ok(Math.abs(stats.rollingMin.value-(1.01**12-1))<1e-10);
+    assert.ok(Math.abs(stats.cagr-(1.01**12-1))<.002);
+    assert.ok(stats.vol<1e-8);
+    assert.equal(stats.drawdown,0);
+    assert.equal(Model.indexStatistics(points.slice(0,5)).reason,'Se necesitan al menos 13 cierres mensuales.');
+    const projected=Model.projection(.06,.1,.02);
+    assert.ok(Math.abs(projected.min-(-.136))<1e-10);
+    assert.ok(Math.abs(projected.max-.256)<1e-10);
+    assert.ok(Math.abs(projected.sharpe-.4)<1e-10);
+    assert.equal(Model.projection(.05,.8).min,-1);
+    const portfolio={rows:[{assetType:'RF',weight:60,portfolioWeight:50,proposedPositions:[{isin:'F1',share:60},{isin:'F2',share:40}]},{assetType:'RV',weight:40,portfolioWeight:50,proposedPositions:[]}]};
+    const metrics={'B:B1':{ytm:3,duration:4},'F:F1':{ytm:4,duration:5},'F:F2':{ytm:2,duration:3}};
+    const rf=Model.rfSummary(portfolio,()=>['B1'],metrics);
+    assert.equal(rf.benchmark.ytm,3);
+    assert.equal(rf.portfolio.ytm,3.2);
+    assert.equal(rf.portfolio.duration,4.2);
+    assert.equal(rf.portfolio.coverage,1);
+    delete metrics['F:F2'];
+    const partial=Model.rfSummary(portfolio,()=>['B1'],metrics);
+    assert.equal(partial.portfolio.coverage,.6);
+    assert.ok(Number.isNaN(partial.portfolio.ytm));
+});
 test('retains zero-benchmark categories and does not invent RV classification for ambiguous names',()=>{
     const [model]=Model.parseGrid([['Categoria','Subcategorias','Muy Arriesgado'],['RF EUR','EUR Government Bond',20],['RV EM','Emerging Markets Equity',80],['Alternativos','Other',0]]);
     assert.equal(model.rows.length,3);
