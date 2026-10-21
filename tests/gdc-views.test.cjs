@@ -14,7 +14,7 @@ function loadModel(){
         sheetRows:(book,name)=>{const rows=book.Sheets[name];if(!Array.isArray(rows?.[0]))return rows;const [header,...body]=rows;return body.map(cells=>Object.fromEntries(header.map((key,index)=>[String(key).toLowerCase(),cells[index]])));},
         firstValue:(row,keys)=>keys.map(key=>row[key.toLowerCase()]).find(value=>value!==undefined&&value!==null&&value!=='')??null,
         benchmarkCategorySheetToMap:()=>({}),benchmarkSheetToSeriesMap:()=>({}),
-        normalizeIsin:value=>String(value||'').trim().toUpperCase(),parseNumber:value=>Number(value)};
+        normalizeIsin:value=>String(value||'').trim().toUpperCase(),parseNumber:value=>Number(value),escapeHtml:value=>String(value)};
     const gdc=vm.runInNewContext(fs.readFileSync(require.resolve('../assets/gdc-model.js'),'utf8')+'\nGdcModel',context);
     gdc.lastExport=()=>exported;gdc.lastPlot=()=>plot;gdc.universe=context.fundUniverseState;return gdc;
 }
@@ -59,6 +59,7 @@ test('the monthly workbook restores the latest view and still loads position wei
 test('forecast chart uses annual percent axes and signed Sharpe bubble sizes',async()=>{
     const gdc=loadModel();
     gdc.state.expected={A:{returnPct:8,riskPct:10},B:{returnPct:-2,riskPct:10},C:{returnPct:3,riskPct:0}};
+    gdc.state.benchmarkMeta={A:{name:'Indice global',assetClass:'RV Global'},B:{name:'Indice bonos',assetClass:'RF EUR'},C:{name:'Indice monetario',assetClass:'Monetario EUR'}};
     gdc.state.riskFreePct=2;
     assert.equal(await gdc.plotForecast({id:'gdcForecastChart',textContent:''}),true);
     const [,traces,layout]=gdc.lastPlot();
@@ -70,6 +71,16 @@ test('forecast chart uses annual percent axes and signed Sharpe bubble sizes',as
     assert.ok(positive.marker.size[0]>negative.marker.size[0]);
     assert.equal(missing.marker.symbol,'circle-open');
     assert.ok(missing.customdata[0][1]==='No calculable');
+    assert.equal(positive.text[0],'RV Global');
+    assert.equal(negative.text[0],'RF EUR');
+    assert.equal(missing.customdata[0][3],'C');
+    assert.ok(layout.yaxis.range[0]<0&&layout.yaxis.range[1]>10);
+    assert.equal(layout.yaxis.tickvals[0],0);
+    assert.ok(layout.yaxis.tickvals.every(value=>value>=0));
+    assert.ok(layout.xaxis.range[0]<-2&&layout.xaxis.range[1]>8);
+    assert.ok(traces.every(trace=>trace.cliponaxis===false));
+    assert.equal(await gdc.plotForecast({id:'reportChart',textContent:''},true),true);
+    assert.equal(gdc.lastPlot()[2].yaxis.range[0],layout.yaxis.range[0]);
 });
 test('the best equivalent class supplies score but never replaces the contracted TER',()=>{
     const gdc=loadModel();
