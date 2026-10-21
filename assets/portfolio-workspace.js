@@ -66,6 +66,7 @@ async function portfolioConvertCurrencies(seriesMap, entries, start, end) {
     }
 }
 function invalidatePortfolioReports() {
+    EfficientFrontierView.invalidateIfChanged();
     PortfolioWorkspace.revision++;
     portfolioReportHtml = ''; managerReportHtml = '';
     fundProposalState.reportHtml = ''; fundProposalState.reportBodyHtml = '';
@@ -103,7 +104,7 @@ function portfolioWorkflowRefresh() {
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         return;
     }
-    const steps = w.scope === 'initial' ? ['proposal','metrics','rates','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
+    const steps = w.scope === 'initial' ? ['proposal','metrics','frontier','rates','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[0];
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
@@ -112,6 +113,7 @@ function portfolioWorkflowRefresh() {
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
     if (w.step === 'metrics' && w.scope === 'initial') show('workspaceUniverseMetrics');
+    if (w.step === 'frontier' && w.scope === 'initial') {show('workspaceInitialFrontier');EfficientFrontierView.benchmarks();}
     if (w.step === 'rates' && w.scope === 'initial') show('workspaceInitialRates');
     if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
     document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope === 'screener';
@@ -126,8 +128,9 @@ function portfolioWorkflowRefresh() {
         if (b.dataset.workspaceStep === 'diagnosis') b.textContent = w.scope === 'screener' ? '01 Screener' : '01 Diagnostico';
         if (b.dataset.workspaceStep === 'proposal') b.textContent = '01 Analisis inicial';
         if (b.dataset.workspaceStep === 'metrics') b.textContent = '02 Comparativa universo';
-        if (b.dataset.workspaceStep === 'rates') b.textContent = '03 Sensibilidad tipos';
-        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '04 Informe' : '02 Informe';
+        if (b.dataset.workspaceStep === 'frontier') b.textContent = '03 Riesgo y rentabilidad';
+        if (b.dataset.workspaceStep === 'rates') b.textContent = '04 Sensibilidad tipos';
+        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '05 Informe' : '02 Informe';
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
@@ -181,9 +184,11 @@ function initializePortfolioWorkspace() {
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="comparison">Comparativa de carteras</button>');
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="metrics">02 Comparativa universo</button>');
+    shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="frontier">03 Riesgo y rentabilidad</button>');
     shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="rates">03 Sensibilidad tipos</button>');
     const ratesPanel=document.createElement('section');ratesPanel.id='workspaceInitialRates';ratesPanel.className='workspace-panel initial-rates';ratesPanel.dataset.workspacePanel='';ratesPanel.innerHTML='<h3>Sensibilidad de tipos · renta fija</h3><div class="workspace-settings"><label>Importe total de cartera<input id="initialRateAmount" type="number" min="0" step="1000" placeholder="Importe"></label><label>Peso de renta fija (%)<input id="initialRateWeight" type="number" min="0" max="100" step="0.1" placeholder="0–100"></label><label>Duración modificada ponderada de RF (años)<input id="initialRateDuration" type="number" min="0" max="100" step="0.1" placeholder="Años"></label><label>Escenario adicional (pb)<input id="initialRateCustom" type="number" min="-1000" max="1000" step="25" placeholder="Opcional"></label></div><p id="initialRateStatus" class="workspace-status" role="status"></p><div id="initialRateScenarioChart" class="initial-rate-chart"></div><div class="proposal-chart-scroll"><table class="wide-report-table initial-rate-table"><thead><tr><th>Movimiento de tipos</th><th>RF (%)</th><th>Impacto RF</th><th>Cartera (%)</th><th>Valor estimado</th></tr></thead><tbody id="initialRateBody"></tbody></table></div><p class="workspace-context">ΔPrecio RF ≈ − duración modificada × Δrentabilidad exigida. Se aplica al importe de RF; el resto de la cartera se mantiene constante. Escenario paralelo e instantáneo, sin convexidad, cupones, cambios de diferenciales, divisa ni reacción de otros activos. Para movimientos grandes o bonos con opciones, la aproximación puede desviarse.</p>';root.append(ratesPanel);
     ratesPanel.addEventListener('input',renderInitialRateSensitivity);
+    const frontierPanel=document.createElement('section');frontierPanel.id='workspaceInitialFrontier';frontierPanel.className='workspace-panel initial-frontier';frontierPanel.dataset.workspacePanel='';root.append(frontierPanel);EfficientFrontierView.init(frontierPanel);
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
     reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
     reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);
