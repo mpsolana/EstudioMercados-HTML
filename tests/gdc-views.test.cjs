@@ -4,11 +4,13 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const Model=require('../assets/model-portfolio-core.js');
 const AnalysisCore=require('../assets/analysis-core.js');
+const FinanceCore=require('../assets/finance-core.js');
+const QualityCore=require('../assets/quality-core.js');
 
 function loadModel(){
     let exported,plot;
     const xlsx={utils:{sheet_to_json:sheet=>sheet,book_new:()=>({sheets:{}}),aoa_to_sheet:grid=>grid,book_append_sheet:(book,sheet,name)=>{book.sheets[name]=sheet;}},writeFile:(book,name)=>{exported={book,name};}};
-    const context={ModelPortfolioCore:Model,AnalysisCore,fundUniverseState:{records:[],isinIndex:new Map()},loadedPortfolio:{benchCategories:{}},
+    const context={ModelPortfolioCore:Model,AnalysisCore,FinanceCore,QualityCore,fundUniverseState:{records:[],isinIndex:new Map()},loadedPortfolio:{benchCategories:{}},
         XLSX:xlsx,window:{XLSX:xlsx,Plotly:{},innerWidth:1200},FinancialVisuals:{newPlot:async(...args)=>{plot=args;}},
         findSheet:(book,names)=>book.SheetNames.find(name=>names.some(candidate=>candidate.toLowerCase()===name.toLowerCase()))||null,
         sheetRows:(book,name)=>{const rows=book.Sheets[name];if(!Array.isArray(rows?.[0]))return rows;const [header,...body]=rows;return body.map(cells=>Object.fromEntries(header.map((key,index)=>[String(key).toLowerCase(),cells[index]])));},
@@ -119,4 +121,26 @@ test('GICI has separate positions, zero-weight out-of-benchmark categories and i
     assert.equal(copy.state.models[0].rows[0].currentPositions[0].isin,'BBB');
     assert.equal(copy.state.models[0].rows.find(row=>row.generic==='RV OUT BENCH').benchmarkTicker,'BMA');
     assert.equal(copy.state.scoreClassByIsin.BBB,'REF');
+});
+test('committee report covers every profile and counts distinct funded ISINs',()=>{
+    const gdc=loadModel(),sheets={'Carteras Modelo':[['Categoria','Subcategoria','Prudente','Decidido'],['RF EUR','EUR Government Bond',70,40],['RV Global','Global Equity',30,60]]};
+    gdc.loadPriorWorkbook({SheetNames:Object.keys(sheets),Sheets:sheets});
+    const funds=[{isin:'AAA',name:'Fondo A',score:3,ter:.5,category:'EUR Government Bond'},{isin:'BBB',name:'Fondo B',score:2,ter:.8,category:'Global Equity'}];
+    gdc.universe.records=funds;gdc.universe.isinIndex=new Map(funds.map(item=>[item.isin,item]));
+    gdc.state.models[0].rows[0].proposedPositions=[{isin:'AAA',share:100}];
+    gdc.state.models[0].rows[1].proposedPositions=[{isin:'AAA',share:100}];
+    gdc.state.models[1].rows[0].proposedPositions=[{isin:'AAA',share:100}];
+    gdc.state.models[1].rows[1].proposedPositions=[{isin:'BBB',share:100}];
+    gdc.state.views['rv global']={view:'OW',comment:'Mayor convicción'};
+    assert.equal(gdc.fundCount(gdc.state.models[0]),1);
+    assert.equal(gdc.fundCount(gdc.state.models[1]),2);
+    const html=gdc.committeeReportHtml();
+    assert.match(html,/Comité GDC · carteras modelo/);
+    assert.match(html,/Prudente/);assert.match(html,/Decidido/);
+    assert.match(html,/Mayor convicción/);assert.match(html,/Fondos finales/);
+    assert.match(html,/ISIN distintos con peso positivo/);
+    assert.match(html,/TER siempre corresponde al ISIN contratado/);
+    gdc.switchMode('GICI');
+    assert.match(gdc.committeeReportHtml(),/Comité GICI · carteras modelo/);
+    assert.match(gdc.committeeReportHtml(),/RV OUT BENCH/);
 });
