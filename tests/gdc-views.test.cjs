@@ -3,19 +3,20 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const Model=require('../assets/model-portfolio-core.js');
+const AnalysisCore=require('../assets/analysis-core.js');
 
 function loadModel(){
     let exported,plot;
     const xlsx={utils:{sheet_to_json:sheet=>sheet,book_new:()=>({sheets:{}}),aoa_to_sheet:grid=>grid,book_append_sheet:(book,sheet,name)=>{book.sheets[name]=sheet;}},writeFile:(book,name)=>{exported={book,name};}};
-    const context={ModelPortfolioCore:Model,fundUniverseState:{isinIndex:new Map()},loadedPortfolio:{benchCategories:{}},
+    const context={ModelPortfolioCore:Model,AnalysisCore,fundUniverseState:{records:[],isinIndex:new Map()},loadedPortfolio:{benchCategories:{}},
         XLSX:xlsx,window:{XLSX:xlsx,Plotly:{},innerWidth:1200},FinancialVisuals:{newPlot:async(...args)=>{plot=args;}},
         findSheet:(book,names)=>book.SheetNames.find(name=>names.some(candidate=>candidate.toLowerCase()===name.toLowerCase()))||null,
-        sheetRows:(book,name)=>book.Sheets[name],
+        sheetRows:(book,name)=>{const rows=book.Sheets[name];if(!Array.isArray(rows?.[0]))return rows;const [header,...body]=rows;return body.map(cells=>Object.fromEntries(header.map((key,index)=>[String(key).toLowerCase(),cells[index]])));},
         firstValue:(row,keys)=>keys.map(key=>row[key.toLowerCase()]).find(value=>value!==undefined&&value!==null&&value!=='')??null,
         benchmarkCategorySheetToMap:()=>({}),benchmarkSheetToSeriesMap:()=>({}),
         normalizeIsin:value=>String(value||'').trim().toUpperCase(),parseNumber:value=>Number(value)};
     const gdc=vm.runInNewContext(fs.readFileSync(require.resolve('../assets/gdc-model.js'),'utf8')+'\nGdcModel',context);
-    gdc.lastExport=()=>exported;gdc.lastPlot=()=>plot;return gdc;
+    gdc.lastExport=()=>exported;gdc.lastPlot=()=>plot;gdc.universe=context.fundUniverseState;return gdc;
 }
 
 test('the monthly workbook restores the latest view and still loads position weights',()=>{
@@ -69,4 +70,42 @@ test('forecast chart uses annual percent axes and signed Sharpe bubble sizes',as
     assert.ok(positive.marker.size[0]>negative.marker.size[0]);
     assert.equal(missing.marker.symbol,'circle-open');
     assert.ok(missing.customdata[0][1]==='No calculable');
+});
+test('the best equivalent class supplies score but never replaces the contracted TER',()=>{
+    const gdc=loadModel();
+    const funds=[
+        {isin:'AAA',name:'Global Equity A EUR',fundId:'family-1',category:'Global Equity',currency:'EUR',manager:'Gestora',aum:500,score:1.2,ter:.8},
+        {isin:'BBB',name:'Global Equity I EUR',fundId:'family-1',category:'Global Equity',currency:'EUR',manager:'Gestora',aum:500,score:3.4,ter:.25},
+        {isin:'CCC',name:'Global Equity I USD',fundId:'family-1',category:'Global Equity',currency:'USD',manager:'Gestora',aum:500,score:3.8,ter:.2}
+    ];
+    gdc.universe.records=funds;gdc.universe.isinIndex=new Map(funds.map(item=>[item.isin,item]));
+    const automatic=gdc.scoredFund('AAA');
+    assert.equal(automatic.score,3.4);assert.equal(automatic.ter,.8);assert.equal(automatic.scoreClassIsin,'BBB');
+    gdc.state.scoreClassByIsin.AAA='CCC';
+    const manual=gdc.scoredFund('AAA');
+    assert.equal(manual.score,3.8);assert.equal(manual.ter,.8);assert.equal(manual.scoreClassMatch,'revisar');
+});
+test('GICI has separate positions, zero-weight out-of-benchmark categories and its own workbook',()=>{
+    const gdc=loadModel(),sheets={'Carteras Modelo':[['Categoria','Subcategoria','Prudente'],['RF EUR','EUR Government Bond',75],['RV Global','Global Equity',25]]};
+    gdc.loadPriorWorkbook({SheetNames:Object.keys(sheets),Sheets:sheets});
+    gdc.state.models[0].rows[0].currentPositions=[{isin:'AAA',share:100}];
+    gdc.switchMode('GICI');
+    assert.equal(gdc.state.models[0].rows[0].currentPositions.length,0);
+    const out=gdc.state.models[0].rows.filter(row=>row.benchmarkTicker==='BMA'||row.benchmarkTicker==='BMC');
+    assert.deepEqual(out.map(row=>row.weight),[0,0]);
+    gdc.state.models[0].rows[0].currentPositions=[{isin:'BBB',share:100}];
+    gdc.state.models[0].rows[0].keepCurrent=true;
+    const funds=[{isin:'BBB',name:'Bond Retail EUR',fundId:'bond',category:'EUR Government Bond',currency:'EUR',manager:'Gestora',score:2,ter:.7},{isin:'REF',name:'Bond Inst EUR',fundId:'bond',category:'EUR Government Bond',currency:'EUR',manager:'Gestora',score:3,ter:.2}];
+    gdc.universe.records=funds;gdc.universe.isinIndex=new Map(funds.map(item=>[item.isin,item]));
+    gdc.state.scoreClassByIsin.BBB='REF';
+    gdc.exportExcel();const exported=gdc.lastExport();
+    assert.match(exported.name,/^GICI_comite_/);assert.ok(exported.book.sheets['GICI Estado']);assert.ok(!exported.book.sheets['GDC Estado']);
+    assert.ok(exported.book.sheets['GICI Score'].some(row=>row[0]==='BBB'&&row[1]==='REF'&&row[4]===.7));
+    gdc.switchMode('GDC');assert.equal(gdc.state.models[0].rows[0].currentPositions[0].isin,'AAA');
+    gdc.switchMode('GICI');assert.equal(gdc.state.models[0].rows[0].currentPositions[0].isin,'BBB');
+    const copy=loadModel(),book={SheetNames:Object.keys(exported.book.sheets),Sheets:exported.book.sheets};
+    copy.switchMode('GICI');copy.loadPriorWorkbook(book);
+    assert.equal(copy.state.models[0].rows[0].currentPositions[0].isin,'BBB');
+    assert.equal(copy.state.models[0].rows.find(row=>row.generic==='RV OUT BENCH').benchmarkTicker,'BMA');
+    assert.equal(copy.state.scoreClassByIsin.BBB,'REF');
 });

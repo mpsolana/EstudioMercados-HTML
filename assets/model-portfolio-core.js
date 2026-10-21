@@ -218,12 +218,15 @@
             const month=date.toISOString().slice(0,7),prior=out.get(month);if(!prior||date>prior.date)out.set(month,{date,price});
         }return out;
     }
-    function trackingError(selections,fundSeries,benchmarkSeries){
+    function trackingError(selections,fundSeries,benchmarkSeries,benchmarkWeights){
         if(!selections.length||selections.some(row=>!(row.weight>0)||!row.selectedIsin||!row.benchmark))return {value:NaN,reason:'Faltan fondos o benchmarks seleccionados.'};
         const lookup=(source,ticker)=>source[ticker]||Object.entries(source).find(([key])=>key.toLowerCase()===String(ticker).toLowerCase())?.[1];
         const pairs=selections.map(row=>({weight:row.weight,fund:monthlyPrices(lookup(fundSeries,row.selectedIsin)||lookup(fundSeries,row.ticker)),bench:monthlyPrices(lookup(benchmarkSeries,row.benchmark)?.data||lookup(benchmarkSeries,row.benchmark))}));
-        if(pairs.some(pair=>pair.fund.size<3||pair.bench.size<3))return {value:NaN,reason:'Faltan historicos mensuales de fondos o benchmarks.'};
-        const common=[...pairs[0].fund.keys()].filter(month=>pairs.every(pair=>pair.fund.has(month)&&pair.bench.has(month))).sort();
+        const fixed=Array.isArray(benchmarkWeights),benchmarks=fixed?benchmarkWeights.map(row=>({weight:row.weight,series:monthlyPrices(lookup(benchmarkSeries,row.ticker)?.data||lookup(benchmarkSeries,row.ticker))})):pairs.map(pair=>({weight:pair.weight,series:pair.bench}));
+        const benchTotal=benchmarks.reduce((sum,item)=>sum+item.weight,0);
+        if(!benchmarks.length||!(benchTotal>0)||benchmarks.some(item=>!(item.weight>0)))return {value:NaN,reason:'Faltan pesos válidos del benchmark.'};
+        if(pairs.some(pair=>pair.fund.size<3)||benchmarks.some(item=>item.series.size<3))return {value:NaN,reason:'Faltan historicos mensuales de fondos o benchmarks.'};
+        const common=[...pairs[0].fund.keys()].filter(month=>pairs.every(pair=>pair.fund.has(month))&&benchmarks.every(item=>item.series.has(month))).sort();
         let months=[],run=[];
         common.forEach(month=>{const prior=run.at(-1),consecutive=!prior||(Number(month.slice(0,4))*12+Number(month.slice(5)))-(Number(prior.slice(0,4))*12+Number(prior.slice(5)))===1;
             if(!consecutive){if(run.length>months.length)months=run;run=[];}run.push(month);
@@ -234,7 +237,7 @@
         for(let i=1;i<months.length;i++){
             const previous=months[i-1],current=months[i];
             const fund=pairs.reduce((sum,pair)=>sum+pair.weight/total*(pair.fund.get(current).price/pair.fund.get(previous).price-1),0);
-            const bench=pairs.reduce((sum,pair)=>sum+pair.weight/total*(pair.bench.get(current).price/pair.bench.get(previous).price-1),0);
+            const bench=benchmarks.reduce((sum,item)=>sum+item.weight/benchTotal*(item.series.get(current).price/item.series.get(previous).price-1),0);
             active.push(fund-bench);
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};

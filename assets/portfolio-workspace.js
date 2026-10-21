@@ -97,7 +97,7 @@ function portfolioWorkflowRefresh() {
         document.getElementById('workspaceTools').hidden=true;
         document.getElementById('workspaceReportOptions').hidden=true;
         document.querySelectorAll('[data-workspace-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workspaceScope===w.scope)));
-        document.getElementById('workspaceContext').textContent=w.scope==='model'?'GDC · carteras modelo · revision mensual':'Comparativa de carteras · históricos comunes';
+        document.getElementById('workspaceContext').textContent=w.scope==='model'?'GDC/GICI · carteras modelo · revisión mensual':'Comparativa de carteras · históricos comunes';
         document.getElementById('workspaceQuality').hidden=false;
         document.getElementById('workspaceQuality').textContent=w.scope==='model'?`Universo: ${fundUniverseState?.records?.length||0} fondos · Modelos: ${GdcModel.state.models.length} · Historicos: segun cobertura disponible.`:'Las series se comparan en fechas comunes y con los mismos supuestos de rebalanceo y costes.';
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
@@ -177,7 +177,7 @@ function initializePortfolioWorkspace() {
     shell.querySelector('.workspace-scope').insertAdjacentHTML('afterbegin','<button data-workspace-scope="data">Carga de datos</button><button data-workspace-scope="initial">Analisis Inicial</button>');
     document.getElementById('workspaceQuality').insertAdjacentHTML('beforebegin','<p id="workspaceMissingData" class="workspace-status" role="status"></p>');
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="screener">Screener</button>');
-    shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="model">GDC · Cartera modelo</button>');
+    shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="model">GDC/GICI · Cartera modelo</button>');
     shell.querySelector('.workspace-scope').insertAdjacentHTML('beforeend','<button data-workspace-scope="comparison">Comparativa de carteras</button>');
     shell.insertAdjacentHTML('beforeend','<section id="workspaceInitialReports" class="workspace-panel" data-workspace-panel></section>');
     shell.querySelector('[data-workspace-step="report"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="metrics">02 Comparativa universo</button>');

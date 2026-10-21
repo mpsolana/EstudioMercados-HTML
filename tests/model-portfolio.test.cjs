@@ -185,3 +185,14 @@ test('tracking error uses common monthly returns and refuses missing histories',
     const gapped={A:[funds.A[0],funds.A[2],funds.A[3]],B:[funds.B[0],funds.B[2],funds.B[3]]};
     assert.ok(Number.isNaN(Model.trackingError(rows,gapped,benchmarks).value));
 });
+test('fixed benchmark weights expose discretionary allocation risk',()=>{
+    const dates=['2026-01-31','2026-02-28','2026-03-31','2026-04-30'];
+    const series=values=>values.map((price,i)=>({date:new Date(dates[i]+'T00:00:00Z'),price}));
+    const moving=series([100,110,100,110]),flat=series([100,100,100,100]);
+    const selection=[{weight:100,selectedIsin:'FUND',benchmark:'BMA'}],funds={FUND:moving};
+    const benchmarks={BMA:{data:moving},BASE:{data:flat}};
+    assert.equal(Model.trackingError(selection,funds,benchmarks).value,0);
+    const fixed=Model.trackingError(selection,funds,benchmarks,[{ticker:'BASE',weight:100}]);
+    assert.ok(fixed.value>0);
+    assert.equal(fixed.months,4);
+});
