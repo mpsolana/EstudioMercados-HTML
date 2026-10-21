@@ -148,6 +148,7 @@
         if(!Number.isFinite(expectedReturn)||!Number.isFinite(expectedRisk)||expectedRisk<0||!Number.isFinite(riskFree))return {min:NaN,max:NaN,sharpe:NaN};
         return {min:Math.max(-1,expectedReturn-1.96*expectedRisk),max:expectedReturn+1.96*expectedRisk,sharpe:expectedRisk>0?(expectedReturn-riskFree)/expectedRisk:NaN};
     }
+    function sharpeBubbleSize(sharpe){return Number.isFinite(sharpe)?Math.max(9,Math.min(38,16+9*sharpe)):10;}
     function rfSummary(model,benchmarks,metrics){
         const collect=side=>{let weight=0,covered=0,ytm=0,duration=0;
             for(const row of model?.rows||[]){if(row.assetType!=='RF')continue;
@@ -238,5 +239,5 @@
         }
         return {value:finance.stdev(active)*Math.sqrt(12),months:months.length,from:months[0],to:months.at(-1)};
     }
-    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,transferIsins,setShare,setPortfolioWeight,setBandPosition,indexStatistics,projection,rfSummary,copyCategoryPositions,latestCommitteeViews,appendCommitteeViews,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
+    return {key,parseGrid,rank,fullRank,equalPositions,normalizePositions,transferIsins,setShare,setPortfolioWeight,setBandPosition,indexStatistics,projection,sharpeBubbleSize,rfSummary,copyCategoryPositions,latestCommitteeViews,appendCommitteeViews,benchmarkIndex,trackingError,profile,assetType,allocation,bands};
 });

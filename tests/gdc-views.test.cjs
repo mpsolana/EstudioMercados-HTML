@@ -5,17 +5,17 @@ const vm=require('node:vm');
 const Model=require('../assets/model-portfolio-core.js');
 
 function loadModel(){
-    let exported;
+    let exported,plot;
     const xlsx={utils:{sheet_to_json:sheet=>sheet,book_new:()=>({sheets:{}}),aoa_to_sheet:grid=>grid,book_append_sheet:(book,sheet,name)=>{book.sheets[name]=sheet;}},writeFile:(book,name)=>{exported={book,name};}};
     const context={ModelPortfolioCore:Model,fundUniverseState:{isinIndex:new Map()},loadedPortfolio:{benchCategories:{}},
-        XLSX:xlsx,window:{XLSX:xlsx},
+        XLSX:xlsx,window:{XLSX:xlsx,Plotly:{},innerWidth:1200},FinancialVisuals:{newPlot:async(...args)=>{plot=args;}},
         findSheet:(book,names)=>book.SheetNames.find(name=>names.some(candidate=>candidate.toLowerCase()===name.toLowerCase()))||null,
         sheetRows:(book,name)=>book.Sheets[name],
         firstValue:(row,keys)=>keys.map(key=>row[key.toLowerCase()]).find(value=>value!==undefined&&value!==null&&value!=='')??null,
         benchmarkCategorySheetToMap:()=>({}),benchmarkSheetToSeriesMap:()=>({}),
         normalizeIsin:value=>String(value||'').trim().toUpperCase(),parseNumber:value=>Number(value)};
     const gdc=vm.runInNewContext(fs.readFileSync(require.resolve('../assets/gdc-model.js'),'utf8')+'\nGdcModel',context);
-    gdc.lastExport=()=>exported;return gdc;
+    gdc.lastExport=()=>exported;gdc.lastPlot=()=>plot;return gdc;
 }
 
 test('the monthly workbook restores the latest view and still loads position weights',()=>{
@@ -54,4 +54,19 @@ test('the monthly workbook restores the latest view and still loads position wei
     assert.equal(Object.keys(gdc.state.views).length,0);
     assert.equal(Object.keys(gdc.state.expected).length,0);
     assert.equal(Object.keys(gdc.state.rfMetrics).length,0);
+});
+test('forecast chart uses annual percent axes and signed Sharpe bubble sizes',async()=>{
+    const gdc=loadModel();
+    gdc.state.expected={A:{returnPct:8,riskPct:10},B:{returnPct:-2,riskPct:10},C:{returnPct:3,riskPct:0}};
+    gdc.state.riskFreePct=2;
+    assert.equal(await gdc.plotForecast({id:'gdcForecastChart',textContent:''}),true);
+    const [,traces,layout]=gdc.lastPlot();
+    assert.equal(layout.xaxis.title,'Rentabilidad esperada anual (%)');
+    assert.equal(layout.yaxis.title,'Riesgo esperado anual (%)');
+    const positive=traces.find(item=>item.name==='Sharpe positivo'),negative=traces.find(item=>item.name==='Sharpe no positivo'),missing=traces.find(item=>item.name==='Sharpe no calculable');
+    assert.equal(positive.x[0],8);assert.equal(positive.y[0],10);
+    assert.equal(negative.x[0],-2);assert.equal(negative.y[0],10);
+    assert.ok(positive.marker.size[0]>negative.marker.size[0]);
+    assert.equal(missing.marker.symbol,'circle-open');
+    assert.ok(missing.customdata[0][1]==='No calculable');
 });
