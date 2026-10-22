@@ -2149,7 +2149,7 @@
                     if (!portfolioCalculationSettings().pricesInBase) throw new Error('Confirma que los historicos propios estan expresados en la moneda base.');
                     const seriesMap = priceSheetToSeriesMap(workbook, pricesSheet, entries);
                     if (entries.every(e => (seriesMap[e.ticker] || []).length >= 2)) {
-                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks, seriesMapToComparable(seriesMap, entries), benchCategories);
+                        computeImportedBacktestPortfolio(entries, seriesMap, `Excel historicos: ${fileName}`, benchmarks, allPriceSeriesFromSheet(workbook, pricesSheet, entries, seriesMap), benchCategories);
                         await portfolioAnalysisPromise;
                         return;
                     }
@@ -2351,6 +2351,14 @@
                         const entry = byTicker[String(key).toUpperCase()];
                         return [key, { key, label: entry ? portfolioEntryLabel(entry) : key, assetClass: entry?.assetClass || '', data }];
                     }));
+            }
+
+            function allPriceSeriesFromSheet(workbook, sheetName, entries, portfolioSeries) {
+                const available = benchmarkSheetToSeriesMap(workbook, sheetName);
+                const allIsins = Object.fromEntries(Object.entries(available)
+                    .filter(([column]) => isLikelyIsin(column))
+                    .map(([column, series]) => [normalizeIsin(column), { ...series, key: normalizeIsin(column) }]));
+                return { ...allIsins, ...seriesMapToComparable(portfolioSeries, entries) };
             }
 
             function benchmarkSheetToSeriesMap(workbook, sheetName) {
@@ -4085,7 +4093,7 @@
                         const benchmarks=benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['bench','benchmark','benchmarks']));
                         const benchCategories=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
                         applyBenchmarkCategoryMetadata(benchmarks,benchCategories);
-                        computeImportedBacktestPortfolio(entries,seriesMap,`Maestro: ${file.name}`,benchmarks,seriesMapToComparable(seriesMap,entries),benchCategories);
+                        computeImportedBacktestPortfolio(entries,seriesMap,`Maestro: ${file.name}`,benchmarks,allPriceSeriesFromSheet(workbook,pricesSheet,entries,seriesMap),benchCategories);
                         await portfolioAnalysisPromise;
                         if(historyStatus)historyStatus.textContent=`Históricos cargados: ${entries.length} fondos · ${Object.keys(benchmarks).length} índices`;
                     } else {

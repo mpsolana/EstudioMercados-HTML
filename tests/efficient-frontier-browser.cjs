@@ -10,6 +10,19 @@ const fs=require('node:fs');
         const page=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true});
         await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
         await page.waitForFunction(()=>document.querySelector('#workspaceInitialFrontier')&&typeof PortfolioAllocation==='object');
+        const imported=await page.evaluate(()=>{
+            const workbook=XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([
+                ['Date','ES0123456789','ES0123456797','ES0123456805','Comentario'],
+                ['2021-01-31',100,100,100,'no es una serie'],
+                ['2021-02-28',101,99,102,'texto']
+            ]),'prices');
+            const entries=[{ticker:'ES0123456789',weight:1,name:'Origen'}];
+            const portfolio=priceSheetToSeriesMap(workbook,'prices',entries);
+            const all=allPriceSeriesFromSheet(workbook,'prices',entries,portfolio);
+            return {ids:Object.keys(all).sort(),origin:all['ES0123456789'].label,proposed:all['ES0123456805'].data.length};
+        });
+        if(imported.ids.join(',')!=='ES0123456789,ES0123456797,ES0123456805'||imported.origin!=='Origen'||imported.proposed!==2)throw new Error('Maestro no conserva todos los ISIN de prices para la frontera.');
         await page.evaluate(()=>{
             switchSection('cartera');
             const ids=['ES0123456789','ES0123456797','ES0123456805'];
