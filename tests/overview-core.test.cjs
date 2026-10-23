@@ -46,3 +46,15 @@ test('document and renewal windows use the current date, not cached Excel labels
     assert.equal(Core.documentStatus(null,true,today),'sin fecha');
     assert.equal(Core.documentStatus(null,false,today),'sin documento');
 });
+
+test('look-through uses amounts and keeps missing or inconsistent currency exposures unknown',()=>{
+    const rows=[
+        {...p('A','ONE',600),classification:{eurExpo:0.5,usdExpo:0.5,otherExpo:0}},
+        {...p('A','TWO',300),classification:{eurExpo:100,usdExpo:0,otherExpo:0}},
+        {...p('A','THREE',100),classification:{eurExpo:0.4,usdExpo:0.4,otherExpo:0}}
+    ];
+    assert.deepEqual(Core.lookThrough(rows),{eur:600,usd:300,other:0,unknown:100,covered:900,invested:1000});
+    assert.equal(Core.exposureMix({eurExpo:0,usdExpo:1,otherExpo:0})[1],1);
+    assert.ok(Math.abs(Core.exposureMix({eurExpo:0.51,usdExpo:0.50,otherExpo:0}).reduce((a,b)=>a+b,0)-1)<1e-10);
+    assert.equal(Core.exposureMix({eurExpo:0,usdExpo:0,otherExpo:0}),null);
+});

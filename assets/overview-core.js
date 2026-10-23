@@ -6,6 +6,23 @@
     const id=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
     const key=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
     const finite=value=>typeof value==='number'&&Number.isFinite(value)?value:NaN;
+    function exposureMix(classification){
+        const values=[classification?.eurExpo,classification?.usdExpo,classification?.otherExpo].map(finite);
+        if(values.some(value=>!Number.isFinite(value)||value<0))return null;
+        const total=values.reduce((sum,value)=>sum+value,0);
+        const divisor=Math.abs(total-1)<0.011||Math.abs(total-100)<1.1?total:0;
+        return divisor?values.map(value=>value/divisor):null;
+    }
+    function lookThrough(positions){
+        const totals=[0,0,0],invested=positions.reduce((sum,row)=>sum+(Number.isFinite(row.amount)&&row.amount>0?row.amount:0),0);
+        let covered=0;
+        for(const row of positions){
+            if(!Number.isFinite(row.amount)||row.amount<=0)continue;
+            const mix=exposureMix(row.classification);if(!mix)continue;
+            covered+=row.amount;mix.forEach((share,index)=>totals[index]+=row.amount*share);
+        }
+        return {eur:totals[0],usd:totals[1],other:totals[2],unknown:Math.max(0,invested-covered),covered,invested};
+    }
     const day=value=>{if(value===null||value===undefined||value==='')return null;const date=value instanceof Date?value:new Date(value);return Number.isFinite(+date)?new Date(date.getFullYear(),date.getMonth(),date.getDate()):null;};
     function documentStatus(expiry,hasDocument,today=new Date()){
         if(!hasDocument)return 'sin documento';
@@ -66,11 +83,11 @@
             const kyc=documentStatus(client?.kycExpiry,true,today);
             const suitability=documentStatus(client?.suitabilityExpiry,true,today);
             const esg=documentStatus(client?.esgExpiry,true,today);
-            return {...holder,client,organization,profile,band,model,cash,cashKnown,base,coverage,rvPct,bandPosition,limit,allocations,documents,kyc,suitability,esg};
+            return {...holder,client,organization,profile,band,model,cash,cashKnown,base,coverage,rvPct,bandPosition,limit,allocations,currencyExposure:lookThrough(holder.positions),documents,kyc,suitability,esg};
         }).sort((a,b)=>b.invested-a.invested);
         const noControl=results.filter(row=>!row.client).length;
         const unknownCategories=[...funds.values()].filter(fund=>!fund.classification?.generic||!['RV','RF','Otros'].includes(fund.classification.type));
-        return {accounts:results,funds:[...funds.values()].sort((a,b)=>b.amount-a.amount),invested,unclassified,invalidAmounts,noControl,unknownCategories,breaches:results.filter(row=>['bajo mínimo','excede máximo'].includes(row.limit))};
+        return {accounts:results,funds:[...funds.values()].sort((a,b)=>b.amount-a.amount),invested,unclassified,invalidAmounts,noControl,unknownCategories,currencyExposure:lookThrough(results.flatMap(row=>row.positions)),breaches:results.filter(row=>['bajo mínimo','excede máximo'].includes(row.limit))};
     }
-    return {analyze,documentStatus,clientIndex,id,key};
+    return {analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough};
 });
