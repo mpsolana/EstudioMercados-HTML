@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title id="docTitle">Analyzer v13</title>
+    <title id="docTitle">Santalucía Gestión Patrimonial</title>
     <script src="assets/finance-core.js"></script>
     <script src="assets/horizon-core.js"></script>
     <script src="assets/rolling-core.js"></script>
@@ -33,10 +33,13 @@
     <script defer src="assets/portfolio-compare.js"></script>
     <script defer src="assets/model-portfolio-core.js"></script>
     <script defer src="assets/gdc-model.js"></script>
+    <script defer src="assets/overview-core.js"></script>
+    <script defer src="assets/overview-panel.js"></script>
     <script defer src="assets/portfolio-workspace.js"></script>
     <script defer src="assets/report-controls.js"></script>
     <script defer src="assets/screener-ui.js"></script>
     <link rel="stylesheet" href="assets/portfolio-workspace.css">
+    <link rel="stylesheet" href="assets/overview-panel.css">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -162,9 +165,8 @@
     <nav class="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <i class="fa-solid fa-chart-simple text-blue-400 text-xl"></i>
-                <h1 class="text-xl font-bold tracking-wide">Analyzer
-                </h1>
+                <img src="assets/santalucia-gestion-patrimonial.png" alt="Santalucía Asset Management" class="overview-brand-logo">
+                <h1 class="text-lg font-bold tracking-wide">Santalucía Gestión Patrimonial</h1>
             </div>
             <div class="text-xs text-gray-400 hidden sm:block" id="versionLabel">v13</div>
         </div>
@@ -173,7 +175,8 @@
     <!-- Top-Level Navigation -->
     <div class="bg-slate-800 shadow-md sticky top-[64px] z-40">
         <div class="container mx-auto flex overflow-x-auto scrollbar-hide">
-                        <button onclick="switchSection('mercados')" id="section-btn-mercados" class="top-nav-btn active">
+            <button onclick="switchSection('panel')" id="section-btn-panel" class="top-nav-btn active"><i class="fa-solid fa-table-columns mr-2"></i>Panel de control</button>
+                        <button onclick="switchSection('mercados')" id="section-btn-mercados" class="top-nav-btn">
                 <i class="fa-solid fa-globe mr-2"></i>Mercados
             </button>
             <button onclick="switchSection('valoraciones')" id="section-btn-valoraciones" class="top-nav-btn">
@@ -193,6 +196,8 @@
             </button>
         </div>
     </div>
+
+    <div id="section-panel" class="app-section active"><div class="container mx-auto p-4 lg:p-6" id="overviewPanel"></div></div>
 
     <!-- ==================== SECTION: MERCADOS ==================== -->
     <div id="section-mercados" class="app-section active">
@@ -3697,7 +3702,7 @@
 
             function buildFundProposalReportBodyHtml({ savings, currentScore, newScore, currentTer, newTer, savingsImage, overviewImage, changes, cheaperRows, pairSections }) {
                 return `<main class="report proposal-report proposal-print-root">
-                    <section class="cover"><div><div class="eyebrow">Analyzer</div><h1>Informe propuesta de fondos</h1><p>Analisis ejecutivo de sustituciones, mejora de scoring y ahorro estimado por TER.</p></div><div class="stamp">${new Date().toLocaleDateString('es-ES')}</div></section>
+                    <section class="cover"><div><div class="eyebrow">Santalucía Gestión Patrimonial</div><h1>Informe propuesta de fondos</h1><p>Analisis ejecutivo de sustituciones, mejora de scoring y ahorro estimado por TER.</p></div><div class="stamp">${new Date().toLocaleDateString('es-ES')}</div></section>
                     <section class="summary compact-summary">
                         <div><span>Score actual</span><strong>${fmtScore(currentScore)}</strong></div><div><span>Score propuesto</span><strong class="${proposalReportToneClass(newScore - currentScore)}">${fmtScore(newScore)}</strong></div><div><span>TER actual</span><strong>${fmtPercentPoint(currentTer)}</strong></div><div><span>TER propuesto</span><strong class="${proposalReportToneClass(currentTer - newTer)}">${fmtPercentPoint(newTer)}</strong></div>
                         <div><span>Mejora score</span><strong class="${proposalReportToneClass(newScore - currentScore)}">${Number.isFinite(newScore - currentScore) ? (newScore - currentScore).toFixed(2) : '-'}</strong></div><div><span>Ahorro anual</span><strong class="${proposalReportToneClass(savings.annualSaving)}">${formatEur(savings.annualSaving)}</strong></div><div><span>Ahorro 5 años</span><strong class="${proposalReportToneClass(savings.compounded[4])}">${formatEur(savings.compounded[4])}</strong></div><div><span>Ahorro 15 años</span><strong class="${proposalReportToneClass(savings.compounded[14])}">${formatEur(savings.compounded[14])}</strong></div>
@@ -3708,7 +3713,7 @@
                     <section class="block"><h2>Ahorro estimado por TER</h2>${savingsImage ? `<figure><figcaption>Ahorro simple y efecto compuesto por menor coste</figcaption><img src="${savingsImage}" alt="Ahorro TER"></figure>` : '<p class="method-note">Sin grafica disponible.</p>'}<p class="method-note"><b>Formula:</b> ahorro anual simple = capital x (TER actual - TER propuesto). Efecto compuesto n años = capital x ((1 - TER propuesto)^n - (1 - TER actual)^n).</p></section>
                     ${overviewImage ? `<section class="block"><h2>Mapa global de la propuesta</h2><figure><figcaption>Retorno 5Y vs riesgo 5Y, tamaño por TER</figcaption><img src="${overviewImage}" alt="Mapa global propuesta"></figure></section>` : ''}
                     ${pairSections.join('')}
-                    <footer>Informe generado por Analyzer. Los datos dependen del universo/ranking cargado por el usuario.</footer>
+                    <footer>Informe generado por Santalucía Gestión Patrimonial. Los datos dependen del universo/ranking cargado por el usuario.</footer>
                 </main>`;
             }
 
@@ -5303,6 +5308,7 @@
                 }
                 const parsed = parseAggregatePositionRows(rows);
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
+                OverviewPanel.capturePositions(rows, file.name);
                 renderScoringDataStatus();
                 aggregatePositionsState.notice = parseNotice;
                 aggregateScoringResults = [];
@@ -7187,7 +7193,7 @@
                                 <h1>${p.mode === 'real' ? 'Evolución real de cartera' : 'Backtesting de cartera'}</h1>
                                 <p>${fmtDate(start)} - ${fmtDate(end)}</p>
                             </div>
-                            <div class="stamp">Analyzer</div>
+                            <div class="stamp">Santalucía Gestión Patrimonial</div>
                         </header>
                         <section class="summary">
                             <div><span>Rentabilidad total</span><strong>${fmtPct(metrics.totalRet)}</strong></div>
@@ -7215,7 +7221,7 @@
                             <p>El análisis combina rentabilidad acumulada, crecimiento anualizado, volatilidad y drawdown máximo para evaluar si el riesgo asumido está siendo compensado. El drawdown mide la peor pérdida desde máximos y es clave para valorar tolerancia del cliente y capacidad de permanencia.</p>
                             <p>${p.mode === 'real' ? 'La modalidad real refleja la evolución observada de la cartera aportada en el Excel, por lo que incorpora movimientos, comisiones o cambios ya contenidos en el valor importado.' : 'La modalidad backtest reconstruye la cartera con pesos normalizados y series históricas. Es útil para estudiar comportamiento teórico, pero no sustituye una contabilidad real con operaciones y flujos.'}</p>
                         </section>
-                        <footer>Analyzer · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
+                        <footer>Santalucía Gestión Patrimonial · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
                     </section>
                 </body></html>`;
                     ReportDesign.preview(document.getElementById('portfolioReportPreview'), portfolioReportHtml);
@@ -8000,7 +8006,7 @@
                                 <p>Periodo historico: ${escapeHtml(ReportControls.manager.range)} · fecha de referencia ${new Date(ReportControls.manager.asOf).toISOString().slice(0,10)}${ReportControls.manager.range==='CUSTOM'?` · ${ReportControls.manager.start} / ${ReportControls.manager.end}`:''}</p>
                                 <p>${new Date().toLocaleDateString('es-ES')}</p>
                             </div>
-                            <div class="stamp">Analyzer</div>
+                            <div class="stamp">Santalucía Gestión Patrimonial</div>
                         </header>
                         ${summarySection}
                         ${concentrationSection}
@@ -8011,7 +8017,7 @@
                         ${exposureSection}
                         ${santaSection}
                         ${massiveSections}
-                        <footer>Analyzer · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
+                        <footer>Santalucía Gestión Patrimonial · Generado el ${new Date().toLocaleString('es-ES')}.</footer>
                     </section>
                     </body></html>`;
                     ReportDesign.preview(document.getElementById('managerReportPreview'), managerReportHtml);
@@ -8312,9 +8318,9 @@
 
             function buildTacticalManualHtml() {
                 return `<main class="manual-root">
-                    <h1>Manual táctico y metodología financiera - Analyzer</h1>
+                    <h1>Manual táctico y metodología financiera - Santalucía Gestión Patrimonial</h1>
                     <p class="lead">Documento operativo para comités de inversión, análisis de clientes y revisión auditada de cálculos. El objetivo es explicar qué mide cada módulo, cómo se calcula y qué limitaciones deben considerarse antes de tomar decisiones.</p>
-                    <div class="note"><b>Uso profesional:</b> Analyzer ayuda a estructurar evidencia cuantitativa, pero no sustituye el juicio del asesor ni la validación de datos fuente. Toda recomendación debe contextualizarse con mandato, horizonte, liquidez, fiscalidad y perfil de riesgo del cliente.</div>
+                    <div class="note"><b>Uso profesional:</b> Santalucía Gestión Patrimonial ayuda a estructurar evidencia cuantitativa, pero no sustituye el juicio del asesor ni la validación de datos fuente. Toda recomendación debe contextualizarse con mandato, horizonte, liquidez, fiscalidad y perfil de riesgo del cliente.</div>
                     <h2>1. Flujo de trabajo recomendado</h2>
                     <ol>
                         <li><b>Mercados:</b> revisar régimen de mercado, rentabilidad, volatilidad, drawdown y activos cargados desde Excel.</li>
@@ -8353,7 +8359,7 @@
 
             async function downloadTacticalManualPdf() {
                 const html = tacticalManualStyles() + buildTacticalManualHtml();
-                if (!window.html2pdf) return downloadBlob(`<!doctype html><html><head><meta charset="utf-8">${tacticalManualStyles()}</head><body>${buildTacticalManualHtml()}</body></html>`, 'Manual_Tactico_Analyzer.html', 'text/html;charset=utf-8');
+                if (!window.html2pdf) return downloadBlob(`<!doctype html><html><head><meta charset="utf-8">${tacticalManualStyles()}</head><body>${buildTacticalManualHtml()}</body></html>`, 'Manual_Tactico_Santalucia.html', 'text/html;charset=utf-8');
                 const wrapper = document.createElement('div');
                 wrapper.innerHTML = html;
                 wrapper.style.position = 'fixed';
@@ -8364,7 +8370,7 @@
                 try {
                     await html2pdf().set({
                         margin: [8, 8, 8, 8],
-                        filename: 'Manual_Tactico_Analyzer.pdf',
+                        filename: 'Manual_Tactico_Santalucia.pdf',
                         image: { type: 'jpeg', quality: 0.96 },
                         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -8372,7 +8378,7 @@
                     }).from(wrapper.querySelector('.manual-root')).save();
                 } catch (err) {
                     console.error('manual pdf failed', err);
-                    downloadBlob(`<!doctype html><html><head><meta charset="utf-8">${tacticalManualStyles()}</head><body>${buildTacticalManualHtml()}</body></html>`, 'Manual_Tactico_Analyzer.html', 'text/html;charset=utf-8');
+                    downloadBlob(`<!doctype html><html><head><meta charset="utf-8">${tacticalManualStyles()}</head><body>${buildTacticalManualHtml()}</body></html>`, 'Manual_Tactico_Santalucia.html', 'text/html;charset=utf-8');
                 } finally {
                     wrapper.remove();
                 }
@@ -8395,7 +8401,7 @@
         <div class="container mx-auto p-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es Analyzer?
+                    <i class="fa-solid fa-book text-blue-500"></i> ¿Qué es Santalucía Gestión Patrimonial?
                 </h2>
                 <div class="mb-5 flex flex-wrap gap-2">
                     <button onclick="safeAsyncUiAction('Generando manual táctico...', async () => downloadTacticalManualPdf())" class="px-4 py-2 rounded bg-blue-700 text-white text-sm font-bold hover:bg-blue-800">
@@ -8405,7 +8411,7 @@
 
                 <div class="space-y-4 text-sm text-gray-600 leading-relaxed">
                     <p>
-                        <strong class="text-gray-900">Analyzer v13</strong> es una plataforma avanzada de
+                        <strong class="text-gray-900">Santalucía Gestión Patrimonial</strong> es una plataforma avanzada de
                         análisis financiero y estadístico diseñada para operar enteramente en el lado del cliente (tu
                         navegador). Toda la ejecución de procesamiento y modelos cuantitativos ocurre de manera local,
                         ofreciendo privacidad y alta velocidad de cálculo.
@@ -9577,6 +9583,7 @@
                 // Show section
                 const sec = document.getElementById(`section-${name}`);
                 if (sec) sec.classList.add('active');
+                if (name === 'panel') OverviewPanel.render();
 
                 // Force resize for Plotly responsiveness
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
@@ -9591,9 +9598,9 @@
                     const label = document.getElementById('versionLabel');
                     if (label) label.innerText = `v13 ${ts}`;
                     const title = document.getElementById('docTitle');
-                    if (title) title.innerText = `Analyzer v13 ${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                    if (title) title.innerText = `Santalucía Gestión Patrimonial · v13 ${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
                     // Also update document.title for the browser tab
-                    document.title = title ? title.innerText : `Analyzer v13 ${ts}`;
+                    document.title = title ? title.innerText : `Santalucía Gestión Patrimonial · v13 ${ts}`;
                 } catch (e) { /* no-op */ }
             }
 
@@ -12208,7 +12215,7 @@
                 // 2. Update version label with current date/time
                 updateVersionTimestamp();
                 // Ensure top-level section classes/active buttons are synced
-                switchSection('mercados');
+                switchSection('panel');
             };
         </script>
     </div>

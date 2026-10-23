@@ -1,0 +1,43 @@
+.overview-brand-logo{width:94px;height:38px;object-fit:contain;background:#fff;padding:3px;border-radius:2px}
+#overviewPanel{color:#213243}
+.overview-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;border-bottom:2px solid #1d5c99;padding:0 0 1rem;margin-bottom:1.2rem}
+.overview-heading h2{font-size:1.45rem;font-weight:700;line-height:1.2}
+.overview-heading p,.overview-context,.overview-privacy{font-size:.8rem;color:#607080;line-height:1.55}
+.overview-heading img{width:230px;max-width:35%;height:55px;object-fit:contain;object-position:right center}
+.overview-sources{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #d8e1e8;border-bottom:1px solid #d8e1e8;margin-bottom:.65rem}
+.overview-sources>div{padding:.9rem 1rem;min-width:0;border-right:1px solid #d8e1e8;display:flex;flex-wrap:wrap;align-items:center;gap:.45rem}
+.overview-sources>div:last-child{border-right:0}
+.overview-sources span{font-size:.68rem;color:#627484;text-transform:uppercase;font-weight:700;width:100%}
+.overview-sources strong{font-size:.82rem;min-width:0;overflow-wrap:anywhere;width:100%}
+.overview-sources button,.overview-sources label,.overview-map-form button{border:1px solid #b7c8d7;background:#fff;color:#174d79;padding:.35rem .55rem;font-size:.75rem;font-weight:600;cursor:pointer;border-radius:3px}
+.overview-sources button:hover,.overview-sources label:hover,.overview-map-form button:hover{background:#e9f2f8}
+.overview-privacy{margin:.2rem 0 1rem}.overview-privacy button{color:#15558c;text-decoration:underline}
+.overview-tabs{display:flex;gap:.2rem;overflow-x:auto;border-bottom:1px solid #bdcbd8}
+.overview-tabs button{padding:.7rem .9rem;white-space:nowrap;color:#4e5d6c;font-size:.82rem;font-weight:600;border-bottom:3px solid transparent}
+.overview-tabs button[aria-current="page"]{color:#144f85;border-bottom-color:#145c9d;background:#eef5fa}
+.overview-content{padding:1.2rem 0;min-height:330px}
+.overview-content h3{font-size:1rem;font-weight:700;margin:.6rem 0 .8rem}.overview-content h4{font-size:.88rem;font-weight:700;margin:1.2rem 0 .5rem}
+.overview-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-top:1px solid #d9e2e9;border-bottom:1px solid #d9e2e9;margin-bottom:1rem}
+.overview-metrics>div{padding:.85rem;border-right:1px solid #e1e8ed;min-width:0}.overview-metrics>div:last-child{border-right:0}
+.overview-metrics span{display:block;color:#647789;font-size:.7rem;text-transform:uppercase;font-weight:650}
+.overview-metrics strong{display:block;font-size:1.05rem;color:#153d65;margin-top:.25rem;overflow-wrap:anywhere}
+.overview-metrics.compact{grid-template-columns:repeat(4,minmax(0,1fr))}.overview-metrics.compact strong{font-size:.9rem}
+.overview-warning{border-left:3px solid #b68a24;padding:.55rem .7rem;color:#735511;background:#fdfaf1;font-size:.78rem;margin:.7rem 0 1rem}
+.overview-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.3rem}.overview-chart-grid>div{min-width:0;min-height:340px}
+.overview-scroll{overflow:auto;max-width:100%;border-top:1px solid #d7e1e9;border-bottom:1px solid #d7e1e9}
+.overview-content table{width:100%;border-collapse:collapse;font-size:.76rem;white-space:nowrap}
+.overview-content th{text-align:left;background:#edf3f7;color:#344d63;font-weight:700;position:sticky;top:0;z-index:1}
+.overview-content td,.overview-content th{padding:.56rem .65rem;border-bottom:1px solid #e4e9ed;vertical-align:top}
+.overview-content tbody tr:nth-child(even){background:#f8fafb}.overview-content td.num,.overview-content th.num{text-align:right;font-variant-numeric:tabular-nums}
+.overview-content td small{color:#607080;white-space:normal}.overview-link{color:#145c99;text-decoration:underline;font-weight:650}
+.overview-badge{display:inline-block;padding:.15rem .42rem;border-radius:2px;font-size:.68rem;font-weight:700;white-space:nowrap}
+.overview-ok{background:#e5f3ec;color:#16704a}.overview-bad{background:#fcebec;color:#a6373d}.overview-warn{background:#f5f0e4;color:#856322}
+.overview-layout{display:grid;grid-template-columns:minmax(320px,37%) minmax(0,1fr);gap:1.3rem}.overview-client-list{max-height:850px}.overview-detail{min-width:0}.overview-detail p{font-size:.76rem;color:#596b7b;margin-bottom:1rem}
+.overview-search{display:flex;align-items:center;gap:.6rem;font-size:.76rem;margin-bottom:.8rem}.overview-search input,.overview-map-form input,.overview-map-form select{border:1px solid #bac8d3;background:#fff;padding:.38rem .5rem;border-radius:2px;min-width:0}
+.overview-search input{width:min(320px,100%)}.overview-map-form{display:flex;align-items:center;gap:.4rem}.overview-map-form input{width:210px}.overview-map-form select{width:95px}
+.overview-cash{display:flex;align-items:center;gap:.6rem;font-size:.76rem;font-weight:650;margin:.8rem 0 .2rem}.overview-cash input{width:130px;border:1px solid #bac8d3;background:#fff;padding:.35rem .5rem;border-radius:2px}
+.overview-suggestions{background:#195995;color:white;font-size:.76rem;font-weight:700;padding:.45rem .65rem;border-radius:3px;margin:.5rem 0 .8rem}.overview-suggestions:hover{background:#124771}
+.overview-presence{margin-top:1.4rem;border-top:2px solid #c9d9e4;padding-top:.8rem}.overview-presence>div{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}.overview-presence section{min-width:0}.overview-presence ul{max-height:330px;overflow:auto;columns:2;font-size:.75rem}.overview-presence li{break-inside:avoid;padding:.25rem 0;border-bottom:1px solid #e3eaef}.overview-presence small{color:#697988}
+.overview-status{color:#9c3030;font-size:.79rem;margin-top:.8rem}
+@media(max-width:1000px){.overview-metrics{grid-template-columns:repeat(3,1fr)}.overview-layout,.overview-chart-grid{grid-template-columns:1fr}.overview-heading img{width:170px}}
+@media(max-width:650px){.overview-sources{grid-template-columns:1fr}.overview-sources>div{border-right:0;border-bottom:1px solid #d8e1e8}.overview-metrics,.overview-metrics.compact{grid-template-columns:repeat(2,1fr)}.overview-heading h2{font-size:1.1rem}.overview-heading img{width:105px;height:40px}.overview-content{padding:.7rem 0}.overview-map-form{min-width:390px}.overview-presence>div{grid-template-columns:1fr}.overview-presence ul{columns:1}}
