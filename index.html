@@ -5277,6 +5277,7 @@
                 const status = document.getElementById('aggregatePositionsStatus');
                 if (status) status.innerText = 'Leyendo posiciones...';
                 let rows = [];
+                let workbook = null;
                 let parseNotice = '';
                 const textCache = new Map();
                 const readText = async (f) => {
@@ -5285,8 +5286,10 @@
                     return textCache.get(f.name);
                 };
                 try {
-                    const workbook = await readWorkbook(file);
-                    rows = bestRowsByDetectedHeader(workbook, ['isin', 'instrument']);
+                    workbook = await readWorkbook(file);
+                    const categorySheet = findSheet(workbook, ['Categorización', 'Categorizacion']);
+                    const positionSheets = workbook.SheetNames.filter(name => name !== categorySheet);
+                    rows = bestRowsByDetectedHeader({ ...workbook, SheetNames: positionSheets }, ['isin', 'instrument']);
                 } catch (e) {
                     console.warn('aggregate positions workbook parse failed', e);
                 }
@@ -5309,6 +5312,7 @@
                 const parsed = parseAggregatePositionRows(rows);
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
                 OverviewPanel.capturePositions(rows, file.name);
+                if (workbook && findSheet(workbook, ['Categorización', 'Categorizacion'])) OverviewPanel.loadCategoriesWorkbook(workbook, file.name);
                 renderScoringDataStatus();
                 aggregatePositionsState.notice = parseNotice;
                 aggregateScoringResults = [];

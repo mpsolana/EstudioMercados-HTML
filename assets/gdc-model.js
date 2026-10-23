@@ -42,6 +42,17 @@ const GdcModel=(()=>{
     function benchmarkSeries(ticker){const item=Object.entries(state.benchmarks).find(([key])=>key.toUpperCase()===ticker.toUpperCase())?.[1]||Object.entries(loadedPortfolio?.benchmarks||{}).find(([key])=>key.toUpperCase()===ticker.toUpperCase())?.[1];return item?.data||item||[];}
     function benchmarkStats(ticker){const points=benchmarkSeries(ticker),cached=indexStatsCache.get(ticker);if(cached?.points===points)return cached.stats;const stats=core.indexStatistics(points);indexStatsCache.set(ticker,{points,stats});return stats;}
     function rfProfile(modelItem){return core.rfSummary(modelItem,benchmarkTickers,state.rfMetrics);}
+    function setRfMetric(key,field,value){
+        if(!/^[BF]:[A-Z0-9]+$/.test(key)||!['duration','ytm'].includes(field)||value!==null&&(!Number.isFinite(value)||field==='duration'&&value<0))throw new Error('Duración o YTM no válida.');
+        state.rfMetrics[key]={...state.rfMetrics[key],[field]:value};invalidateReport();renderRf();
+    }
+    function mergeRfMetrics(entries){
+        for(const [key,item] of entries){
+            if(!/^[BF]:[A-Z0-9]+$/.test(key))continue;
+            state.rfMetrics[key]={...state.rfMetrics[key],...(Number.isFinite(item.duration)&&item.duration>=0?{duration:item.duration}:{}),...(Number.isFinite(item.ytm)?{ytm:item.ytm}:{})};
+        }
+        invalidateReport();renderRf();
+    }
     function records(){return fundUniverseState?.records||[];}
     function shortlist(row){
         const source=records();if(source!==rankSource){rankSource=source;rankingCache.clear();universeCache.clear();peerIndex=null;}
@@ -769,7 +780,7 @@ const GdcModel=(()=>{
             else if(el.dataset.gdcScoreClass!==undefined){const isin=el.dataset.gdcScoreClass;if(el.value)state.scoreClassByIsin[isin]=el.value;else delete state.scoreClassByIsin[isin];invalidateReport();render();}
             else if(el.id==='gdcRiskFree'){const value=Number(String(el.value).replace(',','.'));if(Number.isFinite(value)){state.riskFreePct=value;invalidateReport();renderExpected();}}
             else if(el.dataset.gdcExpectedReturn!==undefined||el.dataset.gdcExpectedRisk!==undefined){const ticker=el.dataset.gdcExpectedReturn??el.dataset.gdcExpectedRisk;const key=el.dataset.gdcExpectedReturn!==undefined?'returnPct':'riskPct',value=el.value===''?null:Number(String(el.value).replace(',','.'));if(value!==null&&(!Number.isFinite(value)||key==='riskPct'&&value<0)){panel.querySelector('#gdcStatus').textContent='Introduce un supuesto numérico válido.';return;}state.expected[ticker]={...state.expected[ticker],[key]:value};invalidateReport();renderExpected();}
-            else if(el.dataset.gdcRfDuration!==undefined||el.dataset.gdcRfYtm!==undefined){const id=el.dataset.gdcRfDuration??el.dataset.gdcRfYtm,key=el.dataset.gdcRfDuration!==undefined?'duration':'ytm',value=el.value===''?null:Number(String(el.value).replace(',','.'));if(value!==null&&(!Number.isFinite(value)||key==='duration'&&value<0)){panel.querySelector('#gdcStatus').textContent='Introduce una duración o YTM válida.';return;}state.rfMetrics[id]={...state.rfMetrics[id],[key]:value};invalidateReport();renderRf();}
+            else if(el.dataset.gdcRfDuration!==undefined||el.dataset.gdcRfYtm!==undefined){const id=el.dataset.gdcRfDuration??el.dataset.gdcRfYtm,key=el.dataset.gdcRfDuration!==undefined?'duration':'ytm',value=el.value===''?null:Number(String(el.value).replace(',','.'));try{setRfMetric(id,key,value);}catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}}
             else if(el.dataset.gdcShareCurrent!==undefined)shareWithProfiles(Number(el.dataset.gdcShareCurrent),'current',el.checked);
             else if(el.dataset.gdcShareProposal!==undefined)shareWithProfiles(Number(el.dataset.gdcShareProposal),'proposal',el.checked);
             else if(el.dataset.gdcView!==undefined){const row=committeeCategories()[Number(el.dataset.gdcView)];if(row){const key=core.key(row.generic);state.views[key]={...state.views[key],view:el.value};invalidateReport();renderViewTable();refreshViewIndicators();}}
@@ -783,5 +794,5 @@ const GdcModel=(()=>{
         panel.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.gdcAdd!==undefined)addPosition(Number(button.dataset.gdcAdd));else if(button.dataset.gdcRemove!==undefined){const [index,slot]=button.dataset.gdcRemove.split(':').map(Number);removePosition(index,slot);}});
         render();
     }
-    return {init,loadWorkbook,loadPriorWorkbook,exportExcel,plotForecast,forecastPoints,render,select,current,scoredFund,switchMode,committeeReportHtml,fundCount,state};
+    return {init,loadWorkbook,loadPriorWorkbook,exportExcel,plotForecast,forecastPoints,render,select,current,scoredFund,switchMode,committeeReportHtml,fundCount,rfProfile,benchmarkTickers,setRfMetric,mergeRfMetrics,state};
 })();

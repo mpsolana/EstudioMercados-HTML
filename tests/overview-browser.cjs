@@ -36,7 +36,7 @@ const assert=require('node:assert/strict');
             finally{XLSX.writeFile=original;}
             return {sheets:output.SheetNames,rows:XLSX.utils.sheet_to_json(output.Sheets['Categorización'])};
         });
-        assert.deepEqual(categoryExport.sheets,['Categorización']);
+        assert.deepEqual(categoryExport.sheets,['Categorización','Renta fija']);
         assert.equal(categoryExport.rows.length,2);
         assert.equal(categoryExport.rows[0]['Tipo Activo'],'RENTA VARIABLE');
         assert.equal(categoryExport.rows[0]['TIPO ACTIVO +'],'RV Global');
@@ -46,9 +46,10 @@ const assert=require('node:assert/strict');
         await page.evaluate(()=>{
             GdcModel.state.mode='GDC';
             GdcModel.state.models=[{name:'Equilibrado',profile:'equilibrado',rows:[
-                {generic:'RV Global',weight:35,portfolioWeight:45,assetType:'RV'},
-                {generic:'RF Europa',weight:65,portfolioWeight:55,assetType:'RF'}
+                {generic:'RV Global',weight:35,portfolioWeight:45,assetType:'RV',currentPositions:[],proposedPositions:[],subcategories:[]},
+                {generic:'RF Europa',weight:65,portfolioWeight:55,assetType:'RF',benchmarkTicker:'BTEST',currentPositions:[],proposedPositions:[{isin:'ES0000000002',share:100}],subcategories:[]}
             ]}];
+            GdcModel.state.rfMetrics={'F:ES0000000002':{ytm:4.2,duration:3},'B:BTEST':{ytm:3.8,duration:2.5}};
             OverviewPanel.render();
         });
         assert.ok(await page.locator('#overviewTreemapChart .js-plotly-plot').count()||await page.locator('#overviewTreemapChart svg').count());
@@ -59,13 +60,38 @@ const assert=require('node:assert/strict');
         assert.ok(await page.locator('#overviewCompareChart .js-plotly-plot').count()||await page.locator('#overviewCompareChart svg').count());
         assert.ok(await page.locator('#overviewAssetDonut .js-plotly-plot').count()||await page.locator('#overviewAssetDonut svg').count());
         assert.ok(await page.locator('#overviewCurrencyDonut .js-plotly-plot').count()||await page.locator('#overviewCurrencyDonut svg').count());
+        assert.ok((await page.locator('.overview-detail').innerText()).includes('4.20%'));
+        assert.ok((await page.locator('.overview-detail').innerText()).includes('3.80%'));
+        assert.ok((await page.locator('.overview-group').allInnerTexts()).some(text=>text.includes('RENTA FIJA')));
         assert.equal(await page.locator('.overview-brandbar').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
         await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-desktop.png')});
         await page.setViewportSize({width:390,height:844});
         await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-mobile.png')});
+        await page.setViewportSize({width:1440,height:900});
+        await page.evaluate(()=>window.scrollTo(0,0));
         await page.locator('[data-tab="funds"]').click();
+        await page.locator('[data-fund-sort]').selectOption('accounts');
+        await page.locator('[data-fund-type]').selectOption('RF');
+        assert.equal(await page.locator('[data-fund]').count(),1);
+        await page.locator('[data-fund-type]').selectOption('all');
         await page.locator('[data-fund="ES0000000001"]').click();
         assert.ok((await page.locator('.overview-presence').innerText()).includes('No lo tienen'));
+        assert.ok((await page.locator('.overview-presence').innerText()).includes('44.44%'));
+        await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-funds.png')});
+        await page.locator('[data-tab="categories"]').click();
+        await page.locator('[data-category-view="rf"]').click();
+        await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-rf.png')});
+        const ytm=page.locator('[data-overview-rf="F:ES0000000002"][data-rf-field="ytm"]');
+        await ytm.fill('4.5');await ytm.dispatchEvent('change');
+        assert.equal(await page.evaluate(()=>GdcModel.state.rfMetrics['F:ES0000000002'].ytm),4.5);
+        const rfExport=await page.evaluate(()=>{const previous=XLSX.writeFile;let book;try{XLSX.writeFile=value=>{book=value;};OverviewPanel.exportCategories();}finally{XLSX.writeFile=previous;}return XLSX.utils.sheet_to_json(book.Sheets['Renta fija']);});
+        assert.equal(rfExport.find(row=>row.Identificador==='ES0000000002')['YTM (%)'],4.5);
+        const importedRf=await page.evaluate(async()=>{const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['ISIN','Tipo Activo','TIPO ACTIVO +'],['ES0000000001','RENTA VARIABLE','RV Global'],['ES0000000002','RENTA FIJA','RF Europa']]),'Categorización');XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Tipo','Identificador','Nombre','Duracion modificada (anos)','YTM (%)'],['FONDO','ES0000000002','Fondo B',4,6.1]]),'Renta fija');await OverviewPanel.importCategories(new File([XLSX.write(book,{type:'array',bookType:'xlsx'})],'comite.xlsx'));return GdcModel.state.rfMetrics['F:ES0000000002'];});
+        assert.equal(importedRf.ytm,6.1);
+        assert.equal(importedRf.duration,4);
+        await page.locator('[data-tab="validity"]').click();
+        await page.locator('[data-validity-type]').selectOption('kyc');
+        assert.ok((await page.locator('.overview-validity-group').innerText()).includes('KYC'));
         if(process.env.OVERVIEW_POSITIONS_FILE&&process.env.OVERVIEW_CONTROL_FILE){
             await page.locator('#aggregatePositionsFileInput').setInputFiles(process.env.OVERVIEW_POSITIONS_FILE);
             await page.waitForFunction(()=>OverviewPanel.state.positionsFile!==''&&OverviewPanel.state.positionsFile!=='posiciones-prueba.xlsx',null,{timeout:90000});
@@ -75,8 +101,19 @@ const assert=require('node:assert/strict');
             assert.ok(audit.accounts>=40,'El fichero real perdió cuentas en la importación.');
             assert.ok(audit.matched>=35,'El fichero real no cruza con el control de clientes.');
             assert.equal(audit.unverified,audit.accounts,'Con categorización sintética no debe aprobarse ningún límite del fichero real.');
-            process.stdout.write(`Cruce real validado: ${audit.matched}/${audit.accounts} cuentas; límites sin verificar hasta categorizar.\n`);
+            process.stdout.write(`Cruce real validado: ${audit.matched}/${audit.accounts} cuentas; límites sin verificar sin efectivo confirmado y cobertura completa.\n`);
         }
+        await page.evaluate(()=>OverviewPanel.capturePositions([{'ISIN':'US0000000001','ACCOUNT':'Directa','INVERSIS ACCOUNT NUMBER':'A-DIRECTA','INSTRUMENT':'Acción directa','PRODUCT TYPE':'RENTA VARIABLE Y ETFs','TYPE OF ASSET':'ACCIONES INTERNACIONALES','DIV INSTITUTION COUNTER VALUE':100}],'directa.xlsx'));
+        await page.locator('[data-tab="categories"]').click();await page.locator('[data-category-view="mapping"]').click();
+        assert.ok((await page.locator('.overview-content').innerText()).includes('Tipo de activo en posiciones'));
+        const combined=await page.evaluate(async()=>{
+            const book=XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['ISIN','INSTRUMENT','ACCOUNT','INVERSIS ACCOUNT NUMBER','PRODUCT TYPE','TYPE OF ASSET','DIV INSTITUTION COUNTER VALUE'],['ES0000000010','Fondo combinado','Cuenta combinada','A-COMBINADA','FONDOS DE INVERSION','FONDOS INTERNACIONALES',100]]),'Posiciones');
+            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['ISIN','INSTRUMENTO','Tipo Activo','TIPO ACTIVO +'],['ES0000000010','Fondo combinado','RENTA FIJA','RF Europa']]),'Categorización');
+            await importAggregatePositionsFile([new File([XLSX.write(book,{type:'array',bookType:'xlsx'})],'combinado.xlsx')]);
+            return {file:OverviewPanel.state.categoryFile,category:OverviewPanel.state.categories.get('ES0000000010')?.generic,positions:OverviewPanel.state.positions.length};
+        });
+        assert.deepEqual(combined,{file:'combinado.xlsx',category:'RF Europa',positions:1});
         process.stdout.write('Panel: neteo, control, categorización, banda y vistas desktop/mobile OK.\n');
     }finally{await browser.close();}
 })().catch(error=>{process.stderr.write(error.stack+'\n');process.exitCode=1;});

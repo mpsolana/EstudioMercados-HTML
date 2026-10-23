@@ -27,14 +27,31 @@ test('out-of-band positions and ambiguous account matches are explicit',()=>{
     assert.equal(result.accounts[0].limit,'excede máximo');
     assert.equal(result.accounts[0].bandPosition,200);
     assert.equal(Core.analyze({positions,clients:[...clients,{account:'A',profile:'Prudente',cash:0,documents:[]}],categories}).accounts[0].limit,'sin verificar');
+    const estimated=Core.analyze({positions,clients:[{account:'A',profile:'Equilibrado',documents:[]}],categories}).accounts[0];
+    assert.equal(estimated.limit,'sin verificar');
+    assert.equal(estimated.bandPosition,200);
 });
 
 test('missing cash never passes a limit; explicit zero cash can validate it',()=>{
     const positions=[p('A','ES0000000001',40),p('A','ES0000000002',60)];
     const clients=[{account:'A',profile:'Equilibrado',documents:[]}];
     const categories=[{isin:'ES0000000001',generic:'RV',type:'RV'},{isin:'ES0000000002',generic:'RF',type:'RF'}];
-    assert.equal(Core.analyze({positions,clients,categories}).accounts[0].limit,'sin verificar');
+    const pending=Core.analyze({positions,clients,categories}).accounts[0];
+    assert.equal(pending.limit,'sin verificar');
+    assert.equal(pending.bandPosition,50);
+    assert.deepEqual(pending.limitReasons,['efectivo pendiente']);
     assert.equal(Core.analyze({positions,clients,categories,cashByAccount:{A:0}}).accounts[0].limit,'dentro');
+});
+
+test('RF YTM and duration use only the RF sleeve and require complete coverage',()=>{
+    const rows=[{...p('A','RFONE',300),classification:{type:'RF'}},{...p('A','RFTWO',200),classification:{type:'RF'}},{...p('A','RVONE',500),classification:{type:'RV'}}];
+    const partial=Core.rfWeighted(rows,{'F:RFONE':{ytm:4,duration:2}});
+    assert.equal(partial.coverage,0.6);
+    assert.ok(Number.isNaN(partial.ytm));
+    const full=Core.rfWeighted(rows,{'F:RFONE':{ytm:4,duration:2},'F:RFTWO':{ytm:6,duration:5}});
+    assert.equal(full.ytm,4.8);
+    assert.equal(full.duration,3.2);
+    assert.equal(full.coverage,1);
 });
 
 test('document and renewal windows use the current date, not cached Excel labels',()=>{
