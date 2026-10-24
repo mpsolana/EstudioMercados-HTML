@@ -18,6 +18,7 @@
     <script src="assets/proposal-charts.js"></script>
     <script src="assets/simulation-engine.js"></script>
     <script src="assets/market-data.js"></script>
+    <script src="assets/market-drawdown.js"></script>
     <script src="assets/fund-selector.js"></script>
     <script src="assets/report-design.js"></script>
     <script src="assets/initial-analysis.js"></script>
@@ -209,6 +210,11 @@
                         class="px-4 py-2 bg-sky-600 text-white rounded-md shadow hover:bg-sky-700">Cargar
                         Mercados</button>
                 </div>
+                <section class="bg-white border border-slate-200 p-5" aria-label="Drawdown y recuperación">
+                    <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-bold text-slate-800">Drawdown y recuperación</h2><label class="text-sm text-slate-600">Universo <select id="marketDrawdownGroup" class="border border-slate-300 bg-white p-2" onchange="renderMarketDrawdown()"><option value="indices">Índices RV</option><option value="assets">Clases de activo</option><option value="currencies">Divisas contra EUR</option></select></label></div>
+                    <p id="marketDrawdownNote" class="text-xs text-slate-500 mt-2">Pulsa «Cargar Mercados» para calcular las series.</p>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4"><div id="marketDrawdownScatter" class="min-w-0"></div><div id="marketDrawdownHistory" class="min-w-0"></div></div>
+                </section>
                 <!-- INDICES MUNDIALES (movido desde la pestaña interna) -->
                 <!-- SECCION 1: INDICES MUNDIALES -->
                 <div class="space-y-6">
@@ -9500,6 +9506,7 @@
                     filterMarketsSection('assets', 'YTD');
                     updateStatus('Descargando volatilidad y divisas (10 años)...');
                     await loadMarketsExtras();
+                    renderMarketDrawdown();
                     updateStatus('Datos de mercados cargados.');
                 } catch (e) {
                     console.error('Error cargando mercados:', e);
@@ -9511,6 +9518,10 @@
             const currencyTickers = [
                 'EURUSD=X', 'EURGBP=X', 'EURJPY=X', 'EURCHF=X', 'EURCAD=X', 'EURSEK=X', 'EURHUF=X'
             ];
+            function renderMarketDrawdown(){
+                const listed=(catalog,series)=>catalog.map(item=>({ticker:item.s,name:item.n||item.s,data:series[item.s]||[]}));
+                MarketDrawdown.render({indices:listed(marketIndices,globalIndicesData),assets:listed(assetClasses,globalAssetsData),currencies:currencyTickers.map(ticker=>({ticker,name:ticker.replace('=X',''),data:globalCurrenciesData[ticker]||[]}))});
+            }
 
             // Load VIX, MOVE and currencies for markets section
             async function loadMarketsExtras() {

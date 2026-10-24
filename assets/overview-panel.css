@@ -1,4 +1,7 @@
 body>nav.overview-brandbar{background:#fff!important;color:#075aa3!important;border-bottom:1px solid #d8e4ef!important}body>nav.overview-brandbar h1{color:#075aa3!important}body>nav.overview-brandbar #versionLabel{color:#63798b}
+#marketsContent>div:has(#marketsPortfolioAssetsInput){display:none}
+#overviewPanel [data-load-yahoo-assets]{border:1px solid #145c9d;background:#145c9d;color:#fff;padding:.5rem .8rem;margin:.6rem 0;cursor:pointer}
+#overviewPanel [data-yahoo-isin]{min-width:135px;max-width:180px;border:1px solid #bed0de;padding:.35rem}
 body>nav.overview-brandbar+div{background:#edf3f8!important;border-bottom:1px solid #cedbe6;box-shadow:none!important}body>nav.overview-brandbar+div .top-nav-btn{color:#344f65!important;background:transparent!important}body>nav.overview-brandbar+div .top-nav-btn:hover{background:#e3edf5!important;color:#075aa3!important}body>nav.overview-brandbar+div .top-nav-btn.active{background:#fff!important;color:#075aa3!important;border-bottom-color:#075aa3!important}
 .overview-brand-logo{width:94px;height:38px;object-fit:contain;background:#fff;padding:3px;border-radius:2px}
 #overviewPanel{color:#213243}
