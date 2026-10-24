@@ -332,7 +332,7 @@ const GdcModel=(()=>{
         if(!panel)return;const selected=model();
         panel.querySelector('.workspace-heading h3').textContent=`Cartera modelo ${modePrefix()}`;
         panel.querySelectorAll('[data-gdc-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.gdcMode===state.mode)));
-        panel.querySelector('#giciImport').hidden=state.mode!=='GICI';
+        panel.querySelector('#giciImport').hidden=true;
         panel.querySelector('.gdc-allocation-sticky').hidden=!selected;
         if(rankSource&&rankSource!==records())invalidateReport();
         panel.querySelector('#gdcModels').innerHTML=state.models.map((item,index)=>`<option value="${index}" ${index===state.selected?'selected':''}>${esc(item.name)}</option>`).join('');
@@ -756,7 +756,7 @@ const GdcModel=(()=>{
         panel.querySelector('#gdcHistoryPdf').addEventListener('click',async()=>{try{await ReportDesign.downloadPdf(await historicalReport(),`${modePrefix()}_comparativa_${model().name.replace(/[^a-z0-9_-]/gi,'_')}.pdf`);}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
         panel.querySelector('#gdcHistoryExcel').addEventListener('click',()=>{try{exportHistoryExcel();}catch(error){panel.querySelector('#gdcHistoryStatus').textContent=error.message;}});
         panel.querySelector('#gdcPriorFile').addEventListener('change',importPriorFile);
-        panel.querySelector('#giciPriorFile').addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;try{loadPriorWorkbook(await readWorkbook(file));state.source=file.name;render();panel.querySelector('#gdcStatus').textContent=`Comité GICI importado: ${file.name}`;}catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}});
+        document.getElementById('giciPriorFile').addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;try{const workbook=await readWorkbook(file),typeSheet=findSheet(workbook,['Tipo Modelo']),tag=typeSheet?String(XLSX.utils.sheet_to_json(workbook.Sheets[typeSheet])[0]?.Tipo||'').toUpperCase():'';if(tag!=='GICI'&&!findSheet(workbook,['GICI Estado']))throw new Error('El archivo no corresponde a un comité GICI.');switchMode('GICI');loadPriorWorkbook(workbook);state.source=file.name;render();document.getElementById('scoringDataStatus-gici').textContent=file.name;panel.querySelector('#gdcStatus').textContent=`Comité GICI importado: ${file.name}`;}catch(error){document.getElementById('scoringDataStatus-gici').textContent=`Error: ${error.message}`;panel.querySelector('#gdcStatus').textContent=error.message;}finally{event.target.value='';}});
         panel.querySelectorAll('[data-gdc-mode]').forEach(button=>button.addEventListener('click',()=>switchMode(button.dataset.gdcMode)));
         panel.querySelector('#gdcCommitteeDate').addEventListener('change',event=>{state.committeeDate=event.target.value;invalidateReport();});
         panel.querySelector('#gdcModels').addEventListener('change',event=>{state.selected=Number(event.target.value);invalidateReport();render();});

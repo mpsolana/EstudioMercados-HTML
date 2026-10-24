@@ -1,10 +1,11 @@
 const OverviewPanel=(()=>{
-    const state={positions:[],clients:[],categories:new Map(),cashOverrides:new Map(),positionsFile:'',controlFile:'',categoryFile:'',categoryDirty:false,tab:'summary',categoryView:'mapping',selected:'',selectedFund:'',search:'',fundSort:'amount',fundType:'all',fundProduct:'all',validityType:'all',validityStatus:'all'};
+    const state={positions:[],clients:[],categories:new Map(),cashOverrides:new Map(),balanceLinks:{},balances:[],balanceFile:'',balanceDate:null,positionsDate:null,fxRates:{},fxSource:{},includeCash:true,bands:{muy_conservador:[0,15],prudente:[15,30],equilibrado:[30,50],decidido:[50,75],muy_arriesgado:[75,100]},houseFunds:new Map(),positionsFile:'',controlFile:'',categoryFile:'',categoryDirty:false,tab:'summary',categoryView:'mapping',selected:'',selectedFund:'',search:'',fundSort:'amount',fundType:'all',fundProduct:'all',validityType:'all'};
     const esc=value=>escapeHtml(String(value??''));
     const money=value=>Number.isFinite(value)?new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(value):'—';
     const pct=value=>Number.isFinite(value)?`${value.toFixed(2)}%`:'—';
     const date=value=>value instanceof Date&&Number.isFinite(+value)?value.toLocaleDateString('es-ES'):'—';
     const toDate=value=>parseExcelDate(value);
+    const fileDate=name=>{const match=String(name||'').match(/(?:^|\D)(\d{2})(\d{2})(20\d{2})(?:\D|$)/);if(!match)return null;const date=new Date(+match[3],+match[2]-1,+match[1]);return date.getFullYear()===+match[3]&&date.getMonth()===+match[2]-1&&date.getDate()===+match[1]?date:null;};
     const plusMonths=(value,months)=>{const start=toDate(value);if(!start||!Number.isFinite(months)||months<=0)return null;const first=new Date(start.getFullYear(),start.getMonth()+months,1),lastDay=new Date(first.getFullYear(),first.getMonth()+1,0).getDate();return new Date(first.getFullYear(),first.getMonth(),Math.min(start.getDate(),lastDay));};
     const modelsByOrg=()=>Object.fromEntries(['GDC','GICI'].map(org=>[org,GdcModel.state.mode===org?GdcModel.state.models:GdcModel.state.scopes[org]?.models||[]]));
     const categoryType=value=>{const text=OverviewCore.key(value);return text==='rv'||text==='renta variable'?'RV':text==='rf'||text==='renta fija'?'RF':text==='otros'?'Otros':'';};
@@ -27,7 +28,7 @@ const OverviewPanel=(()=>{
         return known;
     }
     function capturePositions(rows,fileName){
-        state.cashOverrides.clear();state.selectedFund='';
+        state.cashOverrides.clear();state.balanceLinks={};state.selectedFund='';
         const parsed=(rows||[]).map(row=>({
             isin:normalizeIsin(looseRowValue(row,['ISIN','Ticker','Código ISIN'])),
             account:String(looseRowValue(row,['INVERSIS ACCOUNT NUMBER','Número cuenta Inversis','ACCOUNT','Cuenta'])||'').trim(),
@@ -45,7 +46,7 @@ const OverviewPanel=(()=>{
             if(!prior.name&&row.name)prior.name=row.name;
         }
         state.positions=[...net.values()].filter(row=>!Number.isFinite(row.amount)||row.amount>0.005);
-        state.positionsFile=fileName;render();
+        state.positionsFile=fileName;state.positionsDate=fileDate(fileName);render();
     }
     function controlRows(workbook){
         const sheet=findSheet(workbook,['Control DNI & TEST']);
@@ -58,8 +59,8 @@ const OverviewPanel=(()=>{
         return grid.slice(3).map(row=>{
             const account=String(row[2]||'').trim(),code=String(row[60]||'').trim();
             if(!account&&!code)return null;
-            return {account,code,name:String(row[1]||code||account).trim(),organization:String(row[55]||'').trim().toUpperCase(),profile:String(row[49]||'').trim(),cash:parseRankingNumber(row[40]),reportedAum:parseRankingNumber(row[63]),
-                documents:docs.filter(([,documentIndex,expiryIndex])=>row[documentIndex]||row[expiryIndex]).map(([role,documentIndex,expiryIndex])=>({role,present:Boolean(row[documentIndex]),expiry:toDate(row[expiryIndex])})),
+            return {account,code,name:String(row[1]||code||account).trim(),organization:String(row[55]||'').trim().toUpperCase(),profile:String(row[49]||'').trim(),commission:exposure(row[57]),reportedAum:parseRankingNumber(row[63]),qualitative:[['Estado',row[3]],['Resultado test',row[48]],['Condiciones',row[59]],['Control tarifas',row[56]],['Grupo familiar',row[53]],['Empleado',row[62]]].filter(([,value])=>value!==null&&value!==undefined&&String(value).trim()!==''),
+                documents:docs.filter(([role,documentIndex,expiryIndex])=>role==='Titular'||row[documentIndex-1]||row[documentIndex]||row[expiryIndex]).map(([role,documentIndex,expiryIndex])=>({role,present:Boolean(row[documentIndex]),expiry:toDate(row[expiryIndex])})),
                 kycExpiry:plusMonths(row[43],Number(row[45])),suitabilityExpiry:toDate(row[46]),esgExpiry:toDate(row[50]),birthday:toDate(row[64])};
         }).filter(Boolean);
     }
@@ -71,6 +72,28 @@ const OverviewPanel=(()=>{
     async function importCategories(file){
         if(!file)return;
         return loadCategoriesWorkbook(await readWorkbook(file),file.name);
+    }
+    async function importBalances(file){
+        if(!file)return;
+        const workbook=await readWorkbook(file),sheet=workbook.SheetNames[0];
+        const rows=sheetRowsFromHeader(workbook,sheet);
+        if(!rows.length||!Object.keys(rows[0]).includes('TRANSACTIONAL ACCOUNT')||!Object.keys(rows[0]).includes('BALANCE'))throw new Error('Saldos: faltan TRANSACTIONAL ACCOUNT o BALANCE.');
+        state.balances=OverviewCore.parseBalanceRows(rows.map(row=>({...row,BALANCE:exposure(row.BALANCE)})));state.balanceLinks={};state.balanceFile=file.name;
+        const currencies=[...new Set(state.balances.filter(row=>row.amount!==0&&row.currency!=='EUR').map(row=>row.currency))];
+        const dates=state.balances.map(row=>toDate(row.date)).filter(Boolean);
+        state.balanceDate=dates.length&&dates.every(value=>value.toDateString()===dates[0].toDateString())?dates[0]:null;
+        const asOf=dates.length?new Date(Math.min(...dates.map(Number))):new Date();
+        const start=new Date(asOf);start.setDate(start.getDate()-14);
+        const end=new Date(asOf);end.setDate(end.getDate()+2);
+        await Promise.all(currencies.filter(currency=>!Number.isFinite(state.fxRates[currency])).map(async currency=>{
+            try{
+                const prices=await MarketData.prices(`EUR${currency}=X`,start.toISOString().slice(0,10),end.toISOString().slice(0,10));
+                const available=prices.filter(point=>point.date<=asOf),last=available.at(-1);
+                if(!last)throw new Error('Sin precio anterior a la fecha de saldo');
+                state.fxRates[currency]=last.price;state.fxSource[currency]=`Yahoo · ${last.date.toLocaleDateString('es-ES')}`;
+            }catch(error){state.fxSource[currency]=`Pendiente: ${error.message}`;}
+        }));
+        render();
     }
     function loadCategoriesWorkbook(workbook,fileName){
         const sheet=findSheet(workbook,['Categorización','Categorizacion']);
@@ -90,6 +113,19 @@ const OverviewPanel=(()=>{
             GdcModel.mergeRfMetrics(entries);render();
         }
         else render();
+        const bandSheet=findSheet(workbook,['Limites RV','Límites RV']);
+        if(bandSheet){state.bands={muy_conservador:[0,15],prudente:[15,30],equilibrado:[30,50],decidido:[50,75],muy_arriesgado:[75,100]};for(const row of sheetRowsFromHeader(workbook,bandSheet)){
+            const profile=ModelPortfolioCore.profile(looseRowValue(row,['Perfil','PERFILES DE']));
+            const low=exposure(looseRowValue(row,['Banda inferior','Min RV'])),high=exposure(looseRowValue(row,['Banda superior','Max RV']));
+            if(profile&&Number.isFinite(low)&&Number.isFinite(high)&&low>=0&&high<=100&&low<high)state.bands[profile]=[low,high];
+        }}
+        const houseSheet=findSheet(workbook,['Fondos Santalucia','Fondos de la casa']);
+        if(houseSheet){state.houseFunds=new Map();for(const row of sheetRowsFromHeader(workbook,houseSheet)){
+            const isin=normalizeIsin(looseRowValue(row,['ISIN']));if(!isin)continue;
+            const flag=OverviewCore.key(looseRowValue(row,['Es fondo casa','Fondo casa']));
+            state.houseFunds.set(isin,{house:['si','sí','1','true'].includes(flag)?true:['no','0','false'].includes(flag)?false:null,ter:exposure(looseRowValue(row,['TER (%)','TER']))});
+        }}
+        render();
     }
     function exportCategories(){
         if(!window.XLSX)throw new Error('No se ha cargado XLSX.');
@@ -100,6 +136,10 @@ const OverviewPanel=(()=>{
         XLSX.utils.book_append_sheet(workbook,sheet,'Categorización');
         const rfRows=[['Tipo','Identificador','Nombre','Duracion modificada (anos)','YTM (%)'],...[...rfInventory(data())].sort(([a],[b])=>a.localeCompare(b)).map(([key,fund])=>{const item=GdcModel.state.rfMetrics[key]||{},identifier=key.slice(2),name=fund?.name||GdcModel.state.fundNames[identifier]||GdcModel.state.benchmarkMeta[identifier]?.name||fundUniverseState?.isinIndex?.get(identifier)?.name||'';return [key.startsWith('B:')?'INDICE':'FONDO',identifier,name,Number.isFinite(item.duration)?item.duration:'',Number.isFinite(item.ytm)?item.ytm:''];})];
         const rfSheet=XLSX.utils.aoa_to_sheet(rfRows);rfSheet['!autofilter']={ref:`A1:E${rfRows.length}`};rfSheet['!cols']=[14,22,44,27,14].map(wch=>({wch}));XLSX.utils.book_append_sheet(workbook,rfSheet,'Renta fija');
+        const bands=[['Perfil','Banda inferior','Banda superior','Max RV'],...Object.entries(state.bands).map(([profile,[low,high]])=>[profile.replaceAll('_',' ').toUpperCase(),low,high,high])];
+        XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(bands),'Limites RV');
+        const house=[['ISIN','Instrumento','Es fondo casa','TER (%)'],...data().funds.map(fund=>{const item=houseInfo(fund);return [fund.isin,fund.name,item.house===true?'SI':item.house===false?'NO':'REVISAR',Number.isFinite(item.ter)?item.ter:''];})];
+        XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(house),'Fondos Santalucia');
         XLSX.writeFile(workbook,'Categorizacion_carteras.xlsx');
         state.categoryDirty=false;render();
     }
@@ -124,13 +164,56 @@ const OverviewPanel=(()=>{
         if(suggestions.length)state.categoryDirty=true;
         render();
     }
-    function data(){return OverviewCore.analyze({positions:state.positions,clients:state.clients,categories:[...effectiveCategories().values()],cashByAccount:Object.fromEntries(state.cashOverrides),modelsByOrg:modelsByOrg(),rfMetrics:GdcModel.state.rfMetrics});}
+    function houseInfo(fund){
+        const saved=state.houseFunds.get(fund.isin),name=OverviewCore.key(fund.name),recognized=/^santa\s*lucia\b/.test(name);
+        const record=fundUniverseState?.isinIndex?.get(fund.isin);
+        const direct=/accion individual|bono directo|etf|plan de pensiones/.test(OverviewCore.key(fund.productType));
+        return {house:saved&&Object.prototype.hasOwnProperty.call(saved,'house')?saved.house:recognized?true:direct?false:null,ter:Number.isFinite(saved?.ter)?saved.ter:Number.isFinite(record?.ter)?record.ter:NaN};
+    }
+    function cashResult(){
+        const converted=OverviewCore.convertBalances(state.balances,state.fxRates);
+        const matching=OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks),amounts={};
+        for(const [source,target] of Object.entries(matching.links))if(Object.prototype.hasOwnProperty.call(converted.amounts,source))amounts[target]=converted.amounts[source];
+        return {...converted,...matching,amounts:{...amounts,...Object.fromEntries([...state.cashOverrides].map(([account,value])=>[OverviewCore.id(account),value]))}};
+    }
+    function data(){
+        const cash=cashResult(),positions=state.positions.map(row=>({...row,house:houseInfo(row).house}));
+        const valuationAligned=!state.balances.length||Boolean(state.positionsDate&&state.balanceDate&&state.positionsDate.toDateString()===state.balanceDate.toDateString());
+        return {...OverviewCore.analyze({positions,clients:state.clients,categories:[...effectiveCategories().values()],cashByAccount:cash.amounts,modelsByOrg:modelsByOrg(),rfMetrics:GdcModel.state.rfMetrics,bandsByProfile:state.bands,valuationAligned}),cashUnresolved:cash.unresolved,balanceMatch:cash};
+    }
     const badge=value=>`<span class="overview-badge overview-${['dentro','vigente'].includes(value)?'ok':['caducado','excede máximo','bajo mínimo'].includes(value)?'bad':'warn'}">${esc(value)}</span>`;
+    function economics(result){
+        const integrated=result.accounts.reduce((sum,row)=>sum+row.base,0);
+        let feeBase=0,management=0,missingFees=0;
+        for(const row of result.accounts){
+            const raw=row.client?.commission,rate=Number.isFinite(raw)&&raw>=0?(raw<=1?raw:raw/100):NaN;
+            if(Number.isFinite(rate)){feeBase+=row.base;management+=row.base*rate;}
+            else missingFees++;
+        }
+        let houseAum=0,houseTerBase=0,houseTerCost=0,unreviewed=0;
+        for(const fund of result.funds){
+            const item=houseInfo(fund);
+            if(item.house===true){houseAum+=fund.amount;if(Number.isFinite(item.ter)){houseTerBase+=fund.amount;houseTerCost+=fund.amount*item.ter/100;}}
+            else if(item.house===null)unreviewed+=fund.amount;
+        }
+        return {integrated,feeBase,management,missingFees,weightedFee:feeBase>0?management/feeBase*100:NaN,houseAum,houseTerBase,houseTerCost,houseTer:houseTerBase>0?houseTerCost/houseTerBase*100:NaN,unreviewed};
+    }
+    function currencyWithCash(row){
+        const exposure={...row.currencyExposure};
+        if(!state.includeCash||!row.cashKnown)return exposure;
+        const source=Object.entries(OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks).links).find(([,target])=>target===OverviewCore.id(row.account))?.[0];
+        const booked=state.balances.filter(item=>OverviewCore.id(item.account)===source);
+        if(state.cashOverrides.has(row.account)||!booked.length){exposure.eur+=row.cash;return exposure;}
+        for(const item of booked){const amount=item.amount/(item.currency==='EUR'?1:state.fxRates[item.currency]);if(!Number.isFinite(amount))continue;const bucket=item.currency==='EUR'?'eur':item.currency==='USD'?'usd':'other';exposure[bucket]+=amount;}
+        return exposure;
+    }
     function summary(result){
         const matched=result.accounts.length-result.noControl;
         const expired=result.accounts.filter(row=>row.documents.some(doc=>doc.status==='caducado')||[row.kyc,row.suitability,row.esg].includes('caducado')).length;
         const possible=result.accounts.filter(row=>row.limit==='sin verificar'&&row.band&&Number.isFinite(row.rvPct)&&row.rvPct>row.band[1]);
-        const metrics=[['AUM invertido',money(result.invested)],['Cuentas con posiciones',result.accounts.length],['Cuentas conciliadas',`${matched}/${result.accounts.length}`],['Excesos verificados',result.breaches.filter(row=>row.limit==='excede máximo').length],['Posibles excesos',possible.length],['Vigencias caducadas',expired],['Sin clasificar',money(result.unclassified)]];
+        const econ=economics(result),cashTotal=result.accounts.filter(row=>row.cashKnown).reduce((sum,row)=>sum+row.cash,0);
+        const terComplete=econ.houseAum>0&&econ.houseTerBase>=econ.houseAum;
+        const metrics=[['AUM invertido',money(result.invested)],['Efectivo conocido',money(cashTotal)],['Posición integrada conocida',money(econ.integrated)],['Activos distintos',result.funds.length],['Posiciones cliente-ISIN',result.accounts.reduce((sum,row)=>sum+row.positions.length,0)],['AUM fondos Santalucía',money(econ.houseAum)],['Comisión gestión ponderada',pct(econ.weightedFee)],['Gestión anual estimada',econ.missingFees?'Pendiente':money(econ.management)],['TER medio fondos casa',pct(econ.houseTer)],['Coste TER anual indicativo',terComplete?money(econ.houseTerCost):'Pendiente'],['Gestión + TER bruto*',econ.missingFees||econ.unreviewed||!terComplete?'Pendiente':money(econ.management+econ.houseTerCost)],['Cuentas conciliadas',`${matched}/${result.accounts.length}`],['Excesos verificados',result.breaches.filter(row=>row.limit==='excede máximo').length],['Posibles excesos',possible.length],['Vigencias caducadas',expired],['Sin clasificar',money(result.unclassified)]];
         const notices=[];
         if(result.noControl)notices.push(`${result.noControl} cuentas sin cruce único con el control de clientes.`);
         if(result.unknownCategories.length)notices.push(`${result.unknownCategories.length} activos sin categorización RV/RF válida.`);
@@ -139,11 +222,16 @@ const OverviewPanel=(()=>{
         if(missingCash)notices.push(`${missingCash} cuentas sin efectivo confirmado: límites de RV pendientes.`);
         if(possible.length)notices.push(`${possible.length} cuentas superan provisionalmente el máximo de RV sobre posiciones invertidas; no son infracciones confirmadas.`);
         if(result.currencyExposure.unknown)notices.push(`${money(result.currencyExposure.unknown)} sin desglose de divisa look-through válido.`);
+        if(result.cashUnresolved.length)notices.push(`${result.cashUnresolved.length} saldos en divisa sin cambio EUR válido; esas cuentas no incluyen efectivo en el control.`);
+        if(state.balances.length&&result.balanceMatch.unmatchedPositions.length)notices.push(`${result.balanceMatch.unmatchedPositions.length} cuentas de posiciones sin cruce único con saldos; revisa Parametrización.`);
+        if(state.balances.length&&(!state.positionsDate||!state.balanceDate||state.positionsDate.toDateString()!==state.balanceDate.toDateString()))notices.push('Fechas de posiciones y saldos distintas o no identificables: límites provisionales.');
+        if(econ.missingFees)notices.push(`${econ.missingFees} cuentas sin comisión de gestión: el ingreso global no se estima.`);
+        if(econ.unreviewed)notices.push(`${money(econ.unreviewed)} en activos pendientes de validar como fondos de la casa.`);
         const alerts=result.accounts.filter(row=>row.limit!=='dentro').sort((a,b)=>(b.limit==='excede máximo')-(a.limit==='excede máximo')||(b.bandPosition>100)-(a.bandPosition>100)||b.invested-a.invested);
-        return `<div class="overview-metrics">${metrics.map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div><p class="overview-warning">${notices.length?notices.map(esc).join(' '):'Importes y coberturas conciliados con los datos cargados.'}</p><div class="overview-chart-grid"><div id="overviewAumChart"></div><div id="overviewTreemapChart"></div></div><div class="overview-chart-grid overview-chart-grid-small"><div id="overviewAggregateAssetChart"></div><div id="overviewAggregateCurrencyChart"></div></div><div id="overviewCategoryChart" class="overview-chart-wide"></div><h3>Atención prioritaria</h3>${limitTable(alerts.slice(0,15))}`;
+        return `<div class="overview-metrics">${metrics.map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div><p class="overview-context">Comisión de gestión ponderada por posición integrada cubierta: ${money(econ.feeBase)} de ${money(econ.integrated)}. *Gestión + TER bruto suma dos importes de coste y puede duplicar componentes; no equivale a ingresos propios. El ingreso atribuible al TER requiere margen o retrocesión contractual. Importes anuales indicativos y sin impuestos.</p><p class="overview-warning">${notices.length?notices.map(esc).join(' '):'Importes y coberturas conciliados con los datos cargados.'}</p><div class="overview-chart-grid"><div id="overviewAumChart"></div><div id="overviewTreemapChart"></div></div><div class="overview-chart-grid overview-chart-grid-small"><div id="overviewAggregateAssetChart"></div><div id="overviewAggregateCurrencyChart"></div></div><div id="overviewCategoryChart" class="overview-chart-wide"></div><h3>Atención prioritaria</h3>${limitTable(alerts.slice(0,15))}`;
     }
     function limitTable(rows){
-        return `<div class="overview-scroll"><table><thead><tr><th>Cuenta</th><th>Cliente</th><th>Entidad / perfil</th><th>RV</th><th>Banda</th><th>Posición en banda</th><th>Estado</th><th>Motivo pendiente</th></tr></thead><tbody>${rows.map(row=>`<tr><td><button class="overview-link" data-client="${esc(row.account)}">${esc(row.account)}</button></td><td>${esc(row.client?.name||'Sin cruce')}</td><td>${esc(row.organization||'—')} · ${esc(row.client?.profile||'—')}</td><td class="num">${pct(row.rvPct)}${!row.cashKnown?'<br><small>sobre invertido</small>':''}</td><td class="num">${row.band?`${row.band[0]}–${row.band[1]}%`:'—'}</td><td class="num">${Number.isFinite(row.bandPosition)?`${pct(row.bandPosition)}${row.limit==='sin verificar'?'*':''}`:'—'}</td><td>${badge(row.limit)}</td><td>${esc(row.limitReasons.join('; ')||'—')}</td></tr>`).join('')||'<tr><td colspan="8">Sin cuentas para mostrar.</td></tr>'}</tbody></table></div><p class="overview-context">* Posición orientativa calculada sobre importe invertido si no hay efectivo confirmado. No acredita el cumplimiento del límite. El campo «EFECTIVO INVERSIS» del control recibido contiene IBAN, no saldo.</p>`;
+        return `<div class="overview-scroll"><table><thead><tr><th>Cuenta</th><th>Cliente</th><th>Entidad / perfil</th><th>RV</th><th>Banda</th><th>Posición en banda</th><th>Estado</th><th>Motivo pendiente</th></tr></thead><tbody>${rows.map(row=>`<tr><td><button class="overview-link" data-client="${esc(row.account)}">${esc(row.account)}</button></td><td>${esc(row.client?.name||'Sin cruce')}</td><td>${esc(row.organization||'—')} · ${esc(row.client?.profile||'—')}</td><td class="num">${pct(row.rvPct)}${!row.cashKnown?'<br><small>sobre invertido</small>':''}</td><td class="num">${row.band?`${row.band[0]}–${row.band[1]}%`:'—'}</td><td class="num">${Number.isFinite(row.bandPosition)?`${pct(row.bandPosition)}${row.limit==='sin verificar'?'*':''}`:'—'}</td><td>${badge(row.limit)}</td><td>${esc(row.limitReasons.join('; ')||'—')}</td></tr>`).join('')||'<tr><td colspan="8">Sin cuentas para mostrar.</td></tr>'}</tbody></table></div><p class="overview-context">* Posición orientativa mientras falte efectivo, clasificación completa o fechas conciliadas. Sin efectivo se divide por capital invertido; no acredita el cumplimiento. El campo «EFECTIVO INVERSIS» del control recibido contiene IBAN, no saldo.</p>`;
     }
     function rfComparison(row){
         const completeModel=row.model?.rows?.every(item=>Array.isArray(item.currentPositions)&&Array.isArray(item.proposedPositions)),model=completeModel?GdcModel.rfProfile(row.model):null,items=[['Cliente',row.rf],['Benchmark',model?.benchmark],['Cartera modelo',model?.portfolio]];
@@ -152,13 +240,15 @@ const OverviewPanel=(()=>{
     function clientPositions(row){
         const order={RF:0,RV:1,Otros:2},sorted=[...row.positions].sort((a,b)=>(order[a.classification?.type]??3)-(order[b.classification?.type]??3)||b.amount-a.amount),max=Math.max(0,...sorted.map(item=>item.amount||0));
         const groups=new Map();for(const item of sorted){const type=item.classification?.type||'Sin clasificar';if(!groups.has(type))groups.set(type,[]);groups.get(type).push(item);}
-        return `<h4>Posiciones por tipo de activo</h4><div class="overview-scroll"><table><thead><tr><th>Tipo activo / ISIN</th><th>Instrumento</th><th>Categoría</th><th>Contravalor EUR</th><th>Peso invertido</th><th>Divisa</th></tr></thead><tbody>${[...groups].map(([type,items])=>`<tr class="overview-group"><th colspan="3">${esc({RF:'RENTA FIJA',RV:'RENTA VARIABLE',Otros:'OTROS'}[type]||type)}</th><th class="num">${money(items.reduce((sum,item)=>sum+item.amount,0))}</th><th class="num">${pct(row.invested?items.reduce((sum,item)=>sum+item.amount,0)/row.invested*100:NaN)}</th><th></th></tr>${items.map(pos=>{const weight=row.invested>0?pos.amount/row.invested*100:NaN,heat=max>0?Math.min(100,pos.amount/max*100):0;return `<tr><td>${esc(pos.isin)}</td><td>${esc(pos.name)}</td><td>${esc(pos.classification?.generic||'Pendiente')}</td><td class="num overview-heat" style="--heat:${heat.toFixed(1)}%">${money(pos.amount)}</td><td class="num overview-heat" style="--heat:${Number.isFinite(weight)?Math.min(100,weight):0}%">${pct(weight)}</td><td>${esc(pos.classification?.currency||'—')}</td></tr>`;}).join('')}`).join('')}<tr class="overview-total"><th colspan="3">Total invertido</th><th class="num">${money(row.invested)}</th><th class="num">${pct(row.invested>0?100:NaN)}</th><th></th></tr></tbody></table></div>`;
+        const base=state.includeCash&&row.cashKnown?row.base:row.invested;
+        return `<h4>Posiciones por tipo de activo</h4><div class="overview-scroll"><table><thead><tr><th>Tipo activo / ISIN</th><th>Instrumento</th><th>Categoría</th><th>Contravalor EUR</th><th>Peso ${state.includeCash?'integrado':'invertido'}</th><th>Divisa</th></tr></thead><tbody>${[...groups].map(([type,items])=>`<tr class="overview-group"><th colspan="3">${esc({RF:'RENTA FIJA',RV:'RENTA VARIABLE',Otros:'OTROS'}[type]||type)}</th><th class="num">${money(items.reduce((sum,item)=>sum+item.amount,0))}</th><th class="num">${pct(base?items.reduce((sum,item)=>sum+item.amount,0)/base*100:NaN)}</th><th></th></tr>${items.map(pos=>{const weight=base>0?pos.amount/base*100:NaN,heat=max>0?Math.min(100,pos.amount/max*100):0;return `<tr><td>${esc(pos.isin)}</td><td>${esc(pos.name)}</td><td>${esc(pos.classification?.generic||'Pendiente')}</td><td class="num overview-heat" style="--heat:${heat.toFixed(1)}%">${money(pos.amount)}</td><td class="num overview-heat" style="--heat:${Number.isFinite(weight)?Math.min(100,weight):0}%">${pct(weight)}</td><td>${esc(pos.classification?.currency||'—')}</td></tr>`;}).join('')}`).join('')}${state.includeCash&&row.cashKnown?`<tr class="overview-group"><th colspan="3">EFECTIVO</th><th class="num">${money(row.cash)}</th><th class="num">${pct(base?row.cash/base*100:NaN)}</th><th>EUR equivalente</th></tr>`:''}<tr class="overview-total"><th colspan="3">Total ${state.includeCash&&row.cashKnown?'integrado':'invertido'}</th><th class="num">${money(base)}</th><th class="num">${pct(base>0?100:NaN)}</th><th></th></tr></tbody></table></div>`;
     }
     function comparison(row){
         if(!row.model)return '<p class="overview-warning">No hay cartera modelo cargada para esta entidad y perfil. La comparación no se estima.</p>';
-        const actual=new Map([...row.allocations].map(([name,amount])=>[OverviewCore.key(name),row.base>0?amount/row.base*100:0]));
-        if(row.cash>0)actual.set('efectivo',(actual.get('efectivo')||0)+row.cash/row.base*100);
-        const categories=[...new Set([...row.model.rows.map(item=>item.generic),...row.allocations.keys(),...(row.cash>0?['Efectivo']:[])])];
+        const base=state.includeCash&&row.cashKnown?row.base:row.invested;
+        const actual=new Map([...row.allocations].map(([name,amount])=>[OverviewCore.key(name),base>0?amount/base*100:0]));
+        if(state.includeCash&&row.cashKnown&&row.cash>0)actual.set('efectivo',(actual.get('efectivo')||0)+row.cash/base*100);
+        const categories=[...new Set([...row.model.rows.map(item=>item.generic),...row.allocations.keys(),...(state.includeCash&&row.cashKnown&&row.cash>0?['Efectivo']:[])])];
         const modelRows=categories.map(name=>row.model.rows.find(item=>OverviewCore.key(item.generic)===OverviewCore.key(name)));
         return `<p class="overview-context">Cartera modelo ${esc(row.organization)} · ${esc(row.model.name)}. Pesos sobre posiciones más efectivo informado; el benchmark y el modelo son los del comité cargado.</p><div class="overview-chart-grid"><div id="overviewCompareChart"></div><div id="overviewDeviationChart"></div></div><div class="overview-scroll"><table><thead><tr><th>Categoría</th><th>Cliente</th><th>Benchmark</th><th>Modelo</th><th>Vs benchmark</th><th>Vs modelo</th></tr></thead><tbody>${categories.map((name,i)=>{const current=actual.get(OverviewCore.key(name))||0,benchmark=modelRows[i]?.weight,model=modelRows[i]?.portfolioWeight;return `<tr><td>${esc(name)}</td><td class="num">${pct(current)}</td><td class="num">${pct(benchmark)}</td><td class="num">${pct(model)}</td><td class="num">${Number.isFinite(benchmark)?`${(current-benchmark)>=0?'+':''}${(current-benchmark).toFixed(2)} pp`:'—'}</td><td class="num">${Number.isFinite(model)?`${(current-model)>=0?'+':''}${(current-model).toFixed(2)} pp`:'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
     }
@@ -183,8 +273,10 @@ const OverviewPanel=(()=>{
         return `<h3>Documentos y renovaciones</h3><p class="overview-context">“Próximo” significa 30 días o menos. Las fechas ausentes se mantienen pendientes; no se importan números de DNI.</p><div class="overview-filters"><label>Tipo de control<select data-validity-type><option value="all">Todos</option>${groups.map(([key,label])=>`<option value="${key}" ${state.validityType===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Estado<select data-validity-status>${[['all','Incidencias'],['caducado','Caducado'],['próximo','Próximo'],['sin fecha','Sin fecha'],['sin documento','Sin documento'],['vigente','Vigente']].map(([key,label])=>`<option value="${key}" ${state.validityStatus===key?'selected':''}>${label}</option>`).join('')}</select></label></div>${groups.filter(([key])=>state.validityType==='all'||state.validityType===key).map(([key,label])=>{const section=visible.filter(item=>item.group===key);return `<section class="overview-validity-group"><h4>${label} · ${section.length}</h4><div class="overview-scroll"><table><thead><tr><th>Cuenta</th><th>Cliente</th><th>Control</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>${section.map(item=>`<tr><td>${esc(item.row.account)}</td><td>${esc(item.row.client.name)}</td><td>${esc(item.kind)}</td><td>${date(item.expiry)}</td><td>${badge(item.status)}</td></tr>`).join('')||'<tr><td colspan="5">Sin registros con este filtro.</td></tr>'}</tbody></table></div></section>`;}).join('')}<h3>Cumpleaños próximos 30 días</h3><div class="overview-scroll"><table><thead><tr><th>Cuenta</th><th>Cliente</th><th>Fecha</th><th>Días</th></tr></thead><tbody>${birthdays.map(item=>`<tr><td>${esc(item.row.account)}</td><td>${esc(item.row.client.name)}</td><td>${date(item.next)}</td><td>${item.days}</td></tr>`).join('')||'<tr><td colspan="4">Sin cumpleaños próximos.</td></tr>'}</tbody></table></div>`;
     }
     function categories(result){
-        const nav=`<nav class="overview-subtabs" aria-label="Categorización"><button data-category-view="mapping" aria-current="${state.categoryView==='mapping'?'page':'false'}">Clasificación</button><button data-category-view="rf" aria-current="${state.categoryView==='rf'?'page':'false'}">YTM y duración</button></nav>`;
+        const nav=`<nav class="overview-subtabs" aria-label="Categorización">${[['mapping','Clasificación'],['rf','YTM y duración'],['bands','Límites RV'],['house','Fondos Santalucía']].map(([key,label])=>`<button data-category-view="${key}" aria-current="${state.categoryView===key?'page':'false'}">${label}</button>`).join('')}</nav>`;
         if(state.categoryView==='rf')return nav+rfDatabase(result);
+        if(state.categoryView==='bands')return nav+`<p class="overview-context">Banda aplicable al perfil de gestión contratado. Los cambios se exportan en la hoja «Limites RV» y se recuperan al importar el Excel actualizado.</p><div class="overview-scroll"><table><thead><tr><th>Perfil</th><th>Mínimo RV (%)</th><th>Máximo RV (%)</th></tr></thead><tbody>${Object.entries(state.bands).map(([profile,[low,high]])=>`<tr><td>${esc(profile.replaceAll('_',' ').toUpperCase())}</td><td><input class="overview-rf-input" type="number" min="0" max="100" step="0.01" data-band="${profile}" data-band-index="0" value="${low}"></td><td><input class="overview-rf-input" type="number" min="0" max="100" step="0.01" data-band="${profile}" data-band-index="1" value="${high}"></td></tr>`).join('')}</tbody></table></div>`;
+        if(state.categoryView==='house')return nav+`<p class="overview-context">«Sí» se propone solo si el nombre empieza por Santalucía; revisa los dudosos. El TER procede del universo por ISIN o de este campo manual. El TER es un coste del fondo, no necesariamente un ingreso de la gestora.</p><div class="overview-scroll"><table><thead><tr><th>ISIN</th><th>Fondo / activo</th><th>AUM</th><th>Fondo de la casa</th><th>TER (%)</th><th>Origen TER</th></tr></thead><tbody>${result.funds.map(fund=>{const item=houseInfo(fund),manual=state.houseFunds.get(fund.isin);return `<tr><td>${esc(fund.isin)}</td><td>${esc(fund.name)}</td><td class="num">${money(fund.amount)}</td><td><select data-house="${esc(fund.isin)}"><option value="" ${item.house===null?'selected':''}>Revisar</option><option value="yes" ${item.house===true?'selected':''}>Sí</option><option value="no" ${item.house===false?'selected':''}>No</option></select></td><td><input class="overview-rf-input" type="number" min="0" step="0.01" data-house-ter="${esc(fund.isin)}" value="${Number.isFinite(item.ter)?item.ter:''}"></td><td>${Number.isFinite(manual?.ter)?'Manual':Number.isFinite(item.ter)?'Universo':'Pendiente'}</td></tr>`;}).join('')}</tbody></table></div>`;
         const known=[...result.funds];
         const mapped=effectiveCategories();
         const generic=[...new Set(Object.values(modelsByOrg()).flatMap(models=>models.flatMap(model=>model.rows.map(row=>row.generic))))].sort();
@@ -206,7 +298,9 @@ const OverviewPanel=(()=>{
     function parameters(result){
         const missing=result.unknownCategories,rf=result.funds.filter(fund=>fund.classification?.type==='RF'&&(!Number.isFinite(GdcModel.state.rfMetrics[`F:${fund.isin}`]?.ytm)||!Number.isFinite(GdcModel.state.rfMetrics[`F:${fund.isin}`]?.duration))),currency=result.funds.filter(fund=>!OverviewCore.exposureMix(fund.classification));
         const list=(items,kind)=>`<div class="overview-scroll"><table><thead><tr><th>ISIN</th><th>Instrumento</th><th>AUM</th></tr></thead><tbody>${items.map(fund=>`<tr><td>${esc(fund.isin)}</td><td>${esc(fund.name)}</td><td class="num">${money(fund.amount)}</td></tr>`).join('')||`<tr><td colspan="3">Sin pendientes de ${kind}.</td></tr>`}</tbody></table></div>`;
-        return `<h3>Parámetros pendientes</h3><p class="overview-context">La clasificación RF/RV permite estimar la asignación; el efectivo confirmado y el look-through se controlan por separado. Los límites no se acreditan hasta completar los datos necesarios.</p><h4>Sin categoría RV/RF · ${missing.length}</h4>${list(missing,'clasificación')}<h4>Fondos RF sin YTM o duración · ${rf.length}</h4>${list(rf,'métricas RF')}<h4>Sin exposición de divisa válida · ${currency.length}</h4>${list(currency,'divisa')}<h4>Cuentas sin efectivo confirmado · ${result.accounts.filter(row=>!row.cashKnown).length}</h4>${limitTable(result.accounts.filter(row=>!row.cashKnown))}`;
+        const unmatched=result.balanceMatch.unmatchedPositions,balances=result.balanceMatch.unmatchedBalances;
+        const rows=unmatched.map(account=>{const pos=state.positions.find(item=>OverviewCore.id(item.account)===account),candidates=balances.map(source=>state.balances.find(item=>OverviewCore.id(item.account)===source)).filter(item=>item&&OverviewCore.id(item.description)===OverviewCore.id(pos?.accountLabel));return `<tr><td>${esc(pos?.accountLabel||account)}</td><td>${esc(account)}</td><td><select data-balance-link="${esc(account)}"><option value="">${candidates.length?'Seleccionar cuenta':'Sin candidato por nombre exacto'}</option>${candidates.map(item=>`<option value="${esc(OverviewCore.id(item.account))}">${esc(item.account)} · ${esc(item.description)}</option>`).join('')}</select></td></tr>`;}).join('');
+        return `<h3>Parámetros pendientes</h3><p class="overview-context">La clasificación RF/RV permite estimar la asignación; el efectivo confirmado y el look-through se controlan por separado. Los límites no se acreditan hasta completar los datos necesarios.</p><h4>Sin categoría RV/RF · ${missing.length}</h4>${list(missing,'clasificación')}<h4>Fondos RF sin YTM o duración · ${rf.length}</h4>${list(rf,'métricas RF')}<h4>Sin exposición de divisa válida · ${currency.length}</h4>${list(currency,'divisa')}${state.balances.length?`<h4>Cruce de cuentas de saldos · ${Object.keys(result.balanceMatch.links).length} conciliadas; ${unmatched.length} pendientes</h4><p class="overview-context">Se cruza primero el identificador y después el nombre exacto solo cuando es único en ambos ficheros. Las homonimias requieren selección manual; no se hace emparejamiento difuso.</p><div class="overview-scroll"><table><thead><tr><th>Cliente</th><th>Cuenta posiciones</th><th>Cuenta saldos candidata</th></tr></thead><tbody>${rows||'<tr><td colspan="3">Todas las cuentas de posiciones tienen cruce único.</td></tr>'}</tbody></table></div>`:''}<h4>Cuentas sin efectivo confirmado · ${result.accounts.filter(row=>!row.cashKnown).length}</h4>${limitTable(result.accounts.filter(row=>!row.cashKnown))}`;
     }
     function draw(result){
         const palette=['#075aa3','#153d80','#42a4db','#637f9c','#83c4df','#516071','#a9b9c7','#dce5ed'];
@@ -215,24 +309,30 @@ const OverviewPanel=(()=>{
         const currency=(target,title,exposure)=>{const values=[exposure.eur,exposure.usd,exposure.other,exposure.unknown];if(values.some(value=>value>0))donut(target,title,['EUR','USD','Otras','Sin dato'],values,['#075aa3','#42a4db','#637f9c','#dce5ed']);};
         if(state.tab==='summary'&&result.accounts.length){
             const top=result.accounts.slice(0,18);
-            FinancialVisuals.newPlot('overviewAumChart',[{type:'bar',orientation:'h',name:'Posiciones',x:top.map(row=>row.invested),y:top.map(row=>row.client?.code||row.account),marker:{color:'#075aa3'},hovertemplate:'%{y}: %{x:,.0f} EUR<extra></extra>'}],{...layout('AUM por cliente · principales 18',Math.max(350,top.length*27)),margin:{t:48,l:75,r:20,b:42},yaxis:{autorange:'reversed'},xaxis:{title:'EUR'}},{responsive:true});
+            FinancialVisuals.newPlot('overviewAumChart',[{type:'bar',orientation:'h',name:'Posición integrada conocida',x:top.map(row=>row.base),y:top.map(row=>row.client?.code||row.account),marker:{color:'#075aa3'},hovertemplate:'%{y}: %{x:,.0f} EUR<extra></extra>'}],{...layout('AUM por cliente · principales 18',Math.max(350,top.length*27)),margin:{t:48,l:75,r:20,b:42},yaxis:{autorange:'reversed'},xaxis:{title:'EUR'}},{responsive:true});
             const all=result.accounts;
-            FinancialVisuals.newPlot('overviewTreemapChart',[{type:'treemap',labels:all.map(row=>row.client?.code||row.account),parents:all.map(()=>'AUM'),values:all.map(row=>row.invested),branchvalues:'total',marker:{colors:all.map((_,i)=>palette[i%palette.length]),line:{color:'#fff',width:2}},textinfo:'label+percent root',hovertemplate:'%{label}: %{value:,.0f} EUR<extra></extra>'}],{...layout('Concentración del AUM · todas las cuentas',Math.max(350,top.length*27)),margin:{t:48,l:10,r:10,b:10}},{responsive:true,displayModeBar:false});
+            FinancialVisuals.newPlot('overviewTreemapChart',[{type:'treemap',labels:all.map(row=>row.client?.code||row.account),parents:all.map(()=>'AUM'),values:all.map(row=>row.base),branchvalues:'total',marker:{colors:all.map((_,i)=>palette[i%palette.length]),line:{color:'#fff',width:2}},textinfo:'label+percent root',hovertemplate:'%{label}: %{value:,.0f} EUR<extra></extra>'}],{...layout('Concentración del AUM · todas las cuentas',Math.max(350,top.length*27)),margin:{t:48,l:10,r:10,b:10}},{responsive:true,displayModeBar:false});
             const values=new Map();for(const row of result.accounts)for(const [name,amount] of row.allocations)values.set(name,(values.get(name)||0)+amount);
             const sorted=[...values].sort((a,b)=>b[1]-a[1]).slice(0,12);
             FinancialVisuals.newPlot('overviewCategoryChart',[{type:'bar',orientation:'h',name:'AUM',x:sorted.map(([,value])=>value),y:sorted.map(([name])=>name),marker:{color:'#637f9c'},hovertemplate:'%{y}: %{x:,.0f} EUR<extra></extra>'}],{...layout('Exposición por categoría',Math.max(330,sorted.length*29)),margin:{t:48,l:135,r:18,b:42},yaxis:{autorange:'reversed'},xaxis:{title:'EUR'}},{responsive:true});
-            const typeValues=new Map();for(const row of result.accounts)for(const item of row.positions){const type=item.classification?.type||'Sin clasificar';typeValues.set(type,(typeValues.get(type)||0)+item.amount);}
+            const typeValues=new Map();for(const row of result.accounts){for(const item of row.positions){const type=item.classification?.type||'Sin clasificar';typeValues.set(type,(typeValues.get(type)||0)+item.amount);}if(state.includeCash&&row.cashKnown)typeValues.set('Efectivo',(typeValues.get('Efectivo')||0)+row.cash);}
             donut('overviewAggregateAssetChart','Composición agregada por tipo de activo',[...typeValues.keys()],[...typeValues.values()],['#075aa3','#42a4db','#637f9c','#dce5ed']);
-            currency('overviewAggregateCurrencyChart','Divisa económica · look-through',result.currencyExposure);
+            const exposure={eur:0,usd:0,other:0,unknown:0};for(const account of result.accounts){const part=currencyWithCash(account);for(const key of Object.keys(exposure))exposure[key]+=part[key];}
+            currency('overviewAggregateCurrencyChart','Divisa económica · look-through',exposure);
         }
         if(state.tab==='clients'){
             const row=result.accounts.find(item=>item.account===state.selected);if(!row)return;
-            const typeValues=new Map();for(const item of row.positions){const type=item.classification?.type||'Sin clasificar';typeValues.set(type,(typeValues.get(type)||0)+item.amount);}
+            const typeValues=new Map();for(const item of row.positions){const type=item.classification?.type||'Sin clasificar';typeValues.set(type,(typeValues.get(type)||0)+item.amount);}if(state.includeCash&&row.cashKnown)typeValues.set('Efectivo',(typeValues.get('Efectivo')||0)+row.cash);
             donut('overviewAssetDonut','Composición por tipo de activo',[...typeValues.keys()],[...typeValues.values()],['#075aa3','#42a4db','#637f9c','#dce5ed']);
-            currency('overviewCurrencyDonut','Divisa económica · look-through',row.currencyExposure);
+            currency('overviewCurrencyDonut','Divisa económica · look-through',currencyWithCash(row));
+            if(row.base>0){
+                const housePct=row.house/row.base*100;
+                FinancialVisuals.newPlot('overviewHouseDonut',[{type:'pie',hole:.58,labels:['Fondos Santalucía','Pendiente de validar','Resto de cartera'],values:[row.house,row.houseUnreviewed,Math.max(0,row.base-row.house-row.houseUnreviewed)],sort:false,direction:'clockwise',rotation:0,textinfo:'percent',marker:{colors:['#075aa3','#e2b765','#dce5ed']},hovertemplate:'%{label}: %{value:,.0f} EUR<extra></extra>'}],{...layout('Fondos de la casa · límite 75%',300),showlegend:true,legend:{orientation:'h',y:-.1},annotations:[{text:`${row.houseUnreviewed?'≥':''}${housePct.toFixed(1)}%`,x:.5,y:.5,showarrow:false,font:{size:19,color:housePct>75?'#b83a40':'#153d65'}}]},{responsive:true,displayModeBar:false});
+            }
             if(!row.model)return;
-            const names=[...new Set([...row.model.rows.map(item=>item.generic),...row.allocations.keys(),...(row.cash>0?['Efectivo']:[])])],byKey=new Map([...row.allocations].map(([name,amount])=>[OverviewCore.key(name),row.base>0?amount/row.base*100:0]));
-            if(row.cash>0)byKey.set('efectivo',(byKey.get('efectivo')||0)+row.cash/row.base*100);
+            const base=state.includeCash&&row.cashKnown?row.base:row.invested;
+            const names=[...new Set([...row.model.rows.map(item=>item.generic),...row.allocations.keys(),...(state.includeCash&&row.cashKnown&&row.cash>0?['Efectivo']:[])])],byKey=new Map([...row.allocations].map(([name,amount])=>[OverviewCore.key(name),base>0?amount/base*100:0]));
+            if(state.includeCash&&row.cashKnown&&row.cash>0)byKey.set('efectivo',(byKey.get('efectivo')||0)+row.cash/base*100);
             const lookup=name=>row.model.rows.find(item=>OverviewCore.key(item.generic)===OverviewCore.key(name));
             const actual=names.map(name=>byKey.get(OverviewCore.key(name))||0),benchmark=names.map(name=>lookup(name)?.weight||0),model=names.map(name=>lookup(name)?.portfolioWeight||0);
             FinancialVisuals.newPlot('overviewCompareChart',[{type:'bar',name:'Cliente',orientation:'h',y:names,x:actual,marker:{color:'#075aa3'}},{type:'bar',name:'Benchmark',orientation:'h',y:names,x:benchmark,marker:{color:'#9cabb9'}},{type:'bar',name:'Modelo',orientation:'h',y:names,x:model,marker:{color:'#42a4db'}}],{...layout('Cartera vs benchmark y modelo',Math.max(380,names.length*42)),barmode:'group',margin:{t:48,l:120,r:18,b:72},yaxis:{autorange:'reversed'},xaxis:{title:'Peso (%)'},legend:{orientation:'h',y:-.22}},{responsive:true});
@@ -245,6 +345,9 @@ const OverviewPanel=(()=>{
         const result=data(),tabs=[['summary','Resumen'],['clients','Clientes'],['funds','Fondos y AUM'],['limits','Límites RV'],['validity','Vigencias'],['categories','Categorización'],['parameters','Parametrización']];
         const content=state.tab==='summary'?summary(result):state.tab==='clients'?clients(result):state.tab==='funds'?funds(result):state.tab==='limits'?`<h3>Control de bandas de renta variable</h3><p class="overview-context">RV sobre posiciones más efectivo numérico confirmado. Sin efectivo o clasificación completa, la posición en banda es orientativa y el cumplimiento no se verifica.</p>${limitTable(result.accounts)}`:state.tab==='validity'?vigencias(result):state.tab==='categories'?categories(result):parameters(result);
         root.innerHTML=`<header class="overview-heading"><div><h2>Panel de control patrimonial</h2><p>Seguimiento de clientes, asignación y vigencias</p></div><img src="assets/santalucia-gestion-patrimonial.png" alt="Santalucía Asset Management"></header><div class="overview-sources"><div><span>Posiciones</span><strong>${state.positionsFile?esc(state.positionsFile):'Pendiente'}</strong><button data-open-positions><i class="fa-solid fa-upload" aria-hidden="true"></i> Cargar en Análisis Cartera</button></div><div><span>Control de clientes</span><strong>${state.controlFile?`${state.clients.length} registros · ${esc(state.controlFile)}`:'Pendiente'}</strong><label><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Importar Excel<input type="file" data-import-control accept=".xlsx,.xls" hidden></label></div><div><span>Categorización</span><strong>${result.funds.length-result.unknownCategories.length}/${result.funds.length} activos clasificados${state.categoryFile?` · ${esc(state.categoryFile)}`:''}${state.categoryDirty?' · Cambios sin exportar':''}</strong><label><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Importar Excel<input type="file" data-import-categories accept=".xlsx,.xls" hidden></label><button data-export-categories title="Descargar categorización y base RF actualizadas"><i class="fa-solid fa-download" aria-hidden="true"></i> Descargar</button></div></div><p class="overview-privacy">Los datos personales se procesan solo en esta sesión del navegador. No se guardan en el servidor ni en el repositorio. <button data-clear-control>Retirar control de clientes</button></p><nav class="overview-tabs" aria-label="Vistas del panel">${tabs.map(([id,label])=>`<button data-tab="${id}" aria-current="${state.tab===id?'page':'false'}">${label}</button>`).join('')}</nav><section class="overview-content">${content}</section><p id="overviewStatus" role="status" class="overview-status"></p>`;
+        root.querySelector('.overview-sources').insertAdjacentHTML('beforeend',`<div><span>Saldos</span><strong>${state.balanceFile?`${state.balances.length} subcuentas · ${esc(state.balanceFile)}`:'Pendiente'}</strong><label><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Importar Excel<input type="file" data-import-balances accept=".xlsx,.xls" hidden></label></div>`);
+        const currencies=[...new Set(state.balances.filter(row=>row.currency!=='EUR').map(row=>row.currency))];
+        if(state.balances.length)root.querySelector('.overview-sources').insertAdjacentHTML('afterend',`<div class="overview-fx"><span>Valoración: posiciones ${date(state.positionsDate)} · saldos ${date(state.balanceDate)}</span>${currencies.map(currency=>`<label>1 EUR = <input type="number" step="any" min="0.000001" data-fx="${esc(currency)}" value="${Number.isFinite(state.fxRates[currency])?state.fxRates[currency]:''}" placeholder="Pendiente"> ${esc(currency)} <small>${esc(state.fxSource[currency]||'Manual')}</small></label>`).join('')}<span>${result.cashUnresolved.length?'Hay saldos sin convertir. Revisa los cambios.':'Todos los saldos en divisa convertidos.'}</span></div>`);
         if(location.hostname.endsWith('.vercel.app'))root.querySelector('.overview-privacy').insertAdjacentText('beforeend',' Antes de importar datos reales en una vista previa de Vercel, confirma el control de acceso corporativo.');
         if(state.tab==='clients'){
             const selected=result.accounts.find(item=>item.account===state.selected);
@@ -253,6 +356,13 @@ const OverviewPanel=(()=>{
                 const value=state.cashOverrides.get(selected.account);
                 metric.insertAdjacentHTML('afterend',`<label class="overview-cash">Efectivo confirmado de esta cuenta (€) <input data-cash="${esc(selected.account)}" type="number" min="0" step="0.01" placeholder="${selected.cashKnown?selected.cash:'Pendiente'}" value="${Number.isFinite(value)?value:''}"></label><p class="overview-context">Puedes corregir el efectivo en esta sesión (también a 0). Sin efectivo confirmado, el límite de RV queda sin verificar.</p>`);
                 if(!selected.cashKnown){metric.children[1].querySelector('strong').textContent='Pendiente';metric.children[2].querySelector('span').textContent='RV sobre invertido';}
+                const rawFee=selected.client?.commission,fee=Number.isFinite(rawFee)?(rawFee<=1?rawFee*100:rawFee):NaN;
+                const lower=selected.base>0?selected.house/selected.base*100:NaN,upper=selected.base>0?(selected.house+selected.houseUnreviewed)/selected.base*100:NaN;
+                const houseStatus=Number.isFinite(lower)?lower>75?'Supera 75%':upper<=75?'Dentro del 75%':'Pendiente de validar':'Pendiente';
+                const documentIssues=[...selected.documents.filter(item=>item.status!=='vigente').map(item=>`${item.role}: ${item.status}`),...[['KYC',selected.kyc],['Idoneidad',selected.suitability],['ESG',selected.esg]].filter(([,status])=>status!=='vigente').map(([label,status])=>`${label}: ${status}`)];
+                metric.insertAdjacentHTML('beforeend',`<div><span>Comisión gestión</span><strong>${pct(fee)}</strong></div><div><span>Gestión anual indicativa</span><strong>${Number.isFinite(fee)?money(selected.base*fee/100):'Pendiente'}</strong></div><div><span>Fondos casa / límite</span><strong>${pct(lower)} / 75%</strong><small>${esc(houseStatus)}</small></div>`);
+                metric.insertAdjacentHTML('afterend',`<div class="overview-filters"><label class="overview-cash-toggle"><input type="checkbox" data-include-cash ${state.includeCash?'checked':''}> Incluir efectivo en pesos y gráficas</label></div><p class="overview-context">La opción de visualización no altera el control de límites: este usa el efectivo conocido. ${selected.cashKnown?'':'Sin saldo confirmado, el peso RV se estima sobre posiciones.'}</p><div class="overview-client-checks"><strong>Control operativo:</strong> RV ${badge(selected.limit)} · Fondos de la casa ${esc(houseStatus)} · Documentos ${documentIssues.length?`<span class="overview-badge overview-warn">${documentIssues.length} pendientes</span>`:badge('vigente')}</div><div class="overview-client-qual"><h4>Información cualitativa y vigencias</h4>${selected.client?.qualitative?.length?`<dl>${selected.client.qualitative.map(([label,text])=>`<div><dt>${esc(label)}</dt><dd>${esc(text)}</dd></div>`).join('')}</dl>`:'<p>Control de clientes pendiente o sin datos cualitativos.</p>'}${documentIssues.length?`<p class="overview-warning">${esc(documentIssues.join(' · '))}</p>`:''}</div>`);
+                root.querySelector('.overview-detail .overview-chart-grid')?.insertAdjacentHTML('afterend',`<div id="overviewHouseDonut" class="overview-house-chart"></div><div class="overview-house-threshold" style="--house:${Math.min(100,Math.max(0,Number.isFinite(lower)?lower:0))}%"><span>0%</span><div><i></i></div><span>100%</span></div><p class="overview-context">La marca roja indica el límite del 75% sobre posiciones más efectivo conocido. En amarillo, activos pendientes de validar; no se atribuyen a la casa.</p>`);
             }
         }
         if(state.tab==='funds'&&state.selectedFund){
@@ -276,15 +386,21 @@ const OverviewPanel=(()=>{
             if(event.target.closest('[data-accept-suggestions]'))acceptSuggestions();
             if(event.target.closest('[data-clear-control]')){state.clients=[];state.controlFile='';state.cashOverrides.clear();render();}
         });
-        root.addEventListener('change',async event=>{const control=event.target.closest('[data-import-control]'),categories=event.target.closest('[data-import-categories]'),cash=event.target.closest('[data-cash]'),rf=event.target.closest('[data-overview-rf]');
+        root.addEventListener('change',async event=>{const control=event.target.closest('[data-import-control]'),categories=event.target.closest('[data-import-categories]'),balances=event.target.closest('[data-import-balances]'),cash=event.target.closest('[data-cash]'),rf=event.target.closest('[data-overview-rf]');
+            if(event.target.matches('[data-include-cash]')){state.includeCash=event.target.checked;render();return;}
+            if(event.target.matches('[data-balance-link]')){const target=event.target.dataset.balanceLink,source=event.target.value;if(source)state.balanceLinks[target]=source;else delete state.balanceLinks[target];render();return;}
+            if(event.target.matches('[data-fx]')){const currency=event.target.dataset.fx,value=Number(event.target.value.replace(',','.'));if(!(value>0)){root.querySelector('#overviewStatus').textContent='Introduce un cambio positivo: unidades de divisa por 1 EUR.';return;}state.fxRates[currency]=value;state.fxSource[currency]='Manual';render();return;}
+            if(event.target.matches('[data-band]')){const profile=event.target.dataset.band,index=+event.target.dataset.bandIndex,value=Number(event.target.value.replace(',','.')),next=[...state.bands[profile]];next[index]=value;if(!Number.isFinite(value)||next[0]<0||next[1]>100||next[0]>=next[1]){root.querySelector('#overviewStatus').textContent='La banda debe cumplir 0 ≤ mínimo < máximo ≤ 100.';event.target.value=state.bands[profile][index];return;}state.bands[profile]=next;state.categoryDirty=true;render();return;}
+            if(event.target.matches('[data-house]')){const isin=event.target.dataset.house,item=state.houseFunds.get(isin)||{};state.houseFunds.set(isin,{...item,house:event.target.value==='yes'?true:event.target.value==='no'?false:null});state.categoryDirty=true;render();return;}
+            if(event.target.matches('[data-house-ter]')){const isin=event.target.dataset.houseTer,raw=event.target.value.trim(),value=raw===''?NaN:Number(raw.replace(',','.'));if(raw!==''&&(!Number.isFinite(value)||value<0)){root.querySelector('#overviewStatus').textContent='El TER debe ser un porcentaje no negativo.';return;}const item=state.houseFunds.get(isin)||{};state.houseFunds.set(isin,{...item,ter:value});state.categoryDirty=true;render();return;}
             if(cash){const raw=cash.value.trim(),value=Number(raw.replace(',','.'));if(!raw)state.cashOverrides.delete(cash.dataset.cash);else if(Number.isFinite(value)&&value>=0)state.cashOverrides.set(cash.dataset.cash,value);else {root.querySelector('#overviewStatus').textContent='Introduce un efectivo no negativo.';return;}render();return;}
             if(rf){try{const value=rf.value.trim()===''?null:Number(rf.value.replace(',','.'));GdcModel.setRfMetric(rf.dataset.overviewRf,rf.dataset.rfField,value);state.categoryDirty=true;render();}catch(error){root.querySelector('#overviewStatus').textContent=error.message;}return;}
             for(const [selector,key] of [['[data-fund-type]','fundType'],['[data-fund-product]','fundProduct'],['[data-fund-sort]','fundSort'],['[data-validity-type]','validityType'],['[data-validity-status]','validityStatus']])if(event.target.matches(selector)){state[key]=event.target.value;render();return;}
-            if(!control&&!categories)return;try{if(control)await importControl(control.files?.[0]);else await importCategories(categories.files?.[0]);}catch(error){root.querySelector('#overviewStatus').textContent=error.message;}});
+            if(!control&&!categories&&!balances)return;try{if(control)await importControl(control.files?.[0]);else if(categories)await importCategories(categories.files?.[0]);else await importBalances(balances.files?.[0]);}catch(error){root.querySelector('#overviewStatus').textContent=error.message;}});
         root.addEventListener('submit',event=>{const form=event.target.closest('.overview-map-form');if(!form)return;event.preventDefault();try{saveCategory(form);}catch(error){root.querySelector('#overviewStatus').textContent=error.message;}});
         root.addEventListener('change',event=>{if(!event.target.matches('[data-search]'))return;state.search=event.target.value.trim();render();});
         render();
     }
-    return {init,capturePositions,importControl,importCategories,loadCategoriesWorkbook,exportCategories,render,state};
+    return {init,capturePositions,importControl,importCategories,importBalances,loadCategoriesWorkbook,exportCategories,render,state};
 })();
 OverviewPanel.init();

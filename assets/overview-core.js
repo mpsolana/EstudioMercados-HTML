@@ -52,7 +52,46 @@
         }
         return index;
     }
-    function analyze({positions=[],clients=[],categories=[],modelsByOrg={},cashByAccount={},rfMetrics={},today=new Date()}){
+    function parseBalanceRows(rows){
+        const seen=new Set(),balances=[];
+        for(const row of rows||[]){
+            const account=String(row['TRANSACTIONAL ACCOUNT']||row.ACCOUNT||'').trim();
+            const subaccount=String(row.ACCOUNT||'').trim();
+            const currency=String(row.CURRENCY||'').trim().toUpperCase();
+            const amount=finite(row.BALANCE);
+            if(!account||!subaccount||!/^[A-Z]{3}$/.test(currency)||!Number.isFinite(amount))continue;
+            const identity=`${id(subaccount)}|${currency}`;
+            if(seen.has(identity))throw new Error(`Saldo duplicado para subcuenta ${subaccount} (${currency}).`);
+            seen.add(identity);balances.push({account,subaccount,description:String(row['TRANSACTIONAL ACCOUNT DESCRIPTION']||row['ACCOUNT DESCRIPTION']||'').trim(),currency,amount,date:row['VALUE DATE']||null});
+        }
+        return balances;
+    }
+    function matchBalanceAccounts(positions,balances,manual={}){
+        const positionNames=new Map(),balanceNames=new Map(),positionAccounts=new Set(),balanceAccounts=new Set();
+        for(const row of positions){const account=id(row.account),name=id(row.accountLabel);if(!account)continue;positionAccounts.add(account);if(name){if(!positionNames.has(name))positionNames.set(name,new Set());positionNames.get(name).add(account);}}
+        for(const row of balances){const account=id(row.account),name=id(row.description);if(!account)continue;balanceAccounts.add(account);if(name){if(!balanceNames.has(name))balanceNames.set(name,new Set());balanceNames.get(name).add(account);}}
+        const links={},used=new Set();
+        for(const account of balanceAccounts)if(positionAccounts.has(account)){links[account]=account;used.add(account);}
+        for(const [name,source] of balanceNames){const target=positionNames.get(name);if(source.size!==1||target?.size!==1)continue;const from=[...source][0],to=[...target][0];if(!links[from]&&!used.has(to)){links[from]=to;used.add(to);}}
+        for(const [target,source] of Object.entries(manual)){const to=id(target),from=id(source);if(!positionAccounts.has(to)||!balanceAccounts.has(from))continue;for(const [priorSource,priorTarget] of Object.entries(links))if(priorSource===from||priorTarget===to)delete links[priorSource];links[from]=to;}
+        return {links,unmatchedPositions:[...positionAccounts].filter(account=>!Object.values(links).includes(account)),unmatchedBalances:[...balanceAccounts].filter(account=>!links[account])};
+    }
+    function convertBalances(rows,rates){
+        const groups=new Map();
+        for(const row of rows){const account=id(row.account);if(!groups.has(account))groups.set(account,[]);groups.get(account).push(row);}
+        const amounts={},unresolved=[];
+        for(const [account,items] of groups){
+            let total=0,complete=true;
+            for(const item of items){
+                const rate=item.currency==='EUR'?1:rates[item.currency];
+                if(!Number.isFinite(rate)||rate<=0){if(item.amount!==0){unresolved.push(item);complete=false;}continue;}
+                total+=item.amount/rate;
+            }
+            if(complete)amounts[account]=total;
+        }
+        return {amounts,unresolved};
+    }
+    function analyze({positions=[],clients=[],categories=[],modelsByOrg={},cashByAccount={},rfMetrics={},bandsByProfile=modelCore.bands,valuationAligned=true,today=new Date()}){
         const categoryMap=new Map(categories.map(row=>[id(row.isin),row]));
         const accounts=new Map(),funds=new Map(),control=clientIndex(clients);
         let invested=0,unclassified=0,invalidAmounts=0;
@@ -71,7 +110,7 @@
             const client=control.get(holder.account)||control.get(id(holder.accountLabel))||null;
             const organization=String(client?.organization||'').toUpperCase();
             const profile=modelCore.profile(client?.profile||'');
-            const band=modelCore.bands[profile]||null;
+            const band=bandsByProfile[profile]||null;
             const models=modelsByOrg[organization]||[];
             const model=models.find(item=>modelCore.profile(item.profile||item.name)===profile)||null;
             const allocations=new Map();
@@ -80,31 +119,34 @@
                 if(!generic||!Number.isFinite(position.amount))continue;
                 allocations.set(generic,(allocations.get(generic)||0)+position.amount);
             }
-            const reportedCash=Object.prototype.hasOwnProperty.call(cashByAccount,holder.account)?cashByAccount[holder.account]:client?.cash;
+            const reportedCash=Object.prototype.hasOwnProperty.call(cashByAccount,id(holder.account))?cashByAccount[id(holder.account)]:Object.prototype.hasOwnProperty.call(cashByAccount,holder.account)?cashByAccount[holder.account]:client?.cash;
             const cashKnown=Number.isFinite(reportedCash)&&reportedCash>=0;
             const cash=cashKnown?reportedCash:0;
             const base=holder.invested+cash;
             const coverage=holder.invested>0?(holder.invested-holder.unclassified)/holder.invested:0;
             const rv=[...holder.positions].reduce((sum,p)=>sum+(p.classification?.type==='RV'&&Number.isFinite(p.amount)?p.amount:0),0);
             const rvPct=base>0?rv/base*100:NaN;
-            const verified=Boolean(client&&band&&cashKnown&&holder.invested>0&&holder.missingAmount===0&&holder.unclassified===0);
+            const verified=Boolean(client&&band&&cashKnown&&valuationAligned&&holder.invested>0&&holder.missingAmount===0&&holder.unclassified===0);
             const bandPosition=band&&Number.isFinite(rvPct)?(rvPct-band[0])/(band[1]-band[0])*100:NaN;
             const limit=verified?(rvPct<band[0]-1e-8?'bajo mínimo':rvPct>band[1]+1e-8?'excede máximo':'dentro'):'sin verificar';
             const limitReasons=[];
             if(!client)limitReasons.push('cliente sin cruce');
             if(!band)limitReasons.push('perfil sin banda');
             if(!cashKnown)limitReasons.push('efectivo pendiente');
+            if(cashKnown&&!valuationAligned)limitReasons.push('fechas de posiciones y saldos sin conciliar');
             if(holder.unclassified>0)limitReasons.push('activos sin clasificar');
             if(holder.missingAmount)limitReasons.push('contravalor pendiente');
             const documents=(client?.documents||[]).map(item=>({...item,status:documentStatus(item.expiry,item.present,today)}));
             const kyc=documentStatus(client?.kycExpiry,true,today);
             const suitability=documentStatus(client?.suitabilityExpiry,true,today);
             const esg=documentStatus(client?.esgExpiry,true,today);
-            return {...holder,client,organization,profile,band,model,cash,cashKnown,base,coverage,rvPct,bandPosition,limit,limitReasons,allocations,currencyExposure:lookThrough(holder.positions),rf:rfWeighted(holder.positions,rfMetrics),documents,kyc,suitability,esg};
+            const house=holder.positions.filter(row=>row.house===true).reduce((sum,row)=>sum+(Number.isFinite(row.amount)?row.amount:0),0);
+            const houseUnreviewed=holder.positions.filter(row=>row.house===null||row.house===undefined).reduce((sum,row)=>sum+(Number.isFinite(row.amount)?row.amount:0),0);
+            return {...holder,client,organization,profile,band,model,cash,cashKnown,base,coverage,rvPct,bandPosition,limit,limitReasons,allocations,house,houseUnreviewed,currencyExposure:lookThrough(holder.positions),rf:rfWeighted(holder.positions,rfMetrics),documents,kyc,suitability,esg};
         }).sort((a,b)=>b.invested-a.invested);
         const noControl=results.filter(row=>!row.client).length;
         const unknownCategories=[...funds.values()].filter(fund=>!fund.classification?.generic||!['RV','RF','Otros'].includes(fund.classification.type));
         return {accounts:results,funds:[...funds.values()].sort((a,b)=>b.amount-a.amount),invested,unclassified,invalidAmounts,noControl,unknownCategories,currencyExposure:lookThrough(results.flatMap(row=>row.positions)),breaches:results.filter(row=>['bajo mínimo','excede máximo'].includes(row.limit))};
     }
-    return {analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough,rfWeighted};
+    return {analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough,rfWeighted,parseBalanceRows,matchBalanceAccounts,convertBalances};
 });

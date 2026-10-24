@@ -244,6 +244,11 @@ function initializePortfolioWorkspace() {
     gdcCard.innerHTML='<div class="text-[11px] uppercase font-bold text-slate-500">GDC · comité mensual</div><div id="scoringDataStatus-gdc" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div><label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Subir Excel</label>';
     gdcCard.querySelector('label').append(gdcInput);gdcInput.hidden=true;gdcInput.style.display='none';
     upload.querySelector('.grid').append(gdcCard);
+    const giciInput=document.getElementById('giciPriorFile');
+    const giciCard=document.createElement('div');giciCard.className='min-w-0 border border-slate-200 bg-slate-50 p-3';
+    giciCard.innerHTML='<div class="text-[11px] uppercase font-bold text-slate-500">GICI · comité mensual</div><div id="scoringDataStatus-gici" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div><label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Subir Excel</label>';
+    giciCard.querySelector('label').append(giciInput);giciInput.hidden=true;giciInput.style.display='none';
+    upload.querySelector('.grid').append(giciCard);
     const masterCard=document.getElementById('fundPortfolioFileInput').closest('.min-w-0');
     masterCard.querySelector('div').textContent='Maestro · cartera individual';
     masterCard.querySelector('[id="scoringDataStatus-portfolio"]').insertAdjacentHTML('afterend','<p class="workspace-master-note">ISIN y peso para scoring; posis/prices, bench y bench categ para históricos y comparativas.</p><p id="masterHistoryStatus" class="workspace-master-note" role="status">Históricos pendientes</p>');
@@ -254,7 +259,7 @@ function initializePortfolioWorkspace() {
     frequencyLabel.classList.add('workspace-master-frequency');masterCard.append(frequencyLabel);
     const alternate=document.createElement('details');alternate.className='workspace-master-alternate';alternate.innerHTML='<summary>Otro formato: backtest o evolución real</summary>';
     alternate.append(importGrid);masterCard.append(alternate);
-    upload.querySelector('.grid').classList.replace('xl:grid-cols-5','xl:grid-cols-3');
+    upload.querySelector('.grid').classList.replace('xl:grid-cols-5','xl:grid-cols-4');
     const comparePanel=document.createElement('section');comparePanel.id='workspacePortfolioCompare';comparePanel.className='workspace-panel';comparePanel.dataset.workspacePanel='';root.append(comparePanel);
     PortfolioCompare.init();
     document.getElementById('aggregatePositionsTableBody').closest('.mb-5').insertAdjacentHTML('beforebegin','<div class="workspace-tools"><button type="button" onclick="useAggregateChangesInIndividualScoring()"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Llevar cartera tras cambios a análisis individual</button></div>');

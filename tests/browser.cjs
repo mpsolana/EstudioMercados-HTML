@@ -35,7 +35,8 @@ const fs = require('node:fs');
         await page.locator('[data-workspace-scope="data"]').click();
         assert.ok(await page.locator('#workspaceData').isVisible());
         assert.equal(await page.locator('#portfolioBuilder').isVisible(),false);
-        assert.equal(await page.locator('#workspaceData .min-w-0').count(),6);
+        assert.equal(await page.locator('#workspaceData .min-w-0').count(),7);
+        assert.ok(await page.locator('#giciPriorFile').evaluate(input=>input.closest('#workspaceData')!==null));
         assert.ok(await page.locator('#masterHistoryStatus').isVisible());
         if(process.env.BROWSER_OUTPUT_DIR){fs.mkdirSync(process.env.BROWSER_OUTPUT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.BROWSER_OUTPUT_DIR,'data-desktop.png'),fullPage:true});}
         await page.locator('[data-workspace-scope="screener"]').click();

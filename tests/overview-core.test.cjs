@@ -75,3 +75,40 @@ test('look-through uses amounts and keeps missing or inconsistent currency expos
     assert.ok(Math.abs(Core.exposureMix({eurExpo:0.51,usdExpo:0.50,otherExpo:0}).reduce((a,b)=>a+b,0)-1)<1e-10);
     assert.equal(Core.exposureMix({eurExpo:0,usdExpo:0,otherExpo:0}),null);
 });
+
+test('multicurrency balances join on transactional account and require each FX rate',()=>{
+    const rows=Core.parseBalanceRows([
+        {ACCOUNT:'EUR-SUB','TRANSACTIONAL ACCOUNT':'MAIN','CURRENCY':'EUR',BALANCE:100,'VALUE DATE':'2026-10-23'},
+        {ACCOUNT:'USD-SUB','TRANSACTIONAL ACCOUNT':'MAIN','CURRENCY':'USD',BALANCE:120,'VALUE DATE':'2026-10-23'},
+        {ACCOUNT:'OTHER','TRANSACTIONAL ACCOUNT':'SECOND','CURRENCY':'EUR',BALANCE:0}
+    ]);
+    assert.equal(rows.length,3);
+    assert.deepEqual(Core.convertBalances(rows,{USD:1.2}),{amounts:{MAIN:200,SECOND:0},unresolved:[]});
+    const missing=Core.convertBalances(rows,{});
+    assert.equal(missing.amounts.MAIN,undefined);
+    assert.equal(missing.unresolved.length,1);
+    assert.throws(()=>Core.parseBalanceRows([{ACCOUNT:'EUR-SUB','TRANSACTIONAL ACCOUNT':'MAIN',CURRENCY:'EUR',BALANCE:100},{ACCOUNT:'EUR-SUB','TRANSACTIONAL ACCOUNT':'MAIN',CURRENCY:'EUR',BALANCE:200}]),/duplicado/);
+});
+
+test('balance account reconciliation accepts only exact unique names and flags homonyms',()=>{
+    const positions=[{account:'P1',accountLabel:'María López'},{account:'P2',accountLabel:'Familia Pérez'},{account:'P3',accountLabel:'Familia Pérez'}];
+    const balances=[{account:'B1',description:'Maria Lopez'},{account:'B2',description:'Familia Perez'},{account:'B3',description:'Familia Perez'}];
+    const matched=Core.matchBalanceAccounts(positions,balances);
+    assert.deepEqual(matched.links,{B1:'P1'});
+    assert.deepEqual(matched.unmatchedPositions,['P2','P3']);
+    const manual=Core.matchBalanceAccounts(positions,balances,{P2:'B2'});
+    assert.equal(manual.links.B2,'P2');
+    assert.ok(manual.unmatchedPositions.includes('P3'));
+});
+
+test('editable profile bands and mismatched valuation dates never produce verified compliance',()=>{
+    const positions=[p('A','RVONE',30),p('A','RFONE',70)],clients=[{account:'A',profile:'Prudente',documents:[]}];
+    const categories=[{isin:'RVONE',generic:'RV',type:'RV'},{isin:'RFONE',generic:'RF',type:'RF'}];
+    const bands={prudente:[10,25]};
+    const result=Core.analyze({positions,clients,categories,bandsByProfile:bands,cashByAccount:{A:0},valuationAligned:false}).accounts[0];
+    assert.equal(result.rvPct,30);
+    assert.equal(result.bandPosition,133.33333333333331);
+    assert.equal(result.limit,'sin verificar');
+    assert.ok(result.limitReasons.includes('fechas de posiciones y saldos sin conciliar'));
+    assert.equal(Core.analyze({positions,clients,categories,bandsByProfile:bands,cashByAccount:{A:0}}).accounts[0].limit,'excede máximo');
+});
