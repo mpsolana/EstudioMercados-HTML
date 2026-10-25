@@ -112,3 +112,22 @@ test('editable profile bands and mismatched valuation dates never produce verifi
     assert.ok(result.limitReasons.includes('fechas de posiciones y saldos sin conciliar'));
     assert.equal(Core.analyze({positions,clients,categories,bandsByProfile:bands,cashByAccount:{A:0}}).accounts[0].limit,'excede máximo');
 });
+
+test('RV transfer action enters the band with a two-point cushion and never estimates from unverified data',()=>{
+    const above=Core.rvAction({limit:'excede máximo',band:[30,50],rvPct:60,base:200000});
+    assert.deepEqual(above,{direction:'Reducir RV',amount:24000,target:48});
+    const below=Core.rvAction({limit:'bajo mínimo',band:[30,50],rvPct:25,base:200000});
+    assert.equal(below.direction,'Aumentar RV');assert.equal(below.target,32);assert.ok(Math.abs(below.amount-14000)<1e-8);
+    const narrow=Core.rvAction({limit:'excede máximo',band:[49,51],rvPct:60,base:100000});
+    assert.equal(narrow.target,50);
+    assert.equal(Core.rvAction({limit:'sin verificar',band:[30,50],rvPct:60,base:200000}),null);
+});
+
+test('benchmark allocation uses its dedicated category while generic allocation remains intact',()=>{
+    const positions=[p('A','RVONE',300),p('A','RFONE',700)];
+    const categories=[{isin:'RVONE',generic:'RV Global',benchCategory:'RV EUROPA',type:'RV'},{isin:'RFONE',generic:'RF Crédito',benchCategory:'RF EUROPA',type:'RF'}];
+    const result=Core.analyze({positions,clients:[{account:'A',profile:'Equilibrado',cash:0}],categories});
+    assert.equal(result.accounts[0].allocations.get('RV Global'),300);
+    assert.equal(result.accounts[0].benchmarkAllocations.get('RV EUROPA'),300);
+    assert.equal(result.accounts[0].benchmarkAllocations.has('RV Global'),false);
+});

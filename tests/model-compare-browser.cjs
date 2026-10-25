@@ -1,6 +1,6 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),{pathToFileURL}=require('node:url');
 (async()=>{
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.dismiss());
@@ -48,6 +48,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.match(await page.locator('#multiAssetSharpeHead').textContent(),/2\.50%/);
   assert.equal(await page.locator('#multiAssetHorizonBody tr').count(),11);
   assert.equal(await page.locator('#multiAssetBaseChart .scatterlayer .trace').count(),11);
+  assert.ok(await page.locator('#multiAssetDrawdownRecoveryChart .main-svg').count()>0);
   assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(8).textContent(),'-');
   assert.notEqual(await page.locator('#multiAssetTableBody tr').first().locator('td').nth(9).textContent(),'-');
   await page.evaluate(()=>switchSection('cartera'));
@@ -55,9 +56,6 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   assert.match(setup.scoreHtml,/quality-technical/);
   assert.match(setup.aggregateScoreHtml,/flex-col items-center/);
   const results=await page.evaluate(async()=>{
-   const limit=document.getElementById('gdcMaxTe');limit.value='0.01';limit.dispatchEvent(new Event('change',{bubbles:true}));
-   document.getElementById('gdcComparable').click();const breach=document.getElementById('gdcStatus').classList.contains('gdc-te-breach');
-   limit.value='1';limit.dispatchEvent(new Event('change',{bubbles:true}));const within=document.getElementById('gdcStatus').classList.contains('gdc-te-ok');
    const current=document.querySelector('[data-gdc-current="0"]');current.value='ES0000000001';current.dispatchEvent(new Event('change',{bubbles:true}));
    document.querySelector('[data-gdc-add="0"]').click();
    const shares=GdcModel.state.models[0].rows[0].proposedPositions.map(item=>item.share);
@@ -65,11 +63,11 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    const universeCount=universe.options.length,topCount=document.querySelector('[data-gdc-select="0:1"]').options.length;
    const weight=document.querySelector('[data-gdc-weight="0:0"]');weight.value='70';weight.dispatchEvent(new Event('change',{bubbles:true}));
    document.getElementById('gdcReport').click();
-   return {comparison:document.querySelector('#multiAssetTableBody').rows.length,comparisonCharts:['multiAssetBaseChart','multiAssetDrawdownChart','multiAssetScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`)),te:document.querySelector('#gdcStatus').textContent,shares,universeCount,topCount,adjusted:GdcModel.state.models[0].rows[0].proposedPositions.map(item=>item.share),breach,within};
+   return {comparison:document.querySelector('#multiAssetTableBody').rows.length,comparisonCharts:['multiAssetBaseChart','multiAssetDrawdownChart','multiAssetScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`)),status:document.querySelector('#gdcStatus').textContent,shares,universeCount,topCount,adjusted:GdcModel.state.models[0].rows[0].proposedPositions.map(item=>item.share)};
   });
   await page.waitForFunction(()=>document.querySelector('#gdcReportPreview iframe')?.contentDocument?.body?.textContent?.includes('Media peers'));
   const firstReport=await page.evaluate(()=>({text:document.querySelector('#gdcReportPreview iframe').contentDocument.body.textContent,charts:document.querySelector('#gdcReportPreview iframe').contentDocument.querySelectorAll('.gdc-peer-report img').length}));
-  assert.equal(results.comparison,10);assert.equal(results.comparisonCharts,true);assert.match(results.te,/Calidad ponderada 3\.70/);assert.match(results.te,/TER ponderado 0\.66%/);assert.deepEqual(results.shares,[50,50]);assert.equal(results.universeCount,4);assert.equal(results.topCount,4);assert.deepEqual(results.adjusted,[70,30]);assert.equal(firstReport.charts,2);assert.match(firstReport.text,/Posiciones actuales y propuesta/);assert.match(firstReport.text,/Metricas actuales frente a propuestas/);assert.match(firstReport.text,/Media peers/);assert.equal(results.breach,true);assert.equal(results.within,true);
+  assert.equal(results.comparison,10);assert.equal(results.comparisonCharts,true);assert.match(results.status,/Calidad ponderada 3\.70/);assert.match(results.status,/TER ponderado 0\.66%/);assert.deepEqual(results.shares,[50,50]);assert.equal(results.universeCount,4);assert.equal(results.topCount,4);assert.deepEqual(results.adjusted,[70,30]);assert.equal(firstReport.charts,2);assert.match(firstReport.text,/Posiciones actuales y propuesta/);assert.match(firstReport.text,/Metricas actuales frente a propuestas/);assert.match(firstReport.text,/Media peers/);
   await page.evaluate(()=>{const other=structuredClone(GdcModel.state.models[0]);other.name='Dinamica';other.rows[0].proposedPositions=[{isin:'ES0000000003',share:100}];GdcModel.state.models.push(other);});
   const priorDownload=page.waitForEvent('download');await page.locator('#gdcExport').click();const monthly=await priorDownload;
   await page.locator('#gdcPriorFile').setInputFiles({name:'mes-anterior.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:fs.readFileSync(await monthly.path())});

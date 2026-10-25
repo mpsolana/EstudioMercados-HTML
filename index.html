@@ -799,10 +799,7 @@
                         <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
                             <div class="text-[11px] uppercase font-bold text-slate-500">Posiciones</div>
                             <div id="scoringDataStatus-positions" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
-                            <label class="block text-xs text-slate-600 mt-3">Filtro para scoring agregado
-                                <select id="aggregatePositionsFilter" class="block w-full bg-white border border-slate-300 p-2 mt-1"><option value="funds">Fondos no cotizados</option><option value="funds-etf">Fondos y ETF</option><option value="all">Todos los activos</option></select>
-                            </label>
-                            <p class="text-xs text-slate-500 mt-1">El panel de control recibe siempre todas las posiciones; este filtro solo afecta al análisis agregado.</p>
+                            <p class="text-xs text-slate-500 mt-3">Se excluyen automáticamente las posiciones con balance type «inmovilizado». El scoring agregado analiza fondos no cotizados.</p>
                             <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
                                 <i class="fa-solid fa-file-import" aria-hidden="true"></i>Subir archivo
                                 <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple hidden style="display:none" onchange="importScoringData('positions', this.files, importAggregatePositionsFile)">
@@ -5323,9 +5320,10 @@
                         }
                     }
                 }
-                const parsed = parseAggregatePositionRows(rows,document.getElementById('aggregatePositionsFilter')?.value||'funds');
+                const activeRows = rows.filter(row => !/^inmovilizad[oa]s?$/i.test(String(looseRowValue(row, ['BALANCE TYPE', 'Balance type', 'Tipo saldo']) || '').trim()));
+                const parsed = parseAggregatePositionRows(activeRows);
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
-                OverviewPanel.capturePositions(rows, file.name);
+                OverviewPanel.capturePositions(activeRows, file.name);
                 if (workbook && findSheet(workbook, ['Categorización', 'Categorizacion'])) OverviewPanel.loadCategoriesWorkbook(workbook, file.name);
                 renderScoringDataStatus();
                 aggregatePositionsState.notice = parseNotice;
@@ -5487,7 +5485,7 @@
                 return null;
             }
 
-            function parseAggregatePositionRows(rows,filter='funds') {
+            function parseAggregatePositionRows(rows) {
                 return (rows || []).map(row => {
                     const productType = String(looseRowValue(row, ['PRODUCT TYPE', 'Tipo producto', 'Product']) || '').trim();
                     const assetType = String(looseRowValue(row, ['TYPE OF ASSET', 'Tipo activo', 'Asset Type']) || '').trim();
@@ -5500,11 +5498,10 @@
                     return { isin, name, productType, assetType, account, amount, units };
                 }).filter(r => {
                     if(!r.isin)return false;
-                    if(filter==='all')return true;
                     const text=`${r.productType} ${r.assetType} ${r.name}`;
                     const fund=/(investment\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`);
                     const etf=/\betfs?\b|exchange[\s-]*traded|fondos?\s+cotizados?/i.test(text);
-                    return filter==='funds-etf'?(fund||etf):fund&&!etf;
+                    return fund&&!etf;
                 });
             }
 

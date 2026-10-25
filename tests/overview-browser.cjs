@@ -13,7 +13,8 @@ const assert=require('node:assert/strict');
         await page.evaluate(async()=>{
             const id='ES0000000001',other='ES0000000002';
             OverviewPanel.capturePositions([
-                {'ISIN':id,'ACCOUNT':'Cuenta Cliente','INVERSIS ACCOUNT NUMBER':'0232-0105-01-0000000001','INSTRUMENT':'Fondo A','DIV INSTITUTION COUNTER VALUE':400},
+                {'ISIN':id,'ACCOUNT':'Cuenta Cliente','INVERSIS ACCOUNT NUMBER':'0232-0105-01-0000000001','INSTRUMENT':'Fondo A','DIV INSTITUTION COUNTER VALUE':400,'BALANCE TYPE':'CONTADO','TYPE OF ASSET':'FONDOS NACIONALES','PRODUCT TYPE':'FONDOS DE INVERSION'},
+                {'ISIN':'BLOCKED','ACCOUNT':'Cuenta Cliente','INVERSIS ACCOUNT NUMBER':'0232-0105-01-0000000001','INSTRUMENT':'Fondo inmovilizado','DIV INSTITUTION COUNTER VALUE':900,'BALANCE TYPE':'INMOVILIZADO'},
                 {'ISIN':other,'ACCOUNT':'Cuenta Cliente','INVERSIS ACCOUNT NUMBER':'0232-0105-01-0000000001','INSTRUMENT':'Fondo B','DIV INSTITUTION COUNTER VALUE':-100},
                 {'ISIN':other,'ACCOUNT':'Cuenta Cliente','INVERSIS ACCOUNT NUMBER':'0232-0105-01-0000000001','INSTRUMENT':'Fondo B','DIV INSTITUTION COUNTER VALUE':600}
             ],'posiciones-prueba.xlsx');
@@ -24,11 +25,12 @@ const assert=require('node:assert/strict');
             await OverviewPanel.importControl(file);
             OverviewPanel.state.cashOverrides.set('0232-0105-01-0000000001',100);
             OverviewPanel.render();
-            const categoryBook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(categoryBook,XLSX.utils.aoa_to_sheet([['TIPO PRODUCTO','ISIN','INSTRUMENTO','Tipo Activo','TIPO ACTIVO +','DIVISA','HEDGE','ESTRATEGIA DE INVERSIÓN','EUR EXPO','USD EXPO','OTROS EXPO','eur+usd'],['FONDO',id,'Fondo A','RENTA VARIABLE','RV Global','EUR','N','RISK ON',0.8,0.2,0,1],['FONDO',other,'Fondo B','RENTA FIJA','RF Europa','EUR','N','RISK OFF',1,0,0,1]]),'Categorización');
+            const categoryBook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(categoryBook,XLSX.utils.aoa_to_sheet([['TIPO PRODUCTO','ISIN','INSTRUMENTO','Tipo Activo','TIPO ACTIVO +','TIPO ACTIVO VS BENCH','DIVISA','HEDGE','ESTRATEGIA DE INVERSIÓN','EUR EXPO','USD EXPO','OTROS EXPO','eur+usd'],['FONDO',id,'Fondo A','RENTA VARIABLE','RV Global','RV EUROPA','EUR','N','RISK ON',0.8,0.2,0,1],['FONDO',other,'Fondo B','RENTA FIJA','RF Europa','RF EUROPA','EUR','N','RISK OFF',1,0,0,1]]),'Categorización');
             await OverviewPanel.importCategories(new File([XLSX.write(categoryBook,{type:'array',bookType:'xlsx'})],'categorias-prueba.xlsx'));
         });
         const result=await page.evaluate(()=>OverviewCore.analyze({positions:OverviewPanel.state.positions,clients:OverviewPanel.state.clients,categories:[...OverviewPanel.state.categories.values()],cashByAccount:{'02320105010000000001':100}}));
         assert.equal(result.invested,900);
+        assert.equal(await page.evaluate(()=>OverviewPanel.state.positions.some(row=>row.isin==='BLOCKED')),false);
         assert.equal(result.accounts[0].client.name,'Cliente sintético');
         assert.equal(result.accounts[0].limit,'dentro');
         assert.equal(result.accounts[0].bandPosition,50);
@@ -42,20 +44,23 @@ const assert=require('node:assert/strict');
         assert.equal(categoryExport.rows.length,2);
         assert.equal(categoryExport.rows[0]['Tipo Activo'],'RENTA VARIABLE');
         assert.equal(categoryExport.rows[0]['TIPO ACTIVO +'],'RV Global');
+        assert.equal(categoryExport.rows[0]['TIPO ACTIVO VS BENCH'],'RV EUROPA');
         assert.equal(categoryExport.rows[0]['USD EXPO'],0.2);
         assert.equal(categoryExport.rows[0]['ESTRATEGIA DE INVERSIÓN'],'RISK ON');
         assert.ok(!JSON.stringify(categoryExport).includes('Cliente sintético'));
         await page.evaluate(()=>{
             GdcModel.state.mode='GDC';
             GdcModel.state.models=[{name:'Equilibrado',profile:'equilibrado',rows:[
-                {generic:'RV Global',weight:35,portfolioWeight:45,assetType:'RV',currentPositions:[],proposedPositions:[],subcategories:[]},
-                {generic:'RF Europa',weight:65,portfolioWeight:55,assetType:'RF',benchmarkTicker:'BTEST',currentPositions:[],proposedPositions:[{isin:'ES0000000002',share:100}],subcategories:[]}
+                {generic:'RV EUROPA',weight:35,portfolioWeight:45,assetType:'RV',currentPositions:[],proposedPositions:[],subcategories:[]},
+                {generic:'RF EUROPA',weight:65,portfolioWeight:55,assetType:'RF',benchmarkTicker:'BTEST',currentPositions:[],proposedPositions:[{isin:'ES0000000002',share:100}],subcategories:[]}
             ]}];
             GdcModel.state.rfMetrics={'F:ES0000000002':{ytm:4.2,duration:3},'B:BTEST':{ytm:3.8,duration:2.5}};
             OverviewPanel.render();
         });
         assert.ok(await page.locator('#overviewTreemapChart .js-plotly-plot').count()||await page.locator('#overviewTreemapChart svg').count());
         assert.ok(await page.locator('#overviewAggregateCurrencyChart .js-plotly-plot').count()||await page.locator('#overviewAggregateCurrencyChart svg').count());
+        assert.ok(await page.locator('#overviewNationalChart .main-svg').count()>0);
+        assert.ok(await page.locator('#overviewProductChart .main-svg').count()>0);
         await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-summary-desktop.png')});
         await page.locator('[data-tab="clients"]').click();
         assert.ok(await page.locator('.overview-detail').innerText().then(text=>text.includes('Cliente sintético')));
@@ -63,6 +68,7 @@ const assert=require('node:assert/strict');
         assert.ok(await page.locator('#overviewAssetDonut .js-plotly-plot').count()||await page.locator('#overviewAssetDonut svg').count());
         assert.ok(await page.locator('#overviewCurrencyDonut .js-plotly-plot').count()||await page.locator('#overviewCurrencyDonut svg').count());
         assert.ok(await page.locator('#overviewHouseDonut .js-plotly-plot').count()||await page.locator('#overviewHouseDonut svg').count());
+        assert.ok(await page.locator('#overviewGenericDonut .main-svg').count()>0);
         await page.locator('[data-include-cash]').uncheck();
         assert.ok((await page.locator('.overview-detail').innerText()).includes('Total invertido'));
         await page.locator('[data-include-cash]').check();
@@ -88,6 +94,8 @@ const assert=require('node:assert/strict');
         await page.locator('[data-tab="levels"]').click();
         assert.ok((await page.locator('.overview-content').innerText()).includes('Cliente sintético'));
         assert.ok((await page.locator('.overview-content').innerText()).includes('Posición banda'));
+        await page.locator('[data-level-sort="rv"]').click();
+        assert.equal(await page.locator('[data-level-sort="rv"]').count(),1);
         await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-levels.png')});
         await page.locator('[data-tab="categories"]').click();
         await page.locator('[data-category-view="yahoo"]').click();

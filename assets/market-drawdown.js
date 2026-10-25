@@ -44,3 +44,4 @@ const MarketDrawdown=(()=>{
     return {analyze,render,renderIndividual};
 })();
 if(typeof module!=='undefined')module.exports=MarketDrawdown;
+else globalThis.MarketDrawdown=MarketDrawdown;

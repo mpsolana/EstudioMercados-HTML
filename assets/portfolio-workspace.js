@@ -1,6 +1,7 @@
 const PortfolioWorkspace = { scope: 'data', step: 'diagnosis', tool: 'main', revision: 1, snapshots: {}, engine: 'audit-1' };
 let initialRatePositions=[];
 let initialRateResults=[];
+let initialSimpleRateResults=[];
 const defaultRateScenarios=()=>[{name:'Favorable',rate:-50,spread:-25,enabled:true},{name:'Neutral',rate:0,spread:0,enabled:true},{name:'Subida de tipos',rate:50,spread:0,enabled:true},{name:'Crédito',rate:0,spread:50,enabled:true},{name:'Tensión conjunta',rate:50,spread:50,enabled:true}];
 let initialRateScenarios=defaultRateScenarios();
 function renderInitialRateScenarioEditor(){
@@ -13,21 +14,25 @@ async function exportInitialRateSensitivity(format){
     const get=id=>panel.querySelector('#'+id)?.value||'',currency=portfolioCalculationSettings().currency;
     const headers=['Escenario','Tipos (pb)','Spreads (pb)','Impacto tipos RF (%)','Impacto crédito RF (%)','Carry RF (%)','Impacto RF (%)','Impacto cartera (%)','Impacto cartera (importe)','Valor cartera estimado'];
     const rows=initialRateResults.map(row=>[row.name,row.rate,row.spread,row.rates*100,row.credit*100,row.carry*100,row.rfReturn*100,row.portfolioReturn*100,row.change,row.portfolioValue]);
+    const simpleHeaders=['Tipos (pb)','Impacto RF (%)','Impacto RF (EUR)','Impacto cartera (%)','Valor estimado'];
+    const simpleRows=initialSimpleRateResults.map(row=>[row.changeBps,row.rfReturn*100,row.change,row.portfolioReturn*100,row.portfolioValue]);
     if(format==='xlsx'){
         if(!window.XLSX)throw new Error('Excel no está disponible.');
         const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([headers,...rows]),'Escenarios');
+        XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([simpleHeaders,...simpleRows]),'Sensibilidad simple');
         XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Parámetro','Valor'],['Fecha',new Date().toLocaleDateString('es-ES')],['Divisa',currency],['Importe cartera',get('initialRateAmount')],['Valor RF',get('initialRateRfAmount')],['RF (%)',get('initialRateWeight')],['Duración tipos (años)',get('initialRateDuration')],['Spread duration (años)',get('initialSpreadDuration')],['YTM (%)',get('initialRateYtm')],['Horizonte (meses)',get('initialRateHorizon')],['Carry incluido',panel.querySelector('#initialRateCarry').checked?'Sí':'No'],['Cobertura granular',panel.querySelector('#initialRateCoverage')?.textContent||'Modo agregado'],['Metodología',panel.querySelector('#initialRateMethod').textContent]]),'Hipótesis');
         if(panel.querySelector('#initialRateMode').value==='positions'&&initialRatePositions.length)XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['ISIN','Fondo','Peso cartera (%)','Duración tipos','Spread duration','YTM (%)','Fuente'],...initialRatePositions.map(row=>[row.isin,row.name,row.weight,Number.isFinite(row.rateDuration)?row.rateDuration:'',Number.isFinite(row.spreadDuration)?row.spreadDuration:'',Number.isFinite(row.ytmPct)?row.ytmPct:'',row.source])]),'Posiciones RF');
         if(panel.querySelector('#initialRateAdjustedResult')?.textContent&&get('initialRateAdjustedWeight'))XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Parámetro','Valor'],['Peso RF propuesto (%)',get('initialRateAdjustedWeight')],['Duración tipos propuesta',get('initialRateAdjustedDuration')],['Spread duration propuesta',get('initialRateAdjustedSpread')],['YTM propuesta (%)',get('initialRateAdjustedYtm')],['Comparación',panel.querySelector('#initialRateAdjustedResult').textContent]]),'Cartera ajustada');
         XLSX.writeFile(book,'Sensibilidad-RF.xlsx');return;
     }
     const figures=[];
-    for(const id of ['initialRateScenarioChart','initialRateCurve','initialSpreadCurve','initialCombinedHeat','initialRateWaterfall']){
+    for(const id of ['initialRateScenarioChart','initialSimpleRateChart','initialRateCurve','initialSpreadCurve','initialCombinedHeat','initialRateWaterfall']){
         const node=panel.querySelector('#'+id);if(node?.data?.length)figures.push(`<figure><img src="${await Plotly.toImage(node,{format:'png',width:900,height:430,scale:1.5})}" alt="${escapeHtml(node.layout?.title?.text||id)}"></figure>`);
     }
     const table=`<table class="wide-report-table"><thead><tr>${headers.map(label=>`<th>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(value=>`<td>${escapeHtml(typeof value==='number'?value.toFixed(2):value)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const simpleTable=`<table class="wide-report-table"><thead><tr>${simpleHeaders.map(label=>`<th>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${simpleRows.map(row=>`<tr>${row.map(value=>`<td>${escapeHtml(typeof value==='number'?value.toFixed(2):value)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const positions=panel.querySelector('#initialRateMode').value==='positions'&&initialRatePositions.length?`<section><h2>Posiciones de renta fija y fuentes</h2><table class="wide-report-table"><thead><tr><th>ISIN</th><th>Fondo</th><th>Peso (%)</th><th>Duración tipos</th><th>Spread duration</th><th>YTM (%)</th><th>Fuente</th></tr></thead><tbody>${initialRatePositions.map(row=>`<tr><td>${escapeHtml(row.isin)}</td><td>${escapeHtml(row.name)}</td><td>${row.weight.toFixed(2)}</td><td>${Number.isFinite(row.rateDuration)?row.rateDuration:'Pendiente'}</td><td>${Number.isFinite(row.spreadDuration)?row.spreadDuration:'Pendiente'}</td><td>${Number.isFinite(row.ytmPct)?row.ytmPct:'Pendiente'}</td><td>${escapeHtml(row.source)}</td></tr>`).join('')}</tbody></table></section>`:'';
-    const html=`<html><body class="report manager-report"><header><h1>Sensibilidad de la renta fija</h1><p>Tipos de interés y crédito · ${new Date().toLocaleDateString('es-ES')} · ${escapeHtml(currency)}</p></header><section><h2>Resumen ejecutivo</h2><p>${escapeHtml(panel.querySelector('#initialRateExecutive').textContent)}</p></section><section><h2>Hipótesis</h2><p>Importe ${escapeHtml(get('initialRateAmount'))} · RF ${escapeHtml(get('initialRateWeight'))}% · duración tipos ${escapeHtml(get('initialRateDuration'))} · spread duration ${escapeHtml(get('initialSpreadDuration')||'pendiente')} · carry ${panel.querySelector('#initialRateCarry').checked?'incluido':'excluido'}</p><p>${escapeHtml(panel.querySelector('#initialRateMode').value==='positions'?panel.querySelector('#initialRateCoverage')?.textContent||'Datos granulares pendientes':'Modo agregado; sensibilidades introducidas por el usuario')}</p></section><section><h2>Escenarios</h2>${table}</section>${positions}${get('initialRateAdjustedWeight')?`<section><h2>Cartera ajustada</h2><p>${escapeHtml(panel.querySelector('#initialRateAdjustedResult')?.textContent||'Pendiente')}</p></section>`:''}<section><h2>Desglose visual</h2>${figures.join('')}</section><footer><p>${escapeHtml(panel.querySelector('#initialRateMethod').textContent)}</p></footer></body></html>`;
+    const html=`<html><body class="report manager-report"><header><h1>Sensibilidad de la renta fija</h1><p>Tipos de interés y crédito · ${new Date().toLocaleDateString('es-ES')} · ${escapeHtml(currency)}</p></header><section><h2>Resumen ejecutivo</h2><p>${escapeHtml(panel.querySelector('#initialRateExecutive').textContent)}</p></section><section><h2>Hipótesis</h2><p>Importe ${escapeHtml(get('initialRateAmount'))} · RF ${escapeHtml(get('initialRateWeight'))}% · duración tipos ${escapeHtml(get('initialRateDuration'))} · spread duration ${escapeHtml(get('initialSpreadDuration')||'pendiente')} · carry ${panel.querySelector('#initialRateCarry').checked?'incluido':'excluido'}</p><p>${escapeHtml(panel.querySelector('#initialRateMode').value==='positions'?panel.querySelector('#initialRateCoverage')?.textContent||'Datos granulares pendientes':'Modo agregado; sensibilidades introducidas por el usuario')}</p></section><section><h2>Sensibilidad simple a tipos</h2><p>Shock paralelo instantáneo, sin carry ni crédito.</p>${simpleTable}</section><section><h2>Escenarios</h2>${table}</section>${positions}${get('initialRateAdjustedWeight')?`<section><h2>Cartera ajustada</h2><p>${escapeHtml(panel.querySelector('#initialRateAdjustedResult')?.textContent||'Pendiente')}</p></section>`:''}<section><h2>Desglose visual</h2>${figures.join('')}</section><footer><p>${escapeHtml(panel.querySelector('#initialRateMethod').textContent)}</p></footer></body></html>`;
     await ReportDesign.downloadPdf(html,'Sensibilidad-RF.pdf');
 }
 function renderInitialRatePositions(){
@@ -55,6 +60,20 @@ function importInitialRatePositions(){
     });
     renderInitialRatePositions();updateInitialRatePositionMetrics();renderInitialRateSensitivity();
 }
+function renderSimpleRateSensitivity(amount,rfWeightPct,duration,currency){
+    const panel=document.getElementById('workspaceInitialRates'),chart=panel?.querySelector('#initialSimpleRateChart'),body=panel?.querySelector('#initialSimpleRateBody');if(!chart||!body)return;
+    const shocks=[-200,-100,-50,0,50,100,200],rows=shocks.map(changeBps=>RateSensitivity.scenario({amount,rfWeightPct,duration,changeBps}));
+    initialSimpleRateResults=rows;
+    const money=value=>new Intl.NumberFormat('es-ES',{style:'currency',currency,maximumFractionDigits:2}).format(value);
+    body.innerHTML=rows.map(row=>`<tr><td class="num">${row.changeBps>0?'+':''}${row.changeBps} pb</td><td class="num">${(row.rfReturn*100).toFixed(2)}%</td><td class="num ${row.change>=0?'good':'bad'}">${money(row.change)}</td><td class="num">${(row.portfolioReturn*100).toFixed(2)}%</td><td class="num">${money(row.portfolioValue)}</td></tr>`).join('');
+    if(window.Plotly)FinancialVisuals.newPlot(chart,[{type:'bar',x:rows.map(row=>row.changeBps),y:rows.map(row=>row.portfolioReturn*100),marker:{color:rows.map(row=>row.portfolioReturn>=0?'#287d6b':'#ad535b')},hovertemplate:'Shock %{x:+} pb<br>Impacto cartera %{y:.2f}%<extra></extra>'}],{title:'Sensibilidad simple a tipos · sin spreads ni carry',xaxis:{title:'Movimiento paralelo de tipos (pb)'},yaxis:{title:'Impacto cartera (%)',zeroline:true},margin:{t:48,l:64,r:20,b:62},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
+}
+function clearSimpleRateSensitivity(){
+    initialSimpleRateResults=[];
+    const panel=document.getElementById('workspaceInitialRates'),chart=panel?.querySelector('#initialSimpleRateChart');
+    panel?.querySelector('#initialSimpleRateBody')?.replaceChildren();
+    if(chart){if(chart.data&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();}
+}
 function renderInitialRateSensitivity(){
     const panel=document.getElementById('workspaceInitialRates');if(!panel)return;
     const read=id=>{const value=panel.querySelector(`#${id}`).value.trim();return value===''?NaN:Number(value.replace(',','.'));};
@@ -63,15 +82,15 @@ function renderInitialRateSensitivity(){
     const currency=portfolioCalculationSettings().currency;
     const money=value=>new Intl.NumberFormat('es-ES',{style:'currency',currency,maximumFractionDigits:0}).format(value);
     if(![amount,rfWeightPct,duration].every(Number.isFinite)||amount<=0||rfWeightPct<0||rfWeightPct>100||duration<0||duration>100){
-        initialRateResults=[];status.textContent='Introduce un importe positivo, el peso de RF (0–100%) y su duración modificada ponderada.';body.replaceChildren();if(chart.data&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();return;
+        initialRateResults=[];clearSimpleRateSensitivity();status.textContent='Introduce un importe positivo, el peso de RF (0–100%) y su duración modificada ponderada.';body.replaceChildren();if(chart.data&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();return;
     }
-    if(Number.isFinite(rfAmount)&&(rfAmount<0||rfAmount>amount||Math.abs(rfAmount-amount*rfWeightPct/100)>Math.max(.01,amount*.000001))){initialRateResults=[];status.textContent='El valor de RF no puede superar el total y debe coincidir con el peso RF.';body.replaceChildren();return;}
+    if(Number.isFinite(rfAmount)&&(rfAmount<0||rfAmount>amount||Math.abs(rfAmount-amount*rfWeightPct/100)>Math.max(.01,amount*.000001))){initialRateResults=[];clearSimpleRateSensitivity();status.textContent='El valor de RF no puede superar el total y debe coincidir con el peso RF.';body.replaceChildren();return;}
     const hasSpread=Number.isFinite(spreadDuration);
     const scenarios=[...initialRateScenarios.filter(row=>row.enabled&&row.name&&Number.isFinite(row.rate)&&Number.isFinite(row.spread)).map(row=>[row.name,row.rate,row.spread]),['Personalizado',rateBps,spreadBps]].filter(([, ,spread])=>hasSpread||spread===0);
-    if(!scenarios.length){initialRateResults=[];status.textContent='Activa al menos un escenario sin spread o indica la spread duration.';body.replaceChildren();return;}
+    if(!scenarios.length){initialRateResults=[];clearSimpleRateSensitivity();status.textContent='Activa al menos un escenario sin spread o indica la spread duration.';body.replaceChildren();return;}
     let rows;
     try{rows=scenarios.map(([name,rate,spread])=>({name,rate,spread,...RateSensitivity.combinedScenario({amount,rfWeightPct,rateDuration:duration,spreadDuration,rateBps:rate,spreadBps:spread,ytmPct,horizonMonths,includeCarry})}));}
-    catch(error){initialRateResults=[];status.textContent=error.message;body.replaceChildren();if(chart.data&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();return;}
+    catch(error){initialRateResults=[];clearSimpleRateSensitivity();status.textContent=error.message;body.replaceChildren();if(chart.data&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();return;}
     initialRateResults=rows;
     const selected=rows.at(-1),pct=value=>(value*100).toFixed(2)+'%';
     status.textContent=`RF: ${money(selected.rfAmount)} · duración tipos: ${duration.toFixed(2)} años · duración crédito: ${hasSpread?spreadDuration.toFixed(2)+' años':'pendiente; solo se muestran escenarios de tipos'}. ${includeCarry?'Carry estimado incluido; no es rentabilidad garantizada.':'Impacto instantáneo sin carry.'}`;
@@ -86,6 +105,7 @@ function renderInitialRateSensitivity(){
         try{const proposal=RateSensitivity.combinedScenario({amount,rfWeightPct:adjustedValues[0],rateDuration:adjustedValues[1],spreadDuration:adjustedValues[2],rateBps:selected.rate,spreadBps:selected.spread,ytmPct:adjustedValues[3],horizonMonths,includeCarry});adjusted.textContent=`Escenario ${selected.name}: actual ${pct(selected.portfolioReturn)} (${money(selected.change)}); ajustada ${pct(proposal.portfolioReturn)} (${money(proposal.change)}). Diferencia ${(proposal.portfolioReturn-selected.portfolioReturn)*100>=0?'+':''}${((proposal.portfolioReturn-selected.portfolioReturn)*100).toFixed(2)} pp. El ajuste puede alterar el carry, el potencial de revalorización si bajan tipos, la liquidez y el riesgo de reinversión; no es una recomendación.`;}catch(error){adjusted.textContent=error.message;}
     }else adjusted.textContent='Introduce peso RF, duración de tipos y spread duration propuestos para comparar con el mismo shock. Si incluyes carry, indica también YTM propuesta.';}
     body.innerHTML=rows.map(row=>`<tr><td>${row.name}<small> ${row.rate>0?'+':''}${row.rate} / ${row.spread>0?'+':''}${row.spread} pb</small></td><td>${pct(row.rates)}</td><td>${pct(row.credit)}</td><td>${pct(row.carry)}</td><td class="${row.rfReturn>=0?'good':'bad'}">${pct(row.rfReturn)}</td><td class="${row.portfolioReturn>=0?'good':'bad'}">${pct(row.portfolioReturn)} · ${money(row.change)}</td></tr>`).join('');
+    renderSimpleRateSensitivity(amount,rfWeightPct,duration,currency);
     if(!window.Plotly)return;
     const colors=['#297aa2','#8093a3','#bd7053','#ae6251','#983f45','#183f66'];
     FinancialVisuals.newPlot(chart,[{type:'bar',x:rows.map(row=>({'Favorable':'Favorable','Neutral':'Neutral','Subida de tipos':'Tipos +50','Crédito':'Crédito +50','Tensión conjunta':'Tensión','Personalizado':'Personal.'}[row.name]||row.name)),y:rows.map(row=>row.portfolioReturn*100),marker:{color:rows.map(row=>row.portfolioReturn>0?'#287d6b':row.portfolioReturn<0?'#ad535b':'#8999a7')},hovertemplate:'Impacto cartera: %{y:.2f}%<extra></extra>'}],{title:'Impacto por escenario',yaxis:{title:'Cartera (%)',zeroline:true},margin:{t:45,l:65,r:20,b:85},showlegend:false,paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
@@ -189,7 +209,7 @@ function portfolioWorkflowRefresh() {
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         return;
     }
-    const steps = w.scope === 'initial' ? ['proposal','metrics','frontier','rates','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
+    const steps = w.scope === 'initial' ? ['proposal','metrics','rates','report'] : w.scope === 'individual' ? ['diagnosis','frontier','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[0];
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
@@ -198,7 +218,7 @@ function portfolioWorkflowRefresh() {
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
     if (w.step === 'metrics' && w.scope === 'initial') show('workspaceUniverseMetrics');
-    if (w.step === 'frontier' && w.scope === 'initial') {show('workspaceInitialFrontier');EfficientFrontierView.benchmarks();}
+    if (w.step === 'frontier' && w.scope === 'individual') {show('workspaceIndividualFrontier');EfficientFrontierView.benchmarks();}
     if (w.step === 'rates' && w.scope === 'initial') show('workspaceInitialRates');
     if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
     document.getElementById('workspaceTools').hidden = w.step !== 'diagnosis' || w.scope === 'screener';
@@ -213,9 +233,9 @@ function portfolioWorkflowRefresh() {
         if (b.dataset.workspaceStep === 'diagnosis') b.textContent = w.scope === 'screener' ? '01 Screener' : '01 Diagnostico';
         if (b.dataset.workspaceStep === 'proposal') b.textContent = '01 Analisis inicial';
         if (b.dataset.workspaceStep === 'metrics') b.textContent = '02 Comparativa universo';
-        if (b.dataset.workspaceStep === 'frontier') b.textContent = '03 Riesgo y rentabilidad';
-        if (b.dataset.workspaceStep === 'rates') b.textContent = '04 Sensibilidad tipos';
-        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '05 Informe' : '02 Informe';
+        if (b.dataset.workspaceStep === 'frontier') b.textContent = '02 Riesgo y rentabilidad';
+        if (b.dataset.workspaceStep === 'rates') b.textContent = '03 Sensibilidad tipos';
+        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '04 Informe' : w.scope==='individual'?'03 Informe':'02 Informe';
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
@@ -293,10 +313,11 @@ function initializePortfolioWorkspace() {
     ratesPanel.querySelector('#initialRateStatus').insertAdjacentHTML('afterend','<div class="workspace-tools"><button type="button" data-rate-export="xlsx"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Descargar Excel</button><button type="button" data-rate-export="pdf"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Descargar PDF</button></div>');
     ratesPanel.addEventListener('click',event=>{const button=event.target.closest('[data-rate-export]');if(!button)return;exportInitialRateSensitivity(button.dataset.rateExport).catch(error=>{ratesPanel.querySelector('#initialRateStatus').textContent=error.message;});});
     ratesPanel.querySelector('#initialRateScenarioChart').insertAdjacentHTML('afterend','<div class="rate-visual-grid"><div id="initialRateCurve"></div><div id="initialSpreadCurve"></div><div id="initialCombinedHeat"></div><div id="initialRateWaterfall"></div></div>');
+    ratesPanel.querySelector('#initialRateScenarioChart').insertAdjacentHTML('beforebegin','<section class="rate-simple"><h4>Sensibilidad simple a tipos</h4><p class="workspace-context">Shock paralelo e instantáneo; muestra solo el efecto de duración modificada en RF. Sin diferenciales, carry ni cambios en el resto de la cartera.</p><div id="initialSimpleRateChart" class="initial-rate-chart"></div><div class="proposal-chart-scroll"><table class="wide-report-table"><thead><tr><th>Movimiento tipos</th><th>RF (%)</th><th>Impacto RF (EUR)</th><th>Cartera (%)</th><th>Valor estimado</th></tr></thead><tbody id="initialSimpleRateBody"></tbody></table></div></section>');
     ratesPanel.querySelector('#initialRateMethod').textContent='Estimación de primer orden: tipos y spreads se modelan por separado en pb; el resto de activos permanece constante. La duración modificada mide sensibilidad al rendimiento propio y puede diferir de la duración frente a la curva libre de riesgo; verifica esta aproximación en crédito y bonos con opciones. El carry, si se activa, es YTM anual × meses/12 y no es una rentabilidad garantizada. No se incluyen convexidad, cupones, impagos, liquidez, divisa ni reacción de otros activos. Los escenarios son hipótesis, no previsiones.';
     ratesPanel.addEventListener('input',renderInitialRateSensitivity);
     window.addEventListener('resize',()=>{if(ratesPanel.hidden)return;for(const chart of ratesPanel.querySelectorAll('.js-plotly-plot'))requestAnimationFrame(()=>Plotly.Plots.resize(chart));});
-    const frontierPanel=document.createElement('section');frontierPanel.id='workspaceInitialFrontier';frontierPanel.className='workspace-panel initial-frontier';frontierPanel.dataset.workspacePanel='';root.append(frontierPanel);EfficientFrontierView.init(frontierPanel);
+    const frontierPanel=document.createElement('section');frontierPanel.id='workspaceIndividualFrontier';frontierPanel.className='workspace-panel initial-frontier';frontierPanel.dataset.workspacePanel='';root.append(frontierPanel);EfficientFrontierView.init(frontierPanel);
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
     reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
     reportOptions.id = 'workspaceReportOptions'; document.getElementById('workspaceQuality').after(reportOptions);

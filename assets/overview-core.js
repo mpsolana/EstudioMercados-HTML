@@ -91,6 +91,14 @@
         }
         return {amounts,unresolved};
     }
+    function rvAction(account,safety=2){
+        if(!account||!['dentro','bajo mínimo','excede máximo'].includes(account.limit)||!Array.isArray(account.band)||!(account.base>0)||!Number.isFinite(account.rvPct))return null;
+        if(account.limit==='dentro')return {direction:'Sin cambio',amount:0,target:account.rvPct};
+        const [low,high]=account.band;
+        const margin=Math.min(safety,(high-low)/2);
+        const target=account.limit==='excede máximo'?high-margin:low+margin;
+        return {direction:account.limit==='excede máximo'?'Reducir RV':'Aumentar RV',amount:Math.abs(target-account.rvPct)/100*account.base,target};
+    }
     function analyze({positions=[],clients=[],categories=[],modelsByOrg={},cashByAccount={},rfMetrics={},bandsByProfile=modelCore.bands,valuationAligned=true,today=new Date()}){
         const categoryMap=new Map(categories.map(row=>[id(row.isin),row]));
         const accounts=new Map(),funds=new Map(),control=clientIndex(clients);
@@ -114,10 +122,13 @@
             const models=modelsByOrg[organization]||[];
             const model=models.find(item=>modelCore.profile(item.profile||item.name)===profile)||null;
             const allocations=new Map();
+            const benchmarkAllocations=new Map();
             for(const position of holder.positions){
                 const generic=position.classification?.generic;
-                if(!generic||!Number.isFinite(position.amount))continue;
-                allocations.set(generic,(allocations.get(generic)||0)+position.amount);
+                if(!Number.isFinite(position.amount))continue;
+                if(generic)allocations.set(generic,(allocations.get(generic)||0)+position.amount);
+                const benchmark=position.classification?.benchCategory;
+                if(benchmark)benchmarkAllocations.set(benchmark,(benchmarkAllocations.get(benchmark)||0)+position.amount);
             }
             const reportedCash=Object.prototype.hasOwnProperty.call(cashByAccount,id(holder.account))?cashByAccount[id(holder.account)]:Object.prototype.hasOwnProperty.call(cashByAccount,holder.account)?cashByAccount[holder.account]:client?.cash;
             const cashKnown=Number.isFinite(reportedCash)&&reportedCash>=0;
@@ -142,11 +153,11 @@
             const esg=documentStatus(client?.esgExpiry,true,today);
             const house=holder.positions.filter(row=>row.house===true).reduce((sum,row)=>sum+(Number.isFinite(row.amount)?row.amount:0),0);
             const houseUnreviewed=holder.positions.filter(row=>row.house===null||row.house===undefined).reduce((sum,row)=>sum+(Number.isFinite(row.amount)?row.amount:0),0);
-            return {...holder,client,organization,profile,band,model,cash,cashKnown,base,coverage,rvPct,bandPosition,limit,limitReasons,allocations,house,houseUnreviewed,currencyExposure:lookThrough(holder.positions),rf:rfWeighted(holder.positions,rfMetrics),documents,kyc,suitability,esg};
+            return {...holder,client,organization,profile,band,model,cash,cashKnown,base,coverage,rvPct,bandPosition,limit,limitReasons,allocations,benchmarkAllocations,house,houseUnreviewed,currencyExposure:lookThrough(holder.positions),rf:rfWeighted(holder.positions,rfMetrics),documents,kyc,suitability,esg};
         }).sort((a,b)=>b.invested-a.invested);
         const noControl=results.filter(row=>!row.client).length;
         const unknownCategories=[...funds.values()].filter(fund=>!fund.classification?.generic||!['RV','RF','Otros'].includes(fund.classification.type));
         return {accounts:results,funds:[...funds.values()].sort((a,b)=>b.amount-a.amount),invested,unclassified,invalidAmounts,noControl,unknownCategories,currencyExposure:lookThrough(results.flatMap(row=>row.positions)),breaches:results.filter(row=>['bajo mínimo','excede máximo'].includes(row.limit))};
     }
-    return {analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough,rfWeighted,parseBalanceRows,matchBalanceAccounts,convertBalances};
+    return {analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough,rfWeighted,parseBalanceRows,matchBalanceAccounts,convertBalances,rvAction};
 });

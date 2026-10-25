@@ -1,10 +1,11 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),{pathToFileURL}=require('node:url');
 (async()=>{
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
+  if(errors.length)throw new Error(`Errores al iniciar: ${errors.join('; ')}`);
   await page.evaluate(()=>{switchSection('cartera');fundUniverseState={records:[{isin:'TEST',name:'Test'}]};portfolioWorkflowRefresh();document.querySelector('[data-workspace-scope="comparison"]').click();});
   await page.evaluate(async()=>{
    const dates=Array.from({length:18},(_,index)=>new Date(Date.UTC(2024,index+1,0)));
@@ -17,7 +18,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    };
    const a=make('A.xlsx',[['A',.6,'Activo A'],['B',.4,'Activo B']],{A:dates.map((_,i)=>100+i*2),B:dates.map((_,i)=>100+i*.5+(i%3))});
    const b=make('B.xlsx',[['C',1,'Activo C']],{C:dates.map((_,i)=>100+i*1.4+(i%4))});
-   for(const [index,file] of [[0,a],[1,b]]){const input=document.getElementById(`portfolioCompareFile${index}`),dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}
+   for(const [index,file] of [[0,a],[1,b]]){const input=document.getElementById(`portfolioCompareFile${index}`),dt=new DataTransfer();if(!input)throw new Error(`Falta input ${index}; panel=${Boolean(document.getElementById('workspacePortfolioCompare'))}`);dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}
   });
   await page.waitForFunction(()=>PortfolioCompare.state.sources.every(Boolean));
   await page.locator('#portfolioCompareCloneAdd').click();
@@ -31,6 +32,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   const compared=await page.evaluate(()=>({assets:PortfolioCompare.state.result.assets.length,bench:PortfolioCompare.state.result.benchmark?.ticker,returns:PortfolioCompare.state.result.assets.map(asset=>asset.total),rows:PortfolioCompare.state.result.rows.length,charts:['portfolioCompareBaseChart','portfolioCompareDrawdownChart','portfolioCompareScatterChart'].every(id=>document.querySelector(`#${id} .main-svg`))}));
   assert.equal(compared.assets,3);assert.equal(compared.bench,'indice');assert.equal(compared.charts,true);assert.notEqual(compared.returns[0],compared.returns[2]);
   assert.ok(await page.locator('#portfolioCompareCorrelationChart .main-svg').count()>0);
+  assert.ok(await page.locator('#portfolioCompareDrawdownRecoveryChart .main-svg').count()>0);
   assert.match(await page.locator('#portfolioCompareTableBody').innerText(),/días|No recuperado/);
   await page.locator('#portfolioCompareAddExcel').click();
   await page.evaluate(()=>{
