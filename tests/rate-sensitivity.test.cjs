@@ -35,6 +35,21 @@ test('position metrics require full coverage and never impute spread duration', 
     assert.equal(summary.missing.length,1);
 });
 
+test('reference scenarios from the RF brief preserve signs and units', () => {
+    const cases=[
+        [{rateDuration:4,spreadDuration:0,rateBps:50,spreadBps:0},-.01],
+        [{rateDuration:0,spreadDuration:3.5,rateBps:0,spreadBps:40},-.007],
+        [{rateDuration:4,spreadDuration:3.5,rateBps:50,spreadBps:40},-.017],
+        [{rateDuration:4,spreadDuration:0,rateBps:-25,spreadBps:0},.005],
+        [{rateDuration:0,spreadDuration:4,rateBps:0,spreadBps:-25},.005],
+        [{rateDuration:4,spreadDuration:4,rateBps:0,spreadBps:0},0]
+    ];
+    for(const [input,expected] of cases){const result=Rates.combinedScenario({amount:1000000,rfWeightPct:50,...input});assert.ok(Math.abs(result.portfolioReturn-expected)<1e-12);assert.ok(Math.abs(result.change-result.portfolioReturn*1000000)<1e-7);}
+    const carry=Rates.combinedScenario({amount:1000000,rfWeightPct:50,rateDuration:4,spreadDuration:0,rateBps:50,spreadBps:0,ytmPct:3.5,horizonMonths:6,includeCarry:true});
+    assert.ok(Math.abs(carry.portfolioReturn+.00125)<1e-12);
+    assert.ok(Math.abs(carry.change+1250)<1e-7);
+});
+
 test('forward pairs use month-end prices, a 12-month rate change and a calendar-month horizon', () => {
     const assets = [], rates = [];
     for (let month = 0; month < 27; month++) {
