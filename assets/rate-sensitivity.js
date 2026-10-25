@@ -15,6 +15,26 @@
         const change=rfAmount*rfReturn;
         return {changeBps,rfAmount,rfReturn,change,portfolioReturn:amount>0?change/amount:0,portfolioValue:amount+change};
     }
+    const bpsToDecimal=bps=>bps/10000;
+    function combinedScenario({amount,rfWeightPct,rateDuration,spreadDuration,rateBps,spreadBps,ytmPct=0,horizonMonths=0,includeCarry=false}){
+        if(![amount,rfWeightPct,rateDuration,rateBps,spreadBps].every(Number.isFinite)||amount<=0||rfWeightPct<0||rfWeightPct>100||rateDuration<0||rateDuration>100||Math.abs(rateBps)>2000||Math.abs(spreadBps)>2000)throw new Error('Revisa importe, peso de RF, duración y shocks en pb.');
+        if(spreadBps!==0&&(!Number.isFinite(spreadDuration)||spreadDuration<0||spreadDuration>100))throw new Error('Indica spread duration para calcular un shock de crédito; no se sustituye por la duración de tipos.');
+        if(includeCarry&&(!Number.isFinite(ytmPct)||!Number.isFinite(horizonMonths)||horizonMonths<=0||horizonMonths>120))throw new Error('Para incluir carry, indica YTM anual y horizonte válido en meses.');
+        const rfAmount=amount*rfWeightPct/100;
+        const rates=-rateDuration*bpsToDecimal(rateBps);
+        const credit=spreadBps===0?0:-spreadDuration*bpsToDecimal(spreadBps);
+        const carry=includeCarry?ytmPct/100*horizonMonths/12:0;
+        const rfReturn=rates+credit+carry;
+        return {rfAmount,rates,credit,carry,rfReturn,portfolioReturn:rfReturn*rfWeightPct/100,rateAmount:rfAmount*rates,creditAmount:rfAmount*credit,carryAmount:rfAmount*carry,change:rfAmount*rfReturn,portfolioValue:amount+rfAmount*rfReturn};
+    }
+    function weightedPositions(positions,amount){
+        if(!Number.isFinite(amount)||amount<=0)throw new Error('El importe total debe ser positivo.');
+        const included=(positions||[]).filter(row=>Number.isFinite(row.value)&&row.value>0);
+        const rfAmount=included.reduce((sum,row)=>sum+row.value,0);
+        if(rfAmount>amount+0.01)throw new Error('El valor de renta fija supera el importe total.');
+        const metric=key=>included.every(row=>Number.isFinite(row[key]))&&rfAmount>0?included.reduce((sum,row)=>sum+row.value*row[key],0)/rfAmount:NaN;
+        return {rfAmount,rfWeightPct:rfAmount/amount*100,rateDuration:metric('rateDuration'),spreadDuration:metric('spreadDuration'),ytmPct:metric('ytmPct'),missing:included.filter(row=>!Number.isFinite(row.rateDuration)||!Number.isFinite(row.spreadDuration))};
+    }
     function series(points,positive){
         return (points||[]).filter(point=>point&&Number.isFinite(+new Date(point.date))&&Number.isFinite(point.price)&&(!positive||point.price>0))
             .map(point=>({date:new Date(point.date),price:point.price})).sort((a,b)=>a.date-b.date);
@@ -52,5 +72,5 @@
         const variance=n>1?values.reduce((sum,value)=>sum+(value-mean)**2,0)/(n-1):NaN;
         return {n,mean,min:sorted[0],max:sorted.at(-1),median:n%2?sorted[(n-1)/2]:(sorted[n/2-1]+sorted[n/2])/2,sd:Number.isFinite(variance)?Math.sqrt(variance):NaN,winRate:values.filter(value=>value>0).length/n};
     }
-    return {scenario,forwardPairs,summarize};
+    return {scenario,combinedScenario,weightedPositions,bpsToDecimal,forwardPairs,summarize};
 });

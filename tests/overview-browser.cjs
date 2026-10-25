@@ -147,6 +147,10 @@ const assert=require('node:assert/strict');
                 assert.notEqual(converted.positionsDate,converted.balanceDate);
                 await page.locator('[data-tab="summary"]').click();
                 assert.ok((await page.locator('#overviewPanel').innerText()).includes('Fechas de posiciones y saldos distintas'));
+                await page.locator('[data-valuation-date="positions"]').fill(cash.date);
+                await page.locator('[data-valuation-date="positions"]').dispatchEvent('change');
+                assert.equal(await page.evaluate(()=>OverviewPanel.state.positionsDate?.toISOString().slice(0,10)),cash.date);
+                assert.equal(await page.evaluate(()=>OverviewPanel.state.positionsDateSource),'Introducida por el gestor');
                 process.stdout.write(`Saldos reales validados: ${cash.rows} subcuentas; ${converted.matched} cuentas conciliadas automáticamente y ${converted.unmatched} pendientes; divisas ${cash.currencies.join(', ')}.\n`);
             }
             process.stdout.write(`Cruce real validado: ${audit.matched}/${audit.accounts} cuentas; límites pendientes sin cobertura completa de categorías y valoración conciliada.\n`);

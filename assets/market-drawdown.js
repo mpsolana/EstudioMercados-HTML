@@ -31,6 +31,16 @@ const MarketDrawdown=(()=>{
         FinancialVisuals.newPlot(history,top.map((item,index)=>({type:'scatter',mode:'lines',name:`${item.name} (${item.ticker})`,x:item.summary.curve.map(point=>point.date),y:item.summary.curve.map(point=>point.drawdown*100),line:{width:1.7,color:['#075aa3','#627f9c','#3e9ad0','#354f67','#118273','#8598aa','#2278aa','#765b8b','#a66f48','#596a79'][index]}})),{title:'Evolución del drawdown · 10 mayores caídas',yaxis:{title:'Desde máximo previo (%)',ticksuffix:'%'},hovermode:'x unified',height:440,margin:{t:60,l:65,r:25,b:90},legend:{orientation:'h',y:-.25},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
         note.textContent=`${rows.length} series con histórico; ${open.length} caídas máximas siguen abiertas. El eje vertical mide días naturales desde el mínimo hasta recuperar el máximo anterior; para episodios abiertos muestra días transcurridos, no una recuperación prevista. Comparación descriptiva: las fechas de inicio y longitudes de serie pueden diferir.`;
     }
-    return {analyze,render};
+    function renderIndividual(target,ticker,points,assets){
+        if(!target||!window.Plotly)return;
+        const rows=[{ticker,name:ticker,data:points},...(assets||[])].map(item=>({...item,summary:analyze(item.data)})).filter(item=>item.summary&&item.summary.depth<0);
+        if(!rows.length){target.textContent='No hay históricos suficientes para comparar drawdown y recuperación.';return;}
+        const traces=[true,false].map(selected=>{
+            const items=rows.filter((_,index)=>(index===0)===selected);
+            return {type:'scatter',mode:'markers+text',name:selected?'Activo seleccionado':'Clases de activo',x:items.map(item=>-item.summary.depth*100),y:items.map(item=>item.summary.days),text:items.map(item=>item.name),textposition:'top center',textfont:{size:10},marker:{size:selected?15:10,color:selected?'#075aa3':'#8397a8',line:{color:'#fff',width:1}},customdata:items.map(item=>[item.ticker,item.summary.recovered?'Recuperada':'Abierta']),hovertemplate:'%{text} (%{customdata[0]})<br>Caída máxima: %{x:.1f}%<br>Días desde mínimo: %{y}<br>%{customdata[1]}<extra></extra>'};
+        });
+        FinancialVisuals.newPlot(target,traces,{title:'Activo seleccionado frente a clases de activo',xaxis:{title:'Drawdown máximo (%)'},yaxis:{title:'Días naturales desde el mínimo'},height:450,margin:{t:55,l:75,r:25,b:90},legend:{orientation:'h',y:-.23},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
+    }
+    return {analyze,render,renderIndividual};
 })();
 if(typeof module!=='undefined')module.exports=MarketDrawdown;

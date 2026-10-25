@@ -1,14 +1,15 @@
 const EfficientFrontierView=(()=>{
-    let panel,result=null,signature='',historySeries=null,expected={};
+    let panel,result=null,signature='',expected={};
     const format=value=>Number.isFinite(value)?value.toFixed(2)+'%':'-';
     const label=month=>`${Math.floor(month/12)}-${String(month%12+1).padStart(2,'0')}`;
-    const sourceSignature=()=>JSON.stringify({origin:ProposalPortfolio.originRows().map(r=>[r.record?.isin,r.record?.originSource?.proxyIsin,r.weight]),proposal:ProposalPortfolio.targetRows().map(r=>[r.record?.isin,r.weight]),history:loadedPortfolio?.sourceLabel});
-    function invalidate(){result=null;signature='';historySeries=null;if(panel){const chart=panel.querySelector('#initialFrontierChart');if(chart._fullLayout&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();panel.querySelector('#initialFrontierSummary').replaceChildren();panel.querySelector('#initialFrontierStatus').textContent='Datos modificados. Calcula de nuevo la frontera.';}}
-    function invalidateIfChanged(){if(result&&(signature!==sourceSignature()||historySeries!==loadedPortfolio?.priceSeries))invalidate();}
+    const prices=()=>({...loadedPortfolio?.priceSeries,...window.masterPriceSeries});
+    const sourceSignature=()=>{const series=prices();return JSON.stringify({origin:ProposalPortfolio.originRows().map(r=>[r.record?.isin,r.record?.originSource?.proxyIsin,r.weight]),proposal:ProposalPortfolio.targetRows().map(r=>[r.record?.isin,r.weight]),history:loadedPortfolio?.sourceLabel,masterVersion:window.masterPriceVersion||0,series:Object.keys(series).map(key=>[key,series[key]?.data?.length])});};
+    function invalidate(){result=null;signature='';if(panel){const chart=panel.querySelector('#initialFrontierChart');if(chart._fullLayout&&window.Plotly)Plotly.purge(chart);chart.replaceChildren();panel.querySelector('#initialFrontierSummary').replaceChildren();panel.querySelector('#initialFrontierStatus').textContent='Datos modificados. Calcula de nuevo la frontera.';}}
+    function invalidateIfChanged(){if(result&&signature!==sourceSignature())invalidate();}
     function benchmarks(){
         const select=panel.querySelector('#initialFrontierBenchmark'),selected=select.value;
-        select.innerHTML='<option value="">Sin benchmark</option>'+Object.entries(loadedPortfolio?.benchmarks||{}).map(([id,series])=>`<option value="${escapeHtml(id)}">${escapeHtml(series.label||id)}</option>`).join('');
-        if(loadedPortfolio?.benchmarks?.[selected])select.value=selected;
+        select.innerHTML='<option value="">Sin benchmark</option>'+Object.entries({...loadedPortfolio?.benchmarks,...window.masterBenchmarks}).map(([id,series])=>`<option value="${escapeHtml(id)}">${escapeHtml(series.label||id)}</option>`).join('');
+        if(({...loadedPortfolio?.benchmarks,...window.masterBenchmarks})[selected])select.value=selected;
     }
     function assumptions(assets){
         const container=panel.querySelector('#initialFrontierAssumptions');
@@ -36,10 +37,10 @@ const EfficientFrontierView=(()=>{
             const mode=panel.querySelector('#initialFrontierMode').value,benchmarkId=panel.querySelector('#initialFrontierBenchmark').value;
             const data=EfficientFrontierCore.calculate({
                 origin:ProposalPortfolio.originRows(),proposal:ProposalPortfolio.targetRows(),
-                series:loadedPortfolio?.priceSeries||{},mode,expected,maxWeight:Number(panel.querySelector('#initialFrontierMaxWeight').value),
-                benchmark:benchmarkId?loadedPortfolio?.benchmarks?.[benchmarkId]:null
+                series:prices(),mode,expected,maxWeight:Number(panel.querySelector('#initialFrontierMaxWeight').value),
+                benchmark:benchmarkId?({...loadedPortfolio?.benchmarks,...window.masterBenchmarks})[benchmarkId]:null
             });
-            result=data;signature=sourceSignature();historySeries=loadedPortfolio?.priceSeries;
+            result=data;signature=sourceSignature();
             assumptions(data.assets);
             await FinancialVisuals.newPlot(panel.querySelector('#initialFrontierChart'),traces(data),{
                 xaxis:{title:'Volatilidad anualizada (%)',rangemode:'tozero',automargin:true},
@@ -52,7 +53,7 @@ const EfficientFrontierView=(()=>{
         }catch(error){invalidate();status.textContent=error.message;}
     }
     async function reportSection(){
-        if(!result||signature!==sourceSignature()||historySeries!==loadedPortfolio?.priceSeries)throw new Error('Calcula de nuevo la frontera con la cartera vigente o desmarca este apartado del informe.');
+        if(!result||signature!==sourceSignature())throw new Error('Calcula de nuevo la frontera con la cartera vigente o desmarca este apartado del informe.');
         const image=await Plotly.toImage(panel.querySelector('#initialFrontierChart'),{format:'png',width:1000,height:550,scale:1.5});
         return `<section class="block report-chart-page"><h2>Riesgo y rentabilidad · frontera eficiente</h2><figure><img src="${image}" alt="Origen y propuesta frente a la frontera eficiente"></figure>${panel.querySelector('#initialFrontierSummary').innerHTML}<p class="method-note">${escapeHtml(panel.querySelector('#initialFrontierStatus').textContent)} Media aritmética y covarianza muestral de retornos mensuales anualizadas sobre el mismo periodo. ${result.mode==='assumptions'?'Los retornos son hipótesis introducidas por el usuario; la covarianza es histórica.':'Retornos medios históricos, no previsiones.'} Optimización media-varianza sin cortos, totalmente invertida y con límite por serie histórica. Brecha: retorno adicional teórico a riesgo igual o menor bajo los mismos supuestos. No incluye impuestos, costes de transacción ni restricciones de perfil; estar en la frontera no garantiza mejores resultados futuros.</p></section>`;
     }

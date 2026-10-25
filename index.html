@@ -799,6 +799,10 @@
                         <div class="min-w-0 border border-slate-200 bg-slate-50 p-3">
                             <div class="text-[11px] uppercase font-bold text-slate-500">Posiciones</div>
                             <div id="scoringDataStatus-positions" role="status" aria-live="polite" class="text-sm font-bold text-slate-800 mt-2 break-words">Pendiente</div>
+                            <label class="block text-xs text-slate-600 mt-3">Filtro para scoring agregado
+                                <select id="aggregatePositionsFilter" class="block w-full bg-white border border-slate-300 p-2 mt-1"><option value="funds">Fondos no cotizados</option><option value="funds-etf">Fondos y ETF</option><option value="all">Todos los activos</option></select>
+                            </label>
+                            <p class="text-xs text-slate-500 mt-1">El panel de control recibe siempre todas las posiciones; este filtro solo afecta al análisis agregado.</p>
                             <label class="inline-flex items-center gap-1 mt-3 px-3 py-2 bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
                                 <i class="fa-solid fa-file-import" aria-hidden="true"></i>Subir archivo
                                 <input id="aggregatePositionsFileInput" type="file" accept=".xlsx,.xls,.html,.htm" multiple hidden style="display:none" onchange="importScoringData('positions', this.files, importAggregatePositionsFile)">
@@ -4104,7 +4108,10 @@
                         const benchmarks=benchmarkSheetToSeriesMap(workbook,findSheet(workbook,['bench','benchmark','benchmarks']));
                         const benchCategories=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
                         applyBenchmarkCategoryMetadata(benchmarks,benchCategories);
-                        computeImportedBacktestPortfolio(entries,seriesMap,`Maestro: ${file.name}`,benchmarks,allPriceSeriesFromSheet(workbook,pricesSheet,entries,seriesMap),benchCategories);
+                        window.masterPriceSeries=allPriceSeriesFromSheet(workbook,pricesSheet,entries,seriesMap);
+                        window.masterPriceVersion=(window.masterPriceVersion||0)+1;
+                        window.masterBenchmarks=benchmarks;
+                        computeImportedBacktestPortfolio(entries,seriesMap,`Maestro: ${file.name}`,benchmarks,window.masterPriceSeries,benchCategories);
                         await portfolioAnalysisPromise;
                         if(historyStatus)historyStatus.textContent=`Históricos cargados: ${entries.length} fondos · ${Object.keys(benchmarks).length} índices`;
                     } else {
@@ -4121,6 +4128,7 @@
             }
 
             function clearMasterPortfolioHistory() {
+                window.masterPriceSeries={};window.masterBenchmarks={};window.masterPriceVersion=(window.masterPriceVersion||0)+1;
                 loadedPortfolio=null;portfolioAnalysisPromise=null;assetAllocationState=null;
                 document.getElementById('analyzePortfolioBtn').disabled=true;
                 document.getElementById('portfolioStartDate').textContent='';
@@ -5315,7 +5323,7 @@
                         }
                     }
                 }
-                const parsed = parseAggregatePositionRows(rows);
+                const parsed = parseAggregatePositionRows(rows,document.getElementById('aggregatePositionsFilter')?.value||'funds');
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
                 OverviewPanel.capturePositions(rows, file.name);
                 if (workbook && findSheet(workbook, ['Categorización', 'Categorizacion'])) OverviewPanel.loadCategoriesWorkbook(workbook, file.name);
@@ -5479,7 +5487,7 @@
                 return null;
             }
 
-            function parseAggregatePositionRows(rows) {
+            function parseAggregatePositionRows(rows,filter='funds') {
                 return (rows || []).map(row => {
                     const productType = String(looseRowValue(row, ['PRODUCT TYPE', 'Tipo producto', 'Product']) || '').trim();
                     const assetType = String(looseRowValue(row, ['TYPE OF ASSET', 'Tipo activo', 'Asset Type']) || '').trim();
@@ -5490,8 +5498,14 @@
                     const amount = parseRankingNumber(looseRowValue(row, ['DIV INSTITUTION COUNTER VALUE', 'Counter Value', 'Contravalor EUR', 'Contravalor', 'Valor efectivo', 'Market Value', 'MARKET VALUE']));
                     const units = parseRankingNumber(looseRowValue(row, ['UNITS', 'Participaciones', 'Nominal Amount', 'NOMINAL AMOUNT']));
                     return { isin, name, productType, assetType, account, amount, units };
-                }).filter(r => r.isin && /(investment\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`)
-                    && !/\betfs?\b|exchange[\s-]*traded|fondos?\s+cotizados?/i.test(`${r.productType} ${r.assetType} ${r.name}`));
+                }).filter(r => {
+                    if(!r.isin)return false;
+                    if(filter==='all')return true;
+                    const text=`${r.productType} ${r.assetType} ${r.name}`;
+                    const fund=/(investment\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`);
+                    const etf=/\betfs?\b|exchange[\s-]*traded|fondos?\s+cotizados?/i.test(text);
+                    return filter==='funds-etf'?(fund||etf):fund&&!etf;
+                });
             }
 
             function aggregateFundPositions(rows, fileName) {
@@ -8755,6 +8769,7 @@
                                 Submarina</h3>
                             <div id="drawdownChart" class="w-full h-[400px]"></div>
                         </div>
+                        <div class="bg-white p-4 border border-gray-200"><div id="individualDrawdownCompare"></div><p id="individualDrawdownCompareNote" class="text-xs text-slate-500 mt-2"></p></div>
                         <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                             <h3 class="text-gray-800 font-bold mb-2 border-l-4 border-orange-600 pl-3">Evolución a 12
                                 Meses
@@ -9815,6 +9830,9 @@
                     renderBarChart(stats);
                     renderLineChart(timeSeries);
                     renderDrawdownChart(rawData, ddData, ticker);
+                    const assetsForDrawdown=assetClasses.map(item=>({ticker:item.s,name:item.n,data:globalAssetsData[item.s]||[]})).filter(item=>item.data.length>1);
+                    MarketDrawdown.renderIndividual(document.getElementById('individualDrawdownCompare'),ticker,rawData,assetsForDrawdown);
+                    document.getElementById('individualDrawdownCompareNote').textContent=`${assetsForDrawdown.length} clases de activo cargadas en Mercados. La caída máxima y el tiempo de recuperación se calculan sobre el histórico disponible de cada serie; para episodios abiertos se muestran días transcurridos, no una recuperación prevista. Las fechas de inicio y divisas pueden diferir.`;
                     renderDrawdownSpaghettiChart(rawData, ddData, ticker);
                     renderDrawdownTable(episodes);
                     renderDrawdownQualityTable(calculateDrawdownQualityMetrics(rawData, ddData, currentDataFrequency));
