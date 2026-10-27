@@ -1,7 +1,7 @@
 const GdcModel=(()=>{
     const core=ModelPortfolioCore;
     const state={models:[],selected:0,source:'',benchmarks:{},benchmarkMeta:{},prices:{},fundNames:{},reportHtml:'',committeeReportHtml:'',history:[],historyHtml:'',committeeDate:new Date().toISOString().slice(0,10),viewHistory:[],previousViewDate:'',previousViews:{},views:{},expected:{},riskFreePct:0,rfMetrics:{},mode:'GDC',scoreClassByIsin:{},scopes:{}};
-    let panel,peerIndex,peerSource,rankingCache=new Map(),universeCache=new Map(),rankSource,renderedAllocation='',renderedBenchmarkDrawdowns='';
+    let panel,peerIndex,peerSource,rankingCache=new Map(),universeCache=new Map(),rankSource,renderedAllocation='',renderedBenchmarkDrawdowns='',rollingYears=1,renderedRolling='';
     const indexStatsCache=new Map();
     const sharedCurrent=new Set(),sharedProposal=new Set();
     const classCache=new Map();let classSource;
@@ -28,7 +28,7 @@ const GdcModel=(()=>{
         if(next==='GICI')syncGiciBenchmark(target.models);
         state.mode=next;state.models=target.models;state.selected=target.selected;state.source=target.source;state.scoreClassByIsin=target.scoreClassByIsin;
         sharedCurrent.clear();sharedProposal.clear();target.current.forEach(id=>sharedCurrent.add(id));target.proposal.forEach(id=>sharedProposal.add(id));
-        renderedAllocation='';renderedBenchmarkDrawdowns='';invalidateReport();render();
+        renderedAllocation='';renderedBenchmarkDrawdowns='';renderedRolling='';invalidateReport();render();
     }
     const esc=value=>escapeHtml(String(value??''));
     const fmt=value=>Number.isFinite(value)?value.toFixed(2):'-';
@@ -65,6 +65,25 @@ const GdcModel=(()=>{
         const colors=['#075aa3','#637f9c','#42a4db','#168270','#8a7790'];
         FinancialVisuals.newPlot('gdcBenchmarkRecoveryChart',rows.map((item,index)=>({type:'scatter',mode:'markers+text',name:item.name,x:[-item.summary.depth*100],y:[item.summary.days],text:[profileLabel(item.name)],textposition:'top center',marker:{size:14,color:colors[index%colors.length],symbol:item.summary.recovered?'circle':'diamond-open',line:{color:'#fff',width:1}},hovertemplate:`${esc(item.name)}<br>Caída máxima %{x:.2f}%<br>Días desde mínimo %{y}<extra>${item.summary.recovered?'Recuperada':'Abierta'}</extra>`})),{title:'Benchmarks · caída máxima y recuperación',xaxis:{title:'Drawdown máximo (%)'},yaxis:{title:'Días naturales desde mínimo'},height:410,margin:{t:54,l:68,r:25,b:65},showlegend:false,paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
         FinancialVisuals.newPlot('gdcBenchmarkDrawdownChart',rows.map((item,index)=>({type:'scatter',mode:'lines',name:profileLabel(item.name),x:item.summary.curve.map(point=>point.date),y:item.summary.curve.map(point=>point.drawdown*100),line:{color:colors[index%colors.length],width:2}})),{title:'Benchmarks · evolución de caída desde máximo',yaxis:{title:'Desde máximo previo (%)'},hovermode:'x unified',height:410,margin:{t:54,l:68,r:25,b:90},legend:{orientation:'h',y:-.22},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
+    }
+    function renderBenchmarkRolling(){
+        const select=panel?.querySelector('#gdcBenchmarkRollingYears'),chart=panel?.querySelector('#gdcBenchmarkRollingChart'),note=panel?.querySelector('#gdcBenchmarkRollingNote');
+        if(!select||!chart||!window.Plotly)return;
+        const series=state.models.map(item=>({name:item.name,data:benchmarkPortfolioSeries(item)})).filter(item=>item.data);
+        const maxYears=Math.max(0,...series.map(item=>Math.floor((item.data.length-1)/12)));
+        select.innerHTML=Array.from({length:maxYears},(_,i)=>`<option value="${i+1}">${i+1} ${i?'años':'año'}</option>`).join('');
+        select.disabled=!maxYears;
+        rollingYears=Math.max(1,Math.min(rollingYears,maxYears||1));select.value=String(rollingYears);
+        const months=rollingYears*12,rows=series.map(item=>{
+            const windows=[];
+            for(let end=months;end<item.data.length;end++)windows.push(((item.data[end].price/item.data[end-months].price)**(12/months)-1)*100);
+            if(!windows.length)return null;
+            return {name:item.name,min:Math.min(...windows),max:Math.max(...windows),mean:windows.reduce((sum,value)=>sum+value,0)/windows.length,count:windows.length};
+        }).filter(Boolean);
+        const signature=JSON.stringify({mode:state.mode,years:rollingYears,rows});if(signature===renderedRolling)return;renderedRolling=signature;
+        note.textContent=rows.length?`${rows.length}/${state.models.length} perfiles con ${months} retornos mensuales consecutivos o más. Media aritmética de ventanas solapadas anualizadas; mínimo y máximo observados, no intervalos de confianza. Benchmark fijo y rebalanceo mensual, sin costes. Los periodos históricos pueden diferir.`:'No hay histórico mensual suficiente para este plazo en los benchmarks.';
+        if(!rows.length){if(chart.data)Plotly.purge(chart);chart.replaceChildren();return;}
+        FinancialVisuals.newPlot(chart,[{type:'scatter',mode:'markers',name:'Media rolling',x:rows.map(row=>profileLabel(row.name)),y:rows.map(row=>row.mean),customdata:rows.map(row=>[row.name,row.count,row.min,row.max]),marker:{size:11,color:'#075aa3'},error_y:{type:'data',symmetric:false,array:rows.map(row=>row.max-row.mean),arrayminus:rows.map(row=>row.mean-row.min),color:'#637f9c',thickness:2,width:7},hovertemplate:'%{customdata[0]}<br>Media %{y:.2f}%<br>Mín. %{customdata[2]:.2f}% · máx. %{customdata[3]:.2f}%<br>%{customdata[1]} ventanas<extra></extra>'}],{title:`Rentabilidad rolling anualizada · ${rollingYears} ${rollingYears===1?'año':'años'}`,yaxis:{title:'Rentabilidad anualizada (%)',zeroline:true},height:430,margin:{t:55,l:67,r:25,b:85},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
     }
     function benchmarkStats(ticker){const points=benchmarkSeries(ticker),cached=indexStatsCache.get(ticker);if(cached?.points===points)return cached.stats;const stats=core.indexStatistics(points);indexStatsCache.set(ticker,{points,stats});return stats;}
     function rfProfile(modelItem){return core.rfSummary(modelItem,benchmarkTickers,state.rfMetrics);}
@@ -407,7 +426,7 @@ const GdcModel=(()=>{
             const categoryColors=['#1268a3','#13a89e','#8057a7','#df8842','#ce5871','#408d5e','#5376c5','#ae8f2c','#587f99','#a556a1','#287f87','#bb6547'];
             FinancialVisuals.newPlot('gdcCategoryOverviewChart',generics.map((name,index)=>({type:'bar',name,marker:{color:categoryColors[index%categoryColors.length]},x:profiles,y:state.models.map(item=>item.rows.find(row=>row.generic===name)?.portfolioWeight||0),customdata:fullNames,hovertemplate:'%{customdata}<br>'+name+': %{y:.2f}%<extra></extra>'})),{title:'Categorías genéricas por perfil',barmode:'stack',yaxis:{title:'Peso (%)',range:[0,105]},xaxis:{tickfont:{size:10}},margin:{t:50,l:54,r:20,b:Math.max(115,Math.min(210,90+generics.length*13))},legend:{orientation:'h',y:-.3}},{responsive:true});
         }
-        renderBenchmarkDrawdowns();
+        renderBenchmarkDrawdowns();renderBenchmarkRolling();
     }
     function exportExcel(){
         if(!state.models.length||!window.XLSX)return;
@@ -760,6 +779,7 @@ const GdcModel=(()=>{
         panel.querySelector('.gdc-selection-table').closest('.proposal-chart-scroll').insertAdjacentHTML('afterend','<h4 class="gdc-overview-title">Resumen de perfiles</h4><div id="gdcProfileOverviewChart" class="gdc-overview-chart"></div><div id="gdcCategoryOverviewChart" class="gdc-overview-chart"></div>');
         panel.querySelector('#gdcCategoryOverviewChart').insertAdjacentHTML('afterend','<section id="gdcExpected" class="gdc-estimates"></section><section id="gdcRf" class="gdc-estimates"></section>');
         panel.querySelector('#gdcCategoryOverviewChart').insertAdjacentHTML('afterend','<section class="gdc-benchmark-risk"><h4 class="gdc-overview-title">Riesgo histórico de los benchmarks</h4><p id="gdcBenchmarkDrawdownNote" class="workspace-context"></p><div class="gdc-benchmark-risk-grid"><div id="gdcBenchmarkRecoveryChart"></div><div id="gdcBenchmarkDrawdownChart"></div></div></section>');
+        panel.querySelector('#gdcBenchmarkDrawdownChart').insertAdjacentHTML('afterend','<div class="gdc-benchmark-rolling"><label>Plazo rolling <select id="gdcBenchmarkRollingYears" aria-label="Plazo de rentabilidad rolling"></select></label><p id="gdcBenchmarkRollingNote" class="workspace-context"></p><div id="gdcBenchmarkRollingChart"></div></div>');
         panel.querySelector('.gdc-selection-table thead tr').innerHTML='<th>Categoría genérica y mapeo</th><th>Índice Morningstar</th><th>Benchmark fijo</th><th>Peso cartera</th><th>Posiciones actuales</th><th>Selección de fondos</th><th>Propuesta</th><th>Peers</th>';
         panel.querySelector('.gdc-selection-table').closest('.proposal-chart-scroll').insertAdjacentHTML('beforebegin','<p class="workspace-context">Las casillas comparten solo los ISIN. Cada perfil conserva sus propios repartos y pesos de cartera; los fondos nuevos reciben inicialmente un reparto igualitario de referencia. Al editar un peso de categoría, las demás se ajustan proporcionalmente al 100%. La calidad puede usar la mejor clase equivalente; el TER es siempre del ISIN contratado. Si eliges un candidato marcado «Revisar», confirma su equivalencia. El score de otra clase es orientativo: no se recalcula por la diferencia de costes.</p>');
         panel.querySelector('#gdcRf').insertAdjacentHTML('afterend','<section class="gdc-history"><h4 class="gdc-overview-title">Comparativa de fondos frente a índices</h4><div class="workspace-tools"><button type="button" id="gdcHistoryRun">Comparar fondos</button><select id="gdcHistorySelect" aria-label="Fondo para visualizar"></select><button type="button" id="gdcHistoryPdf">Descargar informe PDF</button><button type="button" id="gdcHistoryExcel">Exportar histórico Excel</button></div><p id="gdcHistoryStatus" class="workspace-status" role="status"></p><div id="gdcHistoryTable" class="proposal-chart-scroll"></div><div id="gdcHistoryCharts"></div></section>');
@@ -778,6 +798,9 @@ const GdcModel=(()=>{
         panel.querySelector('#gdcBandTarget').addEventListener('input',event=>{panel.querySelector('#gdcBandNumber').value=event.target.value;});
         panel.querySelector('#gdcBandNumber').addEventListener('input',event=>{if(event.target.value!=='')panel.querySelector('#gdcBandTarget').value=event.target.value;});
         panel.querySelector('#gdcApplyBand').addEventListener('click',applyBand);
+        panel.querySelector('#gdcBandTarget').addEventListener('change',applyBand);
+        panel.querySelector('#gdcBandNumber').addEventListener('change',()=>{if(panel.querySelector('#gdcBandNumber').value!=='')applyBand();});
+        panel.querySelector('#gdcBenchmarkRollingYears').addEventListener('change',event=>{rollingYears=Number(event.target.value);renderedRolling='';renderBenchmarkRolling();});
         panel.querySelector('#gdcExport').addEventListener('click',()=>{try{exportExcel();}catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}});
         panel.querySelector('#gdcReport').addEventListener('click',()=>report().catch(error=>panel.querySelector('#gdcStatus').textContent=error.message));
         panel.querySelector('#gdcPdf').addEventListener('click',async()=>{try{if(!state.reportHtml)await report();if(state.reportHtml)await ReportDesign.downloadPdf(state.reportHtml,`${modePrefix()}_${model().name.replace(/[^a-z0-9_-]/gi,'_')}.pdf`);}catch(error){panel.querySelector('#gdcStatus').textContent=error.message;}});

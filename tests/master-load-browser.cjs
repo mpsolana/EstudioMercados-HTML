@@ -42,7 +42,7 @@ const os=require('node:os');
         assert.match(await page.locator('#initialRateMethod').innerText(),/Estimación de primer orden/);
         assert.match(await page.locator('#initialRateBody').innerText(),/Tensión conjunta/);
         const sensitivityExport=await page.evaluate(async()=>{const previous=XLSX.writeFile;let book;try{XLSX.writeFile=value=>{book=value;};await exportInitialRateSensitivity('xlsx');}finally{XLSX.writeFile=previous;}return {sheets:book.SheetNames,rows:XLSX.utils.sheet_to_json(book.Sheets.Escenarios)};});
-        assert.deepEqual(sensitivityExport.sheets,['Escenarios','Hipótesis']);
+        assert.deepEqual(sensitivityExport.sheets,['Escenarios','Sensibilidad simple','Hipótesis']);
         assert.equal(sensitivityExport.rows.find(row=>row.Escenario==='Personalizado')['Impacto cartera (importe)'],-1360);
         const pdfContent=await page.evaluate(async()=>{const previous=ReportDesign.downloadPdf;let html='';try{ReportDesign.downloadPdf=async value=>{html=value;};await exportInitialRateSensitivity('pdf');}finally{ReportDesign.downloadPdf=previous;}return {summary:html.includes('Resumen ejecutivo'),method:html.includes('Estimación de primer orden'),images:(html.match(/data:image\/png/g)||[]).length};});
         assert.ok(pdfContent.summary&&pdfContent.method&&pdfContent.images>=4,JSON.stringify(pdfContent));

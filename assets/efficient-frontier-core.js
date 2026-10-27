@@ -59,7 +59,26 @@
         const variance=returns.reduce((sum,value)=>sum+(value-mean)**2,0)/(returns.length-1);
         return {ret:mean*1200,risk:Math.sqrt(variance*12)*100};
     }
-    function calculate({origin,proposal,series,mode='historical',expected={},maxWeight=100,benchmark,optimizer}){
+    function correlation(left,right){
+        if(left.length!==right.length||left.length<3)return NaN;
+        const a=left.reduce((sum,value)=>sum+value,0)/left.length,b=right.reduce((sum,value)=>sum+value,0)/right.length;
+        const covariance=left.reduce((sum,value,i)=>sum+(value-a)*(right[i]-b),0),av=left.reduce((sum,value)=>sum+(value-a)**2,0),bv=right.reduce((sum,value)=>sum+(value-b)**2,0);
+        return av>1e-20&&bv>1e-20?Math.max(-1,Math.min(1,covariance/Math.sqrt(av*bv))):NaN;
+    }
+    function annualCorrelations(assets,months){
+        const ends=months.filter((value,index)=>index===months.length-1||Math.floor(months[index+1]/12)!==Math.floor(value/12));
+        const full=ends.filter(value=>value%12===11);
+        if(full.length<5)return null;
+        const returns=assets.map(asset=>full.slice(1).map((value,i)=>asset.prices.get(value)/asset.prices.get(full[i])-1));
+        return {years:full.length-1,matrix:returns.map(left=>returns.map(right=>correlation(left,right)))};
+    }
+    function rollingCorrelations(assets,months,left,right,window=24){
+        const size=Math.floor(window);
+        if(!Number.isInteger(left)||!Number.isInteger(right)||left<0||right<0||left>=assets.length||right>=assets.length||left===right||size<6)throw new Error('Selecciona dos activos distintos y una ventana válida.');
+        const a=months.slice(1).map((value,i)=>assets[left].prices.get(value)/assets[left].prices.get(months[i])-1),b=months.slice(1).map((value,i)=>assets[right].prices.get(value)/assets[right].prices.get(months[i])-1);
+        return a.slice(size-1).map((_,index)=>({month:months[index+size],value:correlation(a.slice(index,index+size),b.slice(index,index+size))}));
+    }
+    function calculate({origin,proposal,series,mode='historical',expected={},maxWeight=100,benchmark,optimizer,riskFreeAnnual=0}){
         const source=positions(origin,'origen'),target=positions(proposal,'propuesta'),assets=buildAssets(source,target,series);
         if(assets.length<2)throw new Error('La frontera requiere al menos dos históricos distintos; origen y propuesta pueden coincidir.');
         if(assets.length>30)throw new Error('Hay más de 30 series distintas. Reduce el universo antes de calcular la frontera.');
@@ -74,11 +93,21 @@
         if(frontier.length<2)throw new Error('La matriz de covarianzas no permite construir una frontera estable.');
         const actual=point(assets.map(asset=>asset.origin),stats.mu,stats.cov),proposed=point(assets.map(asset=>asset.proposal),stats.mu,stats.cov);
         const feasible=p=>p.weights.every(w=>w<=cap+1e-6);
+        const solution=(method,options)=>{try{
+            const weights=lib[method](...(method==='globalMinimumVarianceWeights'?[stats.cov]:method==='maximumSharpeRatioWeights'?[stats.mu,stats.cov,riskFreeAnnual]:[stats.mu,stats.cov]),options);
+            const candidate=point(weights,stats.mu,stats.cov);
+            return feasible(candidate)&&Number.isFinite(candidate.risk)&&Number.isFinite(candidate.ret)?candidate:null;
+        }catch{return null;}};
+        const sameReturn=solution('meanVarianceOptimizationWeights',{constraints:{...constraints,return:actual.ret/100},optimizationMethod:'automatic'});
+        const sameRisk=solution('meanVarianceOptimizationWeights',{constraints:{...constraints,maxVolatility:actual.risk/100+1e-8},optimizationMethod:'automatic'});
+        const equalWeight=point(assets.map(()=>1/assets.length),stats.mu,stats.cov);
+        const minimumVariance=solution('globalMinimumVarianceWeights',{constraints});
+        const market=Number.isFinite(riskFreeAnnual)?solution('maximumSharpeRatioWeights',{constraints}):null;
         function gap(p){if(!feasible(p))return NaN;try{
             const w=lib.meanVarianceOptimizationWeights(stats.mu,stats.cov,{constraints:{...constraints,maxVolatility:p.risk/100+1e-8},optimizationMethod:'automatic'});
             return Math.max(0,point(w,stats.mu,stats.cov).ret-p.ret);
         }catch{return NaN;}}
-        return {assets:assets.map(({prices,...asset},i)=>({...asset,historicalReturn:stats.historical[i]*100,expectedReturn:stats.mu[i]*100})),months,mode,cap,actual:{...actual,feasible:feasible(actual),gap:gap(actual)},proposed:{...proposed,feasible:feasible(proposed),gap:gap(proposed)},frontier,benchmark:benchmarkPoint(benchmark,months)};
+        return {assets:assets.map(({prices,...asset},i)=>({...asset,historicalReturn:stats.historical[i]*100,expectedReturn:stats.mu[i]*100,individual:point(assets.map((_,j)=>i===j?1:0),stats.mu,stats.cov)})),months,mode,cap,actual:{...actual,feasible:feasible(actual),gap:gap(actual)},proposed:{...proposed,feasible:feasible(proposed),gap:gap(proposed)},sameReturn,sameRisk,equalWeight:{...equalWeight,feasible:feasible(equalWeight)},minimumVariance,market,marketRiskFreeAnnual:riskFreeAnnual,annualCorrelation:annualCorrelations(assets,months),rollingCorrelation:(left,right,window)=>rollingCorrelations(assets,months,left,right,window),frontier,benchmark:benchmarkPoint(benchmark,months)};
     }
     return {calculate,monthlyPrices,commonMonths,moments,point};
 });

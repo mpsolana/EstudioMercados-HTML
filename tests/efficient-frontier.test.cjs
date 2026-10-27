@@ -58,3 +58,22 @@ test('benchmark appears only with complete coverage of the same monthly window',
     assert.equal(incomplete.benchmark,null);
     assert.equal(incomplete.frontier.length,complete.frontier.length);
 });
+test('same-return and same-risk objectives obey the same universe and asset cap',()=>{
+    const input={origin:[row('AAA',20),row('BBB',80)],proposal:[row('AAA',20),row('BBB',80)],series:{AAA:series(73,0),BBB:series(73,1)},optimizer:Optimizer};
+    const result=Frontier.calculate(input);
+    assert.ok(result.sameReturn);
+    assert.ok(Math.abs(result.sameReturn.ret-result.actual.ret)<1e-4);
+    assert.ok(result.sameReturn.risk<=result.actual.risk+1e-4);
+    assert.ok(result.sameRisk.ret>=result.actual.ret-1e-4);
+    assert.ok(result.sameRisk.risk<=result.actual.risk+1e-3);
+    assert.ok(result.minimumVariance.risk<=result.actual.risk+1e-4);
+    assert.equal(result.equalWeight.weights.length,2);
+    assert.ok(result.market&&result.annualCorrelation.years>=4);
+    assert.equal(result.rollingCorrelation(0,1,24).length,result.months.length-24);
+    assert.throws(()=>result.rollingCorrelation(0,0,24),/dos activos distintos/);
+});
+test('an inefficient return below minimum variance is not misrepresented as an exact frontier match',()=>{
+    const input={origin:[row('AAA',80),row('BBB',20)],proposal:[row('AAA',80),row('BBB',20)],series:{AAA:series(73,0),BBB:series(73,1)},optimizer:Optimizer};
+    const result=Frontier.calculate(input);
+    if(result.actual.ret<result.minimumVariance.ret-1e-4)assert.equal(result.sameReturn,null);
+});

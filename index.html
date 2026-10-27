@@ -9496,6 +9496,22 @@
                 { s: 'CATB.MI', n: 'Cat Bonds (USD)', f: '🌪️' }
             ];
 
+            let assetClassLoadingPromise = null;
+            async function ensureAssetClassesData(start, end) {
+                const missing = assetClasses.filter(item => !(globalAssetsData[item.s]?.length > 1));
+                if (!missing.length) return;
+                if (!assetClassLoadingPromise) {
+                    const today = end || new Date().toISOString().slice(0, 10);
+                    const past = new Date(); past.setFullYear(past.getFullYear() - 10);
+                    const from = start || past.toISOString().slice(0, 10);
+                    assetClassLoadingPromise = Promise.all(missing.map(async item => {
+                        const data = await fetchYahooData(item.s, from, today).catch(() => []);
+                        globalAssetsData[item.s] = data;
+                    })).finally(() => { assetClassLoadingPromise = null; });
+                }
+                await assetClassLoadingPromise;
+            }
+
             // New: markets loader button and function to fetch indices/assets on demand
             async function loadMarketsData() {
                 try {
@@ -9509,9 +9525,7 @@
                     marketIndices.forEach((m, i) => { globalIndicesData[m.s] = indicesResults[i]; });
 
                     updateStatus('Descargando datos de clases de activo (10 años)...');
-                    const assetsPromises = assetClasses.map(a => fetchYahooData(a.s, tenYearStr, today).catch(() => []));
-                    const assetsResults = await Promise.all(assetsPromises);
-                    assetClasses.forEach((a, i) => { globalAssetsData[a.s] = assetsResults[i]; });
+                    await ensureAssetClassesData(tenYearStr, today);
 
                     updateStatus('Actualizando vistas de mercados...');
                     filterMarketsSection('indices', 'YTD');
@@ -9827,6 +9841,8 @@
                     renderBarChart(stats);
                     renderLineChart(timeSeries);
                     renderDrawdownChart(rawData, ddData, ticker);
+                    await PortfolioLoading.phase(76,'Cargando clases de activo comparables…');
+                    await ensureAssetClassesData();
                     const assetsForDrawdown=assetClasses.map(item=>({ticker:item.s,name:item.n,data:globalAssetsData[item.s]||[]})).filter(item=>item.data.length>1);
                     MarketDrawdown.renderIndividual(document.getElementById('individualDrawdownCompare'),ticker,rawData,assetsForDrawdown);
                     document.getElementById('individualDrawdownCompareNote').textContent=`${assetsForDrawdown.length} clases de activo cargadas en Mercados. La caída máxima y el tiempo de recuperación se calculan sobre el histórico disponible de cada serie; para episodios abiertos se muestran días transcurridos, no una recuperación prevista. Las fechas de inicio y divisas pueden diferir.`;

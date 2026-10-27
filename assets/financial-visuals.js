@@ -12,7 +12,7 @@
     // Explicit policies distinguish returns from prices, frequencies, and risk measurements.
     const signedBars = new Set(['weeklyChart','monthlyChart','quarterlyChart','vixBarChart','oilBarChart','ratesBarChart','initialRateScenarioChart','dipBarChart','athForwardChart','rollingAnnualizedChart','rollingTotalChart','annualDistChart']);
     const returnHeatmaps = new Set(['monthlyHeatmapChart','ratesHeatmapChart']);
-    const correlationHeatmaps = new Set(['portfolioCorrMatrixChart','corrMatrixChart','multiAssetCorrelationChart','portfolioCompareCorrelationChart','gdcHistoricalCorrelationChart']);
+    const correlationHeatmaps = new Set(['portfolioCorrMatrixChart','corrMatrixChart','multiAssetCorrelationChart','portfolioCompareCorrelationChart','gdcHistoricalCorrelationChart','initialFrontierCorrelationChart']);
     const dashStyles = ['solid','dash','dot','dashdot','longdash','longdashdot'];
     function seriesColor(index) { return palette[index % palette.length]; }
     function sliceColor(index) {
