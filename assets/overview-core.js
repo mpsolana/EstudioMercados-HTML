@@ -45,7 +45,7 @@
     }
     function clientIndex(clients){
         const index=new Map();
-        for(const client of clients||[])for(const value of [client.account,client.code]){
+        for(const client of clients||[])for(const value of [client.account,client.code,client.name,...(client.valueAccounts||[]),...(client.cashAccounts||[])]){
             const name=id(value);if(!name)continue;
             if(!index.has(name))index.set(name,client);
             else if(index.get(name)!==client)index.set(name,null);
@@ -66,15 +66,25 @@
         }
         return balances;
     }
-    function matchBalanceAccounts(positions,balances,manual={}){
+    function matchBalanceAccounts(positions,balances,manual={},clients=[]){
         const positionNames=new Map(),balanceNames=new Map(),positionAccounts=new Set(),balanceAccounts=new Set();
+        const control=clientIndex(clients),clientPositions=new Map();
         for(const row of positions){const account=id(row.account),name=id(row.accountLabel);if(!account)continue;positionAccounts.add(account);if(name){if(!positionNames.has(name))positionNames.set(name,new Set());positionNames.get(name).add(account);}}
+        for(const row of positions){const client=control.get(id(row.account))||control.get(id(row.accountLabel));if(client){if(!clientPositions.has(client))clientPositions.set(client,new Set());clientPositions.get(client).add(id(row.account));}}
         for(const row of balances){const account=id(row.account),name=id(row.description);if(!account)continue;balanceAccounts.add(account);if(name){if(!balanceNames.has(name))balanceNames.set(name,new Set());balanceNames.get(name).add(account);}}
-        const links={},used=new Set();
-        for(const account of balanceAccounts)if(positionAccounts.has(account)){links[account]=account;used.add(account);}
-        for(const [name,source] of balanceNames){const target=positionNames.get(name);if(source.size!==1||target?.size!==1)continue;const from=[...source][0],to=[...target][0];if(!links[from]&&!used.has(to)){links[from]=to;used.add(to);}}
-        for(const [target,source] of Object.entries(manual)){const to=id(target),from=id(source);if(!positionAccounts.has(to)||!balanceAccounts.has(from))continue;for(const [priorSource,priorTarget] of Object.entries(links))if(priorSource===from||priorTarget===to)delete links[priorSource];links[from]=to;}
-        return {links,unmatchedPositions:[...positionAccounts].filter(account=>!Object.values(links).includes(account)),unmatchedBalances:[...balanceAccounts].filter(account=>!links[account])};
+        const links={};
+        for(const account of balanceAccounts)if(positionAccounts.has(account))links[account]=account;
+        for(const row of balances){const from=id(row.account);if(links[from])continue;const client=control.get(from)||control.get(id(row.description)),targets=clientPositions.get(client);
+            if(client&&targets?.size)links[from]=[...targets].sort()[0];
+        }
+        for(const [name,source] of balanceNames){const target=positionNames.get(name);if(target?.size!==1)continue;const to=[...target][0];for(const from of source)if(!links[from])links[from]=to;}
+        for(const [first,second] of Object.entries(manual)){
+            const a=id(first),b=id(second),from=balanceAccounts.has(a)&&positionAccounts.has(b)?a:b,to=from===a?b:a;
+            if(positionAccounts.has(to)&&balanceAccounts.has(from))links[from]=to;
+        }
+        const linked=new Set(Object.values(links));
+        const covered=account=>linked.has(account)||[...clientPositions.values()].some(group=>group.has(account)&&[...group].some(item=>linked.has(item)));
+        return {links,unmatchedPositions:[...positionAccounts].filter(account=>!covered(account)),unmatchedBalances:[...balanceAccounts].filter(account=>!links[account])};
     }
     function convertBalances(rows,rates){
         const groups=new Map();
@@ -101,13 +111,16 @@
     }
     function analyze({positions=[],clients=[],categories=[],modelsByOrg={},cashByAccount={},rfMetrics={},bandsByProfile=modelCore.bands,valuationAligned=true,today=new Date()}){
         const categoryMap=new Map(categories.map(row=>[id(row.isin),row]));
-        const accounts=new Map(),funds=new Map(),control=clientIndex(clients);
+        const accounts=new Map(),funds=new Map(),control=clientIndex(clients),clientKeys=new Map();
         let invested=0,unclassified=0,invalidAmounts=0;
         for(const position of positions){
             const isin=id(position.isin),account=id(position.account),amount=finite(position.amount);
             if(!isin||!account)continue;
-            if(!accounts.has(account))accounts.set(account,{account,accountLabel:position.accountLabel||'',positions:[],invested:0,missingAmount:0,unclassified:0});
-            const holder=accounts.get(account),classification=categoryMap.get(isin);
+            const client=control.get(account)||control.get(id(position.accountLabel))||null;
+            if(client&&!clientKeys.has(client))clientKeys.set(client,`CLIENT:${clientKeys.size}`);
+            const group=client?clientKeys.get(client):account;
+            if(!accounts.has(group))accounts.set(group,{account,accountLabel:position.accountLabel||'',client,accountNumbers:new Set(),positions:[],invested:0,missingAmount:0,unclassified:0});
+            const holder=accounts.get(group),classification=categoryMap.get(isin);holder.accountNumbers.add(account);
             holder.positions.push({...position,isin,amount,classification});
             if(Number.isFinite(amount)&&amount>=0){holder.invested+=amount;invested+=amount;if(!classification?.generic||!['RV','RF','Otros'].includes(classification.type)){holder.unclassified+=amount;unclassified+=amount;}}
             else {holder.missingAmount++;invalidAmounts++;}
@@ -115,7 +128,7 @@
             const fund=funds.get(isin);fund.accounts.add(account);if(Number.isFinite(amount)&&amount>=0)fund.amount+=amount;
         }
         const results=[...accounts.values()].map(holder=>{
-            const client=control.get(holder.account)||control.get(id(holder.accountLabel))||null;
+            const client=holder.client||control.get(holder.account)||control.get(id(holder.accountLabel))||null;
             const organization=String(client?.organization||'').toUpperCase();
             const profile=modelCore.profile(client?.profile||'');
             const band=bandsByProfile[profile]||null;
@@ -130,7 +143,8 @@
                 const benchmark=position.classification?.benchCategory;
                 if(benchmark)benchmarkAllocations.set(benchmark,(benchmarkAllocations.get(benchmark)||0)+position.amount);
             }
-            const reportedCash=Object.prototype.hasOwnProperty.call(cashByAccount,id(holder.account))?cashByAccount[id(holder.account)]:Object.prototype.hasOwnProperty.call(cashByAccount,holder.account)?cashByAccount[holder.account]:client?.cash;
+            const knownCash=[...holder.accountNumbers].filter(account=>Object.prototype.hasOwnProperty.call(cashByAccount,account)).map(account=>cashByAccount[account]);
+            const reportedCash=knownCash.length&&knownCash.every(Number.isFinite)?knownCash.reduce((sum,value)=>sum+value,0):client?.cash;
             const cashKnown=Number.isFinite(reportedCash)&&reportedCash>=0;
             const cash=cashKnown?reportedCash:0;
             const base=holder.invested+cash;

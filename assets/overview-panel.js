@@ -8,6 +8,8 @@ const OverviewPanel=(()=>{
     const toDate=value=>parseExcelDate(value);
     const fileDate=name=>{const match=String(name||'').match(/(?:^|\D)(\d{2})(\d{2})(20\d{2})(?:\D|$)/);if(!match)return null;const date=new Date(+match[3],+match[2]-1,+match[1]);return date.getFullYear()===+match[3]&&date.getMonth()===+match[2]-1&&date.getDate()===+match[1]?date:null;};
     const plusMonths=(value,months)=>{const start=toDate(value);if(!start||!Number.isFinite(months)||months<=0)return null;const first=new Date(start.getFullYear(),start.getMonth()+months,1),lastDay=new Date(first.getFullYear(),first.getMonth()+1,0).getDate();return new Date(first.getFullYear(),first.getMonth(),Math.min(start.getDate(),lastDay));};
+    const accountList=value=>String(value||'').split(/[;,\n]+/).map(item=>item.trim()).filter(Boolean);
+    const calendarDays=(from,to)=>Math.round((Date.UTC(to.getFullYear(),to.getMonth(),to.getDate())-Date.UTC(from.getFullYear(),from.getMonth(),from.getDate()))/86400000);
     const modelsByOrg=()=>Object.fromEntries(['GDC','GICI'].map(org=>[org,GdcModel.state.mode===org?GdcModel.state.models:GdcModel.state.scopes[org]?.models||[]]));
     const categoryType=value=>{const text=OverviewCore.key(value);return text==='rv'||text==='renta variable'?'RV':text==='rf'||text==='renta fija'?'RF':text==='otros'?'Otros':'';};
     const categoryColumns=['TIPO PRODUCTO','ISIN','INSTRUMENTO','Tipo Activo','TIPO ACTIVO +','TIPO ACTIVO VS BENCH','DIVISA','HEDGE','ESTRATEGIA DE INVERSIÓN','EUR EXPO','USD EXPO','OTROS EXPO','eur+usd'];
@@ -16,8 +18,9 @@ const OverviewPanel=(()=>{
         const suggested=categorySuggestion(fund);
         if(suggested)return {...suggested,source:'Universo + mapeo modelo'};
         const position=state.positions.find(row=>row.isin===fund.isin),asset=OverviewCore.key(position?.assetType),product=OverviewCore.key(position?.productType);
-        if(asset.startsWith('acciones ')||asset==='accion individual')return {isin:fund.isin,type:'RV',assetType:'RENTA VARIABLE',generic:'RV directa',source:'Tipo de activo en posiciones'};
-        if(product==='renta fija'||asset.startsWith('deuda ')||asset.startsWith('bonos y obligaciones')||asset.startsWith('renta fija '))return {isin:fund.isin,type:'RF',assetType:'RENTA FIJA',generic:'RF directa',source:'Tipo de activo en posiciones'};
+        const pooled=/fund|fondo|etf|plan|iic/.test(product);
+        if(asset.startsWith('acciones ')||asset==='accion individual'||!pooled&&/^(equities|equity|stocks?|shares?)(\s|$)/.test(asset))return {isin:fund.isin,type:'RV',assetType:'RENTA VARIABLE',generic:'RV directa',source:'Tipo de activo en posiciones'};
+        if(!pooled&&(product==='renta fija'||/^(fixed income|direct bonds?|bonds?)(\s|$)/.test(product)||asset.startsWith('deuda ')||asset.startsWith('bonos y obligaciones')||asset.startsWith('renta fija ')||/^(fixed income|direct bonds?|bonds?)(\s|$)/.test(asset)))return {isin:fund.isin,type:'RF',assetType:'RENTA FIJA',generic:'RF directa',source:'Tipo de activo en posiciones'};
         return null;
     }
     function effectiveCategories(){
@@ -30,11 +33,11 @@ const OverviewPanel=(()=>{
     }
     function capturePositions(rows,fileName){
         state.cashOverrides.clear();state.balanceLinks={};state.selectedFund='';
-        const parsed=(rows||[]).filter(row=>!/^inmovilizad[oa]s?$/i.test(String(looseRowValue(row,['BALANCE TYPE','Balance type','Tipo saldo'])||'').trim())).map(row=>({
-            isin:normalizeIsin(looseRowValue(row,['ISIN','Ticker','Código ISIN'])),
-            account:String(looseRowValue(row,['INVERSIS ACCOUNT NUMBER','Número cuenta Inversis','ACCOUNT','Cuenta'])||'').trim(),
+        const parsed=(rows||[]).filter(row=>!/^(inmovilizad[oa]s?|immobili[sz]ed|immobili[sz]ation)$/i.test(String(looseRowValue(row,['BALANCE TYPE','Tipo saldo','Tipo balance'])||'').trim())).map(row=>({
+            isin:normalizeIsin(looseRowValue(row,['ISIN','Código ISIN','Security Code','Ticker'])),
+            account:String(looseRowValue(row,['INVERSIS ACCOUNT NUMBER','Número cuenta Inversis','ACCOUNT','Cuenta','Investment Account'])||'').trim(),
             accountLabel:String(looseRowValue(row,['ACCOUNT','Cliente'])||'').trim(),
-            name:String(looseRowValue(row,['INSTRUMENT','Instrumento','Nombre'])||'').trim(),
+            name:String(looseRowValue(row,['INSTRUMENT','Instrumento','Security Name','Nombre'])||'').trim(),
             amount:parseRankingNumber(looseRowValue(row,['DIV INSTITUTION COUNTER VALUE','Counter Value','Contravalor EUR','Contravalor','Valor efectivo','Market Value','MARKET VALUE'])),
             productType:String(looseRowValue(row,['PRODUCT TYPE','Tipo producto','Product'])||'').trim(),
             assetType:String(looseRowValue(row,['TYPE OF ASSET','Tipo activo','Asset Type'])||'').trim()
@@ -61,7 +64,8 @@ const OverviewPanel=(()=>{
             const account=String(row[2]||'').trim(),code=String(row[60]||'').trim();
             if(!account&&!code)return null;
             return {account,code,name:String(row[1]||code||account).trim(),organization:String(row[55]||'').trim().toUpperCase(),profile:String(row[49]||'').trim(),commission:exposure(row[57]),reportedAum:parseRankingNumber(row[63]),qualitative:[['Estado',row[3]],['Resultado test',row[48]],['Condiciones',row[59]],['Control tarifas',row[56]],['Grupo familiar',row[53]],['Empleado',row[62]]].filter(([,value])=>value!==null&&value!==undefined&&String(value).trim()!==''),
-                documents:docs.filter(([role,documentIndex,expiryIndex])=>role==='Titular'||row[documentIndex-1]||row[documentIndex]||row[expiryIndex]).map(([role,documentIndex,expiryIndex])=>({role,present:Boolean(row[documentIndex]),expiry:toDate(row[expiryIndex])})),
+                documents:docs.filter(([role,documentIndex,expiryIndex])=>role==='Titular'||row[documentIndex-1]||row[documentIndex]||row[expiryIndex]).map(([role,documentIndex,expiryIndex])=>({role,name:String(role==='Titular'?row[1]||'':row[documentIndex-1]||'').trim(),present:Boolean(row[documentIndex]),expiry:toDate(row[expiryIndex])})),
+                valueAccounts:accountList(row[41]),cashAccounts:accountList(row[40]),contractDate:toDate(row[5]),
                 kycExpiry:plusMonths(row[43],Number(row[45])),suitabilityExpiry:toDate(row[46]),esgExpiry:toDate(row[50]),birthday:toDate(row[64])};
         }).filter(Boolean);
     }
@@ -181,12 +185,12 @@ const OverviewPanel=(()=>{
     }
     function needsTer(fund){
         const product=OverviewCore.key(fund.productType||fund.classification?.productType),asset=OverviewCore.key(fund.assetType);
-        return /etf|fondo|plan/.test(product)||!/accion individual|bono directo|accion directa|deuda directa/.test(product)&&!/^acciones (internacionales|nacionales)|^deuda |^bonos y obligaciones/.test(asset);
+        return /etf|fondo|fund|plan/.test(product)||!/accion individual|bono directo|accion directa|deuda directa|direct bond|direct equity|stock|share/.test(product)&&!/^acciones (internacionales|nacionales)|^deuda |^bonos y obligaciones|^equities|^equity|^stocks|^shares|^direct bond/.test(asset);
     }
     function cashResult(){
         const converted=OverviewCore.convertBalances(state.balances,state.fxRates);
-        const matching=OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks),amounts={};
-        for(const [source,target] of Object.entries(matching.links))if(Object.prototype.hasOwnProperty.call(converted.amounts,source))amounts[target]=converted.amounts[source];
+        const matching=OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks,state.clients),amounts={};
+        for(const [source,target] of Object.entries(matching.links))if(Object.prototype.hasOwnProperty.call(converted.amounts,source))amounts[target]=(amounts[target]||0)+converted.amounts[source];
         return {...converted,...matching,amounts:{...amounts,...Object.fromEntries([...state.cashOverrides].map(([account,value])=>[OverviewCore.id(account),value]))}};
     }
     async function loadYahooSeries(){
@@ -233,9 +237,10 @@ const OverviewPanel=(()=>{
     function currencyWithCash(row,includeCash=state.includeCash){
         const exposure={...row.currencyExposure};
         if(!includeCash||!row.cashKnown)return exposure;
-        const source=Object.entries(OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks).links).find(([,target])=>target===OverviewCore.id(row.account))?.[0];
-        const booked=state.balances.filter(item=>OverviewCore.id(item.account)===source);
-        if(state.cashOverrides.has(row.account)||!booked.length){exposure.eur+=row.cash;return exposure;}
+        const matching=OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks,state.clients);
+        const accounts=new Set(row.accountNumbers||[OverviewCore.id(row.account)]),sources=new Set(Object.entries(matching.links).filter(([,target])=>accounts.has(target)).map(([source])=>source));
+        const booked=state.balances.filter(item=>sources.has(OverviewCore.id(item.account)));
+        if([...accounts].some(account=>state.cashOverrides.has(account))||!booked.length){exposure.eur+=row.cash;return exposure;}
         for(const item of booked){const amount=item.amount/(item.currency==='EUR'?1:state.fxRates[item.currency]);if(!Number.isFinite(amount))continue;const bucket=item.currency==='EUR'?'eur':item.currency==='USD'?'usd':'other';exposure[bucket]+=amount;}
         return exposure;
     }
@@ -307,6 +312,18 @@ const OverviewPanel=(()=>{
         const base=state.includeCash&&row.cashKnown?row.base:row.invested;
         return `<h4>Posiciones por tipo de activo</h4><div class="overview-scroll"><table><thead><tr><th>Tipo activo / ISIN</th><th>Instrumento</th><th>Categoría</th><th>Contravalor EUR</th><th>Peso ${state.includeCash?'integrado':'invertido'}</th><th>Divisa</th></tr></thead><tbody>${[...groups].map(([type,items])=>`<tr class="overview-group"><th colspan="3">${esc({RF:'RENTA FIJA',RV:'RENTA VARIABLE',Otros:'OTROS'}[type]||type)}</th><th class="num">${money(items.reduce((sum,item)=>sum+item.amount,0))}</th><th class="num">${pct(base?items.reduce((sum,item)=>sum+item.amount,0)/base*100:NaN)}</th><th></th></tr>${items.map(pos=>{const weight=base>0?pos.amount/base*100:NaN,heat=max>0?Math.min(100,pos.amount/max*100):0;return `<tr><td>${esc(pos.isin)}</td><td>${esc(pos.name)}</td><td>${esc(pos.classification?.generic||'Pendiente')}</td><td class="num overview-heat" style="--heat:${heat.toFixed(1)}%">${money(pos.amount)}</td><td class="num overview-heat" style="--heat:${Number.isFinite(weight)?Math.min(100,weight):0}%">${pct(weight)}</td><td>${esc(pos.classification?.currency||'—')}</td></tr>`;}).join('')}`).join('')}${state.includeCash&&row.cashKnown?`<tr class="overview-group"><th colspan="3">EFECTIVO</th><th class="num">${money(row.cash)}</th><th class="num">${pct(base?row.cash/base*100:NaN)}</th><th>EUR equivalente</th></tr>`:''}<tr class="overview-total"><th colspan="3">Total ${state.includeCash&&row.cashKnown?'integrado':'invertido'}</th><th class="num">${money(base)}</th><th class="num">${pct(base>0?100:NaN)}</th><th></th></tr></tbody></table></div>`;
     }
+    function clientContext(row){
+        const client=row.client;if(!client)return '';
+        const today=new Date(),birth=client.birthday,contract=client.contractDate;
+        const next=birth?new Date(today.getFullYear(),birth.getMonth(),birth.getDate()):null;
+        if(next&&calendarDays(today,next)<0)next.setFullYear(next.getFullYear()+1);
+        const age=birth?today.getFullYear()-birth.getFullYear()-(today.getMonth()<birth.getMonth()||today.getMonth()===birth.getMonth()&&today.getDate()<birth.getDate()?1:0):null;
+        const tenure=contract&&calendarDays(contract,today)>=0?`${Math.floor((today.getFullYear()-contract.getFullYear())*12+today.getMonth()-contract.getMonth()-(today.getDate()<contract.getDate()?1:0))} meses`:null;
+        const linked=OverviewCore.matchBalanceAccounts(state.positions,state.balances,state.balanceLinks,state.clients).links,accounts=new Set(row.accountNumbers||[OverviewCore.id(row.account)]);
+        const cash=[...new Set(state.balances.filter(item=>accounts.has(linked[OverviewCore.id(item.account)])).map(item=>item.account))];
+        const value=[...accounts].map(account=>state.positions.find(item=>OverviewCore.id(item.account)===account)?.account||account);
+        return `<div class="overview-client-qual"><h4>Contrato, cuentas e intervinientes</h4><dl><div><dt>Nacimiento y edad</dt><dd>${date(birth)}${age!==null?` · ${age} años`:''}${next?` · cumpleaños en ${calendarDays(today,next)} días`:''}</dd></div><div><dt>Contrato GDC</dt><dd>${date(contract)}${tenure?` · ${esc(tenure)} con nosotros`:''}</dd></div><div><dt>Cuentas de valores</dt><dd>${value.map(esc).join(' · ')||'Pendiente'}</dd></div><div><dt>Cuentas de efectivo conciliadas</dt><dd>${cash.map(esc).join(' · ')||'Pendiente'}</dd></div></dl><h4>Intervinientes</h4><div class="overview-scroll"><table><thead><tr><th>Rol</th><th>Nombre</th><th>Vencimiento documento</th><th>Estado</th></tr></thead><tbody>${row.documents.map(item=>`<tr><td>${esc(item.role)}</td><td>${esc(item.name||'—')}</td><td>${date(item.expiry)}</td><td>${badge(item.status)}</td></tr>`).join('')}</tbody></table></div></div>`;
+    }
     function comparison(row){
         if(!row.model)return '<p class="overview-warning">No hay cartera modelo cargada para esta entidad y perfil. La comparación no se estima.</p>';
         const base=state.includeCash&&row.cashKnown?row.base:row.invested;
@@ -372,9 +389,11 @@ const OverviewPanel=(()=>{
         const unmatched=result.balanceMatch.unmatchedPositions,balances=result.balanceMatch.unmatchedBalances;
         const eurBalances=OverviewCore.convertBalances(state.balances,state.fxRates).amounts;
         const cashAccounts=[...new Set(state.balances.map(item=>OverviewCore.id(item.account)))];
-        const cashRows=cashAccounts.map(account=>{const sample=state.balances.find(item=>OverviewCore.id(item.account)===account),linked=result.balanceMatch.links[account];return `<tr><td>${esc(sample?.account||account)}</td><td>${esc(sample?.description||'—')}</td><td class="num">${money(eurBalances[account])}</td><td>${esc(linked||'Sin asignar')}</td></tr>`;}).join('');
-        const rows=unmatched.map(account=>{const pos=state.positions.find(item=>OverviewCore.id(item.account)===account),candidates=balances.map(source=>state.balances.find(item=>OverviewCore.id(item.account)===source)).filter(Boolean).sort((a,b)=>Number(OverviewCore.id(b.description)===OverviewCore.id(pos?.accountLabel))-Number(OverviewCore.id(a.description)===OverviewCore.id(pos?.accountLabel)));return `<tr><td>${esc(pos?.accountLabel||account)}</td><td>${esc(account)}</td><td><select data-balance-link="${esc(account)}"><option value="">Seleccionar cuenta</option>${candidates.map(item=>`<option value="${esc(OverviewCore.id(item.account))}">${esc(item.account)} · ${esc(item.description)} · ${money(eurBalances[OverviewCore.id(item.account)])}</option>`).join('')}</select></td></tr>`;}).join('');
-        return `<h3>Parámetros pendientes</h3><p class="overview-context">La clasificación RF/RV permite estimar la asignación; el efectivo confirmado y el look-through se controlan por separado. Los límites no se acreditan hasta completar los datos necesarios.</p><h4>Sin categoría RV/RF · ${missing.length}</h4>${list(missing,'clasificación')}<h4>Fondos RF sin YTM o duración · ${rf.length}</h4>${list(rf,'métricas RF')}<h4>Sin exposición de divisa válida · ${currency.length}</h4>${list(currency,'divisa')}${state.balances.length?`<h4>Cruce de cuentas de saldos · ${Object.keys(result.balanceMatch.links).length} conciliadas; ${unmatched.length} pendientes</h4><p class="overview-context">Se cruza primero el identificador y después el nombre exacto solo cuando es único en ambos ficheros. Las homonimias requieren selección manual; no se hace emparejamiento difuso.</p><div class="overview-scroll"><table><thead><tr><th>Cliente</th><th>Cuenta posiciones</th><th>Cuenta saldos candidata</th></tr></thead><tbody>${rows||'<tr><td colspan="3">Todas las cuentas de posiciones tienen cruce único.</td></tr>'}</tbody></table></div><h4>Cuentas de efectivo · contravalor EUR</h4><div class="overview-scroll"><table><thead><tr><th>Cuenta efectivo</th><th>Titular</th><th>Saldo EUR</th><th>Cuenta posiciones enlazada</th></tr></thead><tbody>${cashRows}</tbody></table></div>`:''}<h4>Cuentas sin efectivo confirmado · ${result.accounts.filter(row=>!row.cashKnown).length}</h4>${limitTable(result.accounts.filter(row=>!row.cashKnown))}`;
+        const positionAum=new Map();for(const item of state.positions){const key=OverviewCore.id(item.account);positionAum.set(key,(positionAum.get(key)||0)+(Number.isFinite(item.amount)?item.amount:0));}
+        const cashRows=cashAccounts.map(account=>{const sample=state.balances.find(item=>OverviewCore.id(item.account)===account),linked=result.balanceMatch.links[account];return `<tr><td>${esc(sample?.account||account)}</td><td>${esc(sample?.description||'—')}</td><td class="num">${money(eurBalances[account])}</td><td>${esc(linked||'Sin asignar')}</td><td class="num">${linked?money(positionAum.get(linked)):'—'}</td></tr>`;}).join('');
+        const rows=unmatched.map(account=>{const pos=state.positions.find(item=>OverviewCore.id(item.account)===account),candidates=balances.map(source=>state.balances.find(item=>OverviewCore.id(item.account)===source)).filter(Boolean).sort((a,b)=>Number(OverviewCore.id(b.description)===OverviewCore.id(pos?.accountLabel))-Number(OverviewCore.id(a.description)===OverviewCore.id(pos?.accountLabel)));return `<tr><td>${esc(pos?.accountLabel||account)}</td><td>${esc(account)} · ${money(positionAum.get(account))}</td><td><select data-balance-link="${esc(account)}"><option value="">Seleccionar cuenta</option>${candidates.map(item=>`<option value="${esc(OverviewCore.id(item.account))}">${esc(item.account)} · ${esc(item.description)} · ${money(eurBalances[OverviewCore.id(item.account)])}</option>`).join('')}</select></td></tr>`;}).join('');
+        const unlinked=balances.map(source=>{const item=state.balances.find(row=>OverviewCore.id(row.account)===source);return `<tr><td>${esc(item?.account||source)} · ${money(eurBalances[source])}</td><td>${esc(item?.description||'—')}</td><td><select data-balance-source="${esc(source)}"><option value="">Sin asignar</option>${[...positionAum].map(([account,aum])=>`<option value="${esc(account)}">${esc(account)} · ${money(aum)}</option>`).join('')}</select></td></tr>`;}).join('');
+        return `<h3>Parámetros pendientes</h3><p class="overview-context">La clasificación RF/RV permite estimar la asignación; el efectivo confirmado y el look-through se controlan por separado. Los límites no se acreditan hasta completar los datos necesarios.</p><h4>Sin categoría RV/RF · ${missing.length}</h4>${list(missing,'clasificación')}<h4>Fondos RF sin YTM o duración · ${rf.length}</h4>${list(rf,'métricas RF')}<h4>Sin exposición de divisa válida · ${currency.length}</h4>${list(currency,'divisa')}${state.balances.length?`<h4>Cruce de cuentas de saldos · ${Object.keys(result.balanceMatch.links).length} conciliadas; ${unmatched.length} cuentas de valores sin cruce</h4><p class="overview-context">Se usan identificadores del control y nombres exactos. Las homonimias requieren selección manual; un cliente puede tener varias cuentas de valores y de efectivo.</p><div class="overview-scroll"><table><thead><tr><th>Cliente</th><th>Cuenta valores · AUM EUR</th><th>Cuenta saldos candidata</th></tr></thead><tbody>${rows||'<tr><td colspan="3">Todas las cuentas de valores tienen cruce.</td></tr>'}</tbody></table></div><h4>Cuentas de efectivo sin asignar · ${balances.length}</h4><div class="overview-scroll"><table><thead><tr><th>Cuenta efectivo · saldo EUR</th><th>Titular</th><th>Asignar a cuenta de valores · AUM EUR</th></tr></thead><tbody>${unlinked||'<tr><td colspan="3">Sin cuentas de efectivo pendientes.</td></tr>'}</tbody></table></div><h4>Cuentas de efectivo · contravalor EUR</h4><div class="overview-scroll"><table><thead><tr><th>Cuenta efectivo</th><th>Titular</th><th>Saldo EUR</th><th>Cuenta valores enlazada</th><th>AUM valores EUR</th></tr></thead><tbody>${cashRows}</tbody></table></div>`:''}<h4>Cuentas sin efectivo confirmado · ${result.accounts.filter(row=>!row.cashKnown).length}</h4>${limitTable(result.accounts.filter(row=>!row.cashKnown))}`;
     }
     function draw(result){
         const palette=['#075aa3','#153d80','#42a4db','#637f9c','#83c4df','#516071','#a9b9c7','#dce5ed'];
@@ -451,6 +470,7 @@ const OverviewPanel=(()=>{
         if(state.tab==='clients'){
             const selected=result.accounts.find(item=>item.account===state.selected);
             const metric=root.querySelector('.overview-detail .overview-metrics');
+            metric?.insertAdjacentHTML('afterend',clientContext(selected));
             if(selected&&metric){
                 const value=state.cashOverrides.get(selected.account);
                 metric.insertAdjacentHTML('afterend',`<label class="overview-cash">Efectivo confirmado de esta cuenta (€) <input data-cash="${esc(selected.account)}" type="number" min="0" step="0.01" placeholder="${selected.cashKnown?selected.cash:'Pendiente'}" value="${Number.isFinite(value)?value:''}"></label><p class="overview-context">Puedes corregir el efectivo en esta sesión (también a 0). Sin efectivo confirmado, el límite de RV queda sin verificar.</p>`);
@@ -493,7 +513,8 @@ const OverviewPanel=(()=>{
             if(event.target.matches('[data-valuation-date]')){const value=event.target.value,parsed=value?new Date(`${value}T12:00:00`):null;if(value&&(!Number.isFinite(+parsed)||inputDate(parsed)!==value)){root.querySelector('#overviewStatus').textContent='Fecha no válida.';return;}if(event.target.dataset.valuationDate==='positions'){state.positionsDate=parsed;state.positionsDateSource=value?'Introducida por el gestor':'Pendiente';}else{state.balanceDate=parsed;state.balanceDateSource=value?'Introducida por el gestor':'Pendiente';}render();return;}
             if(event.target.matches('[data-yahoo-isin]')){const isin=normalizeIsin(event.target.dataset.yahooIsin),ticker=event.target.value.trim().toUpperCase();if(ticker&&!/^[A-Z0-9^=._-]+$/.test(ticker)){root.querySelector('#overviewStatus').textContent='Ticker Yahoo no válido.';return;}if(ticker)state.yahooTickers.set(isin,ticker);else state.yahooTickers.delete(isin);state.categoryDirty=true;render();loadYahooSeries();return;}
             if(event.target.matches('[data-include-cash]')){state.includeCash=event.target.checked;render();return;}
-            if(event.target.matches('[data-balance-link]')){const target=event.target.dataset.balanceLink,source=event.target.value;if(source)state.balanceLinks[target]=source;else delete state.balanceLinks[target];render();return;}
+            if(event.target.matches('[data-balance-link]')){const target=event.target.dataset.balanceLink,source=event.target.value;if(source)state.balanceLinks[source]=target;render();return;}
+            if(event.target.matches('[data-balance-source]')){const source=event.target.dataset.balanceSource,target=event.target.value;if(target)state.balanceLinks[source]=target;else delete state.balanceLinks[source];render();return;}
             if(event.target.matches('[data-fx]')){const currency=event.target.dataset.fx,value=Number(event.target.value.replace(',','.'));if(!(value>0)){root.querySelector('#overviewStatus').textContent='Introduce un cambio positivo: unidades de divisa por 1 EUR.';return;}state.fxRates[currency]=value;state.fxSource[currency]='Manual';render();return;}
             if(event.target.matches('[data-band]')){const profile=event.target.dataset.band,index=+event.target.dataset.bandIndex,value=Number(event.target.value.replace(',','.')),next=[...state.bands[profile]];next[index]=value;if(!Number.isFinite(value)||next[0]<0||next[1]>100||next[0]>=next[1]){root.querySelector('#overviewStatus').textContent='La banda debe cumplir 0 ≤ mínimo < máximo ≤ 100.';event.target.value=state.bands[profile][index];return;}state.bands[profile]=next;state.categoryDirty=true;render();return;}
             if(event.target.matches('[data-house]')){const isin=event.target.dataset.house,item=state.houseFunds.get(isin)||{};state.houseFunds.set(isin,{...item,house:event.target.value==='yes'?true:event.target.value==='no'?false:null});state.categoryDirty=true;render();return;}

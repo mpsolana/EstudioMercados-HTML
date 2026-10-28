@@ -19,7 +19,7 @@ const assert=require('node:assert/strict');
                 {'ISIN':other,'ACCOUNT':'Cuenta Cliente','INVERSIS ACCOUNT NUMBER':'0232-0105-01-0000000001','INSTRUMENT':'Fondo B','DIV INSTITUTION COUNTER VALUE':600}
             ],'posiciones-prueba.xlsx');
             const header=Array(67).fill(null);header[2]='CUENTA (Inversis)';header[49]='PERFIL GESTION ID';
-            const row=Array(67).fill(null);row[1]='Cliente sintético';row[2]='Cuenta Cliente';row[49]='EQUILIBRADO';row[55]='GDC';row[60]='ABC';row[40]=100;
+            const row=Array(67).fill(null);row[1]='Cliente sintético';row[2]='Cuenta Cliente';row[5]='2022-01-01';row[9]='Cotitular sintético';row[10]='DOC-TEST';row[11]='2030-01-01';row[41]='0232-0105-01-0000000001';row[64]='1980-01-01';row[49]='EQUILIBRADO';row[55]='GDC';row[60]='ABC';row[40]='CASH1';
             const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([[],[],header,row]),'Control DNI & TEST');
             const file=new File([XLSX.write(book,{type:'array',bookType:'xlsx'})],'control-prueba.xlsx');
             await OverviewPanel.importControl(file);
@@ -64,6 +64,9 @@ const assert=require('node:assert/strict');
         assert.equal(await page.evaluate(()=>document.querySelector('#overviewAssetTypeChart').data?.[0]?.type),'bar');
         await page.locator('#overviewPanel').screenshot({path:path.join(os.tmpdir(),'overview-summary-desktop.png')});
         await page.locator('[data-tab="clients"]').click();
+        assert.match(await page.locator('.overview-detail').innerText(),/Contrato, cuentas e intervinientes/);
+        assert.match(await page.locator('.overview-detail').innerText(),/Cotitular sintético/);
+        assert.match(await page.locator('.overview-detail').innerText(),/cumpleaños en/);
         assert.ok(await page.locator('.overview-detail').innerText().then(text=>text.includes('Cliente sintético')));
         assert.match(await page.locator('.overview-detail .overview-metrics').innerText(),/Perfil de gestión[\s\S]*EQUILIBRADO/i);
         const synced=await page.evaluate(()=>{GdcModel.state.models[0].rows[0].portfolioWeight=50;GdcModel.state.models[0].rows[1].portfolioWeight=50;OverviewPanel.render();return document.querySelector('#overviewCompareChart').data?.[2]?.x;});
@@ -178,6 +181,21 @@ const assert=require('node:assert/strict');
             return {file:OverviewPanel.state.categoryFile,category:OverviewPanel.state.categories.get('ES0000000010')?.generic,positions:OverviewPanel.state.positions.length};
         });
         assert.deepEqual(combined,{file:'combinado.xlsx',category:'RF Europa',positions:1});
+        await page.evaluate(()=>{
+            OverviewPanel.capturePositions([
+                {ISIN:'RVONE',ACCOUNT:'Cliente múltiple','INVERSIS ACCOUNT NUMBER':'P1',INSTRUMENT:'RV', 'DIV INSTITUTION COUNTER VALUE':300},
+                {ISIN:'RFONE',ACCOUNT:'Cliente múltiple','INVERSIS ACCOUNT NUMBER':'P2',INSTRUMENT:'RF', 'DIV INSTITUTION COUNTER VALUE':500}
+            ],'multi.xlsx');
+            OverviewPanel.state.clients=[{account:'P1',name:'Cliente múltiple',code:'MULTI',valueAccounts:['P1','P2'],cashAccounts:['B1','B2','B3'],profile:'Equilibrado',organization:'GDC',documents:[]}];
+            OverviewPanel.state.categories=new Map([['RVONE',{isin:'RVONE',generic:'RV',type:'RV'}],['RFONE',{isin:'RFONE',generic:'RF',type:'RF'}]]);
+            OverviewPanel.state.balances=OverviewCore.parseBalanceRows(['B1','B2','B3'].map((account,i)=>({ACCOUNT:`SUB${i}`, 'TRANSACTIONAL ACCOUNT':account,'TRANSACTIONAL ACCOUNT DESCRIPTION':'Cliente múltiple',CURRENCY:'EUR',BALANCE:100})));
+            OverviewPanel.state.selected='';OverviewPanel.state.tab='clients';OverviewPanel.render();
+        });
+        assert.equal(await page.locator('.overview-client-list tbody tr').count(),1);
+        const multi=await page.locator('.overview-detail').innerText();
+        assert.match(multi,/300\s*€/);
+        assert.match(multi,/B1 · B2 · B3/);
+        assert.match(multi,/P1 · P2/);
         process.stdout.write('Panel: neteo, control, categorización, banda y vistas desktop/mobile OK.\n');
     }finally{await browser.close();}
 })().catch(error=>{process.stderr.write(error.stack+'\n');process.exitCode=1;});

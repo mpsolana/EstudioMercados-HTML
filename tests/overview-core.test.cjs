@@ -100,6 +100,22 @@ test('balance account reconciliation accepts only exact unique names and flags h
     assert.equal(manual.links.B2,'P2');
     assert.ok(manual.unmatchedPositions.includes('P3'));
 });
+test('one controlled client can have two security accounts and three cash accounts without duplicate AUM',()=>{
+    const client={account:'P1',name:'Cliente Unico',code:'ABC',valueAccounts:['P1','P2'],cashAccounts:['B1','B2','B3'],profile:'Equilibrado',documents:[]};
+    const positions=[{...p('P1','RVONE',300),accountLabel:'Cliente Unico'},{...p('P2','RFONE',500),accountLabel:'Cliente Unico'}];
+    const balances=['B1','B2','B3'].map(account=>({account,description:'Cliente Unico',currency:'EUR',amount:100}));
+    const matched=Core.matchBalanceAccounts(positions,balances,{},[client]);
+    assert.equal(Object.keys(matched.links).length,3);
+    assert.deepEqual(matched.unmatchedPositions,[]);
+    const cash={};for(const target of Object.values(matched.links))cash[target]=(cash[target]||0)+100;
+    const result=Core.analyze({positions,clients:[client],categories:[{isin:'RVONE',generic:'RV',type:'RV'},{isin:'RFONE',generic:'RF',type:'RF'}],cashByAccount:cash});
+    assert.equal(result.accounts.length,1);
+    assert.equal(result.accounts[0].invested,800);
+    assert.equal(result.accounts[0].cash,300);
+    assert.equal(result.accounts[0].base,1100);
+    assert.equal(result.accounts[0].accountNumbers.size,2);
+    assert.equal(result.accounts[0].rvPct,300/1100*100);
+});
 
 test('editable profile bands and mismatched valuation dates never produce verified compliance',()=>{
     const positions=[p('A','RVONE',30),p('A','RFONE',70)],clients=[{account:'A',profile:'Prudente',documents:[]}];

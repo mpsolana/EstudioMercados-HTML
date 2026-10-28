@@ -5300,18 +5300,18 @@
                     workbook = await readWorkbook(file);
                     const categorySheet = findSheet(workbook, ['Categorización', 'Categorizacion']);
                     const positionSheets = workbook.SheetNames.filter(name => name !== categorySheet);
-                    rows = bestRowsByDetectedHeader({ ...workbook, SheetNames: positionSheets }, ['isin', 'instrument']);
+                    rows = bestRowsByDetectedHeader({ ...workbook, SheetNames: positionSheets }, [['isin', 'codigo isin', 'security code'], ['instrument', 'instrumento', 'nombre instrumento', 'security name']]);
                 } catch (e) {
                     console.warn('aggregate positions workbook parse failed', e);
                 }
                 if (!rows.length) {
                     const primaryText = await readText(file);
-                    rows = htmlTextRowsByDetectedHeader(primaryText, ['isin', 'instrument']);
+                    rows = htmlTextRowsByDetectedHeader(primaryText, [['isin', 'codigo isin', 'security code'], ['instrument', 'instrumento', 'nombre instrumento', 'security name']]);
                     if (!rows.length && isExcelHtmlFrameset(primaryText)) {
                         const linkedName = excelFramesetSheetName(primaryText);
                         const sheetFile = findLinkedExcelHtmlFile(files, linkedName);
                         if (sheetFile) {
-                            rows = htmlTextRowsByDetectedHeader(await readText(sheetFile), ['isin', 'instrument']);
+                            rows = htmlTextRowsByDetectedHeader(await readText(sheetFile), [['isin', 'codigo isin', 'security code'], ['instrument', 'instrumento', 'nombre instrumento', 'security name']]);
                             parseNotice = `Hoja real leida desde ${sheetFile.name}.`;
                         } else {
                             parseNotice = linkedName
@@ -5320,7 +5320,7 @@
                         }
                     }
                 }
-                const activeRows = rows.filter(row => !/^inmovilizad[oa]s?$/i.test(String(looseRowValue(row, ['BALANCE TYPE', 'Balance type', 'Tipo saldo']) || '').trim()));
+                const activeRows = rows.filter(row => !/^(inmovilizad[oa]s?|immobili[sz]ed|immobili[sz]ation)$/i.test(String(looseRowValue(row, ['BALANCE TYPE', 'Tipo saldo', 'Tipo balance']) || '').trim()));
                 const parsed = parseAggregatePositionRows(activeRows);
                 aggregatePositionsState = aggregateFundPositions(parsed, file.name);
                 OverviewPanel.capturePositions(activeRows, file.name);
@@ -5451,7 +5451,7 @@
                 let headerIndex = -1;
                 for (let i = 0; i < Math.min(rows.length, 30); i++) {
                     const normalized = rows[i].map(normalizeHeaderLabel);
-                    const ok = requiredKeys.every(req => normalized.some(h => h.includes(normalizeHeaderLabel(req))));
+                    const ok = requiredKeys.every(req => (Array.isArray(req) ? req : [req]).some(alias => normalized.some(h => h.includes(normalizeHeaderLabel(alias)))));
                     if (ok) { headerIndex = i; break; }
                 }
                 if (headerIndex < 0) return [];
@@ -5490,16 +5490,16 @@
                     const productType = String(looseRowValue(row, ['PRODUCT TYPE', 'Tipo producto', 'Product']) || '').trim();
                     const assetType = String(looseRowValue(row, ['TYPE OF ASSET', 'Tipo activo', 'Asset Type']) || '').trim();
                     const typeText = `${productType} ${assetType}`;
-                    const isin = normalizeIsin(looseRowValue(row, ['ISIN', 'isin']));
-                    const name = String(looseRowValue(row, ['INSTRUMENT', 'Instrumento', 'Nombre', 'Name']) || '').trim();
-                    const account = String(looseRowValue(row, ['ACCOUNT', 'Cliente', 'Cuenta']) || '').trim();
+                    const isin = normalizeIsin(looseRowValue(row, ['ISIN', 'Código ISIN', 'Security Code']));
+                    const name = String(looseRowValue(row, ['INSTRUMENT', 'Instrumento', 'Security Name', 'Nombre', 'Name']) || '').trim();
+                    const account = String(looseRowValue(row, ['ACCOUNT', 'Cliente', 'Cuenta', 'Investment Account']) || '').trim();
                     const amount = parseRankingNumber(looseRowValue(row, ['DIV INSTITUTION COUNTER VALUE', 'Counter Value', 'Contravalor EUR', 'Contravalor', 'Valor efectivo', 'Market Value', 'MARKET VALUE']));
                     const units = parseRankingNumber(looseRowValue(row, ['UNITS', 'Participaciones', 'Nominal Amount', 'NOMINAL AMOUNT']));
                     return { isin, name, productType, assetType, account, amount, units };
                 }).filter(r => {
                     if(!r.isin)return false;
                     const text=`${r.productType} ${r.assetType} ${r.name}`;
-                    const fund=/(investment\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`);
+                    const fund=/(investment\s*fund|mutual\s*fund|funds?|fondos?|iic)/i.test(`${r.productType} ${r.assetType}`);
                     const etf=/\betfs?\b|exchange[\s-]*traded|fondos?\s+cotizados?/i.test(text);
                     return fund&&!etf;
                 });

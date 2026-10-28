@@ -49,14 +49,21 @@ test('weight cap is enforced on frontier and identifies out-of-policy current po
     assert.ok(result.frontier.every(p=>p.weights.every(w=>w<=.400001)));
     assert.equal(result.actual.feasible,false);
     assert.equal(result.proposed.feasible,false);
-    assert.throws(()=>Frontier.calculate({...base(),maxWeight:30}),/no permite invertir/);
+    assert.throws(()=>Frontier.calculate({...base(),maxWeight:30}),/no permiten invertir/);
 });
-test('benchmark appears only with complete coverage of the same monthly window',()=>{
+test('benchmark uses a sufficient contiguous overlap without entering optimization',()=>{
     const complete=Frontier.calculate({...base(),benchmark:series(49,1)});
     assert.ok(complete.benchmark&&Number.isFinite(complete.benchmark.ret));
     const incomplete=Frontier.calculate({...base(),benchmark:series(42,1)});
-    assert.equal(incomplete.benchmark,null);
+    assert.ok(incomplete.benchmark&&incomplete.benchmark.months===42);
+    assert.equal(Frontier.calculate({...base(),benchmark:series(30,1)}).benchmark,null);
     assert.equal(incomplete.frontier.length,complete.frontier.length);
+});
+test('minimum and maximum per-asset weights are enforced together',()=>{
+    const result=Frontier.calculate({...base(),minWeight:10,maxWeight:60});
+    assert.ok(result.frontier.every(p=>p.weights.every(w=>w>=.099999&&w<=.600001)));
+    assert.equal(result.actual.feasible,false);
+    assert.throws(()=>Frontier.calculate({...base(),minWeight:40,maxWeight:60}),/no permiten invertir/);
 });
 test('same-return and same-risk objectives obey the same universe and asset cap',()=>{
     const input={origin:[row('AAA',20),row('BBB',80)],proposal:[row('AAA',20),row('BBB',80)],series:{AAA:series(73,0),BBB:series(73,1)},optimizer:Optimizer};

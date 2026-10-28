@@ -83,7 +83,11 @@ const GdcModel=(()=>{
         const signature=JSON.stringify({mode:state.mode,years:rollingYears,rows});if(signature===renderedRolling)return;renderedRolling=signature;
         note.textContent=rows.length?`${rows.length}/${state.models.length} perfiles con ${months} retornos mensuales consecutivos o más. Media aritmética de ventanas solapadas anualizadas; mínimo y máximo observados, no intervalos de confianza. Benchmark fijo y rebalanceo mensual, sin costes. Los periodos históricos pueden diferir.`:'No hay histórico mensual suficiente para este plazo en los benchmarks.';
         if(!rows.length){if(chart.data)Plotly.purge(chart);chart.replaceChildren();return;}
-        FinancialVisuals.newPlot(chart,[{type:'scatter',mode:'markers',name:'Media rolling',x:rows.map(row=>profileLabel(row.name)),y:rows.map(row=>row.mean),customdata:rows.map(row=>[row.name,row.count,row.min,row.max]),marker:{size:11,color:'#075aa3'},error_y:{type:'data',symmetric:false,array:rows.map(row=>row.max-row.mean),arrayminus:rows.map(row=>row.mean-row.min),color:'#637f9c',thickness:2,width:7},hovertemplate:'%{customdata[0]}<br>Media %{y:.2f}%<br>Mín. %{customdata[2]:.2f}% · máx. %{customdata[3]:.2f}%<br>%{customdata[1]} ventanas<extra></extra>'}],{title:`Rentabilidad rolling anualizada · ${rollingYears} ${rollingYears===1?'año':'años'}`,yaxis:{title:'Rentabilidad anualizada (%)',zeroline:true},height:430,margin:{t:55,l:67,r:25,b:85},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
+        const names=rows.map(row=>profileLabel(row.name));
+        const values=rows.flatMap(row=>[row.min,row.max]),span=Math.max(...values)-Math.min(...values),pad=Math.max(1,span*.13);
+        const range=rows.map(row=>({type:'scatter',mode:'lines',x:[profileLabel(row.name),profileLabel(row.name)],y:[row.min,row.max],line:{color:'#8fa6b9',width:3},showlegend:false,hoverinfo:'skip'}));
+        const markers=[['Mínimo','min','#8fa6b9','bottom center'],['Media','mean','#075aa3','middle right'],['Máximo','max','#437da8','top center']].map(([name,key,color,position])=>({type:'scatter',mode:'markers+text',name,x:names,y:rows.map(row=>row[key]),text:rows.map(row=>`${row[key].toFixed(2)}%`),textposition:position,textfont:{size:10,color},marker:{size:key==='mean'?10:7,color},customdata:rows.map(row=>[row.name,row.count]),hovertemplate:`%{customdata[0]}<br>${name} %{y:.2f}%<br>%{customdata[1]} ventanas<extra></extra>`}));
+        FinancialVisuals.newPlot(chart,[...range,...markers],{title:`Rentabilidad rolling anualizada · ${rollingYears} ${rollingYears===1?'año':'años'}`,yaxis:{title:'Rentabilidad anualizada (%)',zeroline:true,range:[Math.min(...values)-pad,Math.max(...values)+pad]},height:450,margin:{t:55,l:67,r:32,b:96},legend:{orientation:'h',y:-.22},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
     }
     function benchmarkStats(ticker){const points=benchmarkSeries(ticker),cached=indexStatsCache.get(ticker);if(cached?.points===points)return cached.stats;const stats=core.indexStatistics(points);indexStatsCache.set(ticker,{points,stats});return stats;}
     function rfProfile(modelItem){return core.rfSummary(modelItem,benchmarkTickers,state.rfMetrics);}
@@ -793,7 +797,12 @@ const GdcModel=(()=>{
         panel.querySelectorAll('[data-gdc-mode]').forEach(button=>button.addEventListener('click',()=>switchMode(button.dataset.gdcMode)));
         panel.querySelector('#gdcCommitteeDate').addEventListener('change',event=>{state.committeeDate=event.target.value;invalidateReport();});
         panel.querySelector('#gdcModels').addEventListener('change',event=>{state.selected=Number(event.target.value);invalidateReport();render();});
-        panel.querySelector('#gdcProfile').addEventListener('change',event=>{model().profile=event.target.value;invalidateReport();render();});
+        panel.querySelector('#gdcProfile').addEventListener('change',event=>{
+            const profile=event.target.value,other=state.models.findIndex((item,index)=>index!==state.selected&&core.profile(item.profile||item.name)===profile);
+            if(other>=0)state.selected=other;
+            else model().profile=profile;
+            invalidateReport();render();
+        });
         panel.querySelector('#gdcNormalizeWeights').addEventListener('click',normalizeAllocation);
         panel.querySelector('#gdcBandTarget').addEventListener('input',event=>{panel.querySelector('#gdcBandNumber').value=event.target.value;});
         panel.querySelector('#gdcBandNumber').addEventListener('input',event=>{if(event.target.value!=='')panel.querySelector('#gdcBandTarget').value=event.target.value;});

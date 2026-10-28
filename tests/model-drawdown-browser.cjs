@@ -57,6 +57,18 @@ const {pathToFileURL}=require('node:url');
   assert.ok(Math.abs(weights.afterGdc[0]-weights.gdcFirst)<.02,JSON.stringify(weights));
   assert.ok(Math.abs(weights.afterGdc[1]-weights.gdcSecond)<.02,JSON.stringify(weights));
   assert.ok(Math.abs(weights.afterGici-weights.giciAdjusted)<.02,JSON.stringify(weights));
+  const profileSwitch=await page.evaluate(()=>{
+   GdcModel.switchMode('GDC');GdcModel.state.selected=0;GdcModel.render();
+   const before=ModelPortfolioCore.allocation(GdcModel.state.models[0]).portfolioRv;
+   const select=document.querySelector('#gdcProfile');select.value='equilibrado';select.dispatchEvent(new Event('change',{bubbles:true}));
+   const selectedOther=GdcModel.state.selected,other=ModelPortfolioCore.allocation(GdcModel.state.models[1]).portfolioRv;
+   select.value='prudente';select.dispatchEvent(new Event('change',{bubbles:true}));
+   return {before,selectedOther,other,selectedBack:GdcModel.state.selected,after:ModelPortfolioCore.allocation(GdcModel.state.models[0]).portfolioRv,profile:GdcModel.state.models[0].profile};
+  });
+  assert.equal(profileSwitch.selectedOther,1);
+  assert.equal(profileSwitch.selectedBack,0);
+  assert.equal(profileSwitch.profile,'prudente');
+  assert.ok(Math.abs(profileSwitch.after-profileSwitch.before)<.001,JSON.stringify(profileSwitch));
   const exported=await page.evaluate(()=>{
    GdcModel.switchMode('GDC');
    const original=XLSX.writeFile;

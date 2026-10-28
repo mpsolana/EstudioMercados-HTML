@@ -1,6 +1,6 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 (async()=>{
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:900},acceptDownloads:true}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
@@ -26,7 +26,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   const initial=await page.evaluate(()=>({profile:GdcModel.state.models[1].profile,band:ModelPortfolioCore.allocation(GdcModel.state.models[1]).band,neutral:ModelPortfolioCore.allocation(GdcModel.state.models[1]).neutral,benchRv:ModelPortfolioCore.allocation(GdcModel.state.models[1]).benchmarkRv,indices:document.querySelector('#gdcBody').textContent}));
   assert.equal(initial.profile,'prudente');assert.deepEqual(initial.band,[15,30]);assert.equal(initial.neutral,22.5);assert.equal(initial.benchRv,22.5);assert.match(initial.indices,/Morningstar Global Equity/);
   await page.locator('[data-gdc-portfolio-weight="0"]').fill('75');await page.locator('[data-gdc-portfolio-weight="0"]').dispatchEvent('change');
-  await page.locator('#gdcReport').click();assert.match(await page.locator('#gdcStatus').textContent(),/Normaliza los pesos/);
+  assert.deepEqual(await page.evaluate(()=>GdcModel.state.models[1].rows.map(row=>row.portfolioWeight)),[75,25,0]);
   await page.locator('[data-gdc-portfolio-weight="1"]').fill('25');await page.locator('[data-gdc-portfolio-weight="1"]').dispatchEvent('change');
   const weights=await page.evaluate(()=>({bench:GdcModel.state.models[1].rows.map(row=>row.weight),actual:GdcModel.state.models[1].rows.map(row=>row.portfolioWeight),rv:ModelPortfolioCore.allocation(GdcModel.state.models[1]).portfolioRv,chart:document.getElementById('gdcWeightChart').data?.map(trace=>trace.y),deviation:document.getElementById('gdcDeviationChart').data?.map(trace=>trace.y)}));
   assert.deepEqual(weights.bench,[77.5,22.5,0]);assert.deepEqual(weights.actual,[75,25,0]);assert.equal(weights.rv,25);
@@ -63,14 +63,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.equal(workbook.names.length>=10,true);
   assert.ok(workbook.names.includes('Resumen')&&workbook.names.includes('GDC Estado')&&workbook.names.includes('Asignacion'));
   assert.ok(workbook.summary.some(row=>row[0]==='Cartera estratégica Prudente'&&row[4]===25));
-  assert.ok(workbook.summary.some(row=>row[0]==='Cartera estratégica Prudente'&&String(row[9]||'').includes('█')));
+  assert.ok(workbook.summary.some(row=>row[0]==='Cartera estratégica Prudente'&&String(row[10]||'').includes('█')));
   assert.ok(workbook.allocation.some(row=>row[0]==='Cartera estratégica Prudente'&&row[1]==='RV Global'&&row[3]===25));
   await page.evaluate(()=>{GdcModel.state.models=[];GdcModel.state.selected=0;GdcModel.render();});
   await page.locator('#gdcPriorFile').setInputFiles({name:'comite.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
   await page.waitForFunction(()=>GdcModel.state.models[1]?.rows[1]?.portfolioWeight===25);
   assert.equal(await page.evaluate(()=>GdcModel.state.models[1].rows[1].currentPositions[0]?.isin),'ES0000000002');
   await page.locator('#gdcModels').selectOption('1');
-  await page.evaluate(()=>{const row=GdcModel.state.models[1].rows[0];row.keepCurrent=false;row.proposedPositions=[{isin:'ES0000000003',share:100}];GdcModel.state.prices.ES0000000003=GdcModel.state.prices.ES0000000001.map((point,index)=>({...point,price:point.price+index*.2}));GdcModel.render();});
+  await page.evaluate(()=>{const row=GdcModel.state.models[1].rows[0];row.keepCurrent=false;row.proposedPositions=[{isin:'ES0000000003',share:100}];GdcModel.state.prices.ES0000000003=GdcModel.state.prices.ES0000000001.map((point,index)=>({...point,price:point.price+index*.2}));fundUniverseState.isinIndex.delete('ES0000000003');GdcModel.render();});
   await page.locator('#gdcHistoryRun').click();
   await page.locator('[data-gdc-history-name="ES0000000003"]').fill('Proxy RF Cliente');
   await page.locator('[data-gdc-history-name="ES0000000003"]').dispatchEvent('change');
