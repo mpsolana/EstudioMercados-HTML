@@ -19,6 +19,20 @@ test('client joins by normalized account label and never validates an incomplete
     assert.equal(full.invested,900);
 });
 
+test('client comparison matches management organization and profile against current model weights',()=>{
+    const clients=[{account:'A',name:'Cliente',organization:' GICI ',profile:'Prudente',cash:0,documents:[]}];
+    const positions=[p('A','ES0000000001',100)];
+    const categories=[{isin:'ES0000000001',generic:'RV Europa',benchCategory:'RV Europa',type:'RV'}];
+    const modelsByOrg={GDC:[{name:'Prudente',rows:[{generic:'RV Europa',weight:20,portfolioWeight:25}]}],GICI:[{name:'Equilibrado',rows:[]},{name:'Prudente',rows:[{generic:'RV Europa',weight:15,portfolioWeight:22}]}]};
+    const analyze=()=>Core.analyze({positions,clients,categories,modelsByOrg}).accounts[0];
+    assert.equal(analyze().organization,'GICI');
+    assert.equal(analyze().model.rows[0].portfolioWeight,22);
+    modelsByOrg.GICI[1].rows[0].portfolioWeight=28;
+    assert.equal(analyze().model.rows[0].portfolioWeight,28);
+    clients[0].organization='GDC/GICI';
+    assert.equal(analyze().model,null);
+});
+
 test('out-of-band positions and ambiguous account matches are explicit',()=>{
     const positions=[p('A','ES0000000001',70),p('A','ES0000000002',30)];
     const categories=[{isin:'ES0000000001',generic:'RV',type:'RV'},{isin:'ES0000000002',generic:'RF',type:'RF'}];

@@ -8919,6 +8919,13 @@
                                     Totales (Min / Prom / Max)</h3>
                                 <div id="rollingTotalChart" class="w-full h-[400px]"></div>
                             </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+                                    <h3 class="text-gray-800 font-bold border-l-4 border-blue-800 pl-3">Volatilidad móvil anualizada</h3>
+                                    <label class="text-sm text-gray-600">Ventana <select id="rollingVolatilityWindow" class="border border-gray-300 rounded px-2 py-1" onchange="renderRollingVolatility(currentData, currentDataFrequency)"><option value="3">3 meses</option><option value="6">6 meses</option><option value="12" selected>1 año</option><option value="36">3 años</option></select></label>
+                                </div>
+                                <div id="rollingVolatilityChart" class="w-full h-[400px]"></div>
+                            </div>
                         </div>
 
                         <!-- NEW FORWARD RETURNS HEATMAP -->
@@ -9840,6 +9847,7 @@
                     await PortfolioLoading.phase(75,'Dibujando rentabilidad, riesgo y escenarios…');
                     renderForwardReturnsMatrix(rawData);
                     renderBarChart(stats);
+                    renderRollingVolatility(rawData, currentDataFrequency);
                     renderLineChart(timeSeries);
                     renderDrawdownChart(rawData, ddData, ticker);
                     await PortfolioLoading.phase(76,'Cargando clases de activo comparables…');
@@ -10981,9 +10989,9 @@
                 }
                 results.rawEvents = rawEvents; return results;
             }
-            function renderProfessionalRangeChart(id, rows, labelKey, meanKey, minKey, maxKey, title) {
+            function renderProfessionalRangeChart(id, rows, labelKey, meanKey, minKey, maxKey, title, showValues = false) {
                 const valid = rows.filter(row => Number.isFinite(row[meanKey]) && Number.isFinite(row[minKey]) && Number.isFinite(row[maxKey]));
-                FinancialVisuals.newPlot(id, [{
+                const traces = [{
                     x: valid.map(row => row[labelKey]), y: valid.map(row => row[meanKey]),
                     type: 'scatter', mode: 'lines+markers', name: 'Media',
                     line: { color: '#164e78', width: 2.5 }, marker: { color: '#164e78', size: 9 },
@@ -10993,9 +11001,16 @@
                         color: '#8997a4', thickness: 1.5, width: 8, visible: true },
                     customdata: valid.map(row => [row[minKey], row[maxKey]]),
                     hovertemplate: '%{x}<br>Media: %{y:.2%}<br>Mín: %{customdata[0]:.2%}<br>Máx: %{customdata[1]:.2%}<extra></extra>'
-                }], { title: { text: title, font: { size: 14, color: '#263746' } },
+                }];
+                if (showValues) {
+                    for (const [name, key, color, position] of [['Mín', minKey, '#657d92', 'bottom center'], ['Media', meanKey, '#164e78', 'middle right'], ['Máx', maxKey, '#437da8', 'top center']]) {
+                        traces.push({ x: valid.map(row => row[labelKey]), y: valid.map(row => row[key]), type: 'scatter', mode: 'markers+text', name,
+                            text: valid.map(row => `${(row[key] * 100).toFixed(1)}%`), textposition: position, textfont: { size: 10, color }, marker: { size: name === 'Media' ? 8 : 6, color }, hoverinfo: 'skip', showlegend: false });
+                    }
+                }
+                FinancialVisuals.newPlot(id, traces, { title: { text: title, font: { size: 14, color: '#263746' } },
                     yaxis: { tickformat: '.0%', title: 'Rentabilidad', zeroline: true, zerolinecolor: '#c5cdd5' },
-                    margin: { t: 45, l: 60, r: 22, b: 65 }, showlegend: false,
+                    margin: { t: 55, l: 65, r: showValues ? 45 : 22, b: 70 }, showlegend: false,
                     plot_bgcolor: '#fff', paper_bgcolor: '#fff' }, { responsive: true });
             }
             function renderDipAnalysisCharts(data, rawEvents, threshold) {
@@ -11708,8 +11723,34 @@
 
             function renderBarChart(s) {
                 const annualizedData = s.filter(i => (i.periods || 0) >= (i.periodsPerYear || periodsPerYear(currentDataFrequency)));
-                renderProfessionalRangeChart('rollingAnnualizedChart', annualizedData, 'horizon', 'meanAnn', 'minAnn', 'maxAnn', 'Rentabilidad anualizada por plazo');
+                renderProfessionalRangeChart('rollingAnnualizedChart', annualizedData, 'horizon', 'meanAnn', 'minAnn', 'maxAnn', 'Rentabilidad anualizada por plazo', true);
                 renderProfessionalRangeChart('rollingTotalChart', s, 'horizon', 'meanTot', 'minTot', 'maxTot', 'Rentabilidad acumulada por plazo');
+            }
+
+            function renderRollingVolatility(data, frequency = currentDataFrequency) {
+                const chart = document.getElementById('rollingVolatilityChart');
+                if (!chart) return;
+                const months = Number(document.getElementById('rollingVolatilityWindow')?.value || 12);
+                const windowSize = Math.max(2, Math.round(months * periodsPerYear(frequency) / 12));
+                const x = [], y = [];
+                const returns = (data || []).slice(1).map((point, index) => {
+                    const previous = data[index]?.price;
+                    return point.price > 0 && previous > 0 ? point.price / previous - 1 : NaN;
+                });
+                let sum = 0, sumSquares = 0, invalid = 0;
+                returns.forEach((value, index) => {
+                    if (Number.isFinite(value)) { sum += value; sumSquares += value * value; } else invalid++;
+                    if (index >= windowSize) {
+                        const old = returns[index - windowSize];
+                        if (Number.isFinite(old)) { sum -= old; sumSquares -= old * old; } else invalid--;
+                    }
+                    if (index + 1 < windowSize || invalid) return;
+                    const variance = Math.max(0, (sumSquares - sum * sum / windowSize) / (windowSize - 1));
+                    x.push(data[index + 1].date);
+                    y.push(Math.sqrt(variance * periodsPerYear(frequency)));
+                });
+                FinancialVisuals.newPlot(chart, [{ x, y, type: 'scatter', mode: 'lines', name: 'Volatilidad móvil', line: { color: '#164e78', width: 2.5 }, hovertemplate: '%{x}<br>Volatilidad: %{y:.2%}<extra></extra>' }],
+                    { yaxis: { title: 'Volatilidad anualizada', tickformat: '.0%', rangemode: 'tozero' }, xaxis: { title: 'Fecha' }, margin: { t: 30, l: 70, r: 25, b: 55 }, paper_bgcolor: '#fff', plot_bgcolor: '#fff', annotations: x.length ? [] : [{ text: 'Histórico insuficiente para esta ventana', x: .5, y: .5, xref: 'paper', yref: 'paper', showarrow: false }] }, { responsive: true });
             }
 
             function renderLineChart(s) {

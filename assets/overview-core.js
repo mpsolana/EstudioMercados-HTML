@@ -129,11 +129,12 @@
         }
         const results=[...accounts.values()].map(holder=>{
             const client=holder.client||control.get(holder.account)||control.get(id(holder.accountLabel))||null;
-            const organization=String(client?.organization||'').toUpperCase();
+            const organizationTokens=[...new Set((key(client?.organization).match(/\b(?:gdc|gici)\b/g)||[]))];
+            const organization=organizationTokens.length===1?organizationTokens[0].toUpperCase():'';
             const profile=modelCore.profile(client?.profile||'');
             const band=bandsByProfile[profile]||null;
             const models=modelsByOrg[organization]||[];
-            const model=models.find(item=>modelCore.profile(item.profile||item.name)===profile)||null;
+            const model=profile?models.find(item=>(modelCore.profile(item.profile)||modelCore.profile(item.name))===profile)||null:null;
             const allocations=new Map();
             const benchmarkAllocations=new Map();
             for(const position of holder.positions){
