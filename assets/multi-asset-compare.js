@@ -130,10 +130,12 @@
         el('HorizonBody').innerHTML=result.assets.map(asset=>horizonRow(asset)).join('')+(result.benchmark&&!result.assets.some(asset=>asset.ticker===result.benchmark.ticker)?horizonRow(result.benchmark,true):'');
         const x=result.rows.map(row=>row.date),line=asset=>({x,mode:'lines',name:asset.ticker,line:{color:asset.color,width:2.3}});
         const hasExtra=result.benchmark&&!result.assets.some(asset=>asset.ticker===result.benchmark.ticker);
-        const legendRows=Math.ceil((result.assets.length+(hasExtra?1:0))/4),chartHeight=Math.max(390,300+legendRows*24),marginBottom=55+legendRows*24;
+        const label=asset=>asset.name&&asset.name!==asset.ticker?`${asset.name} (${asset.ticker})`:asset.ticker;
+        const shortLabel=asset=>asset.name&&asset.name!==asset.ticker?`${asset.name.slice(0,22)}${asset.name.length>22?'…':''}`:asset.ticker;
+        const legendColumns=result.assets.some(asset=>label(asset).length>30)?2:4;
+        const legendRows=Math.ceil((result.assets.length+(hasExtra?1:0))/legendColumns),chartHeight=Math.max(390,300+legendRows*24),marginBottom=55+legendRows*24;
         for(const suffix of ['BaseChart','DrawdownChart'])el(suffix).style.height=`${chartHeight}px`;
         const legend={orientation:'h',x:0,y:-.18,font:{size:11}};
-        const label=asset=>asset.name&&asset.name!==asset.ticker?`${asset.name} (${asset.ticker})`:asset.ticker;
         const benchmarkTrace=hasExtra?[{...line({...result.benchmark,color:'#263746'}),line:{color:'#263746',width:2.4,dash:'dash'},name:`${label(result.benchmark)} (benchmark)`,isBenchmark:true,base100:result.benchmark.base100,drawdowns:result.benchmark.drawdowns}]:[];
         const chartAssets=result.assets.concat(benchmarkTrace);
         FinancialVisuals.newPlot(`${prefix}BaseChart`,chartAssets.map(asset=>({...line(asset),line:asset.line||line(asset).line,name:asset.isBenchmark?asset.name:label(asset),y:asset.base100})),{title:'Evolución base 100',yaxis:{title:'Base 100'},margin:{t:44,l:56,r:20,b:marginBottom},legend},{responsive:true});
@@ -141,13 +143,13 @@
         const recoveryTarget=el('DrawdownRecoveryChart');
         if(recoveryTarget){
             const recoveryRows=result.assets.map((asset,index)=>({asset,summary:drawdown.analyze(result.rows.map(row=>({date:row.date,price:row.prices[index]})))})).filter(item=>item.summary?.depth<0);
-            const recoveryTraces=[true,false].map(recovered=>{const items=recoveryRows.filter(item=>item.summary.recovered===recovered);return {type:'scatter',mode:'markers+text',name:recovered?'Recuperada':'Aún abierta',x:items.map(item=>-item.summary.depth*100),y:items.map(item=>item.summary.days),text:items.map(item=>label(item.asset)),textposition:'top center',marker:{size:13,color:items.map(item=>item.asset.color),symbol:recovered?'circle':'diamond-open',line:{color:'#fff',width:1}},hovertemplate:'%{text}<br>Caída máxima %{x:.2f}%<br>Días desde mínimo %{y}<extra></extra>'};});
+            const recoveryTraces=[true,false].map(recovered=>{const items=recoveryRows.filter(item=>item.summary.recovered===recovered);return {type:'scatter',mode:'markers+text',name:recovered?'Recuperada':'Aún abierta',x:items.map(item=>-item.summary.depth*100),y:items.map(item=>item.summary.days),text:items.map(item=>shortLabel(item.asset)),customdata:items.map(item=>label(item.asset)),textposition:'top center',marker:{size:13,color:items.map(item=>item.asset.color),symbol:recovered?'circle':'diamond-open',line:{color:'#fff',width:1}},hovertemplate:'%{customdata}<br>Caída máxima %{x:.2f}%<br>Días desde mínimo %{y}<extra></extra>'};});
             FinancialVisuals.newPlot(recoveryTarget,recoveryTraces,{title:'Profundidad de caída y recuperación',xaxis:{title:'Drawdown máximo (%)',rangemode:'tozero'},yaxis:{title:'Días naturales desde el mínimo',rangemode:'tozero'},height:chartHeight,margin:{t:54,l:68,r:24,b:marginBottom},legend:{orientation:'h',y:-.2},paper_bgcolor:'#fff',plot_bgcolor:'#fff'},{responsive:true});
         }
-        const scatter=new Map();result.assets.forEach(asset=>{const x=asset.vol*100,y=asset.total*100,key=`${x.toFixed(2)}|${y.toFixed(2)}`;if(!scatter.has(key))scatter.set(key,{x,y,names:[],color:asset.color});scatter.get(key).names.push(label(asset));});
-        const points=[...scatter.values()];if(hasExtra)points.push({x:result.benchmark.vol*100,y:result.benchmark.total*100,names:[`${label(result.benchmark)} (benchmark)`],color:'#263746',symbol:'diamond'});
+        const scatter=new Map();result.assets.forEach(asset=>{const x=asset.vol*100,y=asset.total*100,key=`${x.toFixed(2)}|${y.toFixed(2)}`;if(!scatter.has(key))scatter.set(key,{x,y,names:[],shortNames:[],color:asset.color});scatter.get(key).names.push(label(asset));scatter.get(key).shortNames.push(shortLabel(asset));});
+        const points=[...scatter.values()];if(hasExtra)points.push({x:result.benchmark.vol*100,y:result.benchmark.total*100,names:[`${label(result.benchmark)} (benchmark)`],shortNames:[shortLabel(result.benchmark)],color:'#263746',symbol:'diamond'});
         const axis=(values,floor,nonnegative=false)=>{const low=Math.min(...values),high=Math.max(...values),pad=Math.max(floor,(high-low)*.2);return [nonnegative?Math.max(0,low-pad):low-pad,high+pad];};
-        FinancialVisuals.newPlot(`${prefix}ScatterChart`,points.map(point=>({x:[point.x],y:[point.y],text:[point.names.join(', ')],mode:'markers+text',textposition:'top center',name:point.names.join(', '),marker:{color:point.color,size:15,symbol:point.symbol||'circle'}})),{title:'Riesgo anualizado vs retorno del periodo',xaxis:{title:'Volatilidad anualizada (%)',range:axis(points.map(point=>point.x),.5,true),tickformat:'.1f'},yaxis:{title:'Retorno del periodo (%)',range:axis(points.map(point=>point.y),1),tickformat:'.1f'},margin:{t:44,l:65,r:20,b:60},showlegend:false},{responsive:true});
+        FinancialVisuals.newPlot(`${prefix}ScatterChart`,points.map(point=>({x:[point.x],y:[point.y],text:[point.shortNames.join(', ')],customdata:[point.names.join(', ')],hovertemplate:'%{customdata}<br>Riesgo %{x:.2f}%<br>Retorno %{y:.2f}%<extra></extra>',mode:'markers+text',textposition:'top center',name:point.names.join(', '),marker:{color:point.color,size:15,symbol:point.symbol||'circle'}})),{title:'Riesgo anualizado vs retorno del periodo',xaxis:{title:'Volatilidad anualizada (%)',range:axis(points.map(point=>point.x),.5,true),tickformat:'.1f'},yaxis:{title:'Retorno del periodo (%)',range:axis(points.map(point=>point.y),1),tickformat:'.1f'},margin:{t:44,l:65,r:20,b:60},showlegend:false},{responsive:true});
         if(options.rollingPair&&result.benchmark){
             const windowSize=periods[result.frequency]||252,points=rollingCorrelation(result.rows,0,result.assets.length,windowSize);
             const chart=el('CorrelationChart');chart.style.height='350px';
@@ -156,10 +158,11 @@
             else chart.textContent=`Histórico insuficiente para una ventana móvil de ${windowSize} retornos ${result.frequency}.`;
             return `${result.rows.length} fechas comunes. Alfa de Jensen anualizado sobre retornos emparejados; cada plazo exige al menos cuatro retornos y un cierre inicial próximo. Correlación móvil: ventana de ${windowSize} retornos ${result.frequency}.`;
         }
-        const names=result.assets.map(asset=>asset.ticker);
+        const names=result.assets.map(asset=>asset.name&&asset.name!==asset.ticker?`${asset.name.slice(0,18)}${asset.name.length>18?'…':''} (${asset.ticker})`:asset.ticker);
+        const fullNames=result.assets.map(asset=>label(asset));
         el('CorrelationChart').style.height=`${Math.max(350,Math.min(880,120+names.length*33))}px`;
         const annotations=result.correlations.flatMap((row,i)=>row.map((value,j)=>({x:names[j],y:names[i],text:value===null?'—':value.toFixed(2),showarrow:false,font:{size:names.length>12?9:11,color:value!==null&&value<-.45?'#ffffff':'#263342'}})));
-        FinancialVisuals.newPlot(`${prefix}CorrelationChart`,[{type:'heatmap',x:names,y:names,z:result.correlations,zmin:-1,zmax:1,colorscale:[[0,'#164e78'],[.5,'#a9c3d7'],[1,'#ffffff']],hovertemplate:'%{y} / %{x}: %{z:.2f}<extra></extra>',colorbar:{title:'ρ'}}],{margin:{t:24,l:Math.min(220,Math.max(90,...names.map(name=>name.length*7))),r:50,b:Math.min(180,Math.max(80,...names.map(name=>name.length*6)))},xaxis:{side:'bottom',tickangle:names.length>5?-45:0,automargin:true},yaxis:{autorange:'reversed',automargin:true},annotations},{responsive:true});
+        FinancialVisuals.newPlot(`${prefix}CorrelationChart`,[{type:'heatmap',x:names,y:names,z:result.correlations,customdata:result.correlations.map((row,i)=>row.map((_,j)=>[fullNames[i],fullNames[j]])),zmin:-1,zmax:1,colorscale:[[0,'#164e78'],[.5,'#a9c3d7'],[1,'#ffffff']],hovertemplate:'%{customdata[0]} / %{customdata[1]}: %{z:.2f}<extra></extra>',colorbar:{title:'ρ'}}],{margin:{t:24,l:Math.min(260,Math.max(110,...names.map(name=>name.length*7))),r:50,b:Math.min(210,Math.max(90,...names.map(name=>name.length*6)))},xaxis:{side:'bottom',tickangle:names.length>5?-45:0,automargin:true},yaxis:{autorange:'reversed',automargin:true},annotations},{responsive:true});
         const all=result.assets.concat(result.benchmark?[result.benchmark]:[]),currencies=new Set(all.map(asset=>asset.currency).filter(Boolean)),unadjusted=all.filter(asset=>asset.priceType==='close');
         return `${result.rows.length} fechas comunes · ${result.rows[0].date.toISOString().slice(0,10)} a ${result.rows.at(-1).date.toISOString().slice(0,10)}. Correlación: retornos ${result.correlationFrequency==='A'?'anuales (cierres no solapados)':`de frecuencia ${result.correlationFrequency}; menos de cuatro años para estimar correlación anual`}.${result.benchmark?` Benchmark: ${result.benchmark.ticker}.`:''}${currencies.size>1?' Aviso: divisas distintas sin convertir.':''}${unadjusted.length?` Aviso: ${[...new Set(unadjusted.map(asset=>asset.ticker))].join(', ')} usa cierre no ajustado.`:''}`;
     }
@@ -186,21 +189,32 @@
         const benchmarkSelect=panel.querySelector('#multiAssetBenchmark');
         const excelBench=panel.querySelector('#multiAssetExcelBench');
         const importedBenchmarks=()=>typeof loadedPortfolio==='object'&&loadedPortfolio?.benchmarks||{};
+        function knownName(ticker){
+            if(ticker==='CARTERA IMPORTADA')return loadedPortfolio?.sourceLabel&&loadedPortfolio.sourceLabel!=='Manual/Yahoo'?`Cartera individual · ${loadedPortfolio.sourceLabel}`:'Cartera individual';
+            if(ticker.startsWith('BENCH:')){
+                const key=Object.keys(importedBenchmarks()).find(value=>value.toUpperCase()===ticker.slice(6));
+                const item=key&&importedBenchmarks()[key];
+                return item?.label||item?.name||key||ticker;
+            }
+            const universe=typeof fundUniverseState!=='undefined'?fundUniverseState?.isinIndex?.get(ticker)?.name:'';
+            const market=typeof assetClasses!=='undefined'?assetClasses.find(item=>item.s===ticker)?.n:'';
+            return universe||market||MarketData.metadata.get(ticker)?.name||'';
+        }
         function refreshImportedOptions(){
             const selected=excelBench.value;
-            excelBench.innerHTML='<option value="">Seleccionar</option>'+Object.keys(importedBenchmarks()).map(key=>`<option value="${escapeHtml(key)}">${escapeHtml(key)}</option>`).join('');
+            excelBench.innerHTML='<option value="">Seleccionar</option>'+Object.keys(importedBenchmarks()).map(key=>`<option value="${escapeHtml(key)}">${escapeHtml(knownName(`BENCH:${key.toUpperCase()}`))} (${escapeHtml(key)})</option>`).join('');
             if(Object.hasOwn(importedBenchmarks(),selected))excelBench.value=selected;
             updateBenchmarkOptions();
         }
         function updateBenchmarkOptions(){
             const selected=benchmarkSelect.value;
-            benchmarkSelect.innerHTML='<option value="">Sin benchmark</option>'+[...panel.querySelectorAll('[data-multi-ticker]')].map(input=>input.value.trim().toUpperCase()).filter(Boolean).map(ticker=>`<option value="${escapeHtml(ticker)}">${escapeHtml(ticker)}</option>`).join('')+Object.keys(importedBenchmarks()).map(key=>`<option value="${escapeHtml(`BENCH:${key.toUpperCase()}`)}">Excel · ${escapeHtml(key)}</option>`).join('')+'<option value="CUSTOM">Otro ticker Yahoo</option>';
+            benchmarkSelect.innerHTML='<option value="">Sin benchmark</option>'+[...tickerList.children].map(row=>({ticker:row.querySelector('[data-multi-ticker]').value.trim().toUpperCase(),name:row.querySelector('[data-multi-name]').value.trim()})).filter(item=>item.ticker).map(item=>`<option value="${escapeHtml(item.ticker)}">${escapeHtml(item.name||knownName(item.ticker)||item.ticker)} (${escapeHtml(item.ticker)})</option>`).join('')+Object.keys(importedBenchmarks()).map(key=>`<option value="${escapeHtml(`BENCH:${key.toUpperCase()}`)}">Excel · ${escapeHtml(knownName(`BENCH:${key.toUpperCase()}`))} (${escapeHtml(key)})</option>`).join('')+'<option value="CUSTOM">Otro ticker Yahoo</option>';
             benchmarkSelect.value=[...benchmarkSelect.options].some(option=>option.value===selected)?selected:'';
         }
         function addTicker(value=''){
             const count=tickerList.children.length;if(count>=maxAssets)return;
             const row=document.createElement('div');row.className='multi-asset-ticker-row';
-            row.innerHTML=`<label>Activo ${count+1}<input data-multi-ticker="${count}" placeholder="Ticker Yahoo" value="${escapeHtml(value)}" ${value?'readonly':''}></label><button type="button" data-multi-remove title="Quitar activo" aria-label="Quitar activo ${count+1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
+            row.innerHTML=`<label>Activo ${count+1}<input data-multi-ticker="${count}" placeholder="Ticker Yahoo" value="${escapeHtml(value)}" ${value?'readonly':''}></label><label>Nombre <input data-multi-name="${count}" placeholder="Se obtiene de Yahoo" value="${escapeHtml(value?knownName(value):'')}"></label><button type="button" data-multi-remove title="Quitar activo" aria-label="Quitar activo ${count+1}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
             tickerList.append(row);panel.querySelector('#multiAssetAdd').disabled=tickerList.children.length>=maxAssets;updateBenchmarkOptions();
         }
         addTicker();addTicker();
@@ -210,10 +224,17 @@
         excelBench.addEventListener('focus',refreshImportedOptions);
         nav.addEventListener('click',refreshImportedOptions);
         tickerList.addEventListener('click',event=>{const button=event.target.closest('[data-multi-remove]');if(!button)return;
-            button.parentElement.remove();[...tickerList.children].forEach((row,index)=>{row.querySelector('label').firstChild.textContent=`Activo ${index+1}`;row.querySelector('input').dataset.multiTicker=index;row.querySelector('button').setAttribute('aria-label',`Quitar activo ${index+1}`);});
+            button.parentElement.remove();[...tickerList.children].forEach((row,index)=>{row.querySelector('label').firstChild.textContent=`Activo ${index+1}`;row.querySelector('[data-multi-ticker]').dataset.multiTicker=index;row.querySelector('[data-multi-name]').dataset.multiName=index;row.querySelector('button').setAttribute('aria-label',`Quitar activo ${index+1}`);});
             panel.querySelector('#multiAssetAdd').disabled=false;updateBenchmarkOptions();
         });
-        tickerList.addEventListener('input',updateBenchmarkOptions);
+        tickerList.addEventListener('input',event=>{
+            updateBenchmarkOptions();
+            if(!event.target.matches('[data-multi-name]')||!loaded.length)return;
+            const row=event.target.closest('.multi-asset-ticker-row'),ticker=row.querySelector('[data-multi-ticker]').value.trim().toUpperCase();
+            loaded=loaded.map(item=>item.ticker===ticker?{...item,name:event.target.value.trim()||knownName(ticker)||ticker}:item);
+            if(loadedBenchmark?.ticker===ticker)loadedBenchmark=loaded.find(item=>item.ticker===ticker);
+            renderCurrent();
+        });
         benchmarkSelect.addEventListener('change',()=>{panel.querySelector('#multiAssetBenchmarkCustomLabel').hidden=benchmarkSelect.value!=='CUSTOM';if(loaded.length)panel.querySelector('#multiAssetLoad').click();});
         function show(result){status.textContent=renderResults(panel,result,'multiAsset');}
         function renderCurrent(){
@@ -236,25 +257,30 @@
             try{
                 const end=new Date(),start=new Date(end);start.setUTCFullYear(start.getUTCFullYear()-12);
                 const previous=new Map(loaded.concat(loadedBenchmark?[loadedBenchmark]:[]).map(item=>[item.ticker,item]));
+                const requestedNames=new Map([...tickerList.children].map(row=>[row.querySelector('[data-multi-ticker]').value.trim().toUpperCase(),row.querySelector('[data-multi-name]').value.trim()]));
                 const getAsset=async ticker=>{
                     if(ticker==='CARTERA IMPORTADA'){
                         if(!loadedPortfolio?.portfolioData?.length||portfolioHistoryStale())throw new Error('Reimporta la cartera individual con los supuestos actuales.');
-                        return {ticker,data:loadedPortfolio.portfolioData,currency:loadedPortfolio.calculationSettings?.currency||''};
+                        return {ticker,name:knownName(ticker),data:loadedPortfolio.portfolioData,currency:loadedPortfolio.calculationSettings?.currency||''};
                     }
                     if(ticker.startsWith('BENCH:')){
                         const key=Object.keys(importedBenchmarks()).find(value=>value.toUpperCase()===ticker.slice(6));
                         if(!key)throw new Error(`No se encuentra ${ticker} en la hoja bench de la cartera cargada.`);
-                        return {ticker,data:importedBenchmarks()[key].data||importedBenchmarks()[key]};
+                        return {ticker,name:knownName(ticker),data:importedBenchmarks()[key].data||importedBenchmarks()[key]};
                     }
-                    return previous.get(ticker)||{ticker,data:await fetchYahooData(ticker,start.toISOString().slice(0,10),end.toISOString().slice(0,10)),currency:MarketData.metadata.get(ticker)?.currency||'',priceType:MarketData.metadata.get(ticker)?.priceType||''};
+                    if(previous.has(ticker))return previous.get(ticker);
+                    const data=await fetchYahooData(ticker,start.toISOString().slice(0,10),end.toISOString().slice(0,10));
+                    return {ticker,name:knownName(ticker),data,currency:MarketData.metadata.get(ticker)?.currency||'',priceType:MarketData.metadata.get(ticker)?.priceType||''};
                 };
                 const next=[];for(let offset=0;offset<tickers.length;offset+=4){
                     const batch=tickers.slice(offset,offset+4);
-                    next.push(...await Promise.all(batch.map(getAsset)));
+                    next.push(...(await Promise.all(batch.map(getAsset))).map(item=>({...item,name:requestedNames.get(item.ticker)||item.name||knownName(item.ticker)||item.ticker})));
                     status.textContent=`Historicos cargados: ${next.length} de ${tickers.length}.`;
                 }
-                const nextBenchmark=benchmarkTicker?(next.find(item=>item.ticker===benchmarkTicker)||await getAsset(benchmarkTicker)):null;
+                const benchmarkAsset=benchmarkTicker?(next.find(item=>item.ticker===benchmarkTicker)||await getAsset(benchmarkTicker)):null;
+                const nextBenchmark=benchmarkAsset?{...benchmarkAsset,name:requestedNames.get(benchmarkAsset.ticker)||benchmarkAsset.name||knownName(benchmarkAsset.ticker)||benchmarkAsset.ticker}:null;
                 const result=compare(next,panel.querySelector('#multiAssetRange').value,rate,nextBenchmark);
+                [...tickerList.children].forEach(row=>{const input=row.querySelector('[data-multi-name]'),ticker=row.querySelector('[data-multi-ticker]').value.trim().toUpperCase();if(!input.value.trim())input.value=next.find(item=>item.ticker===ticker)?.name||'';});
                 loaded=next;loadedBenchmark=nextBenchmark;show(result);
             }catch(error){status.textContent=`No se ha completado la comparacion: ${error.message}`;}finally{button.disabled=false;}
         });

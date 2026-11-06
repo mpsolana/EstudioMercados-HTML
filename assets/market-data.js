@@ -36,7 +36,7 @@ const MarketData = (() => {
             const values = adjusted || result.indicators?.quote?.[0]?.close || [];
             const data = result.timestamp.map((t, i) => ({date: new Date(t * 1000), price: values[i]})).filter(p => Number.isFinite(p.price) && p.price > 0).sort((a, b) => a.date - b.date);
             FinanceCore.validateSeries(data, ticker);
-            metadata.set(ticker, { currency: result.meta?.currency || null, priceType: adjusted ? 'adjusted-close' : 'close', source, retrievedAt: new Date().toISOString(), start, end });
+            metadata.set(ticker, { name: result.meta?.longName || result.meta?.shortName || null, currency: result.meta?.currency || null, priceType: adjusted ? 'adjusted-close' : 'close', source, retrievedAt: new Date().toISOString(), start, end });
             cache.set(key, { time: Date.now(), data, metadata: metadata.get(ticker) });
             if (cache.size > 250) cache.delete(cache.keys().next().value);
             if (metadata.size > 500) metadata.delete(metadata.keys().next().value);

@@ -5,11 +5,19 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.dismiss());
   await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
+  const yahooName=await page.evaluate(async()=>{
+   const original=window.fetch;
+   window.fetch=(url,...args)=>String(url).includes('ticker=NAME.TEST')?Promise.resolve({ok:true,json:async()=>({chart:{result:[{timestamp:[1735689600,1735776000,1735862400],meta:{shortName:'Fondo Yahoo identificado',currency:'EUR'},indicators:{quote:[{close:[100,101,102]}]}}]}})}):original(url,...args);
+   try{await MarketData.prices('NAME.TEST','2025-01-01','2025-01-05');return MarketData.metadata.get('NAME.TEST')?.name;}finally{window.fetch=original;}
+  });
+  assert.equal(yahooName,'Fondo Yahoo identificado');
   const setup=await page.evaluate(async()=>{
    switchSection('individual');document.querySelector('[data-individual-mode="compare"]').click();
    const dates=Array.from({length:15},(_,i)=>new Date(Date.UTC(2025,0+i+1,0))),series=base=>dates.map((date,i)=>({date,price:base+i*(base/100)}));
    window.fetchYahooData=async ticker=>ticker==='BENCH'?dates.map((date,i)=>({date,price:100+i*2+(i%3)*.5})):series(ticker==='AAA'?100:80);
+   MarketData.metadata.set('AAA',{name:'Fondo AAA'});
    document.querySelector('[data-multi-ticker="0"]').value='AAA';document.querySelector('[data-multi-ticker="1"]').value='BBB';
+   document.querySelector('[data-multi-name="1"]').value='Fondo BBB manual';
    document.getElementById('multiAssetLoad').click();
    switchSection('cartera');
    const records=[{isin:'ES0000000001',name:'Fondo RF A',category:'RF Europa',manager:'GDC',score:4,ter:.6,ret5:5,risk5:4},{isin:'ES0000000002',name:'Fondo RF B',category:'RF Europa',manager:'GDC',score:3,ter:.8,ret5:4,risk5:5},{isin:'ES0000000003',name:'Fondo RF C',category:'RF Europa',manager:'Otra gestora',score:2.8,ter:.9,ret5:3,risk5:6}];
@@ -30,6 +38,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    return {loaded,isolated,models:GdcModel.state.models.length,te:GdcModel.state.models[0].rows[0].proposedPositions[0].isin,scope:PortfolioWorkspace.scope,scoreHtml:document.querySelector('#gdcBody').innerHTML,aggregateScoreHtml:quartileValueHtml(3.5,records[0],'score',false)};
   });
   await page.waitForFunction(()=>document.querySelector('#multiAssetTableBody tr')?.cells.length===11);
+  await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===2);
+  assert.match(await page.locator('#multiAssetTableBody').innerText(),/Fondo AAA[\s\S]*AAA/);
+  assert.match(await page.locator('#multiAssetTableBody').innerText(),/Fondo BBB manual[\s\S]*BBB/);
+  assert.equal(await page.evaluate(()=>document.querySelector('#multiAssetBaseChart').data[0].name),'Fondo AAA (AAA)');
   await page.evaluate(()=>{switchSection('individual');document.querySelector('[data-multi-ticker="1"]').value='';document.getElementById('multiAssetLoad').click();});
   await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===1);
   await page.evaluate(()=>{
@@ -38,6 +50,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    document.getElementById('multiAssetLoad').click();
   });
   await page.waitForFunction(()=>document.querySelectorAll('#multiAssetTableBody tr').length===10);
+  assert.ok((await page.evaluate(()=>document.querySelector('#multiAssetCorrelationChart').data[0].x)).some(name=>name.includes('Fondo AAA')));
   assert.equal(await page.locator('#multiAssetBaseChart .scatterlayer .trace').count(),10);
   await page.evaluate(()=>{
    document.querySelector('#multiAssetRiskFree').value='2.5';document.querySelector('#multiAssetRiskFree').dispatchEvent(new Event('input',{bubbles:true}));
@@ -93,7 +106,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    const widths=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,weight:document.querySelector('#gdcWeightChart').getBoundingClientRect().width,table:document.querySelector('#workspaceModel .proposal-chart-scroll').getBoundingClientRect().width}));
    assert.ok(widths.document<=widths.viewport+2,JSON.stringify(widths));await page.screenshot({path:path.join(out,'gdc-model-mobile.png'),fullPage:true});
    await page.evaluate(()=>switchSection('individual'));await page.waitForTimeout(350);
-   const compareWidth=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,table:document.querySelector('#multiAssetTableBody').closest('.proposal-chart-scroll').scrollWidth}));
+   const compareWidth=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,table:document.querySelector('#multiAssetTableBody').closest('.proposal-chart-scroll').scrollWidth,overflow:[...document.querySelectorAll('#section-individual *')].filter(element=>element.getBoundingClientRect().right>innerWidth+2&&getComputedStyle(element).position!=='absolute').slice(0,8).map(element=>({tag:element.tagName,className:typeof element.className==='string'?element.className:'',right:Math.round(element.getBoundingClientRect().right)}))}));
    assert.ok(compareWidth.document<=compareWidth.viewport+2,JSON.stringify(compareWidth));
    await page.screenshot({path:path.join(out,'multi-compare-mobile.png'),fullPage:true});
   }
