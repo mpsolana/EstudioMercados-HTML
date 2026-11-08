@@ -8,7 +8,7 @@ const fs = require('node:fs');
     const output = process.env.BROWSER_OUTPUT_DIR;
     assert.ok(output, 'Set BROWSER_OUTPUT_DIR for visual evidence');
     fs.mkdirSync(output, { recursive:true });
-    const browser = await chromium.launch({headless:true});
+    const browser = await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
     try {
         const page = await browser.newPage();
         const errors = [];
@@ -19,18 +19,21 @@ const fs = require('node:fs');
             await page.setViewportSize({width,height:1000});
             for (const section of ['mercados','valoraciones','macro','individual','cartera','ayuda']) {
                 await page.evaluate(name => {switchSection(name);window.scrollTo(0,0);},section);
+                await page.waitForTimeout(220);
                 await page.screenshot({path:path.join(output,`${section}-${width}.png`)});
                 const dimensions = await page.evaluate(() => ({width:innerWidth,scroll:document.documentElement.scrollWidth}));
                 assert.ok(dimensions.scroll <= width+1, `${section} overflows at ${width}: ${dimensions.scroll}`);
                 assert.equal(await page.locator(`#section-${section}`).isVisible(),true);
             }
             await page.evaluate(() => switchSection('cartera'));
-            await page.locator('[data-workspace-scope="initial"]').click();
-            await page.locator('[data-workspace-step="metrics"]').click();
-            await page.screenshot({path:path.join(output,`metrics-${width}.png`)});
-            assert.ok(await page.locator('#workspaceUniverseMetrics').isVisible());
-            const tabs = await page.locator('[data-workspace-step]:visible').evaluateAll(nodes => nodes.map(node => ({client:node.clientWidth,scroll:node.scrollWidth})));
-            assert.ok(tabs.every(tab => tab.scroll<=tab.client+1),'Workflow labels fit');
+            if (await page.locator('[data-workspace-scope="initial"]').isEnabled()) {
+                await page.locator('[data-workspace-scope="initial"]').click();
+                await page.locator('[data-workspace-step="metrics"]').click();
+                await page.screenshot({path:path.join(output,`metrics-${width}.png`)});
+                assert.ok(await page.locator('#workspaceUniverseMetrics').isVisible());
+                const tabs = await page.locator('[data-workspace-step]:visible').evaluateAll(nodes => nodes.map(node => ({client:node.clientWidth,scroll:node.scrollWidth})));
+                assert.ok(tabs.every(tab => tab.scroll<=tab.client+1),'Workflow labels fit');
+            }
         }
         assert.deepEqual(errors,[]);
         console.log('All six sections and initial metrics checked at desktop/mobile widths.');

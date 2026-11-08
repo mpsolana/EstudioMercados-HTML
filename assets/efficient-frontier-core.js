@@ -109,7 +109,15 @@
             const w=lib.meanVarianceOptimizationWeights(stats.mu,stats.cov,{constraints:{...constraints,maxVolatility:p.risk/100+1e-8},optimizationMethod:'automatic'});
             return Math.max(0,point(w,stats.mu,stats.cov).ret-p.ret);
         }catch{return NaN;}}
-        return {assets:assets.map(({prices,...asset},i)=>({...asset,historicalReturn:stats.historical[i]*100,expectedReturn:stats.mu[i]*100,individual:point(assets.map((_,j)=>i===j?1:0),stats.mu,stats.cov)})),months,mode,floor,cap,actual:{...actual,feasible:feasible(actual),gap:gap(actual)},proposed:{...proposed,feasible:feasible(proposed),gap:gap(proposed)},sameReturn,sameRisk,equalWeight:{...equalWeight,feasible:feasible(equalWeight)},minimumVariance,market,marketRiskFreeAnnual:riskFreeAnnual,annualCorrelation:annualCorrelations(assets,months),rollingCorrelation:(left,right,window)=>rollingCorrelations(assets,months,left,right,window),frontier,benchmark:benchmarkPoint(benchmark,months)};
+        function portfolioHistory(weights){
+            if(!Array.isArray(weights)||weights.length!==assets.length)throw new Error('Pesos de cartera no válidos.');
+            let value=100;
+            return months.map((month,index)=>{
+                if(index)value*=1+assets.reduce((sum,asset,i)=>sum+weights[i]*(asset.prices.get(month)/asset.prices.get(months[index-1])-1),0);
+                return {date:new Date(Math.floor(month/12),month%12+1,0),price:value};
+            });
+        }
+        return {assets:assets.map(({prices,...asset},i)=>({...asset,historicalReturn:stats.historical[i]*100,expectedReturn:stats.mu[i]*100,individual:point(assets.map((_,j)=>i===j?1:0),stats.mu,stats.cov)})),months,mode,floor,cap,actual:{...actual,feasible:feasible(actual),gap:gap(actual)},proposed:{...proposed,feasible:feasible(proposed),gap:gap(proposed)},sameReturn,sameRisk,equalWeight:{...equalWeight,feasible:feasible(equalWeight)},minimumVariance,market,marketRiskFreeAnnual:riskFreeAnnual,annualCorrelation:annualCorrelations(assets,months),rollingCorrelation:(left,right,window)=>rollingCorrelations(assets,months,left,right,window),frontier,benchmark:benchmarkPoint(benchmark,months),portfolioHistory};
     }
     return {calculate,monthlyPrices,commonMonths,moments,point};
 });

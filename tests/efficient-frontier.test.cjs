@@ -22,6 +22,10 @@ test('frontier uses common monthly returns and exact independent proposal weight
     assert.ok(result.actual.risk>0&&result.proposed.risk>0);
     assert.ok(result.actual.ret!==result.proposed.ret);
     assert.ok(result.actual.gap>=0&&result.proposed.gap>=0);
+    const history=result.portfolioHistory(result.actual.weights);
+    assert.equal(history.length,result.months.length);
+    assert.equal(history[0].price,100);
+    assert.ok(history.every(point=>Number.isFinite(point.price)&&point.price>0));
 });
 test('hypotheses change expected return but retain historical risk matrix',()=>{
     const input=base(),historical=Frontier.calculate(input);
