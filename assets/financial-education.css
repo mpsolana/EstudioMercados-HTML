@@ -1,22 +1,40 @@
 #financialEducation{background:#fff;border-top:1px solid #dbe4ec;margin-top:32px;padding:30px 0 8px;color:#263746}
 #financialEducation .edu-heading h2{font-size:1.45rem;font-weight:700;color:#153e67}
 #financialEducation .edu-heading p{font-size:.88rem;color:#647789;margin-top:4px}
-#financialEducation .edu-tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid #cbd6df;margin-top:24px;overflow-x:auto}
+#financialEducation .edu-tabs{display:block;border-bottom:1px solid #cbd6df;margin-top:24px}
+#financialEducation .edu-tab-group{display:flex;flex-wrap:wrap;align-items:center;gap:0;border-bottom:1px solid #e5ebf0;width:100%}
+#financialEducation .edu-tab-group:last-child{border-bottom:0}
+#financialEducation .edu-tab-group>span{flex:0 0 105px;font-size:.68rem;font-weight:700;text-transform:uppercase;color:#708596;padding:10px 8px 10px 0}
 #financialEducation .edu-tabs button{background:transparent;border:0;border-bottom:3px solid transparent;padding:10px 15px;color:#41566a;font-size:.87rem;white-space:nowrap}
 #financialEducation .edu-tabs button.active{border-color:#075aa3;color:#075aa3;font-weight:700}
 #financialEducation .edu-tabs button:focus-visible{outline:2px solid #075aa3;outline-offset:-2px}
 #financialEducation .edu-pane{display:none;padding:22px 0}
 #financialEducation .edu-pane.active{display:block}
 #financialEducation .edu-pane h3{font-size:1.1rem;font-weight:700;color:#243f58;margin-bottom:16px}
+#financialEducation .edu-pane h4{font-size:.9rem;font-weight:700;color:#31536f;margin:20px 0 0}
 #financialEducation .edu-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px 18px;align-items:end}
 #financialEducation .edu-controls label{display:flex;flex-direction:column;gap:5px;font-size:.79rem;font-weight:600;color:#43576a;min-width:0}
 #financialEducation .edu-controls input[type=number]{width:100%;min-width:0;border:1px solid #b9c9d6;border-radius:3px;background:#fff;padding:8px;color:#23384b}
 #financialEducation .edu-controls select{width:100%;min-width:0;border:1px solid #b9c9d6;border-radius:3px;background:#fff;padding:8px;color:#23384b}
+#financialEducation .edu-controls input[type=range]{width:100%;accent-color:#075aa3}
+#financialEducation .edu-controls .edu-slider{justify-content:end}
+#financialEducation .edu-slider output{font-size:.8rem;color:#075aa3}
 #financialEducation .edu-controls .edu-check{display:flex;flex-direction:row;align-items:center;gap:8px;grid-column:1/-1;font-size:.85rem}
 #financialEducation .edu-check input{width:16px;height:16px;accent-color:#075aa3}
 #financialEducation .edu-chart{width:100%;min-height:350px;margin-top:18px}
 #financialEducation .edu-note{border-left:3px solid #075aa3;padding:9px 13px;background:#f1f6fa;font-size:.84rem;line-height:1.55;color:#2d485f;margin-top:10px}
 #financialEducation .edu-caption{font-size:.78rem;line-height:1.55;color:#596e80;margin-top:12px}
+#financialEducation .edu-caption a{color:#075aa3;text-decoration:underline}
+#financialEducation .edu-assumptions{border-top:1px solid #dce5ec;border-bottom:1px solid #dce5ec;padding:10px 0;margin-top:16px}
+#financialEducation .edu-assumptions summary{cursor:pointer;color:#075aa3;font-weight:600;font-size:.84rem}
+#financialEducation .edu-assumptions .edu-controls{margin:14px 0 4px}
+#financialEducation .edu-debts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;border-top:1px solid #dce5ec}
+#financialEducation .edu-debts>div{padding:12px 18px;border-right:1px solid #dce5ec;display:grid;gap:9px;align-content:start}
+#financialEducation .edu-debts>div:first-child{padding-left:0}
+#financialEducation .edu-debts>div:last-child{border-right:0}
+#financialEducation .edu-debts b{font-size:.86rem;color:#2b4b65}
+#financialEducation .edu-debts label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:#43576a}
+#financialEducation .edu-debts input{width:100%;min-width:0;border:1px solid #b9c9d6;border-radius:3px;padding:8px;color:#23384b}
 #financialEducation .edu-sources{display:flex;flex-wrap:wrap;gap:18px;font-size:.78rem;margin-top:12px}
 #financialEducation .edu-sources a{color:#075aa3;text-decoration:underline}
 #financialEducation .edu-table{overflow-x:auto;margin-top:14px}
@@ -24,4 +42,4 @@
 #financialEducation .edu-table th,#financialEducation .edu-table td{border-bottom:1px solid #dce5ec;padding:8px;text-align:right}
 #financialEducation .edu-table th:first-child{text-align:left}
 #financialEducation .edu-table thead{background:#edf3f8;color:#254761}
-@media(max-width:640px){#financialEducation{padding-top:20px}#financialEducation .edu-tabs{flex-wrap:nowrap}#financialEducation .edu-chart{min-height:300px}}
+@media(max-width:640px){#financialEducation{padding-top:20px}#financialEducation .edu-tab-group{flex-wrap:nowrap;overflow-x:auto}#financialEducation .edu-tab-group>span{position:sticky;left:0;background:#fff;z-index:1;flex:0 0 95px}#financialEducation .edu-debts{grid-template-columns:1fr}#financialEducation .edu-debts>div{border-right:0;border-bottom:1px solid #dce5ec;padding:12px 0}#financialEducation .edu-chart{min-height:300px}}
