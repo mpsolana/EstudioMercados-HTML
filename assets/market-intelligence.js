@@ -2,12 +2,17 @@
     const percent = value => Number.isFinite(value) ? value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %' : '—';
 
     async function responseOrError(url) {
-        const response = await fetch(url);
-        if (!response.ok) {
-            const details = await response.json().catch(() => ({}));
-            throw new Error(details.error || 'Datos no disponibles');
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const response = await fetch(url);
+                if (response.ok) return response;
+                const details = await response.json().catch(() => ({}));
+                if (attempt === 0 && response.status >= 500) continue;
+                throw new Error(details.error || 'Datos no disponibles');
+            } catch (error) {
+                if (attempt === 1 || !error.name || error.name === 'Error') throw error;
+            }
         }
-        return response;
     }
 
     async function loadCurve() {
