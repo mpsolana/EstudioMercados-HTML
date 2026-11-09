@@ -11,14 +11,14 @@ export default async function handler(req, res) {
     chartUrl.search = new URLSearchParams({ period1: String(now - 370 * 86400), period2: String(now + 86400), interval: '1d' }).toString();
     try {
         const headers = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' };
-        const [financialResponse, chartResponse] = await Promise.all([
+        const [financialResponse, chartResult] = await Promise.all([
             fetch(fundamentalUrl, { headers, signal: AbortSignal.timeout(12000) }),
-            fetch(chartUrl, { headers, signal: AbortSignal.timeout(12000) })
+            fetch(chartUrl, { headers, signal: AbortSignal.timeout(12000) }).catch(() => null)
         ]);
         if (!financialResponse.ok) throw new Error('Fundamentales no disponibles');
         const annual = fundamentals.parse(await financialResponse.json());
         if (!annual.length) return res.status(404).json({ error: 'Yahoo no publica estados anuales para este ticker' });
-        const chart = chartResponse.ok ? await chartResponse.json() : null;
+        const chart = chartResult?.ok ? await chartResult.json().catch(() => null) : null;
         res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600');
         return res.status(200).json({ ticker, annual, drawdown1y: fundamentals.drawdown(chart), currency: chart?.chart?.result?.[0]?.meta?.currency || null,
             source: `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}/financials/` });

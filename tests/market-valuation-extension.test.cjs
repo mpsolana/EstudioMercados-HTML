@@ -30,3 +30,19 @@ test('annual ROIC, ROE and ROA require two fiscal balance sheets; missing ratios
     assert.equal(rows[1].cashRatio, 10 / 20);
     assert.equal(financials.drawdown({ chart: { result: [{ timestamp: [1, 2, 3], indicators: { quote: [{ close: [80, 100, 75] }] } }] } }), -0.25);
 });
+
+test('company endpoint preserves annual statements if the separate price feed fails', async () => {
+    const { default: handler } = await import('../api/company-fundamentals.js');
+    const previous = global.fetch;
+    global.fetch = async url => {
+        if (String(url).includes('/chart/')) throw new Error('price feed unavailable');
+        return { ok: true, json: async () => ({ timeseries: { result: [{ annualTotalRevenue: [{ asOfDate: '2025-12-31', reportedValue: { raw: 100 } }] }] } }) };
+    };
+    const response = { code: 200, status(code) { this.code = code; return this; }, setHeader() {}, json(data) { this.body = data; return this; } };
+    try {
+        await handler({ method: 'GET', query: { ticker: 'TEST' } }, response);
+        assert.equal(response.code, 200);
+        assert.equal(response.body.annual[0].revenue, 100);
+        assert.equal(response.body.drawdown1y, null);
+    } finally { global.fetch = previous; }
+});
