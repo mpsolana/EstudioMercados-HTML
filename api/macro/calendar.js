@@ -10,7 +10,8 @@ const SOURCE_URLS = {
     ecb: 'https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html',
     hicp: 'https://www.ecb.europa.eu/press/calendars/statscal/ges/html/sthicp.en.html',
     bea: 'https://www.bea.gov/news/schedule/full',
-    bulletin: 'https://www.ecb.europa.eu/press/economic-bulletin/html/index.en.html'
+    bulletin: 'https://www.ecb.europa.eu/press/economic-bulletin/html/index.en.html',
+    stability: 'https://www.ecb.europa.eu/press/financial-stability-publications/fsr/html/index.en.html'
 };
 
 const MONTHS = {
@@ -39,7 +40,8 @@ export default async function handler(req, res) {
         fetchEcbDecisionEvents(year),
         fetchEcbHicpEvents(year),
         fetchBeaReleaseEvents(year),
-        fetchEcbBulletinEvents(year)
+        fetchEcbBulletinEvents(year),
+        fetchEcbStabilityEvents(year)
     ]);
 
     const officialEvents = [];
@@ -166,6 +168,14 @@ async function fetchEcbBulletinEvents(year) {
     return month ? [event(`${year}-${month}-${pad(match[2])}`, 'report', 'BCE · Boletín Económico', 'ECB', SOURCE_URLS.bulletin)] : [];
 }
 
+async function fetchEcbStabilityEvents(year) {
+    const html = await fetchText(SOURCE_URLS.stability);
+    const match = compactText(html).match(/next release set for\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/i);
+    if (!match || Number(match[3]) !== year) return [];
+    const month = MONTHS[toTitle(match[2])];
+    return month ? [event(`${year}-${month}-${pad(match[1])}`, 'report', 'BCE · Informe de Estabilidad Financiera', 'ECB', SOURCE_URLS.stability)] : [];
+}
+
 async function fetchText(url) {
     const response = await fetch(url, {
         headers: {
@@ -273,4 +283,4 @@ function setCors(res) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-export { fetchBeaReleaseEvents, fetchEcbBulletinEvents };
+export { fetchBeaReleaseEvents, fetchEcbBulletinEvents, fetchEcbStabilityEvents };
