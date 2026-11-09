@@ -3,7 +3,7 @@ const SHILLER_HOME = 'https://shillerdata.com/';
 const TENORS = ['1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
 
 async function get(url) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(25000) });
     if (!response.ok) throw new Error('Fuente no disponible (' + response.status + ')');
     return response;
 }
