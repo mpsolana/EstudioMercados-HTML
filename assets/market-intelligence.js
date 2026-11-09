@@ -121,8 +121,10 @@
             const data = await (await responseOrError('/api/market-intelligence?dataset=policy')).json();
             const available = data.series.filter(series => series.observations.length);
             if (!available.length) throw new Error('Sin series disponibles');
+            const lastMarketDate = data.series.find(series => series.id === 'ESTR')?.observations.at(-1)?.date;
             await FinancialVisuals.newPlot('intelligencePolicyChart', available.map(series => ({
-                x: series.observations.map(point => point.date), y: series.observations.map(point => point.value),
+                x: series.observations.map(point => point.date).concat(series.id === 'DFR' && lastMarketDate > series.observations.at(-1).date ? [lastMarketDate] : []),
+                y: series.observations.map(point => point.value).concat(series.id === 'DFR' && lastMarketDate > series.observations.at(-1).date ? [series.observations.at(-1).value] : []),
                 mode: 'lines', name: series.label, line: { color: series.id === 'ESTR' ? '#205b88' : '#78828c', width: 2, shape: series.id === 'DFR' ? 'hv' : 'linear' }
             })), {
                 height: 315, margin: { t: 15, l: 58, r: 20, b: 55 },
