@@ -97,7 +97,7 @@
                 margin: { t: 15, l: 65, r: 18, b: 65 },
                 height: 350,
                 xaxis: { title: 'CAPE al cierre de diciembre', range: [xMin - 2, xMax + 2] },
-                yaxis: { title: 'Retorno real total anualizado a ' + horizonYears + (horizonYears === 1 ? ' año' : ' años') + ' (%)', zeroline: true },
+                yaxis: { title: 'Retorno real total acumulado a ' + horizonYears + (horizonYears === 1 ? ' año' : ' años') + ' (%)', zeroline: true },
                 legend: { orientation: 'h', y: -0.3 },
                 shapes: [{ type: 'rect', xref: 'x', yref: 'paper', x0: analysis.latest.cape - 0.35, x1: analysis.latest.cape + 0.35, y0: 0, y1: 1, fillcolor: 'rgba(189,113,50,0.07)', line: { color: '#bd7132', width: 1.5, dash: 'dot' } }]
             }, { responsive: true, displayModeBar: false });
@@ -114,33 +114,7 @@
         }
     }
 
-    async function loadPolicyRates() {
-        const status = document.getElementById('intelligencePolicyStatus');
-        status.textContent = 'Consultando €STR y tipo de depósito…';
-        try {
-            const data = await (await responseOrError('/api/market-intelligence?dataset=policy')).json();
-            const available = data.series.filter(series => series.observations.length);
-            if (!available.length) throw new Error('Sin series disponibles');
-            const lastMarketDate = data.series.find(series => series.id === 'ESTR')?.observations.at(-1)?.date;
-            await FinancialVisuals.newPlot('intelligencePolicyChart', available.map(series => ({
-                x: series.observations.map(point => point.date).concat(series.id === 'DFR' && lastMarketDate > series.observations.at(-1).date ? [lastMarketDate] : []),
-                y: series.observations.map(point => point.value).concat(series.id === 'DFR' && lastMarketDate > series.observations.at(-1).date ? [series.observations.at(-1).value] : []),
-                mode: 'lines', name: series.label, line: { color: series.id === 'ESTR' ? '#205b88' : '#78828c', width: 2, shape: series.id === 'DFR' ? 'hv' : 'linear' }
-            })), {
-                height: 315, margin: { t: 15, l: 58, r: 20, b: 55 },
-                xaxis: { title: 'Fecha de observación' }, yaxis: { title: 'Tipo anual (%)' },
-                legend: { orientation: 'h', y: -0.25 }
-            }, { responsive: true, displayModeBar: false });
-            status.textContent = available.map(series => {
-                const last = series.observations.at(-1);
-                return series.label + ': ' + percent(last.value) + ' (' + last.date + ')';
-            }).join(' · ');
-        } catch (error) {
-            status.textContent = 'No se pudieron actualizar los tipos: ' + error.message;
-        }
-    }
-
     root.loadMarketCurve = loadCurve;
     root.loadMarketValuation = () => loadValuation(false);
-    root.loadMarketIntelligence = () => Promise.allSettled([loadCurve(), loadValuation(true), loadPolicyRates()]);
+    root.loadMarketIntelligence = () => Promise.allSettled([loadCurve(), loadValuation(true)]);
 })(typeof globalThis !== 'undefined' ? globalThis : window);

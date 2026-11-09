@@ -42,7 +42,7 @@
         const firstDecember = series.find(row => row.month === 12)?.year;
         const points = series.filter(row => row.month === 12 && (row.year - firstDecember) % horizonYears === 0).map(row => {
             const future = byDate.get((row.year + horizonYears) + '-12');
-            return future ? { date: row.date, x: row.cape, y: ((future.realTotalReturn / row.realTotalReturn) ** (1 / horizonYears) - 1) * 100 } : null;
+            return future ? { date: row.date, x: row.cape, y: (future.realTotalReturn / row.realTotalReturn - 1) * 100 } : null;
         }).filter(Boolean);
         const fit = regression(points);
         const latest = series.at(-1);

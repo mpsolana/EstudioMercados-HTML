@@ -1,7 +1,5 @@
 const ECB_CURVE = 'https://data-api.ecb.europa.eu/service/data/YC/';
 const SHILLER_HOME = 'https://shillerdata.com/';
-const ECB_ESTR = 'https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT';
-const ECB_DFR = 'https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.DFR.LEV';
 const TENORS = ['1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
 
 async function get(url) {
@@ -49,31 +47,11 @@ function parseCurve(csv, compare = 'previous') {
     };
 }
 
-function parseRateSeries(csv) {
-    const lines = csv.trim().split(/\r?\n/);
-    const fields = lines.shift().trim().split(',');
-    const dateAt = fields.indexOf('TIME_PERIOD');
-    const valueAt = fields.indexOf('OBS_VALUE');
-    if (dateAt < 0 || valueAt < 0) throw new Error('Formato BCE inesperado');
-    return lines.map(line => {
-        const cells = line.split(',');
-        return { date: cells[dateAt], value: cells[valueAt]?.trim() ? Number(cells[valueAt]) : NaN };
-    }).filter(point => /^\d{4}-\d{2}-\d{2}$/.test(point.date) && Number.isFinite(point.value));
-}
-
 export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
     const dataset = req.query?.dataset;
-    if (!['curve', 'shiller', 'policy'].includes(dataset)) return res.status(400).json({ error: 'Conjunto de datos no válido' });
+    if (!['curve', 'shiller'].includes(dataset)) return res.status(400).json({ error: 'Conjunto de datos no válido' });
     try {
-        if (dataset === 'policy') {
-            const start = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
-            const results = await Promise.allSettled([ECB_ESTR, ECB_DFR].map(url => get(url + '?format=csvdata&detail=dataonly&startPeriod=' + start).then(response => response.text()).then(parseRateSeries)));
-            const series = results.map((result, index) => ({ id: index ? 'DFR' : 'ESTR', label: index ? 'Facilidad de depósito BCE' : '€STR observado', observations: result.status === 'fulfilled' ? result.value : [] }));
-            if (!series.some(item => item.observations.length)) throw new Error('Tipos BCE no disponibles');
-            res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600');
-            return res.status(200).json({ series, source: 'BCE Data Portal; €STR observado y facilidad de depósito' });
-        }
         if (dataset === 'curve') {
             const kind = req.query?.kind === 'forward' ? 'IF' : 'SR';
             const key = 'B.U2.EUR.4F.G_N_A.SV_C_YM.' + TENORS.map(tenor => kind + '_' + tenor).join('+');
@@ -100,4 +78,4 @@ export default async function handler(req, res) {
     }
 }
 
-export { parseCurve, parseRateSeries };
+export { parseCurve };
