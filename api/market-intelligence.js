@@ -8,7 +8,7 @@ async function get(url) {
     return response;
 }
 
-function parseCurve(csv) {
+function parseCurve(csv, compare = 'previous') {
     const lines = csv.trim().split(/\r?\n/);
     const fields = lines.shift().split(',');
     const dateAt = fields.indexOf('TIME_PERIOD');
@@ -28,14 +28,21 @@ function parseCurve(csv) {
     const ordered = [...dates.keys()].sort();
     const latest = ordered.at(-1);
     if (!latest || Object.keys(dates.get(latest)).length < 4) throw new Error('Curva BCE incompleta');
+    const offsets = { '1M': 30, '3M': 91, '1Y': 365 };
+    const target = offsets[compare] ? new Date(new Date(latest + 'T00:00:00Z').getTime() - offsets[compare] * 86400000).toISOString().slice(0, 10) : null;
+    const comparisonDate = target ? ([...ordered].reverse().find(date => date <= target && Object.keys(dates.get(date)).length >= 4) || null) : (ordered.at(-2) || null);
+    const comparison = comparisonDate ? dates.get(comparisonDate) : null;
     return {
         date: latest,
         previousDate: ordered.at(-2) || null,
+        comparisonDate,
+        comparison: compare,
         points: TENORS.filter(tenor => Number.isFinite(dates.get(latest)[tenor])).map(tenor => ({
             tenor,
             years: Number.parseInt(tenor, 10),
             rate: dates.get(latest)[tenor],
-            previousRate: dates.get(ordered.at(-2))?.[tenor] ?? null
+            previousRate: dates.get(ordered.at(-2))?.[tenor] ?? null,
+            comparisonRate: comparison?.[tenor] ?? null
         }))
     };
 }
@@ -48,9 +55,12 @@ export default async function handler(req, res) {
         if (dataset === 'curve') {
             const kind = req.query?.kind === 'forward' ? 'IF' : 'SR';
             const key = 'B.U2.EUR.4F.G_N_A.SV_C_YM.' + TENORS.map(tenor => kind + '_' + tenor).join('+');
-            const response = await get(ECB_CURVE + key + '?format=csvdata&detail=dataonly&lastNObservations=2');
+            const compare = ['previous', '1M', '3M', '1Y'].includes(req.query?.compare) ? req.query.compare : 'previous';
+            const lookback = compare === '1Y' ? 395 : compare === '3M' ? 125 : compare === '1M' ? 65 : 10;
+            const start = new Date(Date.now() - lookback * 86400000).toISOString().slice(0, 10);
+            const response = await get(ECB_CURVE + key + '?format=csvdata&detail=dataonly&startPeriod=' + start);
             res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600');
-            return res.status(200).json({ ...parseCurve(await response.text()), kind, source: 'BCE, curva soberana AAA zona euro' });
+            return res.status(200).json({ ...parseCurve(await response.text(), compare), kind, source: 'BCE, curva soberana AAA zona euro' });
         }
         const page = await (await get(SHILLER_HOME)).text();
         const match = page.match(/href=["']([^"']*\/ie_data\.xls(?:\?[^"']*)?)["']/i);

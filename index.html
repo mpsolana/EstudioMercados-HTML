@@ -227,6 +227,11 @@
                                 <option value="forward">Forwards instantáneos</option>
                             </select>
                         </label>
+                        <label class="text-sm text-slate-700">Comparar con
+                            <select id="intelligenceCurveCompare" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
+                                <option value="previous">Sesión anterior</option><option value="1M">Hace 1 mes</option><option value="3M">Hace 3 meses</option><option value="1Y">Hace 1 año</option>
+                            </select>
+                        </label>
                     </div>
                     <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-4">
                         <div class="min-w-0">
@@ -234,16 +239,27 @@
                             <p id="intelligenceCurveStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar al BCE.</p>
                             <div id="intelligenceCurveChart" class="min-h-[330px]"></div>
                             <div class="max-h-48 overflow-auto">
-                                <table class="w-full text-sm"><thead><tr class="border-b border-slate-300 text-slate-600"><th class="px-3 py-2 text-left">Plazo</th><th class="px-3 py-2 text-right">Tipo</th><th class="px-3 py-2 text-right">Cambio diario</th></tr></thead><tbody id="intelligenceCurveRows"></tbody></table>
+                                <table class="w-full text-sm"><thead><tr class="border-b border-slate-300 text-slate-600"><th class="px-3 py-2 text-left">Plazo</th><th class="px-3 py-2 text-right">Tipo</th><th class="px-3 py-2 text-right">Cambio frente al periodo</th></tr></thead><tbody id="intelligenceCurveRows"></tbody></table>
                             </div>
+                            <p id="intelligenceCurveInterpretation" class="text-sm text-slate-700 mt-3" aria-live="polite"></p>
                             <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://data.ecb.europa.eu/methodology/yield-curves" target="_blank" rel="noopener noreferrer" class="underline">BCE, metodología y datos</a>. Curva soberana, no OIS: sus forwards no equivalen a recortes o subidas del BCE descontados por reunión. Tipos y cambios expresados en porcentaje anual y puntos básicos, respectivamente.</p>
                         </div>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">CAPE y retorno posterior · EE. UU.</h3><span class="text-sm text-slate-600">CAPE <strong id="intelligenceCapeLatest">—</strong> · R² <strong id="intelligenceCapeR2">—</strong> · n <strong id="intelligenceCapeN">—</strong></span></div>
                             <p id="intelligenceValuationStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar la serie de Shiller.</p>
+                            <p class="text-sm text-slate-700 mt-2">Ajuste histórico al CAPE publicado: <strong id="intelligenceCapeFitted">—</strong> de retorno real total a 12 meses.</p>
                             <div id="intelligenceValuationChart" class="min-h-[350px]"></div>
-                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Observaciones de diciembre; retorno real total con dividendos reinvertidos durante los 12 meses siguientes. CAPE no es el PER convencional. La recta y el R² describen el pasado, no pronostican el próximo año ni indican infravaloración.</p>
+                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Se consulta de nuevo al pulsar «Cargar Mercados»; la fuente se publica mensualmente y puede ir retrasada. El punto naranja aplica la recta histórica al último CAPE mensual; no es un retorno realizado ni una previsión fiable. Observaciones de diciembre sin solapamiento; retorno real total con dividendos reinvertidos en los 12 meses siguientes. CAPE no es el PER convencional. Comprueba R² antes de usar el ajuste: un R² bajo implica escasa capacidad explicativa.</p>
                         </div>
+                    </div>
+                </section>
+                <section class="border-y border-slate-200 bg-white py-5 text-sm text-slate-700" aria-labelledby="marketSourcesTitle">
+                    <h2 id="marketSourcesTitle" class="text-lg font-bold text-slate-800">Cobertura de curvas y valoración</h2>
+                    <div class="mt-3 grid gap-3 md:grid-cols-2">
+                        <p><strong>Crédito EUR IG y HY.</strong> El Macro Dashboard muestra la rentabilidad efectiva HY en euros de ICE/FRED cuando la fuente está disponible. Una rentabilidad de índice no es una curva de crédito ni un spread ajustado por opciones. Para construir curvas por plazo hace falta un proveedor con metodología y permiso de uso comercial verificados.</p>
+                        <p><strong>Spreads y CDS.</strong> <a href="https://fred.stlouisfed.org/series/BAMLHE00EHYIOAS" target="_blank" rel="noopener noreferrer" class="underline">FRED publica el OAS agregado del HY EUR</a>, con histórico limitado y datos de ICE. La serie no representa IG ni un CDS. Su integración para redistribución comercial está pendiente de validar derechos de uso.</p>
+                        <p><strong>OIS y smile.</strong> El BCE publica el <a href="https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html" target="_blank" rel="noopener noreferrer" class="underline">€STR observado</a>, que no es una curva OIS de mercado. No mostramos recortes implícitos ni una sonrisa de opciones sin cotizaciones por vencimiento, strike y fecha con una fuente verificable.</p>
+                        <p><strong>PER multíndice y EV/EBITDA.</strong> CAPE de Shiller cubre EE. UU. No extrapolamos el CAPE a otros índices ni mezclamos múltiplos spot con un histórico sin metodología homogénea. Estas comparativas precisan una fuente de fundamentales con licencias y definiciones consistentes.</p>
                     </div>
                 </section>
                 <section class="bg-white border border-slate-200 p-5" aria-label="Drawdown y recuperación">
@@ -8564,6 +8580,19 @@
                     </p>
                 </div>
             </div>
+            <section class="mt-6 border-y border-slate-200 bg-white py-6" aria-labelledby="goodPracticeTitle">
+                <h2 id="goodPracticeTitle" class="text-xl font-bold text-slate-800">Manual de buena praxis del gestor</h2>
+                <p class="mt-2 text-sm text-slate-600">Secuencia operativa para cada decisión y comité. Documenta el dato, la hipótesis, la alternativa considerada y quién aprobó la actuación. Adapta cada paso al mandato, la normativa aplicable y los procedimientos de cumplimiento de la entidad.</p>
+                <ol class="mt-4 grid gap-4 md:grid-cols-2 text-sm text-slate-700">
+                    <li class="border-t border-slate-200 pt-3"><strong>1. Conocer al cliente.</strong> Verifica identidad, intervinientes, objetivo, horizonte, liquidez, experiencia, capacidad y tolerancia a pérdidas. Actualiza la evaluación de idoneidad cuando corresponda.</li>
+                    <li class="border-t border-slate-200 pt-3"><strong>2. Definir el mandato.</strong> Registra perfil de gestión, benchmark, bandas, restricciones, necesidades de efectivo y criterios para revisar desviaciones. No sustituyas el perfil de gestión por el resultado aislado de un test.</li>
+                    <li class="border-t border-slate-200 pt-3"><strong>3. Validar los datos.</strong> Comprueba fecha, moneda, dividendos, clases, costes, valores ausentes y calidad de los históricos. Distingue estimaciones, proxies y datos observados.</li>
+                    <li class="border-t border-slate-200 pt-3"><strong>4. Analizar la propuesta.</strong> Contrasta retorno esperado, pérdida posible, liquidez, concentración, exposición a divisas, sensibilidad a tipos y solapamientos. Cuantifica costes e impuestos con supuestos visibles.</li>
+                    <li class="border-t border-slate-200 pt-3"><strong>5. Elegir y ejecutar.</strong> Revisa clase disponible, elegibilidad, conflictos de interés, costes totales y mejor ejecución según el procedimiento interno. Deja constancia del motivo de cualquier excepción.</li>
+                    <li class="border-t border-slate-200 pt-3"><strong>6. Supervisar y comunicar.</strong> Sigue bandas, documentación, vencimientos y resultados frente a objetivos. Explica al cliente tanto los cambios como sus riesgos y limitaciones; conserva evidencia de revisión y aprobación.</li>
+                </ol>
+                <p class="mt-4 text-xs text-slate-500">Marco de referencia: <a class="underline" href="https://www.esma.europa.eu/sites/default/files/2023-04/ESMA35-43-3172_Guidelines_on_certain_aspects_of_the_MiFID_II_suitability_requirements.pdf" target="_blank" rel="noopener noreferrer">directrices ESMA de idoneidad MiFID II</a>. La frecuencia de revisión, documentación exigible y responsabilidades dependen del servicio y del procedimiento aprobado por Cumplimiento.</p>
+            </section>
             <div id="financialEducation"></div>
         </div>
     </div>
@@ -9670,6 +9699,7 @@
                 const sec = document.getElementById(`section-${name}`);
                 if (sec) sec.classList.add('active');
                 if (name === 'panel') OverviewPanel.render();
+                if (name === 'macro' && !Object.keys(macroRawData).length && !document.getElementById('macroLoadBtn')?.disabled) loadMacroData();
 
                 // Force resize for Plotly responsiveness
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
@@ -13001,7 +13031,7 @@
             <div class="bg-white border border-sky-100 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
                 <div class="flex-1">
                     <div class="text-xs font-bold text-sky-800 uppercase mb-1"><i class="fa-solid fa-database mr-1"></i> Macro data oficial</div>
-                    <p class="text-sm text-slate-700 leading-relaxed">El navegador consulta <span class="font-mono">/api/macro</span>. Vercel combina FRED, BLS, Eurostat y ECB Data Portal segun indicador; las series diarias usan el ultimo dato disponible de cada mes.</p>
+                    <p class="text-sm text-slate-700 leading-relaxed">Los datos se consultan al entrar en esta pestaña y con «Recargar». Cada tabla muestra la fecha exacta de su última observación; la fecha de consulta aparece abajo. La caché del servidor puede conservar datos hasta 12 horas. Parte del histórico diario se resume con el último dato de cada mes; esta fecha de observación no equivale a la fecha de publicación.</p>
                     <p class="text-[11px] text-slate-500 mt-1">Configura <span class="font-mono font-bold">FRED_API_KEY</span> en Vercel para series FRED. BLS, Eurostat y ECB no requieren clave.</p>
                 </div>
                 <div class="flex flex-col gap-2">
@@ -13009,11 +13039,12 @@
                     <div class="flex gap-2 flex-wrap"><button onclick="filterMacro('5Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">5A</button><button onclick="filterMacro('10Y',this)" class="px-2 py-0.5 text-xs rounded bg-sky-700 text-white font-bold">10A</button><button onclick="filterMacro('20Y',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">20A</button><button onclick="filterMacro('MAX',this)" class="px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600">MAX</button></div>
                 </div>
             </div>
-            <p id="macroStatus" class="text-sm text-slate-500 -mt-3"></p>
+            <p id="macroStatus" class="text-sm text-slate-500 -mt-3" aria-live="polite"></p>
+            <p id="macroCheckedAt" class="text-xs text-slate-500 -mt-4"></p>
             <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                 <div class="flex items-center justify-between gap-3 mb-3">
                     <div>
-                        <h3 class="text-slate-900 font-bold border-l-4 border-sky-700 pl-3">Calendario macro 2026</h3>
+                        <h3 id="macroCalendarTitle" class="text-slate-900 font-bold border-l-4 border-sky-700 pl-3">Calendario macro</h3>
                         <p class="text-xs text-slate-400 pl-3 mt-1">Fechas de decisiones Fed/BCE y publicaciones de inflacion EEUU/Eurozona.</p>
                     </div>
                     <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-500">
@@ -13023,6 +13054,7 @@
                     </div>
                 </div>
                 <div id="macroCalendarGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+                <div class="mt-4 border-t border-slate-200 pt-3"><h4 class="text-sm font-semibold text-slate-700">Próximas fechas confirmadas o previstas</h4><div id="macroUpcoming" class="mt-2 flex flex-wrap gap-2 text-xs"></div></div>
                 <p class="text-[11px] text-slate-400 mt-2">Calendario orientativo basado en calendarios oficiales publicados; las fechas pueden ajustarse por festivos o revisiones de las agencias.</p>
                 <p data-calendar-source class="text-[11px] text-slate-400 mt-1">Fuente calendario: fallback local; actualizado al recargar.</p>
             </div>
@@ -13125,14 +13157,15 @@
                 return json;
             }
             async function loadMacroCalendar(logDiv) {
+                const year = new Date().getFullYear();
                 try {
-                    const payload = await fetchMacroCalendar(new Date().getFullYear());
-                    macroCalendarEvents = payload.events?.length ? payload.events : MACRO_EVENTS_2026;
+                    const payload = await fetchMacroCalendar(year);
+                    macroCalendarEvents = payload.events?.length ? payload.events : (year === 2026 ? MACRO_EVENTS_2026 : []);
                     macroCalendarSource = payload.source || 'official';
                     renderMacroCalendar();
                     if (logDiv) logDiv.innerHTML += `<div class="text-green-600">calendar OK (${macroCalendarEvents.length} eventos, ${macroCalendarSource})</div>`;
                 } catch (err) {
-                    macroCalendarEvents = MACRO_EVENTS_2026;
+                    macroCalendarEvents = year === 2026 ? MACRO_EVENTS_2026 : [];
                     macroCalendarSource = 'fallback';
                     renderMacroCalendar();
                     if (logDiv) logDiv.innerHTML += `<div class="text-amber-600">calendar fallback: ${err.message}</div>`;
@@ -13168,6 +13201,7 @@
                 status.innerHTML += missing.length ? `<div class="mt-2 p-2 bg-red-50 text-red-700 border border-red-200 rounded"><strong>Aviso:</strong> sin datos en ${missing.join(', ')}.</div>` : '<div class="mt-2 text-green-700 font-bold"><i class="fa-solid fa-circle-check"></i> Todos los grupos cargados.</div>';
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Recargar';
+                document.getElementById('macroCheckedAt').textContent = 'Consultado: ' + new Date().toLocaleString('es-ES') + '. Revisa la fecha de cada serie; el calendario puede contener fechas previstas.';
                 renderMacroDashboard();
             }
             function filterMacro(period, btnEl) {
@@ -13180,7 +13214,15 @@
             function renderMacroCalendar() {
                 const grid = document.getElementById('macroCalendarGrid');
                 if (!grid) return;
-                const eventsList = macroCalendarEvents.length ? macroCalendarEvents : MACRO_EVENTS_2026;
+                const year = new Date().getFullYear();
+                const eventsList = macroCalendarEvents.filter(event => event.date.startsWith(String(year)));
+                document.getElementById('macroCalendarTitle').textContent = 'Calendario macro ' + year;
+                const upcoming = document.getElementById('macroUpcoming');
+                const today = new Date().toISOString().slice(0, 10);
+                const next = eventsList.filter(event => event.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+                upcoming.replaceChildren();
+                for (const event of next) { const item = document.createElement('span'); item.className = 'border border-slate-200 bg-slate-50 px-2 py-1 text-slate-700'; item.textContent = event.date + ' · ' + event.label; upcoming.append(item); }
+                if (!next.length) upcoming.textContent = 'Sin más eventos publicados para este año.';
                 const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
                 const color = {
                     fed: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -13192,7 +13234,7 @@
                     const events = eventsList.filter(e => e.date.slice(5, 7) === month).sort((a, b) => a.date.localeCompare(b.date));
                     const eventHtml = events.map(e => `<div class="flex items-center gap-2 rounded border px-2 py-1 ${color[e.type] || 'bg-slate-50 text-slate-600 border-slate-200'}"><span class="font-bold tabular-nums">${e.date.slice(8, 10)}</span><span class="truncate">${e.label}</span></div>`).join('');
                     return `<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 min-h-[130px]">
-                        <div class="text-xs font-black uppercase tracking-wide text-slate-700 mb-2">${name} 2026</div>
+                        <div class="text-xs font-black uppercase tracking-wide text-slate-700 mb-2">${name} ${year}</div>
                         <div class="space-y-1 text-[11px]">${eventHtml || '<span class="text-slate-400">Sin eventos clave</span>'}</div>
                     </div>`;
                 }).join('');

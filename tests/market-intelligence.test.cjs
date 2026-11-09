@@ -37,3 +37,18 @@ test('ECB curve parser retains the latest observation and basis for daily change
     assert.equal(result.points.length, 4);
     assert.equal(result.points[0].previousRate, 2.5);
 });
+
+test('ECB curve comparison uses the closest available earlier session and reports its actual date', async () => {
+    const { parseCurve } = await import('../api/market-intelligence.js');
+    const header = 'KEY,DATA_TYPE_FM,TIME_PERIOD,OBS_VALUE';
+    const lines = ['1Y', '2Y', '5Y', '10Y'].flatMap(tenor => [
+        'YC,SR_' + tenor + ',2026-09-30,2.1',
+        'YC,SR_' + tenor + ',2026-10-30,2.3',
+        'YC,SR_' + tenor + ',2026-11-02,2.4'
+    ]);
+    const result = parseCurve([header, ...lines].join('\n'), '1M');
+    assert.equal(result.date, '2026-11-02');
+    assert.equal(result.comparisonDate, '2026-09-30');
+    assert.equal(result.points[0].comparisonRate, 2.1);
+    assert.equal(result.points[0].previousRate, 2.3);
+});
