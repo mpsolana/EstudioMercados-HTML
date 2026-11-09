@@ -9,6 +9,7 @@
         const status = document.getElementById('individualValuationStatus');
         if (!ticker || !/^[A-Z0-9^._-]{1,20}$/.test(ticker)) { status.textContent = 'Introduce un ticker válido.'; return; }
         document.getElementById('individualValuationTicker').textContent = ticker;
+        if (typeof root.loadCompanyFundamentals === 'function') root.loadCompanyFundamentals(ticker);
         const serial = ++request;
         const cached = cache.get(ticker);
         if (cached && Date.now() - cached.at < 600000) { active = cached.data; prepareMetrics(active); renderIndividualValuation(); return; }

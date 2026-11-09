@@ -21,8 +21,12 @@
     <script src="assets/market-data.js"></script>
     <script src="assets/market-drawdown.js"></script>
     <script src="assets/market-intelligence-core.js"></script>
+    <script src="assets/world-pe-core.js"></script>
+    <script src="assets/company-fundamentals-core.js"></script>
     <script defer src="assets/market-intelligence.js"></script>
+    <script defer src="assets/world-pe-view.js"></script>
     <script defer src="assets/individual-valuation.js"></script>
+    <script defer src="assets/company-fundamentals-view.js"></script>
     <script src="assets/financial-education-core.js"></script>
     <script src="assets/financial-education-advanced-core.js"></script>
     <script defer src="assets/financial-education.js"></script>
@@ -190,7 +194,7 @@
                 <i class="fa-solid fa-globe mr-2"></i>Mercados
             </button>
             <button onclick="switchSection('valoraciones')" id="section-btn-valoraciones" class="top-nav-btn">
-                <i class="fa-solid fa-scale-balanced mr-2"></i>Valoraciones Relativas
+                <i class="fa-solid fa-scale-balanced mr-2"></i>Valoración relativa y absoluta
             </button>
             <button onclick="switchSection('macro')" id="section-btn-macro" class="top-nav-btn">
                 <i class="fa-solid fa-earth-europe mr-2"></i>Macro Dashboard
@@ -219,61 +223,6 @@
                         class="px-4 py-2 bg-sky-600 text-white rounded-md shadow hover:bg-sky-700">Cargar
                         Mercados</button>
                 </div>
-                <section class="scroll-mt-32 border-y border-slate-200 bg-white py-5" aria-label="Inteligencia de mercado">
-                    <h2 class="text-lg font-bold text-slate-800">Curva de tipos y valoración histórica</h2>
-                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-4">
-                        <div class="min-w-0">
-                          <div class="flex flex-wrap gap-3 mb-3">
-                            <label class="text-sm text-slate-700">Curva BCE
-                            <select id="intelligenceCurveKind" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
-                                <option value="spot">Tipos spot</option>
-                                <option value="forward">Forwards instantáneos</option>
-                            </select>
-                            </label>
-                            <label class="text-sm text-slate-700">Comparar con
-                            <select id="intelligenceCurveCompare" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
-                                <option value="previous">Sesión anterior</option><option value="1M">Hace 1 mes</option><option value="3M">Hace 3 meses</option><option value="1Y">Hace 1 año</option>
-                            </select>
-                            </label>
-                          </div>
-                            <div class="flex items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">Deuda soberana AAA de la zona euro</h3><span class="text-sm text-slate-600">10A − 1A: <strong id="intelligenceCurveSlope">—</strong></span></div>
-                            <p id="intelligenceCurveStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar al BCE.</p>
-                            <div id="intelligenceCurveChart" class="min-h-[330px]"></div>
-                            <div class="max-h-48 overflow-auto">
-                                <table class="w-full text-sm"><thead><tr class="border-b border-slate-300 text-slate-600"><th class="px-3 py-2 text-left">Plazo</th><th class="px-3 py-2 text-right">Tipo</th><th class="px-3 py-2 text-right">Cambio frente al periodo</th></tr></thead><tbody id="intelligenceCurveRows"></tbody></table>
-                            </div>
-                            <p id="intelligenceCurveInterpretation" class="text-sm text-slate-700 mt-3" aria-live="polite"></p>
-                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://data.ecb.europa.eu/methodology/yield-curves" target="_blank" rel="noopener noreferrer" class="underline">BCE, metodología y datos</a>. Curva soberana, no OIS: sus forwards no equivalen a recortes o subidas del BCE descontados por reunión. Tipos y cambios expresados en porcentaje anual y puntos básicos, respectivamente.</p>
-                        </div>
-                        <div class="min-w-0">
-                            <label class="text-sm text-slate-700 inline-block mb-3">Retorno posterior
-                              <select id="intelligenceCapeHorizon" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketValuation()">
-                                <option value="1">1 año</option><option value="3">3 años</option><option value="5">5 años</option>
-                              </select>
-                            </label>
-                            <div class="flex flex-wrap items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">CAPE y retorno posterior · EE. UU.</h3><span class="text-sm text-slate-600">CAPE <strong id="intelligenceCapeLatest">—</strong> · R² <strong id="intelligenceCapeR2">—</strong> · n <strong id="intelligenceCapeN">—</strong></span></div>
-                            <p id="intelligenceValuationStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar la serie de Shiller.</p>
-                            <p class="text-sm text-slate-700 mt-2">Ajuste histórico al CAPE publicado: <strong id="intelligenceCapeFitted">—</strong> de retorno real total acumulado a <span id="intelligenceCapeHorizonLabel">1 año</span>.</p>
-                            <div id="intelligenceValuationChart" class="min-h-[350px]"></div>
-                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Se consulta de nuevo al pulsar «Cargar Mercados»; la fuente se publica mensualmente y puede ir retrasada. La banda discontinua marca el CAPE publicado. El punto naranja aplica la recta histórica a ese CAPE; no es un retorno realizado ni una previsión fiable. Muestras de diciembre sin solapamiento para cada plazo; retornos reales totales acumulados con dividendos reinvertidos, sin anualizar. A 5 años hay menos observaciones y el ajuste es sensible al periodo inicial. CAPE no es el PER convencional. Un R² bajo implica escasa capacidad explicativa.</p>
-                        </div>
-                    </div>
-                </section>
-                <section class="border-y border-slate-200 bg-white py-5" aria-labelledby="worldPeTitle">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 id="worldPeTitle" class="text-lg font-bold text-slate-800">PER histórico por mercado</h2>
-                        <label class="text-sm text-slate-700">Mercado
-                            <select id="worldPeMarket" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadWorldPe()">
-                                <option value="world">MSCI World · proxy URTH</option>
-                                <option value="emerging">Emergentes · proxy EEM</option>
-                            </select>
-                        </label>
-                    </div>
-                    <p id="worldPeStatus" class="mt-1 text-xs text-slate-500" role="status">Pulsa «Cargar Mercados» para actualizar el PER.</p>
-                    <div id="worldPeChart" class="min-h-[330px]"></div>
-                    <p id="worldPeSummary" class="text-sm text-slate-700"></p>
-                    <p class="mt-2 text-xs text-slate-500">Fuente: <a id="worldPeSource" class="underline" href="https://worldperatio.com/" target="_blank" rel="noopener noreferrer">WorldPEratio</a>. PER estimado del ETF proxy; no es CAPE ni el PER oficial del índice. Las fechas del gráfico son marcas mensuales del proveedor, no fechas exactas de publicación. Histórico sujeto a cambios en la página de origen.</p>
-                </section>
                 <section class="bg-white border border-slate-200 p-5" aria-label="Drawdown y recuperación">
                     <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-bold text-slate-800">Drawdown y recuperación</h2><label class="text-sm text-slate-600">Universo <select id="marketDrawdownGroup" class="border border-slate-300 bg-white p-2" onchange="renderMarketDrawdown()"><option value="indices">Índices RV</option><option value="assets">Clases de activo</option><option value="currencies">Divisas contra EUR</option></select></label></div>
                     <p id="marketDrawdownNote" class="text-xs text-slate-500 mt-2">Pulsa «Cargar Mercados» para calcular las series.</p>
@@ -8903,6 +8852,18 @@
                             <div id="individualValuationChart" class="min-h-[340px]"></div>
                             <div class="max-h-56 overflow-auto"><table class="w-full text-sm"><thead><tr class="border-b border-slate-200"><th class="py-2 text-left">Fecha</th><th class="py-2 text-right">Múltiplo</th></tr></thead><tbody id="individualValuationRows"></tbody></table></div>
                             <p class="mt-3 text-xs text-slate-500">Fuente: <a id="individualValuationSource" href="https://finance.yahoo.com/" target="_blank" rel="noopener noreferrer" class="underline">Yahoo Finance</a>. PER histórico y EV/EBITDA se muestran como ratios publicados, sin interpolar ni completar huecos. PER estimado incorpora previsiones de beneficios y no es comparable directamente con el histórico. La fecha corresponde al dato proporcionado por Yahoo, no necesariamente al cierre contable.</p>
+                            <div class="mt-8 border-t border-slate-200 pt-6">
+                                <h3 class="text-lg font-bold text-slate-800">Fundamentales anuales y comparativa de compañías</h3>
+                                <p id="companyFundamentalsStatus" class="mt-1 text-xs text-slate-500" role="status">Selecciona un ticker de una acción.</p>
+                                <div class="mt-4 flex flex-wrap items-end gap-3 text-sm">
+                                    <label>Magnitud histórica <select id="companyHistoryMetric" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="renderCompanyHistory()"></select></label>
+                                    <label>Comparar con acciones (tickers separados por coma, máximo 4) <input id="companyPeerTickers" class="mt-1 block w-72 border border-slate-300 px-2 py-1" placeholder="MSFT, GOOGL, META"></label>
+                                    <button type="button" onclick="loadCompanyPeers()" class="bg-[#204f78] px-3 py-1.5 text-white">Comparar</button>
+                                </div>
+                                <div id="companyHistoryChart" class="mt-4 min-h-[300px]"></div>
+                                <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[780px] text-sm"><thead id="companyCompareHead"></thead><tbody id="companyCompareBody"></tbody></table></div>
+                                <p class="mt-3 text-xs text-slate-500">Fuente: estados anuales y precios ajustados de Yahoo Finance. Las cifras absolutas se muestran en miles de millones de la moneda reportada por cada compañía; verifica la moneda antes de comparar importes. ROE, ROA y ROIC usan el capital medio de dos cierres anuales; ROIC = EBIT × (1 − tasa fiscal) / capital invertido medio. Las cifras absolutas son neutrales al comparar empresas de distinto tamaño. Los colores solo indican la dirección de ratios comparables; no constituyen recomendación. Los datos ausentes se muestran como tales.</p>
+                            </div>
                         </section>
                     </div>
 
@@ -9687,7 +9648,6 @@
                     updateStatus('Descargando volatilidad y divisas (10 años)...');
                     await loadMarketsExtras();
                     renderMarketDrawdown();
-                    await loadMarketIntelligence();
                     updateStatus('Datos de mercados cargados.');
                 } catch (e) {
                     console.error('Error cargando mercados:', e);
@@ -12465,7 +12425,7 @@
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                     <i class="fa-solid fa-scale-balanced text-2xl text-violet-600"></i>
-                    <h2 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Valoraciones Relativas</h2>
+                    <h2 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Valoración relativa y absoluta</h2>
                 </div>
                 <button onclick="loadValoracionesData()" id="valLoadBtn"
                     class="px-5 py-2 bg-violet-600 text-white rounded-lg shadow hover:bg-violet-700 font-bold flex items-center gap-2">
@@ -12473,6 +12433,73 @@
                 </button>
             </div>
             <p id="valStatus" class="text-sm text-gray-500 -mt-6"></p>
+
+                <section class="scroll-mt-32 border-y border-slate-200 bg-white py-5" aria-label="Inteligencia de mercado">
+                    <h2 class="text-lg font-bold text-slate-800">Curva de tipos y valoración histórica</h2>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-4">
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap gap-3 mb-3">
+                            <label class="text-sm text-slate-700">Curva BCE
+                            <select id="intelligenceCurveKind" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
+                                <option value="spot">Tipos spot</option>
+                                <option value="forward">Forwards instantáneos</option>
+                            </select>
+                            </label>
+                            <label class="text-sm text-slate-700">Comparar con
+                            <select id="intelligenceCurveCompare" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
+                                <option value="previous">Sesión anterior</option><option value="1M">Hace 1 mes</option><option value="3M">Hace 3 meses</option><option value="1Y">Hace 1 año</option>
+                            </select>
+                            </label>
+                          </div>
+                            <div class="flex items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">Deuda soberana AAA de la zona euro</h3><span class="text-sm text-slate-600">10A − 1A: <strong id="intelligenceCurveSlope">—</strong></span></div>
+                            <p id="intelligenceCurveStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar al BCE.</p>
+                            <div id="intelligenceCurveChart" class="min-h-[330px]"></div>
+                            <div class="max-h-48 overflow-auto">
+                                <table class="w-full text-sm"><thead><tr class="border-b border-slate-300 text-slate-600"><th class="px-3 py-2 text-left">Plazo</th><th class="px-3 py-2 text-right">Tipo</th><th class="px-3 py-2 text-right">Cambio frente al periodo</th></tr></thead><tbody id="intelligenceCurveRows"></tbody></table>
+                            </div>
+                            <p id="intelligenceCurveInterpretation" class="text-sm text-slate-700 mt-3" aria-live="polite"></p>
+                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://data.ecb.europa.eu/methodology/yield-curves" target="_blank" rel="noopener noreferrer" class="underline">BCE, metodología y datos</a>. Curva soberana, no OIS: sus forwards no equivalen a recortes o subidas del BCE descontados por reunión. Tipos y cambios expresados en porcentaje anual y puntos básicos, respectivamente.</p>
+                        </div>
+                        <div class="min-w-0">
+                            <label class="text-sm text-slate-700 inline-block mb-3">Retorno posterior
+                              <select id="intelligenceCapeHorizon" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketValuation()">
+                                <option value="1">1 año</option><option value="3">3 años</option><option value="5">5 años</option>
+                              </select>
+                            </label>
+                            <div class="flex flex-wrap items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">CAPE y retorno posterior · EE. UU.</h3><span class="text-sm text-slate-600">CAPE <strong id="intelligenceCapeLatest">—</strong> · R² <strong id="intelligenceCapeR2">—</strong> · n <strong id="intelligenceCapeN">—</strong></span></div>
+                            <p id="intelligenceValuationStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar la serie de Shiller.</p>
+                            <p class="text-sm text-slate-700 mt-2">Ajuste histórico al CAPE publicado: <strong id="intelligenceCapeFitted">—</strong> de retorno real total acumulado a <span id="intelligenceCapeHorizonLabel">1 año</span>.</p>
+                            <div id="intelligenceValuationChart" class="min-h-[350px]"></div>
+                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Se consulta de nuevo al pulsar «Cargar Mercados»; la fuente se publica mensualmente y puede ir retrasada. La banda discontinua marca el CAPE publicado. El punto naranja aplica la recta histórica a ese CAPE; no es un retorno realizado ni una previsión fiable. Muestras de diciembre sin solapamiento para cada plazo; retornos reales totales acumulados con dividendos reinvertidos, sin anualizar. A 5 años hay menos observaciones y el ajuste es sensible al periodo inicial. CAPE no es el PER convencional. Un R² bajo implica escasa capacidad explicativa.</p>
+                        </div>
+                    </div>
+                </section>
+                <section class="border-y border-slate-200 bg-white py-5" aria-labelledby="worldPeTitle">
+                    <h2 id="worldPeTitle" class="text-lg font-bold text-slate-800">Valoración de mercados · PER, momentum y retorno posterior</h2>
+                    <div class="mt-3 flex flex-wrap gap-4 text-sm text-slate-700">
+                        <label>Mercado principal <select id="worldPeMarket" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadWorldPe()">
+                            <option value="usa">EE. UU. · SPY</option><option value="europe">Europa · VGK</option><option value="china">China · FXI</option>
+                            <option value="india">India · INDA</option><option value="emerging">Emergentes · EEM</option>
+                            <option value="global">Global aprox. ACWI · VT</option><option value="world">MSCI World · URTH</option>
+                        </select></label>
+                        <label>Media y bandas <select id="worldPeStatsWindow" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="renderWorldPe()"><option value="5">5 años</option><option value="10" selected>10 años</option><option value="20">20 años</option></select></label>
+                        <label>Retorno posterior <select id="worldPeHorizon" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="renderWorldPe()"><option value="1" selected>1 año</option><option value="3">3 años</option><option value="5">5 años</option></select></label>
+                        <label>Momentum <select id="worldPeMomentumWindow" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="renderWorldPe()"><option value="200" selected>SMA 200 días</option><option value="50">SMA 50 días</option></select></label>
+                    </div>
+                    <div class="mt-3"><span class="text-xs font-semibold text-slate-600">Comparar en la curva PER (bandas solo del mercado principal):</span><div id="worldPeCompare" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600"></div></div>
+                    <p id="worldPeStatus" class="mt-2 text-xs text-slate-500" role="status">Pulsa «Cargar Datos» para actualizar el PER.</p>
+                    <div id="worldPeOverview" class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+                    <div class="mt-4 overflow-x-auto"><table class="w-full min-w-[650px] text-sm"><thead><tr class="border-b border-slate-200 text-slate-600"><th class="py-2 text-left">Mercado visible</th><th class="text-right">PER</th><th class="text-right">Desv. 10A</th><th class="text-right">Momentum SMA200</th><th class="text-right">Retorno regresión</th><th class="text-right">R²</th></tr></thead><tbody id="worldPeMarketRows"></tbody></table></div>
+                    <div id="worldPeChart" class="min-h-[350px]"></div>
+                    <div class="grid gap-6 xl:grid-cols-2">
+                        <div><h3 class="font-semibold text-slate-800">Desviación del PER frente a su media</h3><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-slate-200 text-slate-600"><th class="py-2 text-left">Periodo</th><th class="text-right">Media</th><th class="text-right">σ</th><th class="text-right">PER actual vs media</th></tr></thead><tbody id="worldPeStatsRows"></tbody></table></div></div>
+                        <div><h3 class="font-semibold text-slate-800">Precio del ETF frente a su media móvil</h3><div id="worldPeMomentumChart" class="min-h-[270px]"></div></div>
+                    </div>
+                    <h3 class="mt-5 font-semibold text-slate-800">PER y retorno total posterior del ETF proxy</h3>
+                    <p id="worldPeForecastStatus" class="text-xs text-slate-500"></p><div id="worldPeForecastChart" class="min-h-[320px]"></div>
+                    <p class="mt-2 text-xs text-slate-500">Fuente PER: <a id="worldPeSource" class="underline" href="https://worldperatio.com/" target="_blank" rel="noopener noreferrer">WorldPEratio</a>; precios ajustados y momentum: Yahoo Finance. PER del ETF proxy, no CAPE ni PER oficial del índice. «Global» usa VT/FTSE Global All Cap como aproximación a ACWI, no como serie MSCI ACWI. Las bandas y desviaciones se recalculan con la serie bruta y pueden diferir de WorldPEratio, que aplica un tratamiento de atípicos. Las fechas PER son marcas mensuales; el retorno posterior anualizado se calcula desde cierres mensuales ajustados del mismo ETF, con ventanas no solapadas. La regresión es descriptiva; una R² baja o una muestra corta no justifican por sí solas sobreponderar o infraponderar.</p>
+                </section>
+
 
             <!-- ===== RENTA FIJA ===== -->
             <div class="space-y-6 border-t-4 border-violet-200 pt-6">
@@ -12670,6 +12697,7 @@
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Cargando...';
                 status.textContent = 'Descargando historico largo de ETFs de Renta Fija y Renta Variable...';
+                const intelligencePromise = loadMarketIntelligence();
 
                 const today = new Date().toISOString().split('T')[0];
                 const startStr = '1990-01-01';
@@ -12691,6 +12719,7 @@
                     btn.disabled = false;
 
                     renderValoraciones(valPeriod);
+                    await intelligencePromise;
                 } catch(e) {
                     status.textContent = 'Error descargando datos: ' + e.message;
                     btn.innerHTML = '<i class="fa-solid fa-rotate mr-1"></i> Cargar Datos';

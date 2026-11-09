@@ -1,6 +1,11 @@
 const MARKETS = Object.freeze({
+    usa: { label: 'Estados Unidos · S&P 500', proxy: 'SPY', path: '/index/sp-500/' },
+    europe: { label: 'Europa · FTSE Europe', proxy: 'VGK', path: '/area/europe/' },
+    china: { label: 'China · FTSE China 50', proxy: 'FXI', path: '/area/china/' },
+    india: { label: 'India · MSCI India', proxy: 'INDA', path: '/area/india/' },
     world: { label: 'MSCI World', proxy: 'URTH', path: '/area/msci-world/' },
-    emerging: { label: 'Mercados emergentes', proxy: 'EEM', path: '/area/emerging-markets/' }
+    emerging: { label: 'Mercados emergentes', proxy: 'EEM', path: '/area/emerging-markets/' },
+    global: { label: 'Global · FTSE All World (aprox. ACWI)', proxy: 'VT', path: '/area/all-world/' }
 });
 
 function parseWorldPe(html) {

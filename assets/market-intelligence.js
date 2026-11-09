@@ -2,7 +2,6 @@
     const percent = value => Number.isFinite(value) ? value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %' : '—';
     let curveRequest = 0;
     let valuationRequest = 0;
-    let worldPeRequest = 0;
     let shillerRows = null;
 
     async function responseOrError(url) {
@@ -115,35 +114,7 @@
         }
     }
 
-    async function loadWorldPe() {
-        const request = ++worldPeRequest;
-        const market = document.getElementById('worldPeMarket').value;
-        const status = document.getElementById('worldPeStatus');
-        status.textContent = 'Consultando histórico PER…';
-        try {
-            const data = await (await responseOrError('/api/world-pe?market=' + market)).json();
-            if (request !== worldPeRequest) return;
-            const rows = data.observations;
-            const latest = rows.at(-1);
-            const fiveYearStart = new Date(latest.date + 'T00:00:00Z');
-            fiveYearStart.setUTCFullYear(fiveYearStart.getUTCFullYear() - 5);
-            const recent = rows.filter(row => row.date >= fiveYearStart.toISOString().slice(0, 10)).map(row => row.pe).sort((a, b) => a - b);
-            const median = recent.length % 2 ? recent[(recent.length - 1) / 2] : (recent[recent.length / 2 - 1] + recent[recent.length / 2]) / 2;
-            await FinancialVisuals.newPlot('worldPeChart', [
-                { x: rows.map(row => row.date), y: rows.map(row => row.pe), mode: 'lines', name: 'PER · ' + data.proxy, line: { color: '#204f78', width: 2 } },
-                { x: [latest.date], y: [latest.pe], mode: 'markers', name: 'Último dato', marker: { color: '#bd7132', size: 10 } }
-            ], { height: 330, margin: { t: 15, l: 55, r: 20, b: 45 }, xaxis: { title: 'Fecha de observación' }, yaxis: { title: 'PER (veces)' }, legend: { orientation: 'h', y: -0.25 } }, { responsive: true, displayModeBar: false });
-            if (request !== worldPeRequest) return;
-            status.textContent = data.label + ' · ' + latest.date + ' · ' + rows.length + ' observaciones';
-            document.getElementById('worldPeSummary').textContent = 'Último PER mensual ' + latest.pe.toLocaleString('es-ES', { maximumFractionDigits: 2 }) + 'x · mediana últimos 5 años ' + median.toLocaleString('es-ES', { maximumFractionDigits: 2 }) + 'x';
-            document.getElementById('worldPeSource').href = data.source;
-        } catch (error) {
-            if (request === worldPeRequest) status.textContent = 'No se pudo actualizar el PER: ' + error.message;
-        }
-    }
-
     root.loadMarketCurve = loadCurve;
     root.loadMarketValuation = () => loadValuation(false);
-    root.loadWorldPe = loadWorldPe;
-    root.loadMarketIntelligence = () => Promise.allSettled([loadCurve(), loadValuation(true), loadWorldPe()]);
+    root.loadMarketIntelligence = () => Promise.allSettled([loadCurve(), loadValuation(true), root.loadWorldPe()]);
 })(typeof globalThis !== 'undefined' ? globalThis : window);
