@@ -8,7 +8,9 @@ const SOURCE_URLS = {
     fed: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
     bls: 'https://www.bls.gov/schedule/news_release/current_year.asp',
     ecb: 'https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html',
-    hicp: 'https://www.ecb.europa.eu/press/calendars/statscal/ges/html/sthicp.en.html'
+    hicp: 'https://www.ecb.europa.eu/press/calendars/statscal/ges/html/sthicp.en.html',
+    bea: 'https://www.bea.gov/news/schedule/full',
+    bulletin: 'https://www.ecb.europa.eu/press/economic-bulletin/html/index.en.html'
 };
 
 const MONTHS = {
@@ -35,7 +37,9 @@ export default async function handler(req, res) {
         fetchFedEvents(year),
         fetchBlsCpiEvents(year),
         fetchEcbDecisionEvents(year),
-        fetchEcbHicpEvents(year)
+        fetchEcbHicpEvents(year),
+        fetchBeaReleaseEvents(year),
+        fetchEcbBulletinEvents(year)
     ]);
 
     const officialEvents = [];
@@ -75,7 +79,7 @@ async function fetchFedEvents(year) {
         if (/Released\s*$/i.test(before)) continue;
         const month = MONTHS[match[1]];
         const day = match[3] || match[2];
-        events.push(event(`${year}-${month}-${pad(day)}`, 'fed', 'Fed decision', 'Federal Reserve'));
+        events.push(event(`${year}-${month}-${pad(day)}`, 'fed', 'Fed decision', 'Federal Reserve', SOURCE_URLS.fed));
     }
     if (!events.length) throw new Error('Fed calendar parse returned no events');
     return events;
@@ -92,7 +96,7 @@ async function fetchBlsCpiEvents(year) {
         const refMatch = text.match(/Consumer Price Index for\s+([A-Za-z]+)\s+(\d{4})/i);
         if (!dateMatch) continue;
         const label = refMatch ? `US CPI ${monthLabel(refMatch[1])}` : 'US CPI';
-        events.push(event(`${year}-${MONTHS[toTitle(dateMatch[1])]}-${pad(dateMatch[2])}`, 'inflation', label, 'BLS'));
+        events.push(event(`${year}-${MONTHS[toTitle(dateMatch[1])]}-${pad(dateMatch[2])}`, 'inflation', label, 'BLS', SOURCE_URLS.bls));
     }
     if (!events.length) throw new Error('BLS CPI calendar parse returned no events');
     return events;
@@ -108,7 +112,7 @@ async function fetchEcbDecisionEvents(year) {
         if (Number(eventYear) !== year) continue;
         const title = compactText(rawTitle);
         if (!/monetary policy meeting/i.test(title) || !/Day 2|press conference/i.test(title)) continue;
-        events.push(event(`${eventYear}-${month}-${day}`, 'ecb', 'BCE decision', 'ECB'));
+        events.push(event(`${eventYear}-${month}-${day}`, 'ecb', 'BCE decision', 'ECB', SOURCE_URLS.ecb));
     }
     if (!events.length) throw new Error('ECB decision calendar parse returned no events');
     return events;
@@ -116,19 +120,50 @@ async function fetchEcbDecisionEvents(year) {
 
 async function fetchEcbHicpEvents(year) {
     const html = await fetchText(SOURCE_URLS.hicp);
-    const text = compactText(html);
-    const re = /(\d{2})\/(\d{2})\/(\d{4})\s+\d{2}:\d{2}\s+CET\s+(.+?)\s+Reference period:\s+([A-Za-z]+)-(\d{4})/g;
+    const re = /<dt>\s*(\d{2})\/(\d{2})\/(\d{4})\s+\d{2}:\d{2}(?:\s+CET)?\s*<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi;
     const events = [];
     let match;
-    while ((match = re.exec(text))) {
-        const [, day, month, eventYear, title, refMonth] = match;
-        if (Number(eventYear) !== year || !/HICP/i.test(title)) continue;
+    while ((match = re.exec(html))) {
+        const [, day, month, eventYear, rawTitle] = match;
+        const title = compactText(rawTitle);
+        const refMonth = title.match(/Reference period:\s*([A-Za-z]+)-\d{4}/i)?.[1];
+        if (Number(eventYear) !== year || !/HICP/i.test(title) || !refMonth) continue;
         const isFlash = /flash estimate/i.test(title);
-        const label = `Euro HICP ${isFlash ? 'flash ' : ''}${monthLabel(refMonth)}`;
-        events.push(event(`${eventYear}-${month}-${day}`, 'inflation', label, 'ECB/Eurostat'));
+        const label = `Euro HICP ajustado ${isFlash ? 'flash ' : ''}${monthLabel(refMonth)}`;
+        events.push(event(`${eventYear}-${month}-${day}`, 'inflation', label, 'ECB', SOURCE_URLS.hicp));
     }
     if (!events.length) throw new Error('ECB HICP calendar parse returned no events');
     return events;
+}
+
+async function fetchBeaReleaseEvents(year) {
+    if (year !== new Date().getUTCFullYear()) return [];
+    const html = await fetchText(SOURCE_URLS.bea);
+    const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+    const events = [];
+    for (const row of rows) {
+        const date = row.match(/class="release-date"[^>]*>\s*([A-Za-z]+)\s+(\d{1,2})\s*</i);
+        const title = row.match(/class="release-title[^"']*"[^>]*>([\s\S]*?)<\/td>/i);
+        if (!date || !title) continue;
+        const description = compactText(title[1]);
+        const month = MONTHS[toTitle(date[1])];
+        if (!month) continue;
+        let label;
+        if (/^Personal Income and Outlays,/i.test(description)) label = 'EE. UU. PCE e ingresos';
+        else if (/^GDP \((Advance|Second|Third) Estimate\)/i.test(description)) label = 'EE. UU. PIB · ' + description.match(/\(([^)]+)\)/)[1];
+        else continue;
+        events.push(event(`${year}-${month}-${pad(date[2])}`, 'report', label, 'BEA', SOURCE_URLS.bea));
+    }
+    if (!events.length) throw new Error('BEA release calendar parse returned no events');
+    return events;
+}
+
+async function fetchEcbBulletinEvents(year) {
+    const html = await fetchText(SOURCE_URLS.bulletin);
+    const match = compactText(html).match(/Next release:\s*Issue\s+\d+,\s*(\d{4})\s*-\s*(\d{1,2})\s+([A-Za-z]+)\s+\d{4}/i);
+    if (!match || Number(match[1]) !== year) return [];
+    const month = MONTHS[toTitle(match[3])];
+    return month ? [event(`${year}-${month}-${pad(match[2])}`, 'report', 'BCE · Boletín Económico', 'ECB', SOURCE_URLS.bulletin)] : [];
 }
 
 async function fetchText(url) {
@@ -180,8 +215,8 @@ function withFallbackCoverage(officialEvents, fallback) {
     return covered;
 }
 
-function event(date, type, label, source) {
-    return { date, type, label, source };
+function event(date, type, label, source, url = null) {
+    return { date, type, label, source, url };
 }
 
 function monthLabel(monthName) {
@@ -237,3 +272,5 @@ function setCors(res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
+
+export { fetchBeaReleaseEvents, fetchEcbBulletinEvents };

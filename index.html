@@ -219,22 +219,22 @@
                         Mercados</button>
                 </div>
                 <section class="scroll-mt-32 border-y border-slate-200 bg-white py-5" aria-label="Inteligencia de mercado">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="text-lg font-bold text-slate-800">Curva de tipos y valoración histórica</h2>
-                        <label class="text-sm text-slate-700">Curva BCE
+                    <h2 class="text-lg font-bold text-slate-800">Curva de tipos y valoración histórica</h2>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-4">
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap gap-3 mb-3">
+                            <label class="text-sm text-slate-700">Curva BCE
                             <select id="intelligenceCurveKind" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
                                 <option value="spot">Tipos spot</option>
                                 <option value="forward">Forwards instantáneos</option>
                             </select>
-                        </label>
-                        <label class="text-sm text-slate-700">Comparar con
+                            </label>
+                            <label class="text-sm text-slate-700">Comparar con
                             <select id="intelligenceCurveCompare" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketCurve()">
                                 <option value="previous">Sesión anterior</option><option value="1M">Hace 1 mes</option><option value="3M">Hace 3 meses</option><option value="1Y">Hace 1 año</option>
                             </select>
-                        </label>
-                    </div>
-                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-4">
-                        <div class="min-w-0">
+                            </label>
+                          </div>
                             <div class="flex items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">Deuda soberana AAA de la zona euro</h3><span class="text-sm text-slate-600">10A − 1A: <strong id="intelligenceCurveSlope">—</strong></span></div>
                             <p id="intelligenceCurveStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar al BCE.</p>
                             <div id="intelligenceCurveChart" class="min-h-[330px]"></div>
@@ -245,21 +245,32 @@
                             <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://data.ecb.europa.eu/methodology/yield-curves" target="_blank" rel="noopener noreferrer" class="underline">BCE, metodología y datos</a>. Curva soberana, no OIS: sus forwards no equivalen a recortes o subidas del BCE descontados por reunión. Tipos y cambios expresados en porcentaje anual y puntos básicos, respectivamente.</p>
                         </div>
                         <div class="min-w-0">
+                            <label class="text-sm text-slate-700 inline-block mb-3">Retorno posterior
+                              <select id="intelligenceCapeHorizon" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadMarketValuation()">
+                                <option value="1">1 año</option><option value="3">3 años</option><option value="5">5 años</option>
+                              </select>
+                            </label>
                             <div class="flex flex-wrap items-baseline justify-between gap-3"><h3 class="font-semibold text-slate-800">CAPE y retorno posterior · EE. UU.</h3><span class="text-sm text-slate-600">CAPE <strong id="intelligenceCapeLatest">—</strong> · R² <strong id="intelligenceCapeR2">—</strong> · n <strong id="intelligenceCapeN">—</strong></span></div>
                             <p id="intelligenceValuationStatus" role="status" aria-live="polite" class="text-xs text-slate-500 mt-1">Pulsa «Cargar Mercados» para consultar la serie de Shiller.</p>
-                            <p class="text-sm text-slate-700 mt-2">Ajuste histórico al CAPE publicado: <strong id="intelligenceCapeFitted">—</strong> de retorno real total a 12 meses.</p>
+                            <p class="text-sm text-slate-700 mt-2">Ajuste histórico al CAPE publicado: <strong id="intelligenceCapeFitted">—</strong> de retorno real total anualizado a <span id="intelligenceCapeHorizonLabel">1 año</span>.</p>
                             <div id="intelligenceValuationChart" class="min-h-[350px]"></div>
-                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Se consulta de nuevo al pulsar «Cargar Mercados»; la fuente se publica mensualmente y puede ir retrasada. El punto naranja aplica la recta histórica al último CAPE mensual; no es un retorno realizado ni una previsión fiable. Observaciones de diciembre sin solapamiento; retorno real total con dividendos reinvertidos en los 12 meses siguientes. CAPE no es el PER convencional. Comprueba R² antes de usar el ajuste: un R² bajo implica escasa capacidad explicativa.</p>
+                            <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Se consulta de nuevo al pulsar «Cargar Mercados»; la fuente se publica mensualmente y puede ir retrasada. La banda discontinua marca el CAPE publicado. El punto naranja aplica la recta histórica a ese CAPE; no es un retorno realizado ni una previsión fiable. Muestras de diciembre sin solapamiento para cada plazo; retornos reales totales anualizados con dividendos reinvertidos. A 5 años hay menos observaciones y el ajuste es sensible al periodo inicial. CAPE no es el PER convencional. Un R² bajo implica escasa capacidad explicativa.</p>
                         </div>
                     </div>
+                </section>
+                <section class="border-y border-slate-200 bg-white py-5" aria-label="Tipos monetarios BCE">
+                    <h2 class="text-lg font-bold text-slate-800">€STR y facilidad de depósito del BCE</h2>
+                    <p id="intelligencePolicyStatus" class="mt-1 text-xs text-slate-500" role="status" aria-live="polite">Pulsa «Cargar Mercados» para consultar los tipos oficiales.</p>
+                    <div id="intelligencePolicyChart" class="min-h-[315px]"></div>
+                    <p class="text-xs text-slate-500 mt-2">Fuentes: <a class="underline" href="https://data.ecb.europa.eu/data/datasets/EST/EST.B.EU000A2X2A25.WT" target="_blank" rel="noopener noreferrer">BCE €STR</a> y facilidad de depósito. El €STR es un tipo observado de operaciones a un día; la facilidad de depósito es una decisión de política monetaria. Su diferencia informa sobre la transmisión al mercado monetario, no es una curva OIS ni el número de recortes descontados.</p>
                 </section>
                 <section class="border-y border-slate-200 bg-white py-5 text-sm text-slate-700" aria-labelledby="marketSourcesTitle">
                     <h2 id="marketSourcesTitle" class="text-lg font-bold text-slate-800">Cobertura de curvas y valoración</h2>
                     <div class="mt-3 grid gap-3 md:grid-cols-2">
                         <p><strong>Crédito EUR IG y HY.</strong> El Macro Dashboard muestra la rentabilidad efectiva HY en euros de ICE/FRED cuando la fuente está disponible. Una rentabilidad de índice no es una curva de crédito ni un spread ajustado por opciones. Para construir curvas por plazo hace falta un proveedor con metodología y permiso de uso comercial verificados.</p>
                         <p><strong>Spreads y CDS.</strong> <a href="https://fred.stlouisfed.org/series/BAMLHE00EHYIOAS" target="_blank" rel="noopener noreferrer" class="underline">FRED publica el OAS agregado del HY EUR</a>, con histórico limitado y datos de ICE. La serie no representa IG ni un CDS. Su integración para redistribución comercial está pendiente de validar derechos de uso.</p>
-                        <p><strong>OIS y smile.</strong> El BCE publica el <a href="https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html" target="_blank" rel="noopener noreferrer" class="underline">€STR observado</a>, que no es una curva OIS de mercado. No mostramos recortes implícitos ni una sonrisa de opciones sin cotizaciones por vencimiento, strike y fecha con una fuente verificable.</p>
-                        <p><strong>PER multíndice y EV/EBITDA.</strong> CAPE de Shiller cubre EE. UU. No extrapolamos el CAPE a otros índices ni mezclamos múltiplos spot con un histórico sin metodología homogénea. Estas comparativas precisan una fuente de fundamentales con licencias y definiciones consistentes.</p>
+                        <p><strong>OIS y smile.</strong> El BCE publica <a href="https://data.ecb.europa.eu/data/datasets/MMSR" target="_blank" rel="noopener noreferrer" class="underline">tipos medios de transacciones OIS por tramos</a>, con fechas y liquidez heterogéneas. No se deben unir como una curva cotizada simultánea. El <a href="https://www.cboe.com/us/indices/dashboard/skew/" target="_blank" rel="noopener noreferrer" class="underline">índice SKEW de Cboe</a> mide riesgo de cola, pero no sustituye una sonrisa de volatilidad por strike y vencimiento.</p>
+                        <p><strong>PER multíndice y EV/EBITDA.</strong> CAPE de Shiller cubre EE. UU. No extrapolamos el CAPE a índices globales o emergentes ni mezclamos múltiplos spot con históricos sin metodología homogénea. Para otros mercados necesitamos series comparables de beneficio real, nivel de índice y dividendos, o un proveedor de fundamentales con licencia.</p>
                     </div>
                 </section>
                 <section class="bg-white border border-slate-200 p-5" aria-label="Drawdown y recuperación">
@@ -8580,20 +8591,22 @@
                     </p>
                 </div>
             </div>
-            <section class="mt-6 border-y border-slate-200 bg-white py-6" aria-labelledby="goodPracticeTitle">
-                <h2 id="goodPracticeTitle" class="text-xl font-bold text-slate-800">Manual de buena praxis del gestor</h2>
-                <p class="mt-2 text-sm text-slate-600">Secuencia operativa para cada decisión y comité. Documenta el dato, la hipótesis, la alternativa considerada y quién aprobó la actuación. Adapta cada paso al mandato, la normativa aplicable y los procedimientos de cumplimiento de la entidad.</p>
-                <ol class="mt-4 grid gap-4 md:grid-cols-2 text-sm text-slate-700">
-                    <li class="border-t border-slate-200 pt-3"><strong>1. Conocer al cliente.</strong> Verifica identidad, intervinientes, objetivo, horizonte, liquidez, experiencia, capacidad y tolerancia a pérdidas. Actualiza la evaluación de idoneidad cuando corresponda.</li>
-                    <li class="border-t border-slate-200 pt-3"><strong>2. Definir el mandato.</strong> Registra perfil de gestión, benchmark, bandas, restricciones, necesidades de efectivo y criterios para revisar desviaciones. No sustituyas el perfil de gestión por el resultado aislado de un test.</li>
-                    <li class="border-t border-slate-200 pt-3"><strong>3. Validar los datos.</strong> Comprueba fecha, moneda, dividendos, clases, costes, valores ausentes y calidad de los históricos. Distingue estimaciones, proxies y datos observados.</li>
-                    <li class="border-t border-slate-200 pt-3"><strong>4. Analizar la propuesta.</strong> Contrasta retorno esperado, pérdida posible, liquidez, concentración, exposición a divisas, sensibilidad a tipos y solapamientos. Cuantifica costes e impuestos con supuestos visibles.</li>
-                    <li class="border-t border-slate-200 pt-3"><strong>5. Elegir y ejecutar.</strong> Revisa clase disponible, elegibilidad, conflictos de interés, costes totales y mejor ejecución según el procedimiento interno. Deja constancia del motivo de cualquier excepción.</li>
-                    <li class="border-t border-slate-200 pt-3"><strong>6. Supervisar y comunicar.</strong> Sigue bandas, documentación, vencimientos y resultados frente a objetivos. Explica al cliente tanto los cambios como sus riesgos y limitaciones; conserva evidencia de revisión y aprobación.</li>
-                </ol>
-                <p class="mt-4 text-xs text-slate-500">Marco de referencia: <a class="underline" href="https://www.esma.europa.eu/sites/default/files/2023-04/ESMA35-43-3172_Guidelines_on_certain_aspects_of_the_MiFID_II_suitability_requirements.pdf" target="_blank" rel="noopener noreferrer">directrices ESMA de idoneidad MiFID II</a>. La frecuencia de revisión, documentación exigible y responsabilidades dependen del servicio y del procedimiento aprobado por Cumplimiento.</p>
-            </section>
             <div id="financialEducation"></div>
+            <section class="mt-8 border-t border-slate-200 bg-white py-7 text-sm text-slate-700" aria-labelledby="goodPracticeTitle">
+                <h2 id="goodPracticeTitle" class="text-2xl font-bold text-slate-800">Manual de buena praxis del gestor</h2>
+                <p class="mt-2 max-w-4xl text-slate-600">Hoja de ruta para documentar la idoneidad, la selección y el seguimiento de cada cartera. La confianza personal del cliente nunca sustituye el proceso formal. Aplica el mandato, la normativa vigente y los procedimientos aprobados por Cumplimiento.</p>
+                <div class="mt-5 grid gap-6 lg:grid-cols-2 leading-relaxed">
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">1. Habilitación y responsabilidades</h3><p>Comprueba que el servicio, la entidad y cada profesional están habilitados para su función. Distingue asesoramiento, gestión discrecional y mera información; verifica facultades, segregación de funciones, conflictos, incentivos y escalado a Cumplimiento. Documenta quién propone, aprueba y ejecuta.</p><p class="mt-2 text-xs text-slate-500">La capacitación exigible depende de la función y de la política de la entidad; una certificación concreta no sustituye la autorización de la entidad.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">2. Idoneidad del cliente</h3><p>Actualiza conocimiento y experiencia, situación financiera y capacidad de soportar pérdidas, objetivos, horizonte, tolerancia al riesgo, liquidez y preferencias de sostenibilidad cuando sean aplicables. Revisa titularidad e intervinientes, vigencias documentales y cambios vitales. Si falta información esencial, escala antes de recomendar o gestionar.</p><p class="mt-2 text-xs text-slate-500">Guarda fecha, fuente y versión del perfil de gestión; el resultado de un test aislado no sustituye el mandato vigente.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">3. Política de inversión y asignación</h3><p>Registra objetivos, referencia, bandas de RV/RF, liquidez mínima, divisa base, concentración máxima, restricciones, capacidad de pérdida y condiciones de revisión. Construye escenarios de mercado y de necesidades del cliente. Evalúa diversificación real por emisor, factor, región, divisa y fondo subyacente; evita duplicar exposición con múltiples clases o fondos similares.</p><p class="mt-2 text-xs text-slate-500">No atribuyas un porcentaje universal de la rentabilidad a la asignación; su importancia depende de la métrica y el periodo estudiados.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">4. Universo elegible y vehículo</h3><p>Verifica folleto, KID, estructura jurídica, depositario, domicilio, moneda, liquidez, reglas de valoración, riesgo de contraparte y tratamiento fiscal concreto. Los fondos UCITS pueden aportar diversificación y un marco regulado, pero no garantizan capital ni liquidez inmediata. Los traspasos fiscales españoles dependen de requisitos legales; no los presupongas para ETF o acción. La deuda soberana también tiene riesgo de precio, divisa y crédito.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">5. Diligencia de cada activo</h3><p>Comprueba ISIN y clase exacta, estrategia, gestora, equipo, proceso, AUM y tendencia de flujos, capacidad, cierre o fusión, TER y costes de transacción. Contrasta retorno ajustado al riesgo, volatilidad, caídas, tiempo de recuperación, sensibilidad a tipos y crédito, liquidez y desempeño frente a benchmark y peers de igual categoría. Revisa fuentes y fechas; separa histórico, proxy y estimación.</p><p class="mt-2 text-xs text-slate-500">Un umbral de AUM como 100 M€ puede ser una alerta interna, no una regla universal de seguridad.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">6. Decisión, ejecución y fiscalidad</h3><p>Expón alternativa actual, propuesta, mejora esperada, costes explícitos e implícitos, impuestos, riesgos y supuestos. Busca la clase elegible más eficiente sin confundir una clase equivalente con un producto distinto. Ejecuta según la política de mejor ejecución y controla precio, fecha, importe y desviación. Documenta las excepciones y su aprobación antes de operar.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">7. Vigilancia y rebalanceo</h3><p>Monitoriza límites, efectivo, concentración, drawdown, duración, calidad crediticia, divisa y documentación. Rebalancea cuando lo exijan las bandas, los flujos o un cambio del caso de inversión; pondera costes e impacto fiscal. Una periodicidad trimestral o semestral puede ser útil para revisar, pero no obliga a operar en cada fecha.</p></div>
+                    <div class="border-t border-slate-200 pt-4"><h3 class="font-bold text-sky-800">8. Informe y trazabilidad</h3><p>Explica rentabilidad neta, benchmark apropiado, riesgo asumido, cambios, costes en euros y porcentaje, cobertura de datos y eventos relevantes. Conserva evidencia de comité, aprobación, órdenes y comunicación. La frecuencia y el contenido obligatorio del reporte dependen del servicio y de las reglas aplicables; valida el modelo con Cumplimiento.</p></div>
+                </div>
+                <p class="mt-5 border-t border-slate-200 pt-4 text-xs text-slate-500">Referencia de idoneidad: <a class="underline" href="https://www.esma.europa.eu/sites/default/files/2023-04/ESMA35-43-3172_Guidelines_on_certain_aspects_of_the_MiFID_II_suitability_requirements.pdf" target="_blank" rel="noopener noreferrer">directrices ESMA MiFID II</a>. Este manual es una pauta operativa y requiere validación jurídica y de Cumplimiento antes de adoptarse como procedimiento oficial.</p>
+            </section>
         </div>
     </div>
 
@@ -13041,21 +13054,15 @@
             </div>
             <p id="macroStatus" class="text-sm text-slate-500 -mt-3" aria-live="polite"></p>
             <p id="macroCheckedAt" class="text-xs text-slate-500 -mt-4"></p>
-            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+            <div class="bg-white p-4 border-y border-slate-200">
                 <div class="flex items-center justify-between gap-3 mb-3">
                     <div>
-                        <h3 id="macroCalendarTitle" class="text-slate-900 font-bold border-l-4 border-sky-700 pl-3">Calendario macro</h3>
-                        <p class="text-xs text-slate-400 pl-3 mt-1">Fechas de decisiones Fed/BCE y publicaciones de inflacion EEUU/Eurozona.</p>
-                    </div>
-                    <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-500">
-                        <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-600"></span>Fed</span>
-                        <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>BCE</span>
-                        <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span>Inflacion</span>
+                        <h3 id="macroCalendarTitle" class="text-slate-900 font-bold border-l-4 border-sky-700 pl-3">Próximas citas de mercado</h3>
+                        <p class="text-xs text-slate-500 pl-3 mt-1">Decisiones de bancos centrales y publicaciones macro oficiales, ordenadas por fecha.</p>
                     </div>
                 </div>
-                <div id="macroCalendarGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
-                <div class="mt-4 border-t border-slate-200 pt-3"><h4 class="text-sm font-semibold text-slate-700">Próximas fechas confirmadas o previstas</h4><div id="macroUpcoming" class="mt-2 flex flex-wrap gap-2 text-xs"></div></div>
-                <p class="text-[11px] text-slate-400 mt-2">Calendario orientativo basado en calendarios oficiales publicados; las fechas pueden ajustarse por festivos o revisiones de las agencias.</p>
+                <div id="macroCalendarGrid" class="divide-y divide-slate-100"></div>
+                <p class="text-[11px] text-slate-500 mt-3">Los resultados empresariales y reuniones geopolíticas se incorporarán cuando exista una fecha verificable en la fuente oficial. Las fechas previstas pueden revisarse.</p>
                 <p data-calendar-source class="text-[11px] text-slate-400 mt-1">Fuente calendario: fallback local; actualizado al recargar.</p>
             </div>
             <div class="space-y-6">
@@ -13075,6 +13082,7 @@
         <script>
             let macroRawData = {};
             let macroPeriod = '10Y';
+            let macroLoadSerial = 0;
             let macroCalendarEvents = [];
             let macroCalendarSource = 'fallback';
             const MACRO_EVENTS_2026 = [
@@ -13160,7 +13168,8 @@
                 const year = new Date().getFullYear();
                 try {
                     const payload = await fetchMacroCalendar(year);
-                    macroCalendarEvents = payload.events?.length ? payload.events : (year === 2026 ? MACRO_EVENTS_2026 : []);
+                    const nextYear = await fetchMacroCalendar(year + 1).catch(() => ({ events: [] }));
+                    macroCalendarEvents = [...(payload.events?.length ? payload.events : (year === 2026 ? MACRO_EVENTS_2026 : [])), ...(nextYear.events || [])];
                     macroCalendarSource = payload.source || 'official';
                     renderMacroCalendar();
                     if (logDiv) logDiv.innerHTML += `<div class="text-green-600">calendar OK (${macroCalendarEvents.length} eventos, ${macroCalendarSource})</div>`;
@@ -13172,6 +13181,8 @@
                 }
             }
             async function loadMacroData() {
+                const serial = ++macroLoadSerial;
+                const requestedPeriod = macroPeriod;
                 const btn = document.getElementById('macroLoadBtn');
                 const status = document.getElementById('macroStatus');
                 btn.disabled = true;
@@ -13179,25 +13190,30 @@
                 status.innerHTML = `<div class="mb-2 font-bold text-slate-700">Descargando ${MACRO_GROUPS.length} grupos FRED...</div><div id="macroDownloadLog" class="text-xs text-slate-600 max-h-44 overflow-y-auto space-y-1 p-3 bg-white rounded border border-slate-200 font-mono"></div>`;
                 const logDiv = document.getElementById('macroDownloadLog');
                 await loadMacroCalendar(logDiv);
+                if (serial !== macroLoadSerial) return;
                 try {
                     const health = await fetchMacroHealth();
                     const failed = (health.checks || []).filter(check => !check.ok && !check.optional);
                     logDiv.innerHTML += failed.length ? `<div class="text-red-600">health ${failed.map(c => `${c.provider}: ${c.message}`).join(' | ')}</div>` : '<div class="text-green-600">health OK</div>';
                 } catch (err) { logDiv.innerHTML += `<div class="text-red-600">health ${err.message}</div>`; }
-                macroRawData = {};
+                if (serial !== macroLoadSerial) return;
+                const nextData = { ...macroRawData };
                 const missing = [];
                 for (const group of MACRO_GROUPS) {
                     const row = document.createElement('div');
                     row.innerHTML = `<span class="text-blue-600">...</span> ${group.key}`;
                     logDiv.appendChild(row);
                     try {
-                        const payload = await fetchMacroGroup(group.key, macroPeriod);
-                        macroRawData[group.key] = payload;
+                        const payload = await fetchMacroGroup(group.key, requestedPeriod);
+                        if (serial !== macroLoadSerial) return;
                         const usable = (payload.series || []).filter(s => s.observations && s.observations.length > 0);
+                        if (usable.length) nextData[group.key] = payload;
                         row.innerHTML = usable.length ? `<span class="text-green-600">OK</span> ${group.key} (${usable.length}/${(payload.series || []).length} series)` : `<span class="text-orange-500">Sin datos</span> ${group.key}`;
                         if (!usable.length) missing.push(group.key);
-                    } catch (err) { row.innerHTML = `<span class="text-red-600">Error</span> ${group.key}: ${err.message}`; missing.push(group.key); }
+                    } catch (err) { if (serial !== macroLoadSerial) return; row.innerHTML = `<span class="text-red-600">Error</span> ${group.key}: ${err.message}`; missing.push(group.key); }
                 }
+                if (serial !== macroLoadSerial) return;
+                macroRawData = nextData;
                 status.innerHTML += missing.length ? `<div class="mt-2 p-2 bg-red-50 text-red-700 border border-red-200 rounded"><strong>Aviso:</strong> sin datos en ${missing.join(', ')}.</div>` : '<div class="mt-2 text-green-700 font-bold"><i class="fa-solid fa-circle-check"></i> Todos los grupos cargados.</div>';
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Recargar';
@@ -13208,38 +13224,30 @@
                 macroPeriod = period;
                 document.querySelectorAll('#section-macro .flex.gap-2.flex-wrap button').forEach(b => b.className = 'px-2 py-0.5 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600');
                 if (btnEl) btnEl.className = 'px-2 py-0.5 text-xs rounded bg-sky-700 text-white font-bold';
-                if (Object.keys(macroRawData).length > 0) loadMacroData();
+                if (Object.keys(macroRawData).length > 0 || document.getElementById('macroLoadBtn').disabled) loadMacroData();
             }
             function renderMacroDashboard() { renderMacroCalendar(); MACRO_GROUPS.forEach(group => renderMacroChart(group)); }
             function renderMacroCalendar() {
                 const grid = document.getElementById('macroCalendarGrid');
                 if (!grid) return;
-                const year = new Date().getFullYear();
-                const eventsList = macroCalendarEvents.filter(event => event.date.startsWith(String(year)));
-                document.getElementById('macroCalendarTitle').textContent = 'Calendario macro ' + year;
-                const upcoming = document.getElementById('macroUpcoming');
+                const eventsList = macroCalendarEvents;
+                document.getElementById('macroCalendarTitle').textContent = 'Próximas citas de mercado';
                 const today = new Date().toISOString().slice(0, 10);
-                const next = eventsList.filter(event => event.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
-                upcoming.replaceChildren();
-                for (const event of next) { const item = document.createElement('span'); item.className = 'border border-slate-200 bg-slate-50 px-2 py-1 text-slate-700'; item.textContent = event.date + ' · ' + event.label; upcoming.append(item); }
-                if (!next.length) upcoming.textContent = 'Sin más eventos publicados para este año.';
-                const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-                const color = {
-                    fed: 'bg-blue-50 text-blue-700 border-blue-200',
-                    ecb: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                    inflation: 'bg-orange-50 text-orange-700 border-orange-200'
-                };
-                grid.innerHTML = monthNames.map((name, index) => {
-                    const month = String(index + 1).padStart(2, '0');
-                    const events = eventsList.filter(e => e.date.slice(5, 7) === month).sort((a, b) => a.date.localeCompare(b.date));
-                    const eventHtml = events.map(e => `<div class="flex items-center gap-2 rounded border px-2 py-1 ${color[e.type] || 'bg-slate-50 text-slate-600 border-slate-200'}"><span class="font-bold tabular-nums">${e.date.slice(8, 10)}</span><span class="truncate">${e.label}</span></div>`).join('');
-                    return `<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 min-h-[130px]">
-                        <div class="text-xs font-black uppercase tracking-wide text-slate-700 mb-2">${name} ${year}</div>
-                        <div class="space-y-1 text-[11px]">${eventHtml || '<span class="text-slate-400">Sin eventos clave</span>'}</div>
-                    </div>`;
-                }).join('');
+                const next = eventsList.filter(event => event.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 16);
+                grid.replaceChildren();
+                if (!next.length) grid.textContent = 'Sin más eventos publicados para este año.';
+                for (const event of next) {
+                    const days = Math.round((Date.parse(event.date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000);
+                    const row = document.createElement('div');
+                    row.className = 'grid grid-cols-[92px_1fr_auto] sm:grid-cols-[112px_1fr_100px_105px] items-center gap-2 py-2 text-xs sm:text-sm';
+                    const date = document.createElement('time'); date.dateTime = event.date; date.className = 'font-semibold tabular-nums text-slate-800'; date.textContent = new Date(event.date + 'T12:00:00Z').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                    const label = document.createElement(event.url ? 'a' : 'span'); label.textContent = event.label; label.className = 'text-slate-700' + (event.url ? ' underline decoration-slate-300' : ''); if (event.url) { label.href = event.url; label.target = '_blank'; label.rel = 'noopener noreferrer'; }
+                    const source = document.createElement('span'); source.className = 'hidden sm:inline text-slate-500'; source.textContent = event.source === 'fallback' ? 'Prevista' : event.source;
+                    const remaining = document.createElement('strong'); remaining.className = 'text-right text-sky-800 tabular-nums'; remaining.textContent = days === 0 ? 'Hoy' : days === 1 ? 'Mañana' : 'En ' + days + ' días';
+                    row.append(date, label, source, remaining); grid.append(row);
+                }
                 const note = grid.parentElement?.querySelector('[data-calendar-source]');
-                if (note) note.textContent = `Fuente calendario: ${macroCalendarSource === 'fallback' ? 'fallback local' : 'fuentes oficiales'}; actualizado al recargar.`;
+                if (note) note.textContent = `Fuente calendario: ${macroCalendarSource === 'fallback' ? 'fechas previstas locales' : macroCalendarSource === 'official+fallback' ? 'fuentes oficiales y algunas fechas previstas' : 'fuentes oficiales'}; actualizado al recargar.`;
             }
             function renderMacroChart(group) {
                 const payload = macroRawData[group.key];
@@ -13286,7 +13294,7 @@
             function formatChange(value, diffMode) { if (!Number.isFinite(value)) return '-'; return diffMode ? `${value >= 0 ? '+' : ''}${value.toFixed(2)} pp` : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`; }
             function formatMacroNumber(value) { return Number.isFinite(value) ? value.toFixed(Math.abs(value) >= 100 ? 1 : 2) : '-'; }
             function formatMacroDate(date) { return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '-'; }
-            function updateMacroSourceLabel(group, payload) { const el = document.getElementById(group.sourceId); if (!el) return; const series = payload?.series || []; const sources = series.filter(s => s.observations && s.observations.length).map(s => `${s.label}: ${s.source}`); const warnings = (payload?.warnings || []).slice(0, 3); el.innerHTML = sources.length ? `Fuentes: ${sources.join(' | ')}${warnings.length ? `<br><span class="text-amber-600">Avisos: ${warnings.join(' | ')}</span>` : ''}` : 'Sin fuentes disponibles.'; }
+            function updateMacroSourceLabel(group, payload) { const el = document.getElementById(group.sourceId); if (!el) return; const series = payload?.series || []; const sources = series.filter(s => s.observations && s.observations.length).map(s => `${s.label}: ${s.source}`); const warnings = (payload?.warnings || []).slice(0, 3); const stale = payload?.period && payload.period !== macroPeriod ? `<br><span class="text-amber-700">Se conserva el periodo ${payload.period}; no se pudo actualizar a ${macroPeriod}.</span>` : ''; el.innerHTML = sources.length ? `Fuentes: ${sources.join(' | ')}${warnings.length ? `<br><span class="text-amber-600">Avisos: ${warnings.join(' | ')}</span>` : ''}${stale}` : 'Sin fuentes disponibles.'; }
             macroCalendarEvents = MACRO_EVENTS_2026;
             renderMacroCalendar();
         </script>

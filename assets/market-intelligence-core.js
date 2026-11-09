@@ -35,16 +35,18 @@
         return { slope, intercept, r2: Math.max(0, Math.min(1, 1 - residual / yy)), n: points.length };
     }
 
-    function capeAnalysis(rows) {
+    function capeAnalysis(rows, horizonYears = 1) {
+        if (![1, 3, 5].includes(horizonYears)) throw new Error('Plazo CAPE no válido');
         const series = shillerSeries(rows);
         const byDate = new Map(series.map(row => [row.date, row]));
-        const points = series.filter(row => row.month === 12).map(row => {
-            const future = byDate.get((row.year + 1) + '-12');
-            return future ? { date: row.date, x: row.cape, y: (future.realTotalReturn / row.realTotalReturn - 1) * 100 } : null;
+        const firstDecember = series.find(row => row.month === 12)?.year;
+        const points = series.filter(row => row.month === 12 && (row.year - firstDecember) % horizonYears === 0).map(row => {
+            const future = byDate.get((row.year + horizonYears) + '-12');
+            return future ? { date: row.date, x: row.cape, y: ((future.realTotalReturn / row.realTotalReturn) ** (1 / horizonYears) - 1) * 100 } : null;
         }).filter(Boolean);
         const fit = regression(points);
         const latest = series.at(-1);
-        return { points, fit, latest: { date: latest.date, cape: latest.cape }, fittedAtLatest: fit.intercept + fit.slope * latest.cape };
+        return { points, fit, horizonYears, latest: { date: latest.date, cape: latest.cape }, fittedAtLatest: fit.intercept + fit.slope * latest.cape };
     }
 
     const api = { shillerSeries, regression, capeAnalysis };
