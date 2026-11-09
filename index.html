@@ -22,6 +22,7 @@
     <script src="assets/market-drawdown.js"></script>
     <script src="assets/market-intelligence-core.js"></script>
     <script defer src="assets/market-intelligence.js"></script>
+    <script defer src="assets/individual-valuation.js"></script>
     <script src="assets/financial-education-core.js"></script>
     <script src="assets/financial-education-advanced-core.js"></script>
     <script defer src="assets/financial-education.js"></script>
@@ -257,6 +258,21 @@
                             <p class="text-xs text-slate-500 mt-3">Fuente: <a href="https://shillerdata.com/" target="_blank" rel="noopener noreferrer" class="underline">Robert Shiller, ie_data.xls</a>. Se consulta de nuevo al pulsar «Cargar Mercados»; la fuente se publica mensualmente y puede ir retrasada. La banda discontinua marca el CAPE publicado. El punto naranja aplica la recta histórica a ese CAPE; no es un retorno realizado ni una previsión fiable. Muestras de diciembre sin solapamiento para cada plazo; retornos reales totales acumulados con dividendos reinvertidos, sin anualizar. A 5 años hay menos observaciones y el ajuste es sensible al periodo inicial. CAPE no es el PER convencional. Un R² bajo implica escasa capacidad explicativa.</p>
                         </div>
                     </div>
+                </section>
+                <section class="border-y border-slate-200 bg-white py-5" aria-labelledby="worldPeTitle">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h2 id="worldPeTitle" class="text-lg font-bold text-slate-800">PER histórico por mercado</h2>
+                        <label class="text-sm text-slate-700">Mercado
+                            <select id="worldPeMarket" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="loadWorldPe()">
+                                <option value="world">MSCI World · proxy URTH</option>
+                                <option value="emerging">Emergentes · proxy EEM</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p id="worldPeStatus" class="mt-1 text-xs text-slate-500" role="status">Pulsa «Cargar Mercados» para actualizar el PER.</p>
+                    <div id="worldPeChart" class="min-h-[330px]"></div>
+                    <p id="worldPeSummary" class="text-sm text-slate-700"></p>
+                    <p class="mt-2 text-xs text-slate-500">Fuente: <a id="worldPeSource" class="underline" href="https://worldperatio.com/" target="_blank" rel="noopener noreferrer">WorldPEratio</a>. PER estimado del ETF proxy; no es CAPE ni el PER oficial del índice. Las fechas del gráfico son marcas mensuales del proveedor, no fechas exactas de publicación. Histórico sujeto a cambios en la página de origen.</p>
                 </section>
                 <section class="bg-white border border-slate-200 p-5" aria-label="Drawdown y recuperación">
                     <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-bold text-slate-800">Drawdown y recuperación</h2><label class="text-sm text-slate-600">Universo <select id="marketDrawdownGroup" class="border border-slate-300 bg-white p-2" onchange="renderMarketDrawdown()"><option value="indices">Índices RV</option><option value="assets">Clases de activo</option><option value="currencies">Divisas contra EUR</option></select></label></div>
@@ -8727,6 +8743,10 @@
                             class="tab-btn active px-6 py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
                             <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>General
                         </button>
+                        <button onclick="switchTab('valuation')" id="tab-valuation"
+                            class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
+                            <i class="fa-solid fa-magnifying-glass-chart mr-2"></i>Valoración · piloto
+                        </button>
 
                         <button onclick="switchTab('drawdown')" id="tab-drawdown"
                             class="tab-btn px-6 py-3 text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 focus:outline-none transition-colors hover:bg-gray-50 whitespace-nowrap">
@@ -8870,6 +8890,21 @@
                     </div>
 
                     <!-- Markets tab moved to top-level section -->
+
+                    <div id="content-valuation" class="tab-content space-y-6">
+                        <section class="border-y border-slate-200 bg-white py-5" aria-labelledby="individualValuationTitle">
+                            <h2 id="individualValuationTitle" class="text-lg font-bold text-slate-800">Múltiplos de la compañía · piloto</h2>
+                            <p class="mt-1 text-sm text-slate-600">Ticker seleccionado: <strong id="individualValuationTicker">—</strong>. Datos históricos disponibles en Yahoo Finance; la cobertura varía por compañía y métrica.</p>
+                            <p id="individualValuationStatus" role="status" class="mt-2 text-xs text-slate-500">Selecciona esta pestaña para consultar los múltiplos.</p>
+                            <div id="individualValuationCards" class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3"></div>
+                            <label class="mt-5 inline-block text-sm text-slate-700">Histórico de
+                                <select id="individualValuationMetric" class="ml-2 border border-slate-300 bg-white px-2 py-1" onchange="renderIndividualValuation()"></select>
+                            </label>
+                            <div id="individualValuationChart" class="min-h-[340px]"></div>
+                            <div class="max-h-56 overflow-auto"><table class="w-full text-sm"><thead><tr class="border-b border-slate-200"><th class="py-2 text-left">Fecha</th><th class="py-2 text-right">Múltiplo</th></tr></thead><tbody id="individualValuationRows"></tbody></table></div>
+                            <p class="mt-3 text-xs text-slate-500">Fuente: <a id="individualValuationSource" href="https://finance.yahoo.com/" target="_blank" rel="noopener noreferrer" class="underline">Yahoo Finance</a>. PER histórico y EV/EBITDA se muestran como ratios publicados, sin interpolar ni completar huecos. PER estimado incorpora previsiones de beneficios y no es comparable directamente con el histórico. La fecha corresponde al dato proporcionado por Yahoo, no necesariamente al cierre contable.</p>
+                        </section>
+                    </div>
 
                     <!-- TAB 2: Drawdown + Dip + Duration -->
                     <div id="content-drawdown" class="tab-content space-y-6">
@@ -9854,6 +9889,7 @@
 
                 document.querySelectorAll('.tab-content').forEach(div => div.classList.remove('active'));
                 document.getElementById(`content-${tabName}`).classList.add('active');
+                if (tabName === 'valuation') loadIndividualValuation();
 
                 window.dispatchEvent(new Event('resize'));
             }
