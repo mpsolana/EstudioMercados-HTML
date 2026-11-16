@@ -123,7 +123,8 @@ function renderInitialRateSensitivity(){
 function portfolioWorkspaceReady(){return Boolean(fundUniverseState?.records?.length || fundPortfolioRows?.length || GdcModel.state.models.length);}
 function portfolioWorkspaceWarning(){
     const scope=PortfolioWorkspace.scope,tool=PortfolioWorkspace.tool;
-    if(scope==='data')return portfolioWorkspaceReady()?'':'Carga el ranking del universo o el Excel de cartera modelo para empezar.';
+    if(scope==='data')return portfolioWorkspaceReady()?'':'Para el análisis de fondos, carga el ranking del universo o el Excel de cartera modelo.';
+    if(scope==='initial'&&PortfolioWorkspace.step==='rates')return '';
     const missing=[];
     if(['initial','aggregate','screener','model'].includes(scope)&&!fundUniverseState?.records?.length)missing.push('ranking del universo');
     if(scope==='initial'&&!fundPortfolioRows?.length&&!fundProposalState?.rows?.length)missing.push('cartera modelo u origen manual');
@@ -183,7 +184,10 @@ function invalidatePortfolioReports() {
 function portfolioWorkflowRefresh() {
     const w = PortfolioWorkspace;
     const calculationHelp=document.querySelector('.workspace-calculation-help');if(calculationHelp)calculationHelp.hidden=w.scope!=='individual'||w.step!=='diagnosis'||!['main','yahoo'].includes(w.tool);
-    document.querySelectorAll('[data-workspace-scope]').forEach(b=>{if(b.dataset.workspaceScope!=='data')b.disabled=!portfolioWorkspaceReady();});
+    const ready = portfolioWorkspaceReady();
+    document.querySelectorAll('[data-workspace-scope]').forEach(button => {
+        button.disabled = !ready && !['data', 'initial'].includes(button.dataset.workspaceScope);
+    });
     document.querySelector('.workspace-steps').hidden=['data','model','comparison'].includes(w.scope);
     const warning=document.getElementById('workspaceMissingData');warning.textContent=portfolioWorkspaceWarning();warning.hidden=!warning.textContent;
     if(w.scope==='data'){
@@ -209,7 +213,7 @@ function portfolioWorkflowRefresh() {
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         return;
     }
-    const steps = w.scope === 'initial' ? ['proposal','metrics','rates','report'] : w.scope === 'individual' ? ['diagnosis','frontier','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
+    const steps = w.scope === 'initial' ? (ready ? ['proposal','metrics','rates','report'] : ['rates']) : w.scope === 'individual' ? ['diagnosis','frontier','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[0];
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
@@ -315,7 +319,29 @@ function initializePortfolioWorkspace() {
     ratesPanel.querySelector('#initialRateScenarioChart').insertAdjacentHTML('afterend','<div class="rate-visual-grid"><div id="initialRateCurve"></div><div id="initialSpreadCurve"></div><div id="initialCombinedHeat"></div><div id="initialRateWaterfall"></div></div>');
     ratesPanel.querySelector('#initialRateScenarioChart').insertAdjacentHTML('beforebegin','<section class="rate-simple"><h4>Sensibilidad simple a tipos</h4><p class="workspace-context">Shock paralelo e instantáneo; muestra solo el efecto de duración modificada en RF. Sin diferenciales, carry ni cambios en el resto de la cartera.</p><div id="initialSimpleRateChart" class="initial-rate-chart"></div><div class="proposal-chart-scroll"><table class="wide-report-table"><thead><tr><th>Movimiento tipos</th><th>RF (%)</th><th>Impacto RF (EUR)</th><th>Cartera (%)</th><th>Valor estimado</th></tr></thead><tbody id="initialSimpleRateBody"></tbody></table></div></section>');
     ratesPanel.querySelector('#initialRateMethod').textContent='Estimación de primer orden: tipos y spreads se modelan por separado en pb; el resto de activos permanece constante. La duración modificada mide sensibilidad al rendimiento propio y puede diferir de la duración frente a la curva libre de riesgo; verifica esta aproximación en crédito y bonos con opciones. El carry, si se activa, es YTM anual × meses/12 y no es una rentabilidad garantizada. No se incluyen convexidad, cupones, impagos, liquidez, divisa ni reacción de otros activos. Los escenarios son hipótesis, no previsiones.';
-    ratesPanel.addEventListener('input',renderInitialRateSensitivity);
+    const mandatePanel = document.createElement('div');
+    mandatePanel.id = 'workspacePortfolioMandate';
+    mandatePanel.className = 'mt-6';
+    ratesPanel.append(mandatePanel);
+    const mandateLink = document.createElement('button');
+    mandateLink.type = 'button';
+    mandateLink.className = 'px-3 py-2 mt-2 border border-slate-300 rounded text-sm font-semibold bg-white hover:bg-slate-100';
+    mandateLink.textContent = 'Ir a ingresos, vencimientos y plusvalías';
+    mandateLink.addEventListener('click', () => {
+        mandatePanel.querySelector('h3')?.focus();
+        mandatePanel.scrollIntoView({ block: 'start' });
+    });
+    ratesPanel.querySelector('h3').after(mandateLink);
+    PortfolioMandate.mount(mandatePanel, () => ({
+        value: ratesPanel.querySelector('#initialRateAmount').value,
+        rf: ratesPanel.querySelector('#initialRateWeight').value,
+        duration: ratesPanel.querySelector('#initialRateDuration').value,
+        ytm: ratesPanel.querySelector('#initialRateYtm').value,
+        shock: ratesPanel.querySelector('#initialRateShock').value
+    }));
+    ratesPanel.addEventListener('input', event => {
+        if (!mandatePanel.contains(event.target)) renderInitialRateSensitivity();
+    });
     window.addEventListener('resize',()=>{if(ratesPanel.hidden)return;for(const chart of ratesPanel.querySelectorAll('.js-plotly-plot'))requestAnimationFrame(()=>Plotly.Plots.resize(chart));});
     const frontierPanel=document.createElement('section');frontierPanel.id='workspaceIndividualFrontier';frontierPanel.className='workspace-panel initial-frontier';frontierPanel.dataset.workspacePanel='';root.append(frontierPanel);EfficientFrontierView.init(frontierPanel);
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
@@ -410,7 +436,7 @@ function initializePortfolioWorkspace() {
         const b = event.target.closest('button'); if (!b) return;
         if (b.dataset.workspaceScope) {
             PortfolioWorkspace.scope = b.dataset.workspaceScope;
-            PortfolioWorkspace.step = b.dataset.workspaceScope === 'initial' ? 'proposal' : 'diagnosis';
+            PortfolioWorkspace.step = b.dataset.workspaceScope === 'initial' ? (portfolioWorkspaceReady() ? 'proposal' : 'rates') : 'diagnosis';
             PortfolioWorkspace.tool = b.dataset.workspaceScope === 'aggregate' ? 'aggregate' : b.dataset.workspaceScope === 'screener' ? 'screener' : 'main';
             if (b.dataset.workspaceScope === 'screener') showPortfolioSubtab('screener');
         }
