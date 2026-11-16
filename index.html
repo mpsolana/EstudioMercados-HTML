@@ -778,6 +778,8 @@
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Distribución de activos</button>
                     <button id="portfolioSubtab-scoring" onclick="showPortfolioSubtab('scoring')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Scoring de Cartera</button>
+                    <button id="portfolioSubtab-mandate" onclick="showPortfolioSubtab('mandate')"
+                        class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Duración y sensibilidad</button>
                     <button id="portfolioSubtab-massive" onclick="showPortfolioSubtab('massive')"
                         class="portfolio-subtab-btn px-4 py-2 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-800">Comparador masivo</button>
                     <button id="portfolioSubtab-funds" onclick="showPortfolioSubtab('funds')"
@@ -1120,6 +1122,8 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="portfolioSubtabContent-mandate" class="portfolio-subtab-content hidden mt-6"></div>
 
                 <div id="portfolioSubtabContent-massive" class="portfolio-subtab-content hidden mt-6 space-y-4">
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -13311,6 +13315,7 @@
 
     </div>
 
+    <script src="./portfolio-mandate.js"></script>
 </body>
 
 
