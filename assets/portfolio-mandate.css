@@ -25,3 +25,6 @@
 .mandate-report .mandate-calendar th:nth-child(4) { text-align:right }
 .mandate-report .mandate-table thead th { background:var(--mandate-navy); color:#fff }
 .mandate-report .mandate-forecast small { color:#426079 }
+.mandate-report .mandate-sales-table td:not(:first-child),
+.mandate-report .mandate-sales-table th:not(:first-child) { text-align:right }
+.mandate-report .mandate-sales-table .mandate-sale-input { width:6rem; text-align:right }

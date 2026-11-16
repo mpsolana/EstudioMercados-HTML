@@ -34,15 +34,77 @@
     const currency = value => String(value ?? '').trim().toUpperCase();
     const sheetTypes = { OPERACIONES: 'trades', 'MOVIMIENTOS DE EFECTIVO': 'cash' };
 
+    function readPositions(rows, header) {
+        const columns = rows[header].map(normalize);
+        const cell = (row, name) => row[columns.indexOf(name)];
+        const date = isoDate(rows.slice(0, header).find(row => normalize(row[0]) === 'FECHA DE REFERENCIA')?.[1]);
+        if (!date) throw new Error('La posición necesita una Fecha de Referencia válida.');
+        const exchanges = new Map();
+        for (let i = header + 1; i + 1 < rows.length; i++) {
+            const ccy = currency(rows[i][1]);
+            const rate = numeric(rows[i + 1][1]);
+            if (/^[A-Z]{3}$/.test(ccy) && normalize(rows[i + 1][0]) === '1 EUR' && rate > 0) exchanges.set(ccy, rate);
+        }
+        const assets = new Map();
+        const issues = [];
+        for (const row of rows.slice(header + 1)) {
+            const key = id(cell(row, 'ISIN')).toUpperCase();
+            if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(key)) continue;
+            const name = id(cell(row, 'PRODUCTO')) || key;
+            const units = numeric(cell(row, 'TITULOS NOMINAL'));
+            const price = numeric(cell(row, 'PRECIO DE MERCADO'));
+            const localValue = numeric(cell(row, 'VALOR DE MERCADO'));
+            const marketValue = numeric(cell(row, 'CONTRAVALOR EN EUR'));
+            const localCost = numeric(cell(row, 'COSTE ADQUISICION'));
+            const fx = localValue > 0 && marketValue >= 0 ? marketValue / localValue : NaN;
+            const zeroValue = marketValue === 0 && localValue === 0;
+            const ccy = Math.abs(fx - 1) < 0.0001 ? 'EUR' :
+                [...exchanges].find(([, rate]) => Math.min(Math.abs(rate - fx), Math.abs(1 / rate - fx)) < 0.0001)?.[0] || '';
+            const bond = numeric(cell(row, 'PRECIO EXCUPON')) > 0 && Boolean(bondTerms(name).maturity);
+            if (!(units > 0) || !(marketValue >= 0)) {
+                issues.push(name);
+                continue;
+            }
+            const cost = fx > 0 && localCost >= 0 ? localCost * fx : NaN;
+            const asset = { key, name, units, price, ccy, fx, cost, marketValue, bond, imported: true };
+            if (!(cost >= 0) || zeroValue) issues.push(name);
+            const previous = assets.get(key);
+            if (previous) {
+                if (previous.ccy !== ccy || previous.bond !== bond || !Number.isFinite(previous.fx) || !Number.isFinite(fx) ||
+                    Math.abs(previous.fx - fx) > 0.0001) {
+                    throw new Error('La posición repite un ISIN con divisa o tipo incoherentes: ' + key);
+                }
+                asset.units += previous.units;
+                asset.price = (price * units + previous.price * previous.units) / asset.units;
+                asset.cost += previous.cost;
+                asset.marketValue += previous.marketValue;
+            }
+            assets.set(key, asset);
+        }
+        if (!assets.size) throw new Error('La posición no contiene filas con ISIN, cantidad y contravalor válidos.');
+        return { date, assets: [...assets.values()], issues };
+    }
+
     function readWorkbook(workbook, xlsx) {
         const result = {};
         for (const sheet of workbook.SheetNames) {
-            const type = sheetTypes[normalize(sheet)];
-            if (!type) continue;
-            if (result[type]) throw new Error('El libro contiene dos hojas del mismo tipo.');
-            const [headers = [], ...rows] = xlsx.utils.sheet_to_json(workbook.Sheets[sheet], {
+            const rowsWithHeaders = xlsx.utils.sheet_to_json(workbook.Sheets[sheet], {
                 header: 1, raw: true, defval: null, blankrows: false
             });
+            const type = sheetTypes[normalize(sheet)];
+            if (!type) {
+                const positionHeader = rowsWithHeaders.findIndex(row => {
+                    const columns = row.map(normalize);
+                    return ['PRODUCTO', 'ISIN', 'TITULOS NOMINAL', 'PRECIO DE MERCADO', 'COSTE ADQUISICION',
+                        'VALOR DE MERCADO', 'CONTRAVALOR EN EUR'].every(name => columns.includes(name));
+                });
+                if (positionHeader < 0) continue;
+                if (result.positions) throw new Error('El libro contiene más de una hoja de posiciones.');
+                result.positions = readPositions(rowsWithHeaders, positionHeader);
+                continue;
+            }
+            if (result[type]) throw new Error('El libro contiene dos hojas del mismo tipo.');
+            const [headers = [], ...rows] = rowsWithHeaders;
             const columns = headers.map(normalize);
             const fields = type === 'trades'
                 ? ['TRANSACTION CODE', 'TRANSACTION STATUS', 'TRANSACTIONS', 'SETTLEMENT DATE CUSTOMER', 'NET AMOUNT', 'CURRENCY', 'ISIN']
@@ -58,7 +120,7 @@
                     const fixedIncome = normalize(get(row, 'PRODUCT TYPE')) === 'RENTA FIJA' || /^(COMPRA|VENTA) RF\b/.test(movement);
                     const bondMovement = !fixedIncome ? 0 : /^COMPRA\b/.test(movement) ? 1 :
                         /^(VENTA|AMORTIZACION|REEMBOLSO)\b/.test(movement) ? -1 : 0;
-                    return { code: id(code), bondMovement, disposal: /^(VENTA|REEMBOLSO|AMORTIZACI)/.test(movement),
+                    return { code: id(code), bondMovement, positionMovement: /^(COMPRA|VENTA|SUSCRIPCI|REEMBOLSO|AMORTIZACI|TRASPASO)/.test(movement), disposal: /^(VENTA|REEMBOLSO|AMORTIZACI)/.test(movement),
                         nominal: currency(ccy) === 'EUR' ? numeric(get(row, 'TOTAL NOMINAL')) : NaN, confirmed: normalize(status) === 'DEFINITIVA', kind: classify(event),
                         date: isoDate(date ?? get(row, 'VALUE DATE') ?? get(row, 'TRADE DATE')),
                         amount: numeric(amount), ccy: currency(ccy), fx: numeric(get(row, 'EUR CURRENCY PRICE CHANGE')),
@@ -71,7 +133,7 @@
                     fx: numeric(get(row, 'TIPO DE CAMBIO')), isin: id(isin).toUpperCase(), name: id(get(row, 'CONCEPTO')) };
             }).filter(row => row.date || row.kind || row.code);
         }
-        if (!Object.keys(result).length) throw new Error('El libro debe contener Operaciones o Movimientos de efectivo.');
+        if (!Object.keys(result).length) throw new Error('El libro debe contener Operaciones, Movimientos de efectivo o el extracto de posición.');
         return result;
     }
 
@@ -174,7 +236,7 @@
         return (ordered[Math.floor((ordered.length - 1) / 2)] + ordered[Math.floor(ordered.length / 2)]) / 2;
     };
 
-    function projectPayments(history, trades, rules, cutoff) {
+    function projectPayments(history, trades, rules, cutoff, snapshot) {
         const instruments = new Map();
         function register(kind, isin, name) {
             const key = seriesKey(kind, isin, name);
@@ -182,6 +244,10 @@
             return instruments.get(key);
         }
         for (const row of history.filter(row => row.amount > 0)) register(row.kind, row.isin, row.name).history.push(row);
+        const holdings = new Map((snapshot?.assets || []).map(asset => [asset.key, asset]));
+        for (const position of holdings.values()) {
+            if (position.bond) register('Cupón', position.key, position.name);
+        }
         const seen = new Set();
         for (const trade of trades) {
             if (!trade.confirmed || !trade.date || trade.date > cutoff || !trade.isin) continue;
@@ -209,7 +275,8 @@
         for (const instrument of instruments.values()) {
             const { key, kind, isin } = instrument;
             const rule = instrument.rule || {};
-            const name = rule.name || instrument.name;
+            const holding = holdings.get(isin);
+            const name = rule.name || holding?.name || instrument.name;
             const isBond = kind === 'Cupón';
             const terms = isBond ? bondTerms(name) : {};
             const maturity = isoDate(rule.maturity) || terms.maturity || '';
@@ -226,9 +293,10 @@
             let historicalNominal = NaN;
             let soldOrRedeemed = false;
             let changedAfterCoupon = false;
+            let couponNominal = NaN;
             for (const trade of instrument.trades.sort((a, b) => a.date.localeCompare(b.date))) {
                 if (trade.kind === 'Cupón' && trade.nominal > 0) {
-                    historicalNominal = trade.nominal;
+                    couponNominal = historicalNominal = trade.nominal;
                     changedAfterCoupon = false;
                     soldOrRedeemed = false;
                 } else if (trade.bondMovement && trade.nominal > 0) {
@@ -240,6 +308,17 @@
                     soldOrRedeemed = true;
                 }
             }
+            if (snapshot && holding?.bond) {
+                historicalNominal = holding.units;
+                changedAfterCoupon = Number.isFinite(couponNominal) && couponNominal !== holding.units;
+                soldOrRedeemed = false;
+                for (const trade of instrument.trades.filter(trade => trade.date > snapshot.date && trade.bondMovement)) {
+                    if (trade.nominal > 0) historicalNominal = Math.max(0, historicalNominal + trade.nominal * trade.bondMovement);
+                    else if (trade.bondMovement < 0) soldOrRedeemed = true;
+                    changedAfterCoupon = true;
+                }
+            }
+            if (holding && !isBond) soldOrRedeemed = instrument.trades.some(trade => trade.date > snapshot.date && trade.disposal);
             const nominal = rule.nominal === '' || rule.nominal == null ? historicalNominal : numeric(rule.nominal);
             const manualStep = scheduleSteps.includes(Number(rule.frequency)) ? Number(rule.frequency) : 0;
             const step = manualStep || inferredStep || (isBond && maturity ? 12 : 0);
@@ -250,7 +329,9 @@
             const gross = !Number.isFinite(net) && isBond && (!Number.isFinite(average) || changedAfterCoupon || Number.isFinite(numeric(rule.nominal)) || Number.isFinite(numeric(rule.coupon)) || Boolean(manualStep));
             const amount = Number.isFinite(net) ? net : gross ? contractual : isBond ? amounts.at(-1) : average;
             const explicitHolding = isBond ? numeric(rule.nominal) > 0 : Boolean(next);
-            const excluded = Boolean(rule.excluded) || (soldOrRedeemed && !explicitHolding) || (isBond && nominal === 0);
+            const newAfterSnapshot = snapshot && instrument.trades.some(trade => trade.date > snapshot.date && trade.bondMovement > 0);
+            const missingFromSnapshot = snapshot && isin && !holding && !newAfterSnapshot && !explicitHolding;
+            const excluded = Boolean(rule.excluded) || missingFromSnapshot || (soldOrRedeemed && !explicitHolding) || (isBond && nominal === 0);
             const amountSource = Number.isFinite(net) ? 'Neto manual' : gross ? 'Bruto por nominal y cupón' : isBond ? 'Último cupón neto' : 'Media de dividendos netos';
             const repeatDay = isBond && maturity ? Number(maturity.slice(8)) : Math.round(median(observedDates.map(date => Number(date.slice(8)))));
             let schedule = [];
@@ -300,10 +381,13 @@
 
     function calculate(state, sources) {
         const errors = [];
-        const dates = Object.values(sources).flatMap(rows => rows.map(r => r.date).filter(Boolean));
-        const cutoff = isoDate(state.cutoff) || dates.sort().at(-1) || '';
+        const dates = [...(sources.trades || []), ...(sources.cash || [])].map(row => row.date).filter(Boolean);
+        const snapshot = sources.positions;
+        const snapshotTotal = snapshot ? sum(snapshot.assets, asset => asset.marketValue) : NaN;
+        const cutoff = isoDate(state.cutoff) || [...dates, snapshot?.date].filter(Boolean).sort().at(-1) || '';
         const year = cutoff.slice(0, 4);
         const actual = received(sources, cutoff);
+        const activeSnapshot = snapshot?.date <= cutoff ? snapshot : null;
         const hasYearData = dates.some(date => date.startsWith(year));
         const coupons = sum(actual.payments.filter(row => row.kind === 'Cupón'), row => row.amount);
         const dividends = sum(actual.payments.filter(row => row.kind === 'Dividendo'), row => row.amount);
@@ -333,7 +417,7 @@
         }).sort((a, b) => a.date.localeCompare(b.date));
         const historyStart = cutoff ? inMonth(cutoff, -18) : '';
         const history = received(sources, cutoff, true).payments.filter(row => row.date >= historyStart);
-        const projection = projectPayments(history, sources.trades || [], state.rules || {}, cutoff);
+        const projection = projectPayments(history, sources.trades || [], state.rules || {}, cutoff, activeSnapshot);
         const overrides = (a, b) => a.kind === b.kind && dateGap(a.date, b.date) <= 10 &&
             (a.isin && b.isin ? a.isin === b.isin : normalize(a.name) === normalize(b.name));
         const calendar = [...manualCalendar, ...projection.calendar.filter(auto => !manualCalendar.some(manual => overrides(manual, auto)))]
@@ -344,7 +428,7 @@
         const pendingCoupons = sum(calendar.filter(r => r.kind === 'Cupón' && Number.isFinite(r.amount)), r => r.amount);
         const pendingDividends = sum(calendar.filter(r => r.kind === 'Dividendo' && Number.isFinite(r.amount)), r => r.amount);
         const base = coupons + dividends + pendingCoupons + pendingDividends;
-        const value = numeric(state.value);
+        const value = numeric(state.value) > 0 ? numeric(state.value) : activeSnapshot ? snapshotTotal : NaN;
         const rf = numeric(state.rf) / 100;
         const duration = numeric(state.duration);
         const ytm = numeric(state.ytm);
@@ -368,14 +452,24 @@
                 !(asset.fx > 0) || !(asset.cost >= 0) || !(asset.sale >= 0 && asset.sale <= 1)) return null;
             return asset;
         }, errors);
+        const changed = new Set((sources.trades || []).filter(trade => trade.confirmed && trade.positionMovement &&
+            activeSnapshot && trade.date > activeSnapshot.date && trade.date <= cutoff).map(trade => trade.isin));
         const prices = new Map();
-        for (const asset of assets) {
-            if (prices.has(asset.key)) errors.push('Código de activo duplicado: ' + asset.key);
-            else prices.set(asset.key, asset);
+        for (const asset of activeSnapshot?.assets || []) {
+            if (!(asset.cost >= 0) || changed.has(asset.key)) continue;
+            const sale = numeric(state.sales?.[asset.key]) / 100;
+            prices.set(asset.key, { ...asset, sale: sale >= 0 && sale <= 1 ? sale : 0 });
         }
-        const gain = (asset, change = 0) => asset.units * asset.price * asset.fx * (1 + change) - asset.cost;
+        const manualKeys = new Set();
+        for (const asset of assets) {
+            if (manualKeys.has(asset.key)) errors.push('Código de activo duplicado: ' + asset.key);
+            else prices.set(asset.key, { ...asset, marketValue: asset.units * asset.price * asset.fx });
+            manualKeys.add(asset.key);
+        }
+        const gain = (asset, change = 0) => asset.marketValue * (1 + change) - asset.cost;
         const possible = sum([...prices.values()], asset => Math.max(0, gain(asset)));
         const selected = sum([...prices.values()], asset => gain(asset) * asset.sale);
+        const proceeds = sum([...prices.values()], asset => asset.marketValue * asset.sale);
         const scenarioInputs = parseRows(state.scenarioRows, 'Escenarios', 3, ([name, key, change]) => {
             if (!name || !prices.has(key.toUpperCase()) || !(numeric(change) >= -100)) return null;
             return { name, key: key.toUpperCase(), change: numeric(change) / 100 };
@@ -389,14 +483,15 @@
         }
         const scenarios = [...grouped].map(([name, shifts]) => {
             const realized = sum([...prices.values()], asset => gain(asset, shifts.get(asset.key)) * asset.sale);
-            const retained = sum([...prices.values()], asset => asset.units * asset.price * asset.fx * (shifts.get(asset.key) || 0) * (1 - asset.sale));
+            const retained = sum([...prices.values()], asset => asset.marketValue * (shifts.get(asset.key) || 0) * (1 - asset.sale));
             return { name, realized, retained, details: [...shifts].map(([key, change]) => {
                 const asset = prices.get(key);
-                return { name: asset.name, ccy: asset.ccy, change, price: asset.price * (1 + change), gain: gain(asset, change) };
+                return { name: asset.name, ccy: asset.ccy || 'divisa local', change, price: asset.price * (1 + change), gain: gain(asset, change) };
             }) };
         });
-        return { cutoff, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds,
-            value, rf, rfValue, duration, ytm, goal, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()], scenarios };
+        return { cutoff, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds, snapshot, snapshotTotal, activeSnapshot, changed, proceeds,
+            value, rf, rfValue, duration, ytm, goal, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()].map(asset => ({ ...asset,
+                gain: gain(asset) })).sort((a, b) => b.gain - a.gain), scenarios };
     }
 
     const ruleFields = ['name', 'isin', 'kind', 'next', 'frequency', 'net', 'nominal', 'coupon', 'maturity', 'ytm', 'group', 'excluded'];
@@ -538,13 +633,13 @@
             <section class="${cardStyle}">
                 <h3 tabindex="-1" class="mandate-title">Ingresos, vencimientos y plusvalías</h3>
                 <div class="mt-4 flex flex-wrap items-end gap-3">
-                    <label class="block text-sm font-semibold">Extractos YTD (.xlsx o .xls)<input data-extract type="file" multiple accept=".xlsx,.xls" class="${inputStyle}"></label>
+                    <label class="block text-sm font-semibold">Extractos YTD y posición (.xlsx o .xls)<input data-extract type="file" multiple accept=".xlsx,.xls" class="${inputStyle}"></label>
 
                     <button type="button" data-save class="${buttonStyle}">Guardar supuestos</button>
                     <label class="${buttonStyle} cursor-pointer">Cargar supuestos<input data-load type="file" accept=".json" class="sr-only"></label>
                     <button type="button" data-reset class="${buttonStyle}">Limpiar cartera</button>
                 </div>
-                <p data-import role="status" class="mt-2 text-sm text-slate-600">Carga un libro con ambas hojas o los dos extractos por separado. Cada carga reemplaza la hoja anterior del mismo tipo.</p>
+                <p data-import role="status" class="mt-2 text-sm text-slate-600">Carga Operaciones, Movimientos de efectivo y Posición de cartera juntos o por separado. Cada archivo sustituye al anterior del mismo tipo.</p>
                 <form novalidate>
                     <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
                         <label class="block text-sm font-semibold">Fecha de corte<input name="cutoff" type="date" class="${inputStyle}"></label>
@@ -556,7 +651,7 @@
                         ${numField('shock', 'Cambio de tipos de referencia (pb)')}
                         <label class="block text-sm font-semibold">Otros objetivos (€)<input name="alternatives" class="${inputStyle}" placeholder="100000; 150000"></label>
                     </div>
-                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma por defecto la última del extracto. Los campos de sensibilidad vacíos siguen al simulador de arriba. Puedes introducir un valor para este informe.</p>
+                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma la más reciente de los extractos. Los campos de sensibilidad vacíos siguen al simulador. Si falta el valor de cartera, se usa el contravalor total de la posición vigente.</p>
                     <details class="mt-4 border-t border-slate-200 pt-3">
                         <summary class="font-semibold cursor-pointer">Carga masiva de pagos, bonos y escenarios</summary>
                         <p class="mt-2 text-sm text-slate-600">Pega filas de Excel sin encabezados o escribe una fila por línea, separando las columnas con punto y coma. Fechas AAAA-MM-DD o DD/MM/AAAA. Importes sin separadores de miles.</p>
@@ -582,6 +677,8 @@
         const status = root.querySelector('[data-import]');
         let sources = {};
         let rules = Object.create(null);
+        let sales = Object.create(null);
+        let model;
         let revision = 0;
         const editor = paymentsEditor(root.querySelector('[data-payment-editor]'), (key, rule) => {
             rules[key] = rule;
@@ -598,7 +695,7 @@
                 input(name).placeholder = value || 'Sin dato';
                 if (!state[name]) state[name] = value;
             }
-            const model = calculate({ ...state, rules }, sources);
+            model = calculate({ ...state, rules, sales }, sources);
             editor.update(model.paymentAssets);
             root.querySelector('[data-errors]').textContent = model.errors.length ? 'Revisa estas filas: ' + model.errors.join(' · ') : '';
             renderDashboard(dashboard, model, input('alternatives').value, Object.keys(sources).length > 0);
@@ -612,7 +709,30 @@
         input('assetRows').addEventListener('input', refreshPositions);
         input('scenarioRows').addEventListener('input', refreshScenarios);
 
+        dashboard.addEventListener('change', event => {
+            const field = event.target.closest('[data-sale]');
+            if (!field) return;
+            const value = numeric(field.value);
+            if (value >= 0 && value <= 100) sales[field.dataset.sale] = field.value;
+            else if (!field.value) delete sales[field.dataset.sale];
+            else {
+                field.reportValidity();
+                return;
+            }
+            render();
+        });
+
         dashboard.addEventListener('click', event => {
+            if (event.target.closest('[data-select-gains]')) {
+                for (const asset of model.assets.filter(asset => asset.imported)) sales[asset.key] = asset.gain > 0 ? '100' : '0';
+                render();
+                return;
+            }
+            if (event.target.closest('[data-clear-sales]')) {
+                sales = Object.create(null);
+                render();
+                return;
+            }
             if (!event.target.closest('[data-jump-payments]')) return;
             const details = root.querySelector('[data-payment-details]');
             details.open = true;
@@ -646,13 +766,14 @@
                     const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
                     const parsed = readWorkbook(workbook, window.XLSX);
                     if (Object.keys(parsed).some(type => replacement[type])) {
-                        throw new Error('La selección contiene dos extractos del mismo tipo. Carga solo la versión vigente.');
+                        throw new Error('La selección contiene dos extractos del mismo tipo. Elige la versión vigente.');
                     }
                     Object.assign(replacement, parsed);
                 }
                 if (current !== revision) return;
                 sources = { ...sources, ...replacement };
-                status.textContent = `Operaciones: ${sources.trades?.length ?? 'sin cargar'} · Movimientos de efectivo: ${sources.cash?.length ?? 'sin cargar'}`;
+                status.textContent = `Operaciones: ${sources.trades?.length ?? 'sin cargar'} · Movimientos de efectivo: ${sources.cash?.length ?? 'sin cargar'} · Posición: ${sources.positions
+                    ? shortDate(sources.positions.date) + ' (' + sources.positions.assets.length + ' ISIN)' : 'sin cargar'}`;
                 render();
             } catch (error) {
                 if (current === revision) status.textContent = 'No se pudo importar. ' + error.message;
@@ -660,7 +781,7 @@
         });
 
         root.querySelector('[data-save]').addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify({ version: 2, inputs: readState(), rules }, null, 2)], { type: 'application/json' });
+            const blob = new Blob([JSON.stringify({ version: 3, inputs: readState(), rules, sales }, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const link = Object.assign(document.createElement('a'), { href: url, download: 'supuestos-cartera.json' });
             link.click();
@@ -675,8 +796,13 @@
             try {
                 const data = JSON.parse(await file.text());
                 if (current !== revision) return;
-                if (![1, 2].includes(data.version) || !data.inputs || fields.some(name => typeof data.inputs[name] !== 'string')) {
+                if (![1, 2, 3].includes(data.version) || !data.inputs || fields.some(name => typeof data.inputs[name] !== 'string')) {
                     throw new Error('Elige un archivo de supuestos guardado desde el panel.');
+                }
+                sales = Object.create(null);
+                for (const [key, value] of Object.entries(data.sales || {})) {
+                    const percent = numeric(value);
+                    if (/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(key) && percent >= 0 && percent <= 100) sales[key] = String(percent);
                 }
                 const hadSources = Object.keys(sources).length > 0;
                 sources = {};
@@ -701,6 +827,7 @@
             revision++;
             sources = {};
             form.reset();
+            sales = Object.create(null);
             rules = Object.create(null);
             editor.clear();
             syncEditors();
@@ -708,6 +835,29 @@
             render();
         });
         render();
+    }
+
+    function salesTable(assets, open) {
+        const positions = assets.filter(asset => asset.imported);
+        if (!positions.length) return '';
+        const rows = positions.map(asset => `<tr>
+            <td><strong>${safe(asset.name)}</strong><small>${safe(asset.key)}${asset.ccy ? ' · ' + safe(asset.ccy) : ''}</small></td>
+            <td>${money(asset.marketValue)}</td><td>${money(asset.cost)}</td>
+            <td class="${asset.gain < 0 ? 'text-red-700' : 'text-emerald-800'}">${money(asset.gain)}</td>
+            <td><input data-sale="${safe(asset.key)}" class="mandate-sale-input" type="number" step="0.01" min="0" max="100"
+                value="${+(asset.sale * 100).toFixed(2)}" aria-label="% a vender de ${safe(asset.name)}"></td>
+            <td>${money(asset.gain * asset.sale)}</td></tr>`).join('');
+        return `<details data-sales-details class="mt-4" ${open ? 'open' : ''}>
+            <summary class="cursor-pointer font-semibold">Posiciones importadas y porcentaje de venta</summary>
+            <div class="flex flex-wrap gap-2 mt-3 mb-3">
+                <button type="button" data-select-gains class="${buttonStyle}">Simular venta de posiciones con plusvalía</button>
+                <button type="button" data-clear-sales class="${buttonStyle}">Quitar ventas de la posición</button>
+            </div>
+            <div class="overflow-x-auto"><table class="mandate-table mandate-sales-table"><thead><tr>
+                <th>Producto</th><th>Mercado EUR</th><th>Coste EUR</th><th>Plusvalía latente</th>
+                <th>% a vender</th><th>Resultado simulado</th></tr></thead><tbody>${rows}</tbody></table></div>
+            <p class="text-xs text-slate-600 mt-2">Cambia el porcentaje de venta para simular una operación parcial. El coste en divisa se convierte al cambio de la valoración para calcular una plusvalía indicativa en euros.</p>
+        </details>`;
     }
 
     function renderDashboard(target, m, alternatives, imported) {
@@ -723,6 +873,7 @@
         const section = html => `<section class="${cardStyle}">${html}</section>`;
         const goalList = [...new Set([m.goal, ...String(alternatives).split(';').map(numeric)].filter(goal => goal > 0))];
         const warnings = [];
+        if (m.snapshot && !m.activeSnapshot) warnings.push(`La posición del ${shortDate(m.snapshot.date)} es posterior al corte y queda fuera del análisis.`);
         if (imported && !m.hasYearData) warnings.push('El extracto no contiene movimientos del año de corte.');
         if (m.overdue.length) warnings.push(`Pagos previstos que ya han vencido sin cobro identificado: ${m.overdue.map(row => row.name + ' (' + row.date + ')').join(', ')}. Revisa la fecha, el ISIN y el extracto.`);
         if (m.actual.unresolved) warnings.push(`${m.actual.unresolved} cobro(s) sin divisa, cambio, sentido o importe verificable. Carga ambas hojas para completar la conciliación.`);
@@ -734,6 +885,8 @@
         if (grossCount) warnings.push(`${grossCount} cupón(es) usan importe bruto estimado. Puedes sustituirlo por un neto en su ficha.`);
 
         if (window.Plotly) target.querySelectorAll('.js-plotly-plot').forEach(chart => window.Plotly.purge(chart));
+        const salesOpen = target.querySelector('[data-sales-details]')?.open ?? true;
+        const changedPositions = m.activeSnapshot?.assets.filter(asset => m.changed.has(asset.key)).length || 0;
         target.innerHTML = [
             section(header('Ingresos y objetivo anual') +
                 muted(m.cutoff ? `Corte: ${shortDate(m.cutoff)} · ${m.actual.payments.length} cobros identificados` : 'Carga los extractos para obtener los cobros acumulados.') +
@@ -778,11 +931,21 @@
                     signedBp(row.bp), pct(row.rfPct), money(row.change), pct(row.portfolioPct), money(row.value),
                     forecast ? pct(row.coverage) : '—'
                 ]))),
-            section(header('Realización de plusvalías y escenarios') +
-                muted('El máximo ilustrativo suma todas las plusvalías positivas introducidas al ingreso previsto. Las ventas simuladas aplican el porcentaje de cada posición al precio del escenario. El resultado de ventas se muestra antes de impuestos y costes de venta. El efecto sobre las posiciones retenidas figura como valoración. Usa las fechas de pago compatibles con las ventas simuladas.') +
+            section(header('Plusvalías latentes y simulación de ventas') +
+                (m.activeSnapshot ? muted(`Posición a ${shortDate(m.activeSnapshot.date)} · ${m.activeSnapshot.assets.length} ISIN · Valor en EUR ${money(m.snapshotTotal)}`) : '') +
+                (changedPositions ? muted(`${changedPositions} posición(es) con operaciones posteriores a la valoración quedan fuera de la simulación. Carga una foto actualizada o completa los datos manualmente.`) : '') +
+                (m.activeSnapshot?.issues.length ? muted(`${m.activeSnapshot.issues.length} fila(s) con cantidad, contravalor o coste incompletos. Las filas sin base de cálculo quedan fuera de las plusvalías.`) : '') +
+                muted('El máximo ilustrativo suma las plusvalías positivas disponibles al ingreso previsto. Las ventas simuladas aplican el porcentaje de cada posición al precio del escenario. El escenario presupone que las ventas se hacen después de cobrar los pagos previstos. El resultado de la venta se muestra antes de impuestos y comisiones. La variación de las posiciones retenidas se muestra como valoración.') +
                 cards([['Ingreso previsto', money(base)], ['Plusvalías positivas disponibles', money(m.assets.length ? m.possible : NaN)],
                     ['Máximo ilustrativo', money(m.assets.length ? base + m.possible : NaN)],
                     ['Margen sobre objetivo (máximo)', money(m.goal > 0 && m.assets.length ? base + m.possible - m.goal : NaN)]]) +
+                (m.assets.length ? table(['Venta simulada a precios de la posición', 'Importe'], [
+                    ['Efectivo bruto de venta', money(m.proceeds)],
+                    ['Resultado de la venta (importe que suma al objetivo)', money(m.selected)],
+                    ['Ingresos previstos + resultado de la venta', money(base + m.selected)],
+                    ['Cobertura del objetivo con las ventas seleccionadas', coverage(base + m.selected)]
+                ]) : '') +
+                salesTable(m.assets, salesOpen) +
                 table(['Escenario', 'Resultado de ventas', 'Ingresos + ventas', 'Objetivo en caja', 'Variación de posiciones retenidas'],
                     (m.assets.length ? [{ name: 'Precios actuales', realized: m.selected, retained: 0 }, ...m.scenarios] : [])
                         .map(row => [row.name, money(row.realized), money(base + row.realized), coverage(base + row.realized), money(row.retained)])) +

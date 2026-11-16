@@ -54,3 +54,32 @@ test('an override saved by product name follows the ISIN when it appears in a la
     assert.equal(result.paymentAssets.length, 1);
     assert.deepEqual(result.calendar.map(({ isin, amount }) => [isin, amount]), [[bond.isin, 4990]]);
 });
+
+test('the position report supplies bond nominals and converts foreign gains from the EUR countervalue', () => {
+    const { readWorkbook } = require('../assets/portfolio-mandate.js');
+    const rows = [
+        ['Fecha de Referencia', '01/10/2026'],
+        [' Producto', ' ISIN', 'Títulos / Nominal', 'Coste Medio', 'Precio Excupón', '% Ganancia/Pérdida',
+            'Precio de mercado', 'Coste Adquisición', 'Valor de mercado', 'Plus Minus', 'Contravalor en EUR'],
+        [bond.name, bond.isin, 200000, 100, 99, -2000, 99, 200000, 198000, -0.01, 198000],
+        ['Activo CAD', etf.isin, 100, 14, null, 600, 20, 1400, 2000, 0.43, 1200],
+        ['TOTAL CARTERA', null, null, null, null, null, null, null, null, null, 199200],
+        ['', 'CAD'],
+        ['1 EUR', 0.6]
+    ];
+    const sources = readWorkbook({ SheetNames: ['Data'], Sheets: { Data: rows } }, { utils: { sheet_to_json: sheet => sheet } });
+    const result = calculate({ sales: { [etf.isin]: '50' } }, sources);
+    assert.equal(result.cutoff, '2026-10-01');
+    assert.equal(result.snapshotTotal, 199200);
+    assert.equal(result.value, 199200);
+    assert.equal(result.bonds[0].nominal, 200000);
+    assert.equal(result.pendingCoupons, 5000);
+    assert.equal(result.assets.find(asset => asset.key === etf.isin).ccy, 'CAD');
+    assert.equal(result.possible, 360);
+    assert.equal(result.selected, 180);
+    assert.equal(result.proceeds, 600);
+    assert.equal(calculate({ cutoff: '2026-09-30' }, sources).assets.length, 0);
+
+    const laterTrade = { ...trade(etf, '9', '2026-10-02', 200), kind: '', positionMovement: true };
+    assert.equal(calculate({}, { ...sources, trades: [laterTrade] }).possible, 0);
+});
