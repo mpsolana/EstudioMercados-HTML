@@ -54,7 +54,12 @@
             result[type] = rows.map(row => {
                 if (type === 'trades') {
                     const [code, status, event, date, amount, ccy, isin] = positions.map(i => row[i]);
-                    return { code: id(code), confirmed: normalize(status) === 'DEFINITIVA', kind: classify(event),
+                    const movement = normalize(event);
+                    const fixedIncome = normalize(get(row, 'PRODUCT TYPE')) === 'RENTA FIJA' || /^(COMPRA|VENTA) RF\b/.test(movement);
+                    const bondMovement = !fixedIncome ? 0 : /^COMPRA\b/.test(movement) ? 1 :
+                        /^(VENTA|AMORTIZACION|REEMBOLSO)\b/.test(movement) ? -1 : 0;
+                    return { code: id(code), bondMovement, disposal: /^(VENTA|REEMBOLSO|AMORTIZACI)/.test(movement),
+                        nominal: currency(ccy) === 'EUR' ? numeric(get(row, 'TOTAL NOMINAL')) : NaN, confirmed: normalize(status) === 'DEFINITIVA', kind: classify(event),
                         date: isoDate(date ?? get(row, 'VALUE DATE') ?? get(row, 'TRADE DATE')),
                         amount: numeric(amount), ccy: currency(ccy), fx: numeric(get(row, 'EUR CURRENCY PRICE CHANGE')),
                         isin: id(isin).toUpperCase(), name: id(get(row, 'INSTRUMENT')) };
@@ -70,7 +75,7 @@
         return result;
     }
 
-    function received({ trades = [], cash = [] }, cutoff) {
+    function received({ trades = [], cash = [] }, cutoff, allYears = false) {
         const operations = new Map();
         const booked = new Set();
         const seenCash = new Set();
@@ -78,7 +83,7 @@
         for (const row of trades) {
             if (row.confirmed && row.kind && row.code) operations.set(row.code, row);
         }
-        const withinYear = row => row.date && row.date <= cutoff && row.date.slice(0, 4) === cutoff.slice(0, 4);
+        const withinYear = row => row.date && row.date <= cutoff && (allYears || row.date.slice(0, 4) === cutoff.slice(0, 4));
         const payments = [];
         for (const row of cash) {
             if (!row.kind) continue;
@@ -116,9 +121,11 @@
     }
 
     const sum = (rows, value) => rows.reduce((total, row) => total + value(row), 0);
-    const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 });
+    const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2, useGrouping: 'always' });
     const decimal = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 });
+    const shortDate = date => date ? date.split('-').reverse().join('/') : '—';
     const money = value => Number.isFinite(value) ? eur.format(value + 0) : '—';
+    const couponPct = value => Number.isFinite(value) ? value.toLocaleString('es-ES', { maximumFractionDigits: 3 }) + ' %' : '—';
     const num = value => Number.isFinite(value) ? decimal.format(value + 0) : '—';
     const pct = value => Number.isFinite(value) ? num(value) + ' %' : '—';
     const safe = value => String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -130,8 +137,8 @@
     const numField = (name, label, attributes = '') => `<label class="block text-sm font-semibold">${label}<input name="${name}" type="number" step="any" class="${inputStyle}" ${attributes}></label>`;
     const area = (name, label, hint) => `<label class="block text-sm font-semibold mt-3">${label}<span class="block text-xs text-slate-500 font-normal mt-1">${hint}</span><textarea name="${name}" rows="3" spellcheck="false" class="${inputStyle} font-mono"></textarea></label>`;
     const fields = ['cutoff', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
-    const summaryCard = (title, value) => `<div class="border border-slate-200 bg-slate-50 rounded-lg p-3"><div class="text-xs font-semibold text-slate-600">${title}</div><div class="text-lg sm:text-xl font-bold text-slate-900 mt-1">${value}</div></div>`;
-    const table = (headers, rows) => rows.length ? `<div class="overflow-x-auto"><table class="w-full text-sm text-left whitespace-nowrap"><thead class="bg-slate-100 text-slate-700"><tr>${headers.map(h => `<th scope="col" class="px-3 py-2">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows.map(row => `<tr>${row.map(cell => `<td class="px-3 py-2">${safe(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-slate-500">Sin datos para mostrar.</p>';
+    const summaryCard = (title, value) => `<div class="mandate-kpi"><div class="mandate-kpi-label">${title}</div><div class="mandate-kpi-value">${value}</div></div>`;
+    const table = (headers, rows, style = '') => rows.length ? `<div class="overflow-x-auto"><table class="mandate-table ${style}"><thead><tr>${headers.map(h => `<th scope="col" class="px-3 py-2">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows.map(row => `<tr>${row.map(cell => `<td class="px-3 py-2">${safe(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-slate-500">Sin datos para mostrar.</p>';
 
     function parseRows(text, label, width, parse, errors) {
         return String(text ?? '').split(/\r?\n/).flatMap((line, index) => {
@@ -142,6 +149,153 @@
             errors.push(`${label}, fila ${index + 1}`);
             return [];
         });
+    }
+
+    function bondTerms(name) {
+        const match = name.match(/\s(\d{1,2}(?:[.,]\d+)?)\s*%?\s+(\d{2})(\d{2})(\d{2}|\d{4})\s*$/);
+        if (!match) return {};
+        const [, coupon, day, month, year] = match;
+        const maturity = isoDate(`${year.length === 2 ? '20' + year : year}-${month}-${day}`);
+        return maturity ? { coupon: numeric(coupon), maturity } : {};
+    }
+
+    function inMonth(date, delta, day = Number(date.slice(8))) {
+        const month = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1 + delta, 1));
+        const lastDay = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
+        month.setUTCDate(Math.min(day, lastDay));
+        return month.toISOString().slice(0, 10);
+    }
+
+    const dateGap = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 86400000;
+    const seriesKey = (kind, isin, name) => (kind === 'Cupón' ? 'C' : 'D') + ':' + (isin || normalize(name));
+    const scheduleSteps = [1, 2, 3, 4, 6, 12];
+    const median = values => {
+        const ordered = values.slice().sort((a, b) => a - b);
+        return (ordered[Math.floor((ordered.length - 1) / 2)] + ordered[Math.floor(ordered.length / 2)]) / 2;
+    };
+
+    function projectPayments(history, trades, rules, cutoff) {
+        const instruments = new Map();
+        function register(kind, isin, name) {
+            const key = seriesKey(kind, isin, name);
+            if (!instruments.has(key)) instruments.set(key, { key, kind, isin, name, history: [], trades: [] });
+            return instruments.get(key);
+        }
+        for (const row of history.filter(row => row.amount > 0)) register(row.kind, row.isin, row.name).history.push(row);
+        const seen = new Set();
+        for (const trade of trades) {
+            if (!trade.confirmed || !trade.date || trade.date > cutoff || !trade.isin) continue;
+            if (trade.code && seen.has(trade.code)) continue;
+            if (trade.code) seen.add(trade.code);
+            if (trade.kind === 'Cupón' || trade.bondMovement) {
+                register('Cupón', trade.isin, trade.name).trades.push(trade);
+            } else if (trade.disposal) {
+                instruments.get(seriesKey('Dividendo', trade.isin, trade.name))?.trades.push(trade);
+            }
+        }
+        for (const [key, rule] of Object.entries(rules)) {
+            if (!rule.name || !['Cupón', 'Dividendo'].includes(rule.kind)) continue;
+            const matches = rule.isin ? [] : [...instruments.values()].filter(instrument =>
+                instrument.kind === rule.kind && normalize(instrument.name) === normalize(rule.name));
+            const instrument = instruments.get(key) || (matches.length === 1 ? matches[0] : register(rule.kind, rule.isin, rule.name));
+            instrument.ruleKey = key;
+            instrument.rule = rule;
+        }
+
+        const calendar = [];
+        const bonds = [];
+        const assets = [];
+        const year = cutoff.slice(0, 4);
+        for (const instrument of instruments.values()) {
+            const { key, kind, isin } = instrument;
+            const rule = instrument.rule || {};
+            const name = rule.name || instrument.name;
+            const isBond = kind === 'Cupón';
+            const terms = isBond ? bondTerms(name) : {};
+            const maturity = isoDate(rule.maturity) || terms.maturity || '';
+            const coupon = rule.coupon === '' || rule.coupon == null ? terms.coupon : numeric(rule.coupon);
+            const series = new Map();
+            for (const row of instrument.history) series.set(row.date, (series.get(row.date) || 0) + row.amount);
+            const observed = [...series].sort(([a], [b]) => a.localeCompare(b)).slice(-12);
+            const observedDates = observed.map(([date]) => date);
+            const amounts = observed.map(([, amount]) => amount);
+            const last = observedDates.at(-1);
+            const inferredStep = observedDates.length >= 2 ? scheduleSteps.find(step => observedDates.slice(1).every((date, i) =>
+                dateGap(date, inMonth(observedDates[i], step)) <= (step <= 2 ? 6 : 12))) : undefined;
+
+            let historicalNominal = NaN;
+            let soldOrRedeemed = false;
+            let changedAfterCoupon = false;
+            for (const trade of instrument.trades.sort((a, b) => a.date.localeCompare(b.date))) {
+                if (trade.kind === 'Cupón' && trade.nominal > 0) {
+                    historicalNominal = trade.nominal;
+                    changedAfterCoupon = false;
+                    soldOrRedeemed = false;
+                } else if (trade.bondMovement && trade.nominal > 0) {
+                    if (trade.bondMovement > 0) historicalNominal = (historicalNominal || 0) + trade.nominal;
+                    else if (Number.isFinite(historicalNominal)) historicalNominal = Math.max(0, historicalNominal - trade.nominal);
+                    changedAfterCoupon = true;
+                    soldOrRedeemed = trade.bondMovement < 0 && (!Number.isFinite(historicalNominal) || historicalNominal === 0);
+                } else if (trade.disposal && trade.date >= (last || '')) {
+                    soldOrRedeemed = true;
+                }
+            }
+            const nominal = rule.nominal === '' || rule.nominal == null ? historicalNominal : numeric(rule.nominal);
+            const manualStep = scheduleSteps.includes(Number(rule.frequency)) ? Number(rule.frequency) : 0;
+            const step = manualStep || inferredStep || (isBond && maturity ? 12 : 0);
+            const next = isoDate(rule.next);
+            const net = numeric(rule.net) >= 0 ? numeric(rule.net) : NaN;
+            const average = amounts.length ? sum(amounts, amount => amount) / amounts.length : NaN;
+            const contractual = isBond && nominal > 0 && coupon >= 0 && step ? nominal * coupon / 100 * step / 12 : NaN;
+            const gross = !Number.isFinite(net) && isBond && (!Number.isFinite(average) || changedAfterCoupon || Number.isFinite(numeric(rule.nominal)) || Number.isFinite(numeric(rule.coupon)) || Boolean(manualStep));
+            const amount = Number.isFinite(net) ? net : gross ? contractual : isBond ? amounts.at(-1) : average;
+            const explicitHolding = isBond ? numeric(rule.nominal) > 0 : Boolean(next);
+            const excluded = Boolean(rule.excluded) || (soldOrRedeemed && !explicitHolding) || (isBond && nominal === 0);
+            const amountSource = Number.isFinite(net) ? 'Neto manual' : gross ? 'Bruto por nominal y cupón' : isBond ? 'Último cupón neto' : 'Media de dividendos netos';
+            const repeatDay = isBond && maturity ? Number(maturity.slice(8)) : Math.round(median(observedDates.map(date => Number(date.slice(8)))));
+            let schedule = [];
+            if (cutoff && !excluded) {
+                if (next) {
+                    schedule = [next];
+                    if (manualStep) {
+                        const monthsToCutoff = (Number(year) - Number(next.slice(0, 4))) * 12 +
+                            Number(cutoff.slice(5, 7)) - Number(next.slice(5, 7));
+                        const first = Math.max(manualStep, Math.floor(monthsToCutoff / manualStep) * manualStep);
+                        for (let offset = first; offset <= first + 12; offset += manualStep) schedule.push(inMonth(next, offset));
+                    }
+                } else if (step && last && (!isBond || !maturity || inferredStep && inferredStep !== 12)) {
+                    for (let offset = step; offset <= 12; offset += step) schedule.push(inMonth(last, offset, repeatDay));
+                } else if (isBond && maturity && scheduleSteps.includes(step)) {
+                    const anniversary = year + maturity.slice(4);
+                    for (let offset = 0; offset < 12; offset += step) {
+                        schedule.push(inMonth(anniversary, -offset));
+                        if (offset) schedule.push(inMonth(anniversary, 12 - offset));
+                    }
+                }
+                schedule = [...new Set(schedule)].filter(date => date > cutoff && date.startsWith(year) && (!maturity || date <= maturity) &&
+                    !observedDates.some(booked => dateGap(date, booked) <= 10));
+            }
+            let review = '';
+            if (!excluded) {
+                if (!step && !next) review = 'Sin frecuencia suficiente';
+                else if (schedule.length && !Number.isFinite(amount)) review = 'Falta importe o nominal';
+                else if (next && !manualStep && next.startsWith(year) && next <= cutoff && !observedDates.some(booked => dateGap(next, booked) <= 10)) {
+                    review = 'Pago anterior al corte sin abono identificado';
+                }
+            }
+            const assumption = next ? 'Fecha manual' : manualStep ? 'Frecuencia manual' : inferredStep ? 'Frecuencia histórica' : 'Cupón anual supuesto';
+            for (const date of schedule) {
+                if (amount === 0) continue;
+                calendar.push({ key, date, name, kind, isin, amount, gross, estimated: true,
+                    origin: `${assumption} · ${amountSource}`,
+                    range: !isBond && !Number.isFinite(net) && amounts.length > 1 ? [Math.min(...amounts), Math.max(...amounts)] : null });
+            }
+            if (isBond && !excluded && cutoff && maturity > cutoff && nominal > 0) {
+                bonds.push({ name, isin, maturity, nominal, coupon, ytm: numeric(rule.ytm), group: rule.group || '', inferred: true });
+            }
+            assets.push({ key: instrument.ruleKey || key, kind, isin, name, maturity, coupon, nominal, last, step, amount, review, excluded, rule });
+        }
+        return { calendar, bonds, assets };
     }
 
     function calculate(state, sources) {
@@ -160,7 +314,7 @@
             if (!isoDate(date) || !name || !kind || (net && !(amount >= 0)) || (!net && (kind !== 'Dividendo' || !isin))) return null;
             return { date: isoDate(date), name, kind, isin: isin.toUpperCase(), amount };
         }, errors);
-        const bonds = parseRows(state.bondRows, 'Bonos', 6, ([name, maturity, nominal, coupon, ytm, group]) => {
+        const enteredBonds = parseRows(state.bondRows, 'Bonos', 6, ([name, maturity, nominal, coupon, ytm, group]) => {
             if (!name || !isoDate(maturity) || !(numeric(nominal) > 0) || !(numeric(coupon) >= 0)
                 || (ytm && !Number.isFinite(numeric(ytm)))) return null;
             return { name, maturity: isoDate(maturity), nominal: numeric(nominal), coupon: numeric(coupon), ytm: numeric(ytm), group };
@@ -169,7 +323,7 @@
         const matchesPayment = row => actual.payments.some(payment => payment.kind === row.kind && payment.date === row.date &&
             (row.isin ? payment.isin === row.isin : normalize(payment.name) === normalize(row.name)));
         const overdue = paymentRows.filter(row => row.date.startsWith(year) && row.date <= cutoff && !matchesPayment(row));
-        const calendar = paymentRows.flatMap(row => {
+        const manualCalendar = paymentRows.flatMap(row => {
             if (!cutoff || row.date <= cutoff || !row.date.startsWith(year)) return [];
             const history = actual.payments.filter(p => p.isin === row.isin && p.kind === row.kind && p.amount > 0);
             const estimated = !Number.isFinite(row.amount);
@@ -177,7 +331,17 @@
             return [{ ...row, estimated, amount,
                 range: estimated && history.length ? [Math.min(...history.map(p => p.amount)), Math.max(...history.map(p => p.amount))] : null }];
         }).sort((a, b) => a.date.localeCompare(b.date));
-        const pendingCoupons = sum(calendar.filter(r => r.kind === 'Cupón'), r => r.amount);
+        const historyStart = cutoff ? inMonth(cutoff, -18) : '';
+        const history = received(sources, cutoff, true).payments.filter(row => row.date >= historyStart);
+        const projection = projectPayments(history, sources.trades || [], state.rules || {}, cutoff);
+        const overrides = (a, b) => a.kind === b.kind && dateGap(a.date, b.date) <= 10 &&
+            (a.isin && b.isin ? a.isin === b.isin : normalize(a.name) === normalize(b.name));
+        const calendar = [...manualCalendar, ...projection.calendar.filter(auto => !manualCalendar.some(manual => overrides(manual, auto)))]
+            .sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+        const bonds = [...enteredBonds, ...projection.bonds.filter(auto => !enteredBonds.some(manual =>
+            normalize(auto.name) === normalize(manual.name) && auto.maturity === manual.maturity))]
+            .sort((a, b) => a.maturity.localeCompare(b.maturity));
+        const pendingCoupons = sum(calendar.filter(r => r.kind === 'Cupón' && Number.isFinite(r.amount)), r => r.amount);
         const pendingDividends = sum(calendar.filter(r => r.kind === 'Dividendo' && Number.isFinite(r.amount)), r => r.amount);
         const base = coupons + dividends + pendingCoupons + pendingDividends;
         const value = numeric(state.value);
@@ -231,18 +395,151 @@
                 return { name: asset.name, ccy: asset.ccy, change, price: asset.price * (1 + change), gain: gain(asset, change) };
             }) };
         });
-        return { cutoff, actual, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds,
+        return { cutoff, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds,
             value, rf, rfValue, duration, ytm, goal, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()], scenarios };
     }
 
+    const ruleFields = ['name', 'isin', 'kind', 'next', 'frequency', 'net', 'nominal', 'coupon', 'maturity', 'ytm', 'group', 'excluded'];
+
+    function paymentsEditor(root, onSave, onReset) {
+        root.innerHTML = `
+            <div class="mandate-editor-header"><div><h4>Calendario por activo</h4>
+            <p>Ajusta las estimaciones en cada ficha. Para un bono nuevo, introduce su nombre de mercado y el nominal en euros.</p></div>
+            <button class="${buttonStyle}" type="button" data-new>+ Añadir activo</button></div>
+            <form class="mandate-rule-form hidden rounded-lg bg-slate-50 p-4 mt-3">
+                <h5 class="font-bold mb-3" data-rule-title></h5>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label class="text-sm font-semibold">Producto<input name="name" required class="${inputStyle}"></label>
+                    <label class="text-sm font-semibold">ISIN<input name="isin" class="${inputStyle}"></label>
+                    <label class="text-sm font-semibold">Tipo<select name="kind" class="${inputStyle}"><option>Cupón</option><option>Dividendo</option></select></label>
+                    <label class="text-sm font-semibold">Próximo pago<input name="next" type="date" class="${inputStyle}"></label>
+                    <label class="text-sm font-semibold">Frecuencia<select name="frequency" class="${inputStyle}"><option value="">Automática / pago único</option>
+                        ${scheduleSteps.map(months => `<option value="${months}">Cada ${months} ${months === 1 ? 'mes' : 'meses'}</option>`).join('')}</select></label>
+                    ${numField('net', 'Importe neto por pago (€)', 'min="0"')}
+                    ${numField('nominal', 'Nominal vigente (€)', 'min="0" data-bond-field')}
+                    ${numField('coupon', 'Cupón anual (%)', 'min="0" data-bond-field')}
+                    <label class="text-sm font-semibold">Vencimiento<input name="maturity" type="date" class="${inputStyle}" data-bond-field></label>
+                    ${numField('ytm', 'TIR indicativa (%)', 'data-bond-field')}
+                    <label class="text-sm font-semibold">Grupo de curva<input name="group" class="${inputStyle}" data-bond-field></label>
+                    <label class="flex items-center gap-2 text-sm"><input name="excluded" type="checkbox"> Excluir de las previsiones</label>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <button class="${buttonStyle}" type="submit">Guardar ficha</button>
+                    <button class="${buttonStyle}" type="button" data-cancel>Cancelar</button>
+                    <button class="${buttonStyle}" type="button" data-remove>Restaurar automático</button>
+                </div>
+                <p class="mt-2 text-xs text-slate-600">Los campos vacíos toman el dato disponible en el extracto o en el nombre. El neto manual sustituye la estimación por pago.</p>
+                <p data-rule-error role="status" class="text-sm text-red-700 mt-2"></p>
+            </form>
+            <div data-catalog class="mt-3"></div>`;
+        const form = root.querySelector('form');
+        const field = name => form.elements.namedItem(name);
+        const error = form.querySelector('[data-rule-error]');
+        let current;
+        let assets = [];
+        const bondFields = () => form.querySelectorAll('[data-bond-field]').forEach(el => {
+            el.closest('label').hidden = field('kind').value !== 'Cupón';
+        });
+        const open = asset => {
+            form.reset();
+            current = asset || null;
+            const rule = asset?.rule || {};
+            for (const name of ruleFields) {
+                if (name === 'excluded') field(name).checked = Boolean(rule[name]);
+                else field(name).value = rule[name] ?? (['name', 'isin', 'kind'].includes(name) ? asset?.[name] || field(name).value : '');
+            }
+            field('isin').readOnly = field('kind').disabled = Boolean(asset);
+            for (const name of ['nominal', 'coupon', 'net']) {
+                field(name).placeholder = Number.isFinite(asset?.[name === 'net' ? 'amount' : name]) ? num(asset[name === 'net' ? 'amount' : name]) : 'Automático';
+            }
+            bondFields();
+            error.textContent = '';
+            form.querySelector('[data-rule-title]').textContent = asset ? 'Ajustar pago y posición' : 'Añadir activo al calendario';
+            form.querySelector('[data-remove]').hidden = !Object.keys(rule).length;
+            form.classList.remove('hidden');
+            field('name').focus();
+        };
+        root.querySelector('[data-new]').addEventListener('click', () => open(null));
+        field('kind').addEventListener('change', bondFields);
+        form.querySelector('[data-cancel]').addEventListener('click', () => form.classList.add('hidden'));
+        form.querySelector('[data-remove]').addEventListener('click', () => {
+            onReset(current.key);
+            form.classList.add('hidden');
+        });
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            const rule = Object.fromEntries(ruleFields.map(name => [name, name === 'excluded' ? field(name).checked : field(name).value.trim()]));
+            rule.isin = rule.isin.toUpperCase();
+            const key = current?.key || seriesKey(rule.kind, rule.isin, rule.name);
+            if (!rule.name || (rule.isin && !/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(rule.isin))) {
+                error.textContent = 'Introduce el producto y, si lo conoces, un ISIN válido.';
+                return;
+            }
+            if (!current && assets.some(asset => asset.key === key || (asset.kind === rule.kind &&
+                (rule.isin ? asset.isin === rule.isin : normalize(asset.name) === normalize(rule.name))))) {
+                error.textContent = 'Este activo ya tiene ficha. Edítalo en la tabla.';
+                return;
+            }
+            onSave(key, rule);
+            form.classList.add('hidden');
+        });
+        const catalog = root.querySelector('[data-catalog]');
+        catalog.addEventListener('click', event => {
+            const button = event.target.closest('[data-edit-rule]');
+            if (button) open(assets[Number(button.dataset.editRule)]);
+        });
+        return {
+            clear: () => form.classList.add('hidden'),
+            update: rows => {
+                assets = rows;
+                catalog.innerHTML = rows.length ? `<div class="overflow-x-auto"><table class="mandate-table"><thead><tr>
+                    <th>Producto</th><th>Tipo</th><th>Último cobro</th><th>Nominal</th><th>Estado</th><th>Ficha</th></tr></thead><tbody>
+                    ${rows.map((row, index) => `<tr><td><strong>${safe(row.name)}</strong><small>${safe(row.isin)}</small></td><td>${row.kind}</td>
+                    <td>${shortDate(row.last)}</td><td>${money(row.nominal)}</td><td>${row.excluded ? 'Excluido' : row.review || (Object.keys(row.rule).length ? 'Ajustado' : 'Automático')}</td>
+                    <td><button type="button" class="${buttonStyle}" data-edit-rule="${index}" aria-label="Editar ${safe(row.name)}">Editar</button></td></tr>`).join('')}
+                    </tbody></table></div>` : '<p class="text-sm text-slate-600">Al cargar el extracto aparecerán aquí los activos identificados.</p>';
+            }
+        };
+    }
+
+    function editableGrid(root, storage, columns, update) {
+        const values = () => [...root.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('input')].map(input => input.value));
+        const write = () => {
+            storage.value = values().filter(row => row.some(value => value.trim())).map(row => row.join('\t')).join('\n');
+            update();
+        };
+        const row = cells => `<tr>${columns.map((label, i) =>
+            `<td><input aria-label="${safe(label)}" ${i === 1 ? 'data-wide' : ''} value="${safe(cells[i])}"></td>`).join('')}
+            <td><button class="${buttonStyle}" type="button" data-delete-row aria-label="Quitar fila">Quitar</button></td></tr>`;
+        root.innerHTML = `<div class="overflow-x-auto"><table class="mandate-table"><thead><tr>
+            ${columns.map(label => `<th scope="col">${safe(label)}</th>`).join('')}<th scope="col">Acción</th></tr></thead><tbody></tbody></table></div>
+            <button class="${buttonStyle} mt-2" type="button" data-add-row>+ Añadir fila</button>`;
+        const body = root.querySelector('tbody');
+        root.addEventListener('input', event => {
+            event.stopPropagation();
+            write();
+        });
+        root.addEventListener('click', event => {
+            if (event.target.closest('[data-add-row]')) {
+                body.insertAdjacentHTML('beforeend', row([]));
+                body.lastElementChild.querySelector('input').focus();
+            }
+            if (event.target.closest('[data-delete-row]')) {
+                event.target.closest('tr').remove();
+                write();
+            }
+        });
+        return () => { body.innerHTML = storage.value.split(/\r?\n/).filter(Boolean).map(line => row(line.split(line.includes('\t') ? '\t' : ';'))).join(''); };
+    }
+
     function mount(root, rateInputs) {
-        root.classList.add('space-y-4');
+        root.classList.add('space-y-4', 'mandate-report');
         root.innerHTML = `
             <section class="${cardStyle}">
-                <h3 tabindex="-1" class="text-xl font-bold text-slate-900">Ingresos, vencimientos y plusvalías</h3>
+                <h3 tabindex="-1" class="mandate-title">Ingresos, vencimientos y plusvalías</h3>
                 <div class="mt-4 flex flex-wrap items-end gap-3">
                     <label class="block text-sm font-semibold">Extractos YTD (.xlsx o .xls)<input data-extract type="file" multiple accept=".xlsx,.xls" class="${inputStyle}"></label>
-                    <button type="button" data-rate-inputs class="${buttonStyle}">Copiar parámetros de sensibilidad</button>
+
                     <button type="button" data-save class="${buttonStyle}">Guardar supuestos</button>
                     <label class="${buttonStyle} cursor-pointer">Cargar supuestos<input data-load type="file" accept=".json" class="sr-only"></label>
                     <button type="button" data-reset class="${buttonStyle}">Limpiar cartera</button>
@@ -256,41 +553,84 @@
                         ${numField('duration', 'Duración modificada RF (años)', 'min="0" max="100"')}
                         ${numField('ytm', 'TIR ponderada RF (%)')}
                         ${numField('goal', 'Objetivo anual (€)', 'min="0"')}
-                        ${numField('shock', 'Cambio de tipos de referencia (pb)', 'value="-25"')}
+                        ${numField('shock', 'Cambio de tipos de referencia (pb)')}
                         <label class="block text-sm font-semibold">Otros objetivos (€)<input name="alternatives" class="${inputStyle}" placeholder="100000; 150000"></label>
                     </div>
-                    <p class="mt-2 text-xs text-slate-600">Con la fecha vacía se toma la última fecha del extracto. La TIR es una métrica de cartera y el presupuesto se calcula con cobros y pagos previstos.</p>
+                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma por defecto la última del extracto. Los campos de sensibilidad vacíos siguen al simulador de arriba. Puedes introducir un valor para este informe.</p>
                     <details class="mt-4 border-t border-slate-200 pt-3">
-                        <summary class="font-semibold cursor-pointer">Editar calendario, bonos y escenarios</summary>
+                        <summary class="font-semibold cursor-pointer">Carga masiva de pagos, bonos y escenarios</summary>
                         <p class="mt-2 text-sm text-slate-600">Pega filas de Excel sin encabezados o escribe una fila por línea, separando las columnas con punto y coma. Fechas AAAA-MM-DD o DD/MM/AAAA. Importes sin separadores de miles.</p>
                         ${area('paymentRows', 'Pagos pendientes', 'Fecha · producto · cupón/dividendo · ISIN · neto EUR. Para estimar un dividendo por la media de los abonos del mismo ISIN, deja vacía la última columna.')}
                         ${area('bondRows', 'Bonos en cartera', 'Producto · vencimiento · nominal EUR · cupón % · TIR % · grupo de curva. La TIR y el grupo pueden quedar vacíos. Usa un grupo común solo para emisiones comparables.')}
                         ${area('assetRows', 'Posiciones y ventas simuladas', 'Código/ISIN · activo · unidades · precio local · divisa · EUR por unidad de divisa · coste total EUR · % a vender. En EUR puedes dejar vacío el cambio.')}
                         ${area('scenarioRows', 'Escenarios de revalorización', 'Escenario · código/ISIN · variación %. Repite el nombre del escenario para cambiar varios activos a la vez. Usa 0 para mantener su precio.')}
                     </details>
-                    <p data-errors role="status" class="mt-3 text-sm text-red-700"></p>
+                    <details class="mt-4 border-t border-slate-200 pt-3">
+                        <summary class="font-semibold cursor-pointer">Posiciones, ventas y revalorizaciones</summary>
+                        <p class="mt-2 mb-3 text-sm text-slate-600">Introduce las posiciones que quieres simular. Para cada escenario, usa el mismo código del activo. En EUR el cambio puede quedar vacío.</p>
+                        <h4 class="mb-2">Posiciones y ventas</h4><div data-positions-grid></div>
+                        <h4 class="mt-4 mb-2">Escenarios de precio</h4><div data-scenarios-grid></div>
+                    </details>
+                    <p data-errors role="status"  class="mt-3 text-sm text-red-700"></p>
                 </form>
             </section>
-            <div data-dashboard class="space-y-4"></div>`;
+            <div data-dashboard class="space-y-4"></div><details data-payment-details open class="${cardStyle}"><summary class="font-bold cursor-pointer">Ajustes de pagos y bonos por activo</summary><div data-payment-editor class="mt-3"></div></details>`;
 
         const form = root.querySelector('form');
         const input = name => form.elements.namedItem(name);
         const dashboard = root.querySelector('[data-dashboard]');
         const status = root.querySelector('[data-import]');
         let sources = {};
+        let rules = Object.create(null);
         let revision = 0;
-        let model;
+        const editor = paymentsEditor(root.querySelector('[data-payment-editor]'), (key, rule) => {
+            rules[key] = rule;
+            render();
+        }, key => {
+            delete rules[key];
+            render();
+        });
         const readState = () => Object.fromEntries(fields.map(name => [name, input(name).value]));
         const render = () => {
-            model = calculate(readState(), sources);
+            const state = readState();
+            const linked = rateInputs();
+            for (const [name, value] of Object.entries(linked)) {
+                input(name).placeholder = value || 'Sin dato';
+                if (!state[name]) state[name] = value;
+            }
+            const model = calculate({ ...state, rules }, sources);
+            editor.update(model.paymentAssets);
             root.querySelector('[data-errors]').textContent = model.errors.length ? 'Revisa estas filas: ' + model.errors.join(' · ') : '';
             renderDashboard(dashboard, model, input('alternatives').value, Object.keys(sources).length > 0);
         };
 
-        root.querySelector('[data-rate-inputs]').addEventListener('click', () => {
-            for (const [name, value] of Object.entries(rateInputs())) if (value !== '') input(name).value = value;
-            render();
+        const refreshPositions = editableGrid(root.querySelector('[data-positions-grid]'), input('assetRows'),
+            ['Código / ISIN', 'Activo', 'Unidades', 'Precio local', 'Divisa', 'EUR / divisa', 'Coste total €', 'Venta %'], render);
+        const refreshScenarios = editableGrid(root.querySelector('[data-scenarios-grid]'), input('scenarioRows'),
+            ['Escenario', 'Código / ISIN', 'Variación %'], render);
+        const syncEditors = () => { refreshPositions(); refreshScenarios(); };
+        input('assetRows').addEventListener('input', refreshPositions);
+        input('scenarioRows').addEventListener('input', refreshScenarios);
+
+        dashboard.addEventListener('click', event => {
+            if (!event.target.closest('[data-jump-payments]')) return;
+            const details = root.querySelector('[data-payment-details]');
+            details.open = true;
+            details.scrollIntoView({ block: 'start' });
+            details.querySelector('summary').focus({ preventScroll: true });
         });
+        const rates = root.parentElement;
+        if (rates) {
+            rates.addEventListener('input', event => {
+                if (event.target.closest('.workspace-settings,[data-rate-position]')) render();
+            });
+            rates.addEventListener('change', event => {
+                if (event.target.id === 'initialRateMode') render();
+            });
+            rates.addEventListener('click', event => {
+                if (event.target.closest('#initialRateImport')) render();
+            });
+        }
         form.addEventListener('submit', event => event.preventDefault());
         form.addEventListener('input', render);
         root.querySelector('[data-extract]').addEventListener('change', async event => {
@@ -320,7 +660,7 @@
         });
 
         root.querySelector('[data-save]').addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify({ version: 1, inputs: readState() }, null, 2)], { type: 'application/json' });
+            const blob = new Blob([JSON.stringify({ version: 2, inputs: readState(), rules }, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const link = Object.assign(document.createElement('a'), { href: url, download: 'supuestos-cartera.json' });
             link.click();
@@ -335,12 +675,21 @@
             try {
                 const data = JSON.parse(await file.text());
                 if (current !== revision) return;
-                if (data.version !== 1 || !data.inputs || fields.some(name => typeof data.inputs[name] !== 'string')) {
+                if (![1, 2].includes(data.version) || !data.inputs || fields.some(name => typeof data.inputs[name] !== 'string')) {
                     throw new Error('Elige un archivo de supuestos guardado desde el panel.');
                 }
                 const hadSources = Object.keys(sources).length > 0;
                 sources = {};
+                rules = Object.create(null);
+                for (const [key, rule] of Object.entries(data.rules || {})) {
+                    if (rule && typeof rule.name === 'string' && ['Cupón', 'Dividendo'].includes(rule.kind)) {
+                        rules[key] = Object.fromEntries(ruleFields.map(name => [name, name === 'excluded'
+                            ? rule[name] === true : typeof rule[name] === 'string' ? rule[name] : '']));
+                    }
+                }
+                editor.clear();
                 for (const name of fields) input(name).value = data.inputs[name];
+                syncEditors();
                 status.textContent = hadSources ? 'Supuestos cargados. Vuelve a cargar los extractos de esta cartera.' : 'Supuestos cargados. Carga los extractos de esta cartera.';
                 render();
             } catch (error) {
@@ -352,6 +701,9 @@
             revision++;
             sources = {};
             form.reset();
+            rules = Object.create(null);
+            editor.clear();
+            syncEditors();
             status.textContent = 'Panel limpio. Carga los extractos de la cartera.';
             render();
         });
@@ -361,7 +713,7 @@
     function renderDashboard(target, m, alternatives, imported) {
         const actualReady = Boolean(m.cutoff && imported && m.hasYearData);
         const unresolvedForecast = m.calendar.filter(row => !Number.isFinite(row.amount)).length;
-        const forecast = actualReady && !m.actual.unresolved && !unresolvedForecast && !m.overdue.length && !m.errors.some(error => error.startsWith('Pagos,'));
+        const forecast = actualReady && !m.actual.unresolved && !m.overdue.length && !m.errors.some(error => error.startsWith('Pagos,'));
         const base = forecast ? m.base : NaN;
         const coverage = amount => m.goal > 0 ? pct(amount / m.goal * 100) : '—';
         const signedBp = bp => (bp > 0 ? '+' : '') + bp + ' pb';
@@ -375,40 +727,47 @@
         if (m.overdue.length) warnings.push(`Pagos previstos que ya han vencido sin cobro identificado: ${m.overdue.map(row => row.name + ' (' + row.date + ')').join(', ')}. Revisa la fecha, el ISIN y el extracto.`);
         if (m.actual.unresolved) warnings.push(`${m.actual.unresolved} cobro(s) sin divisa, cambio, sentido o importe verificable. Carga ambas hojas para completar la conciliación.`);
         if (m.actual.fromTrades) warnings.push(`${m.actual.fromTrades} cobro(s) proceden de operaciones definitivas sin contrapartida en efectivo.`);
-        if (unresolvedForecast) warnings.push(`${unresolvedForecast} dividendo(s) pendiente(s) sin histórico para estimar. Introduce el neto previsto.`);
+        if (unresolvedForecast) warnings.push(`${unresolvedForecast} pago(s) con importe pendiente. Completa su ficha.`);
+        const reviews = m.paymentAssets.filter(asset => asset.review).length;
+        if (reviews) warnings.push(`${reviews} activo(s) tienen una ficha por revisar. El total recoge los pagos con importe disponible.`);
+        const grossCount = m.calendar.filter(row => row.gross && Number.isFinite(row.amount)).length;
+        if (grossCount) warnings.push(`${grossCount} cupón(es) usan importe bruto estimado. Puedes sustituirlo por un neto en su ficha.`);
 
         if (window.Plotly) target.querySelectorAll('.js-plotly-plot').forEach(chart => window.Plotly.purge(chart));
         target.innerHTML = [
             section(header('Ingresos y objetivo anual') +
-                muted(m.cutoff ? `Corte: ${safe(m.cutoff)} · ${m.actual.payments.length} cobros identificados` : 'Carga los extractos para obtener los cobros acumulados.') +
+                muted(m.cutoff ? `Corte: ${shortDate(m.cutoff)} · ${m.actual.payments.length} cobros identificados` : 'Carga los extractos para obtener los cobros acumulados.') +
                 cards([['Cupones cobrados', money(actualReady ? m.coupons : NaN)], ['Dividendos cobrados', money(actualReady ? m.dividends : NaN)],
-                    ['Cupones pendientes conocidos', money(m.cutoff ? m.pendingCoupons : NaN)], ['Dividendos pendientes conocidos', money(m.cutoff ? m.pendingDividends : NaN)]]) +
+                    ['Cupones pendientes estimados', money(m.cutoff ? m.pendingCoupons : NaN)], ['Dividendos pendientes estimados', money(m.cutoff ? m.pendingDividends : NaN)]]) +
                 (warnings.length ? `<p class="text-sm text-amber-800 mb-3">${safe(warnings.join(' '))}</p>` : '') +
-                `<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"><div><h5 class="font-semibold mb-2">Calendario de pagos pendientes</h5>
-                    ${table(['Fecha', 'Producto', 'Tipo', 'Neto EUR', 'Origen / rango'], m.calendar.map(row => [
-                        row.date, row.name, row.kind, money(row.amount), row.range ? `Media · ${money(row.range[0])} a ${money(row.range[1])}` : row.estimated ? 'Sin histórico' : 'Introducido'
-                    ]))}</div>
+                `<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"><div><div class="mandate-editor-header mb-2"><h5 class="font-semibold">Calendario de pagos pendientes</h5><button type="button" data-jump-payments class="${buttonStyle}">Editar pagos y bonos</button></div>
+                    ${table(['Fecha', 'Producto', 'Tipo', 'Importe EUR', 'Origen / rango'], m.calendar.map(row => [
+                        shortDate(row.date), row.name, row.kind, money(row.amount),
+                        [row.origin || (row.estimated ? (row.range ? 'Media histórica' : 'Sin histórico') : 'Introducido'),
+                            row.range ? `${money(row.range[0])} a ${money(row.range[1])}` : ''].filter(Boolean).join(' · ')
+                    ]), 'mandate-calendar')}</div>
                     <div><h5 class="font-semibold mb-2">Puente hasta el cierre</h5>
                     ${table(['Concepto', 'EUR'], [
                         ['Cobrado hasta el corte', money(actualReady ? m.coupons + m.dividends : NaN)], ['Cupones pendientes', money(m.cutoff ? m.pendingCoupons : NaN)],
-                        ['Dividendos pendientes', money(m.cutoff ? m.pendingDividends : NaN)], ['Ingreso previsto con el calendario indicado', money(base)]
-                    ])}</div></div>` +
+                        ['Dividendos pendientes', money(m.cutoff ? m.pendingDividends : NaN)]
+                    ])}<div class="mandate-forecast mt-3"><span>Ingreso previsto con los pagos identificados</span>
+                    <strong>${money(base)}</strong><small>${m.goal > 0 ? `${coverage(base)} del objetivo de ${money(m.goal)}` : 'Cupones y dividendos hasta cierre de año'}</small></div></div></div>` +
                 (goalList.length ? `<h5 class="font-semibold mt-4 mb-2">Ingresos previstos frente a objetivos</h5>
                     <div class="space-y-2">${goalList.map(goal => {
                         const ratio = base / goal * 100;
                         return `<div class="grid grid-cols-[minmax(5rem,auto)_minmax(0,1fr)_4rem] items-center gap-2 text-sm">
-                            <span>${safe(money(goal))}</span><div class="h-3 rounded bg-slate-100 overflow-hidden"><div class="h-full bg-blue-800" style="width:${Number.isFinite(ratio) ? Math.max(0, Math.min(100, ratio)) : 0}%"></div></div>
+                            <span>${safe(money(goal))}</span><div class="h-3 rounded bg-slate-100 overflow-hidden"><div class="mandate-progress" style="width:${Number.isFinite(ratio) ? Math.max(0, Math.min(100, ratio)) : 0}%"></div></div>
                             <strong class="text-right">${pct(ratio)}</strong></div>`;
                     }).join('')}</div>` : '') +
                 `<details class="mt-4"><summary class="cursor-pointer font-semibold text-sm">Detalle de cobros importados</summary>
                     ${table(['Fecha valor', 'ISIN', 'Producto', 'Tipo', 'EUR'], m.actual.payments.slice().sort((a, b) => b.date.localeCompare(a.date))
-                        .map(row => [row.date, row.isin, row.name, row.kind, money(row.amount)]))}</details>`),
+                        .map(row => [shortDate(row.date), row.isin, row.name, row.kind, money(row.amount)]))}</details>`),
             section(header('Vencimientos y TIR de los bonos') +
-                muted('El nominal representa principal recuperado. Las TIR son observaciones introducidas para la cartera. La línea une únicamente los bonos del mismo grupo de curva.') +
-                (m.bonds.length ? cards([['Bonos pendientes', num(m.bonds.length)], ['Nominal pendiente', money(sum(m.bonds, bond => bond.nominal))]]) +
+                muted('El nominal representa principal recuperado. Los vencimientos y cupones se leen del nombre cuando el formato lo permite. El nominal inferido usa el último cupón o movimiento disponible. Completa la TIR por bono en su ficha. La línea une únicamente los bonos del mismo grupo de curva.') +
+                (m.bonds.length ? cards([['Bonos identificados', num(m.bonds.length)], ['Nominal identificado', money(sum(m.bonds, bond => bond.nominal))]]) +
                     '<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"><div data-maturity class="min-w-0 h-72"></div><div data-curve class="min-w-0 h-72"></div></div>' : '') +
                 table(['Producto', 'Vencimiento', 'Trimestre', 'Nominal EUR', 'Cupón', 'TIR', 'Grupo'], m.bonds.map(bond => [
-                    bond.name, bond.maturity, quarter(bond.maturity), money(bond.nominal), pct(bond.coupon), pct(bond.ytm), bond.group
+                    bond.name, shortDate(bond.maturity), quarter(bond.maturity), money(bond.nominal), couponPct(bond.coupon), pct(bond.ytm), bond.group
                 ]))),
             section(header('Sensibilidad a tipos') +
                 muted('Variación instantánea = −valor de renta fija × duración modificada × cambio de tipos. La línea muestra (ingreso previsto + variación de valoración) / objetivo.') +
@@ -445,6 +804,9 @@
         return `T${Math.ceil(Number(date.slice(5, 7)) / 3)} ${date.slice(0, 4)}`;
     }
 
+    const monthFormat = new Intl.DateTimeFormat('es-ES', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+    const monthLabel = month => monthFormat.format(new Date(month + '-01T00:00:00Z'));
+
     function plot(target, m, forecast) {
         if (!window.Plotly) return;
         const draw = (selector, traces, layout) => {
@@ -461,7 +823,7 @@
                 buckets.set(month, (buckets.get(month) || 0) + bond.nominal);
             }
             draw('[data-maturity]', [{
-                type: 'bar', x: [...buckets.keys()].map(month => month + '<br>' + quarter(month)),
+                type: 'bar', x: [...buckets.keys()].map(month => monthLabel(month) + '<br>' + quarter(month)),
                 y: [...buckets.values()], marker: { color: '#25618b' },
                 hovertemplate: '%{x}<br>%{y:,.0f} €<extra></extra>'
             }], { title: 'Nominal por mes de vencimiento', xaxis: { type: 'category' }, yaxis: { ticksuffix: ' €' } });
@@ -488,10 +850,10 @@
         }];
         if (forecast && m.goal > 0) traces.push({
             type: 'scatter', mode: 'lines+markers', x, y: rows.map(row => row.coverage),
-            name: '% objetivo incl. valoración', yaxis: 'y2', line: { color: '#22578c' }
+            name: '% objetivo con valoración', yaxis: 'y2', line: { color: '#22578c' }
         });
         draw('[data-sensitivity]', traces, {
-            title: 'Impacto estimado en la cartera', xaxis: { title: 'Cambio paralelo (pb)', tickvals: x },
+            title: 'Impacto estimado en la cartera', xaxis: { title: 'Cambio paralelo (pb)', type: 'category', categoryorder: 'array', categoryarray: x },
             yaxis: { ticksuffix: ' €' }, yaxis2: { overlaying: 'y', side: 'right', ticksuffix: '%', showgrid: false }
         });
     }
@@ -504,14 +866,15 @@
         panel.id = 'workspacePortfolioMandate';
         panel.className = 'mt-6';
         panel.addEventListener('input', event => event.stopPropagation());
+        ratesPanel.append(panel);
         mount(panel, () => ({
-            value: ratesPanel.querySelector('#initialRateAmount').value,
+            value: (typeof portfolioCalculationSettings !== 'function' || portfolioCalculationSettings().currency === 'EUR')
+                ? ratesPanel.querySelector('#initialRateAmount').value : '',
             rf: ratesPanel.querySelector('#initialRateWeight').value,
             duration: ratesPanel.querySelector('#initialRateDuration').value,
             ytm: ratesPanel.querySelector('#initialRateYtm').value,
             shock: ratesPanel.querySelector('#initialRateShock').value
         }));
-        ratesPanel.append(panel);
 
         const jump = document.createElement('button');
         jump.type = 'button';
