@@ -722,11 +722,108 @@
         return () => { body.innerHTML = storage.value.split(/\r?\n/).filter(Boolean).map(line => row(line.split(line.includes('\t') ? '\t' : ';'))).join(''); };
     }
 
+    function attachFieldNotes(root, definitions) {
+        const groups = new Map();
+        for (const [selector, title, explanation] of definitions) {
+            const field = root.querySelector(selector);
+            const label = field?.closest('label');
+            const group = field?.closest('.grid, .workspace-settings');
+            if (!field || !label || !group) continue;
+            if (!groups.has(group)) groups.set(group, []);
+            groups.get(group).push({ field, label, title, explanation });
+        }
+        let groupIndex = 0;
+        for (const [group, notes] of groups) {
+            const prefix = root.id + '-notes-' + groupIndex++;
+            const footer = document.createElement('div');
+            footer.className = 'mandate-field-notes';
+            footer.innerHTML = '<p class="mandate-notes-heading">Qué introducir en estos campos</p><ol>' +
+                notes.map((note, i) => {
+                    const noteId = prefix + '-' + i;
+                    const reference = document.createElement('a');
+                    reference.href = '#' + noteId;
+                    reference.className = 'mandate-note-ref';
+                    reference.textContent = String(i + 1);
+                    reference.setAttribute('aria-label', 'Ver nota de ' + note.title);
+                    note.label.insertBefore(reference, note.field);
+                    note.field.setAttribute('aria-describedby', noteId);
+                    return `<li id="${noteId}"><strong>${safe(note.title)}.</strong> ${safe(note.explanation)}</li>`;
+                }).join('') + '</ol>';
+            group.after(footer);
+        }
+    }
+
+    function explainMandateFields(root) {
+        const notes = [
+            ['cutoff', 'Fecha de corte', 'Último día que consideras realizado. Déjalo vacío para tomar la fecha más reciente de los extractos. Los cobros hasta ese día son reales; los posteriores se estiman.'],
+            ['end', 'Fecha final de proyección', 'Último día que quieres incluir en el presupuesto. Empieza en el 31 de diciembre del año de corte. Cámbialo si el mandato termina en otra fecha. La matriz macro utiliza siempre 12 meses desde el corte.'],
+            ['value', 'Valor de cartera', 'Valor total de mercado en EUR, incluyendo todas las clases de activos del análisis. Vacío toma el importe del simulador superior y, si falta, la suma del contravalor EUR del Excel de posiciones.'],
+            ['rf', 'Peso de renta fija', 'Porcentaje del valor total invertido en RF, incluidos los fondos de bonos que hayas clasificado como RF. Escribe 90 para un 90%. Vacío reutiliza el simulador superior.'],
+            ['duration', 'Duración modificada de RF', 'Sensibilidad ponderada de la manga RF a tipos, en años. Introduce el dato de la ficha o del análisis de cartera, por ejemplo 3,2. Vacío reutiliza el simulador; la fecha de vencimiento de un bono no equivale a su duración.'],
+            ['ytm', 'TIR ponderada de RF', 'Rendimiento a vencimiento de la manga RF, ponderado por valor de mercado. Escribe 3,8 para 3,8%. Vacío reutiliza la YTM del simulador. Completa este campo si quieres estimar la TIR neta a partir de costes y fiscalidad.'],
+            ['goal', 'Objetivo anual', 'Ingreso o resultado que quieres conseguir en EUR, por ejemplo 200000. Usa la misma base fiscal que selecciones debajo. Si lo dejas vacío, se muestran importes pero no porcentajes de cumplimiento.'],
+            ['shock', 'Cambio de tipos de referencia', 'Movimiento que quieres simular, en puntos básicos. +100 significa una subida de 1 punto porcentual; −25, una bajada de 0,25 puntos. Vacío usa el shock del simulador superior.'],
+            ['alternatives', 'Otros objetivos', 'Presupuestos adicionales en EUR, separados por punto y coma, por ejemplo 100000;150000;200000. Es opcional y solo añade comparaciones al gráfico de objetivos.'],
+            ['fiscalMode', 'Base del objetivo', 'Selecciona Después de reserva fiscal y costes si el objetivo debe medirse como resultado disponible tras esos ajustes. La otra opción conserva los cobros netos de las retenciones ya practicadas, sin una reserva adicional.'],
+            ['incomeReservePct', 'Reserva adicional sobre cobros netos', 'Porcentaje adicional que apartarás de los cobros que muestra el panel para cubrir impuestos pendientes. Usa la estimación efectiva del cliente. Introduce 0 si no queda impuesto adicional por reservar; no repitas aquí retenciones que ya se descontaron. Es obligatorio al activar la base después de impuestos.'],
+            ['gainsTaxPct', 'Impuesto efectivo sobre ganancias de venta', 'Tasa efectiva estimada para el resultado positivo conjunto de las ventas seleccionadas, después de costes. Usa el criterio fiscal aplicable al cliente, facilitado por su asesor. Introduce 0 si procede exención. Es obligatorio en la base neta; el panel no asigna automáticamente un régimen fiscal.'],
+            ['saleCostsPct', 'Costes sobre el importe de venta', 'Comisiones y gastos estimados como porcentaje del efectivo bruto que produciría la venta. Ejemplo de formato, 0,2 significa 0,2% del importe vendido. Usa 0 si no hay costes; es obligatorio en la base neta.'],
+            ['netYieldPct', 'TIR neta anual directa', 'Rendimiento anual de RF que ya descuenta los costes e impuestos que quieres considerar. Si lo conoces, introdúcelo aquí, por ejemplo 3,8. Tiene prioridad sobre los dos campos siguientes. Si no lo conoces, déjalo vacío y completa costes anuales y tasa sobre carry.'],
+            ['annualCostsPct', 'Costes anuales de RF', 'Coste anual adicional sobre el patrimonio de RF, expresado en puntos porcentuales. Ejemplo de formato, 0,5 resta 0,5 puntos a una TIR del 4%. Rellénalo solo para calcular la TIR neta cuando la directa está vacía. Usa 0 si el coste ya está incluido en la TIR de origen.'],
+            ['carryTaxPct', 'Tasa fiscal efectiva sobre carry', 'Porcentaje fiscal estimado sobre la TIR anual una vez restados los costes. Se utiliza solo si la TIR neta directa está vacía. Introduce la tasa efectiva del cliente o 0 si procede exención. Es una hipótesis anual de rendimiento, distinta de la reserva adicional sobre los cobros netos del presupuesto.'],
+            ['convexity', 'Convexidad de tipos de RF', 'Medida de curvatura de la relación precio–tipos de la manga RF, en años². Tómala de la ficha o del proveedor de riesgos; no la deduzcas del vencimiento. Si no tienes el dato, escribe 0 para calcular y mostrar la aproximación lineal. Vacío deja pendiente la matriz completa.'],
+            ['governmentPct', 'Deuda soberana', 'Porcentaje de la manga RF que modelas sin shock de spread corporativo. Es una hipótesis de clasificación. Junto con IG y HY debe sumar 100; escribe 0 si no hay exposición soberana.'],
+            ['igPct', 'Crédito IG', 'Porcentaje de la manga RF invertido en crédito con grado de inversión (Investment Grade), según la clasificación de tus posiciones o fondos. Junto con soberana y HY suma 100. Escribe 0 si no existe ese tramo.'],
+            ['hyPct', 'Crédito HY', 'Porcentaje de la manga RF en crédito de alto rendimiento (High Yield), según la clasificación de tus posiciones o fondos. Junto con soberana e IG suma 100. Escribe 0 si no existe ese tramo. Ejemplo de reparto, 60 soberana + 40 IG + 0 HY.'],
+            ['igSpreadDuration', 'Spread duration IG', 'Sensibilidad al diferencial de crédito del tramo IG, en años, ponderada solo dentro de ese tramo. Tómala del proveedor de riesgos. Es obligatoria cuando IG tiene peso positivo. Si IG es 0, puedes dejarla vacía. No copies la duración de tipos salvo que el dato de origen respalde esa equivalencia.'],
+            ['hySpreadDuration', 'Spread duration HY', 'Sensibilidad al diferencial de crédito del tramo HY, en años, ponderada solo dentro de ese tramo. Es obligatoria cuando HY tiene peso positivo. Si HY es 0, puedes dejarla vacía. Tómala del proveedor de riesgos.'],
+            ['name', 'Producto', 'Nombre del activo. Para inferir un bono nuevo usa, si está disponible, el formato del extracto, por ejemplo SPGB 2,55 311032, que identifica cupón 2,55% y vencimiento 31/10/2032.'],
+            ['isin', 'ISIN', 'Identificador del instrumento, con 12 caracteres. Úsalo para cruzar la ficha con cobros y posiciones. En un activo nuevo puedes dejarlo vacío si no lo conoces y conservar el mismo nombre en las siguientes cargas.'],
+            ['kind', 'Tipo de pago', 'Elige Cupón para intereses de un bono o Dividendo para una distribución de acciones o fondos. En fichas procedentes del extracto ya viene identificado.'],
+            ['next', 'Próximo pago', 'Fecha del pago que quieres corregir o añadir. Déjala vacía para usar la fecha inferida del histórico o del nombre del bono. Si introduces una fecha y quieres que se repita, selecciona también la frecuencia.'],
+            ['frequency', 'Frecuencia', 'Intervalo entre pagos del mismo activo. Usa cada 3 meses para un dividendo trimestral y cada 12 para un cupón anual. Vacío permite inferir la frecuencia; cuando has indicado una fecha manual, vacío la trata como pago único.'],
+            ['net', 'Importe neto por pago', 'Importe total en EUR que esperas cobrar por toda la posición en cada fecha, después de deducciones. Introduce 0 para suprimir el ingreso previsto. Vacío usa el histórico neto o el cupón calculado con nominal y tasa.'],
+            ['withholding', 'Retención prevista sobre cupón bruto', 'Porcentaje que se descontará del cupón calculado en bruto. Rellénalo cuando el calendario estima el cupón por nominal y tasa. Usa 0 si no hay retención. Se ignora si introduces un neto manual o se usa un cobro histórico que ya es neto.'],
+            ['nominal', 'Nominal vigente', 'Principal del bono que mantienes, expresado en EUR para el calendario. Vacío usa el nominal de posiciones o movimientos. Modifícalo si hubo una compra o venta que el extracto todavía no refleja. Escribe 0 si ya no mantienes el bono.'],
+            ['coupon', 'Cupón anual', 'Tasa contractual del bono sobre su nominal, por ejemplo 2,55 significa 2,55% anual. Vacío intenta leerla del nombre. Rellénala si falta o es incorrecta; la TIR puede ser diferente de este cupón.'],
+            ['maturity', 'Vencimiento', 'Fecha contractual de devolución del principal. Vacío intenta leerla del nombre. Corrígela si el instrumento tiene otra fecha o no sigue el formato del extracto.'],
+            ['ytm', 'TIR indicativa del bono', 'Rendimiento a vencimiento de este bono, en porcentaje, tomado de su cotización o ficha. Es opcional; vacío deja pendiente su punto de TIR en el gráfico. No uses aquí la TIR de toda la cartera.'],
+            ['group', 'Grupo de curva', 'Nombre común solo para bonos comparables que quieras unir en el gráfico de TIR, por ejemplo Estado español EUR. Vacío muestra el punto sin unirlo a una curva.'],
+            ['excluded', 'Excluir de las previsiones', 'Márcalo si el activo ya no está en cartera o no quieres proyectar sus pagos. Conserva la ficha para futuras revisiones.']
+        ];
+        attachFieldNotes(root, notes.map(([name, title, explanation]) => [
+            (title === 'TIR indicativa del bono' ? '.mandate-rule-form ' : '') + '[name="' + name + '"]', title, explanation
+        ]));
+    }
+
+    function explainSimulatorFields(root) {
+        const definitions = [
+            ['initialRateAudience', 'Vista', 'Cliente muestra el resumen. Analista añade los controles avanzados y la comparación con una cartera ajustada.'],
+            ['initialRateMode', 'Modo', 'RF agregada usa las métricas ponderadas que introduzcas. Posición por posición permite cargar los instrumentos de origen y revisar sus duraciones y YTM antes de calcular la media.'],
+            ['initialRateAmount', 'Importe total de cartera', 'Valor de mercado de toda la cartera en la divisa seleccionada en el análisis. Introduce el patrimonio que quieres someter al shock.'],
+            ['initialRateRfAmount', 'Valor de renta fija', 'Importe de la manga RF. En modo agregado puedes introducirlo directamente y se recalcula el peso. También se actualiza al cambiar el patrimonio total o el porcentaje RF.'],
+            ['initialRateWeight', 'Peso de renta fija', 'Porcentaje de RF sobre el total, por ejemplo 90 para 90%. En modo agregado calcula el valor RF; en modo por posiciones se obtiene de los instrumentos cargados.'],
+            ['initialRateDuration', 'Duración modificada de RF', 'Sensibilidad ponderada a tipos, en años, de la manga RF. Usa la métrica de la ficha o del proveedor, por ejemplo 3,2. En modo por posiciones se calcula con las duraciones introducidas en la tabla.'],
+            ['initialSpreadDuration', 'Spread duration', 'Sensibilidad ponderada de la manga RF al diferencial de crédito. Rellena el dato del proveedor para activar shocks de spreads. Vacío permite los escenarios de tipos sin crédito; no equivale automáticamente a la duración de tipos.'],
+            ['initialRateShock', 'Shock de tipos', 'Cambio paralelo de tipos, en puntos básicos, para el escenario personalizado. +100 representa +1 punto porcentual; −25 representa −0,25 puntos. Escribe 0 para mantener los tipos constantes.'],
+            ['initialSpreadShock', 'Shock de spreads', 'Cambio del diferencial de crédito, en puntos básicos. Positivo significa ampliación; negativo, estrechamiento. Escribe 0 para estudiar únicamente los tipos. Un shock distinto de 0 requiere spread duration.'],
+            ['initialRateYtm', 'YTM anual', 'TIR anual a vencimiento de RF ponderada por su valor. Introduce 3,8 para 3,8%. Se utiliza si activas el carry y se comparte con el informe inferior.'],
+            ['initialRateHorizon', 'Horizonte', 'Meses para la estimación de carry del simulador superior, por ejemplo 12. Se utiliza cuando marcas Incluir carry/TIR. La matriz macro inferior siempre trabaja a 12 meses.'],
+            ['initialRateCarry', 'Incluir carry/TIR', 'Márcalo para sumar YTM anual × meses/12 al cambio de precio. Déjalo sin marcar para observar solo la sensibilidad instantánea. Esta aproximación no es el calendario efectivo de cupones.'],
+            ['initialRateAdjustedWeight', 'RF propuesta', 'Porcentaje de RF de la cartera alternativa que quieras comparar bajo el mismo shock. Rellénalo solo al estudiar una propuesta.'],
+            ['initialRateAdjustedDuration', 'Duración propuesta', 'Duración de tipos ponderada de la RF propuesta, en años. Úsala junto con el peso propuesto para comparar ambas carteras.'],
+            ['initialRateAdjustedSpread', 'Spread duration propuesta', 'Sensibilidad al crédito de la RF propuesta, en años. Rellénala para comparar la alternativa con el shock de crédito seleccionado.'],
+            ['initialRateAdjustedYtm', 'YTM propuesta', 'TIR anual ponderada de la RF propuesta, en porcentaje. Rellénala si incluyes carry para que la comparación utilice el rendimiento de esa propuesta.']
+        ];
+        attachFieldNotes(root, definitions.map(([id, title, explanation]) => ['#' + id, title, explanation]));
+    }
+
     function mount(root, rateInputs) {
         root.classList.add('space-y-4', 'mandate-report');
         root.innerHTML = `
             <section class="${cardStyle}">
                 <h3 tabindex="-1" class="mandate-title">Ingresos, vencimientos y plusvalías</h3>
+                <p class="mt-2 text-sm text-slate-600">Para empezar, carga los extractos, revisa las fechas e introduce el objetivo. Los importes y pagos que puede deducir el panel se completan automáticamente. Rellena las hipótesis macro cuando quieras calcular el stress y el breakeven. Cada número junto a un campo remite a su explicación al pie del bloque.</p>
                 <div class="mt-4 flex flex-wrap items-end gap-3">
                     <label class="block text-sm font-semibold">Extractos YTD y posición (.xlsx o .xls)<input data-extract type="file" multiple accept=".xlsx,.xls" class="${inputStyle}"></label>
 
@@ -750,7 +847,7 @@
                     <p class="mt-2 text-xs text-slate-600">La fecha de corte toma la más reciente de los extractos. La proyección parte de los cobros del año del corte y añade los pagos hasta la fecha final, que comienza en el 31 de diciembre. Los campos de sensibilidad vacíos siguen al simulador. Si falta el valor de cartera, se usa el contravalor total de la posición vigente.</p>
                     <details class="mt-4 border-t border-slate-200 pt-3">
                         <summary class="font-semibold cursor-pointer">Carga masiva de pagos, bonos y escenarios</summary>
-                        <p class="mt-2 text-sm text-slate-600">Pega filas de Excel sin encabezados o escribe una fila por línea, separando las columnas con punto y coma. Fechas AAAA-MM-DD o DD/MM/AAAA. Importes sin separadores de miles.</p>
+                        <p class="mt-2 text-sm text-slate-600">Usa esta carga para añadir o corregir registros que no estén en los extractos. Pega filas de Excel sin encabezados o escribe una fila por línea, separando las columnas con punto y coma. Fechas AAAA-MM-DD o DD/MM/AAAA. Importes sin separadores de miles.</p>
                         ${area('paymentRows', 'Pagos pendientes', 'Fecha · producto · cupón/dividendo · ISIN · neto EUR. Para estimar un dividendo por la media de los abonos del mismo ISIN, deja vacía la última columna.')}
                         ${area('bondRows', 'Bonos en cartera', 'Producto · vencimiento · nominal EUR · cupón % · TIR % · grupo de curva. La TIR y el grupo pueden quedar vacíos. Usa un grupo común solo para emisiones comparables.')}
                         ${area('assetRows', 'Posiciones y ventas simuladas', 'Código/ISIN · activo · unidades · precio local · divisa · EUR por unidad de divisa · coste total EUR · % a vender. En EUR puedes dejar vacío el cambio.')}
@@ -758,9 +855,16 @@
                     </details>
                     <details class="mt-4 border-t border-slate-200 pt-3">
                         <summary class="font-semibold cursor-pointer">Posiciones, ventas y revalorizaciones</summary>
-                        <p class="mt-2 mb-3 text-sm text-slate-600">Introduce las posiciones que quieres simular. Para cada escenario, usa el mismo código del activo. En EUR el cambio puede quedar vacío.</p>
+                        <p class="mt-2 mb-3 text-sm text-slate-600">Usa estas tablas para añadir posiciones manuales o comparar escenarios alternativos. Si has cargado el Excel de posiciones, puedes editar sus ventas en la tabla inferior. Para cada escenario, usa el mismo código del activo. En EUR el cambio puede quedar vacío.</p>
                         <h4 class="mb-2">Posiciones y ventas</h4><div data-positions-grid></div>
                         <h4 class="mt-4 mb-2">Escenarios de precio</h4><div data-scenarios-grid></div>
+                        <div class="mandate-field-notes"><p class="mandate-notes-heading">Cómo rellenar las tablas manuales</p><ol>
+                            <li><strong>Código / ISIN y activo.</strong> Usa el identificador y nombre de la posición. Si utilizas un ISIN que ya se importó, esta fila manual sustituye sus valores en la simulación.</li>
+                            <li><strong>Unidades y precio local.</strong> Introduce la cantidad de participaciones o títulos y el precio por unidad en su divisa. Para un bono manual, adapta las unidades a su cotización por 100 de nominal; comprueba que unidades × precio × cambio coincida con el valor en EUR.</li>
+                            <li><strong>Divisa y EUR/divisa.</strong> Escribe EUR, USD, CAD, etc. El cambio indica cuántos EUR vale una unidad de esa divisa; por ejemplo, 0,62 significa 1 CAD = 0,62 EUR. En una fila EUR puedes dejar el cambio vacío.</li>
+                            <li><strong>Coste total € y venta %.</strong> Introduce el coste de adquisición de toda la posición en EUR y el porcentaje que quieres vender. Escribe 0 para mantenerla y 100 para venderla completa. Usa el coste histórico en EUR cuando lo conozcas.</li>
+                            <li><strong>Escenario, código y variación %.</strong> Introduce un nombre de escenario, el código exacto de un activo cargado y su variación de precio. +20 significa una revalorización del 20%; −10, una caída del 10%. Repite el escenario para cambiar varios activos. Los activos que no se incluyan mantienen su precio.</li>
+                        </ol></div>
                     </details>
                     <details class="mt-4 border-t border-slate-200 pt-3" open>
                         <summary class="font-semibold cursor-pointer">Fiscalidad y costes para medir el objetivo</summary>
@@ -816,6 +920,7 @@
             delete rules[key];
             render();
         });
+        explainMandateFields(root);
         const readState = () => Object.fromEntries(fields.map(name => [name, input(name).value]));
         const render = () => {
             const state = readState();
@@ -1012,7 +1117,15 @@
             <div class="overflow-x-auto"><table class="mandate-table mandate-sales-table"><thead><tr>
                 <th>Producto</th><th>Mercado EUR</th><th>Coste EUR</th><th>Plusvalía latente</th>
                 <th>% a vender</th><th>Resultado a precio actual</th><th>Revalorización %</th><th>Cambio EUR/divisa %</th><th>Fecha de venta</th><th>Resultado con hipótesis</th></tr></thead><tbody>${rows}</tbody></table></div>
-            <p class="text-xs text-slate-600 mt-2">La revalorización es acumulada hasta la fecha de venta. Precio y cambio se multiplican. El coste histórico en EUR permite incorporar el cambio de adquisición. Las ventas fuera del horizonte aportan cero al resultado proyectado.</p>
+            <p class="text-xs text-slate-600 mt-2">La revalorización es acumulada hasta la fecha de venta. Precio y cambio se multiplican. Las ventas fuera del horizonte aportan cero al resultado proyectado.</p>
+            <div class="mandate-field-notes"><p class="mandate-notes-heading">Qué introducir en las ventas</p><ol>
+                <li><strong>Coste histórico EUR.</strong> Coste total de adquisición de la posición completa en euros. Rellénalo cuando conozcas el cambio aplicado al comprar, especialmente en activos no EUR. Vacío conserva el coste estimado del extracto, convertido al cambio de valoración.</li>
+                <li><strong>% a vender.</strong> Parte de la posición que quieres simular vender. Escribe 25 para un cuarto, 100 para toda o 0 para mantenerla. El resultado y el coste se asignan proporcionalmente.</li>
+                <li><strong>Revalorización %.</strong> Cambio acumulado del precio local desde la valoración hasta la fecha de venta. Escribe 20 para +20% o −10 para −10%. Vacío supone precio constante; no es una tasa anualizada.</li>
+                <li><strong>Cambio EUR/divisa %.</strong> Variación del valor en EUR de una unidad de la divisa hasta la venta. +10 significa que la divisa vale un 10% más en EUR. Vacío supone cambio constante. En un activo EUR usa 0 o déjalo vacío.</li>
+                <li><strong>Fecha de venta.</strong> Día en que aplicas la hipótesis y realizas la venta simulada. Empieza en la fecha final de proyección. Si anticipas la venta, revisa los cupones y dividendos que ya no cobrarías en la ficha del activo. Una fecha posterior al horizonte deja esa venta fuera del resultado proyectado.</li>
+                <li><strong>Resultados.</strong> Mercado EUR, plusvalía latente y resultado con hipótesis son salidas calculadas. Para medir el objetivo después de costes e impuestos, activa la base neta y completa las tasas del bloque fiscal.</li>
+            </ol></div>
         </details>`;
     }
 
@@ -1266,6 +1379,7 @@
         panel.id = 'workspacePortfolioMandate';
         panel.className = 'mt-6';
         panel.addEventListener('input', event => event.stopPropagation());
+        explainSimulatorFields(ratesPanel);
         ratesPanel.append(panel);
         mount(panel, () => ({
             value: (typeof portfolioCalculationSettings !== 'function' || portfolioCalculationSettings().currency === 'EUR')

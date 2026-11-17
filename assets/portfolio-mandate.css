@@ -2,7 +2,7 @@
 .mandate-report { --mandate-navy:#15344e; --mandate-blue:#30678e; --mandate-line:#d5e0e9; color:#18344b; min-width:0 }
 .mandate-report .mandate-title { font-size:clamp(1.3rem,2vw,1.8rem); line-height:1.18; font-weight:800; color:var(--mandate-navy); letter-spacing:-.025em }
 .mandate-report h4 { color:var(--mandate-navy); font-weight:750; font-size:1.13rem }
-.mandate-report .mandate-kpi { background:#f4f8fb; border:1px solid var(--mandate-line); border-radius:.45rem; padding:.8rem 1rem; min-width:0 }
+.mandate-report .mandate-kpi { background:transparent; border:0; border-radius:0; padding:.8rem 0; min-width:0 }
 .mandate-report .mandate-kpi-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.055em; color:#426079; font-weight:700 }
 .mandate-report .mandate-kpi-value { font-size:clamp(1.05rem,1.75vw,1.55rem); line-height:1.2; font-weight:800; color:var(--mandate-navy); margin-top:.35rem; font-variant-numeric:tabular-nums }
 .mandate-report .mandate-table { width:100%; border-collapse:collapse; font-size:.83rem; text-align:left; font-variant-numeric:tabular-nums; white-space:nowrap }
@@ -28,3 +28,12 @@
 .mandate-report .mandate-sales-table td:not(:first-child),
 .mandate-report .mandate-sales-table th:not(:first-child) { text-align:right }
 .mandate-report .mandate-sales-table .mandate-sale-input { width:6rem; text-align:right }
+
+#workspaceInitialRates .mandate-field-notes { margin:.6rem 0 1rem; padding-top:.65rem; border-top:1px solid #d5e0e9; font-size:.76rem; line-height:1.55; color:#476178 }
+#workspaceInitialRates .mandate-notes-heading { font-weight:700; margin-bottom:.4rem }
+#workspaceInitialRates .mandate-field-notes ol { list-style:decimal; padding-left:1.35rem; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:2rem; row-gap:.4rem }
+#workspaceInitialRates .mandate-field-notes li { padding-left:.2rem; scroll-margin-top:9rem }
+#workspaceInitialRates .mandate-note-ref { vertical-align:super; font-size:.65rem; padding:0 .2rem; color:#30678e; text-decoration:underline; font-weight:700 }
+#workspaceInitialRates .mandate-note-ref:focus-visible { outline:2px solid #30678e; outline-offset:2px }
+#workspaceInitialRates .mandate-field-notes li:target { outline:1px solid #30678e; outline-offset:3px }
+@media(max-width:700px) { #workspaceInitialRates .mandate-field-notes ol { grid-template-columns:minmax(0,1fr) } }
