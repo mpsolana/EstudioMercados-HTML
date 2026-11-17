@@ -76,3 +76,36 @@ test('stale rate data are not carried across a long gap', () => {
     }
     assert.equal(Rates.forwardPairs(assets, rates, 1).length, 4);
 });
+
+test('forward macro matrix applies convexity on rates and credit shocks on IG/HY sleeves', () => {
+    const rows = Rates.prospectiveScenarios({ amount: 100000, rfWeightPct: 80, duration: 3.2, convexity: 12,
+        netYieldPct: 3.8, governmentPct: 50, igPct: 40, hyPct: 10, igSpreadDuration: 4, hySpreadDuration: 3.5 });
+    assert.equal(rows.length, 4);
+    const stagflation = rows[1];
+    assert(Math.abs(stagflation.rates + .032) < 1e-12);
+    assert(Math.abs(stagflation.convexityReturn - .0006) < 1e-12);
+    assert(Math.abs(stagflation.credit + .00975) < 1e-12);
+    assert(Math.abs(stagflation.rfReturn + .00315) < 1e-12);
+    assert(Math.abs(stagflation.change + 252) < 1e-9);
+    const recession = rows[2];
+    assert(Math.abs(recession.igCredit + .024) < 1e-12);
+    assert(Math.abs(recession.hyCredit + .01225) < 1e-12);
+    assert(Math.abs(recession.rfReturn - .0511) < 1e-12);
+    const sovereign = Rates.prospectiveScenarios({ amount: 100000, rfWeightPct: 100, duration: 3.2, convexity: 0,
+        netYieldPct: 3.8, governmentPct: 100, igPct: 0, hyPct: 0 });
+    assert.equal(sovereign[2].credit, 0);
+    assert.throws(() => Rates.prospectiveScenarios({ amount: 100000, rfWeightPct: 80, duration: 3.2,
+        convexity: 12, netYieldPct: 3.8, governmentPct: 50, igPct: 50, hyPct: 10 }), /Completa/);
+});
+
+test('breakeven returns the first quadratic crossing and distinguishes absent positive cushion', () => {
+    const point = Rates.breakevenYield({ netYieldPct: 3.8, duration: 3.2, convexity: 12 });
+    assert(Math.abs(point.linearBps - 118.75) < 1e-10);
+    const dy = point.convexityBps / 10000;
+    assert(Math.abs(.038 - 3.2 * dy + .5 * 12 * dy * dy) < 1e-12);
+    assert(point.convexityBps > point.linearBps);
+    assert.equal(Rates.breakevenYield({ netYieldPct: 0, duration: 3.2, convexity: 0 }).linearBps, 0);
+    assert.equal(Rates.breakevenYield({ netYieldPct: -1, duration: 3.2, convexity: 10 }).convexityBps, null);
+    assert.equal(Rates.breakevenYield({ netYieldPct: 50, duration: 1, convexity: 20 }).convexityBps, null);
+    assert.throws(() => Rates.breakevenYield({ netYieldPct: 3.8, duration: 0 }), /duración/);
+});

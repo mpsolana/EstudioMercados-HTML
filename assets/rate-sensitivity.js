@@ -27,6 +27,59 @@
         const rfReturn=rates+credit+carry;
         return {rfAmount,rates,credit,carry,rfReturn,portfolioReturn:rfReturn*rfWeightPct/100,rateAmount:rfAmount*rates,creditAmount:rfAmount*credit,carryAmount:rfAmount*carry,change:rfAmount*rfReturn,portfolioValue:amount+rfAmount*rfReturn};
     }
+    function breakevenYield({ netYieldPct, duration, convexity }) {
+        if (!Number.isFinite(netYieldPct) || !(duration > 0) || !Number.isFinite(duration)) {
+            throw new Error('Indica TIR neta y duración modificada positiva.');
+        }
+        const carry = netYieldPct / 100;
+        const linearBps = carry / duration * 10000;
+        let convexityBps = null;
+        if (Number.isFinite(convexity) && convexity >= 0 && carry >= 0) {
+            const discriminant = duration * duration - 2 * convexity * carry;
+            if (convexity === 0) convexityBps = linearBps;
+            else if (discriminant >= 0) convexityBps = 2 * carry / (duration + Math.sqrt(discriminant)) * 10000;
+        }
+        return { linearBps, convexityBps };
+    }
+
+    function prospectiveScenarios({ amount, rfWeightPct, duration, convexity, netYieldPct,
+        governmentPct, igPct, hyPct, igSpreadDuration, hySpreadDuration }) {
+        if (![amount, rfWeightPct, duration, convexity, netYieldPct, governmentPct, igPct, hyPct].every(Number.isFinite) ||
+            amount <= 0 || rfWeightPct < 0 || rfWeightPct > 100 || duration < 0 || duration > 100 ||
+            convexity < 0 || [governmentPct, igPct, hyPct].some(weight => weight < 0 || weight > 100) ||
+            Math.abs(governmentPct + igPct + hyPct - 100) > 0.001) {
+            throw new Error('Completa valor, peso RF, duración, convexidad, TIR neta y un reparto soberana/IG/HY que sume 100% de RF.');
+        }
+        if (igPct > 0 && (!Number.isFinite(igSpreadDuration) || igSpreadDuration < 0 || igSpreadDuration > 100) ||
+            hyPct > 0 && (!Number.isFinite(hySpreadDuration) || hySpreadDuration < 0 || hySpreadDuration > 100)) {
+            throw new Error('Completa la spread duration de cada tramo de crédito con peso positivo.');
+        }
+        const shocks = [
+            { name: 'Base', rateBps: -25, igBps: 0, hyBps: 0 },
+            { name: 'Estanflación', rateBps: 100, igBps: 50, hyBps: 50 },
+            { name: 'Recesión / crédito', rateBps: -150, igBps: 150, hyBps: 350 },
+            { name: 'Desinflación rápida', rateBps: -100, igBps: -30, hyBps: -30 }
+        ];
+        return shocks.map(shock => {
+            const dy = shock.rateBps / 10000;
+            const rates = -duration * dy;
+            const convexityReturn = 0.5 * convexity * dy * dy;
+            const igCredit = igPct === 0 ? 0 : -igSpreadDuration * shock.igBps / 10000 * igPct / 100;
+            const hyCredit = hyPct === 0 ? 0 : -hySpreadDuration * shock.hyBps / 10000 * hyPct / 100;
+            const credit = igCredit + hyCredit;
+            const carry = netYieldPct / 100;
+            const priceReturn = rates + convexityReturn + credit;
+            const rfReturn = priceReturn + carry;
+            const portfolioReturn = rfReturn * rfWeightPct / 100;
+            const priceLoss = Math.max(0, -priceReturn);
+            return { ...shock, rates, convexityReturn, igCredit, hyCredit, credit, carry, priceReturn, rfReturn,
+                portfolioReturn, change: amount * portfolioReturn,
+                cushionCoveragePct: priceLoss > 0 ? Math.max(0, carry) / priceLoss * 100 : null,
+                uncoveredLoss: Math.max(0, -rfReturn),
+                carryRecoveryMonths: rfReturn < 0 && carry > 0 ? -rfReturn / carry * 12 : null };
+        });
+    }
+
     function weightedPositions(positions,amount){
         if(!Number.isFinite(amount)||amount<=0)throw new Error('El importe total debe ser positivo.');
         const included=(positions||[]).filter(row=>Number.isFinite(row.value)&&row.value>0);
@@ -72,5 +125,5 @@
         const variance=n>1?values.reduce((sum,value)=>sum+(value-mean)**2,0)/(n-1):NaN;
         return {n,mean,min:sorted[0],max:sorted.at(-1),median:n%2?sorted[(n-1)/2]:(sorted[n/2-1]+sorted[n/2])/2,sd:Number.isFinite(variance)?Math.sqrt(variance):NaN,winRate:values.filter(value=>value>0).length/n};
     }
-    return {scenario,combinedScenario,weightedPositions,bpsToDecimal,forwardPairs,summarize};
+    return {scenario,combinedScenario,breakevenYield,prospectiveScenarios,weightedPositions,bpsToDecimal,forwardPairs,summarize};
 });

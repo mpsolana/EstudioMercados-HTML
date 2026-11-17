@@ -125,3 +125,33 @@ test('sale hypotheses compound price and FX, respect the horizon and accept an a
     state.end = '2026-11-30';
     assert.equal(calculate(state, { positions: position }).projectedSelected, 0);
 });
+
+test('fiscal reserve preserves booked net income and deducts costs and capital tax once', () => {
+    const positions = { date: '2026-10-01', issues: [], assets: [
+        { key: etf.isin, name: 'EUR asset', units: 100, marketValue: 1000, cost: 800, ccy: 'EUR', imported: true }
+    ] };
+    const trades = [trade(etf, 'income', '2026-09-01', 100)];
+    const state = { sales: { [etf.isin]: '100' }, fiscalMode: 'net', incomeReservePct: '10', gainsTaxPct: '20', saleCostsPct: '1' };
+    const result = calculate(state, { positions, trades });
+    assert.equal(result.dividends, 100);
+    assert.equal(result.grossBase, 100);
+    assert.equal(result.base, 90);
+    assert.deepEqual(result.selectedOutcome, { fees: 10, tax: 38, net: 152 });
+    assert.deepEqual(result.projectedOutcome, result.selectedOutcome);
+    assert.equal(result.base + result.selectedOutcome.net, 242);
+    assert.equal(calculate({ ...state, gainsTaxPct: '' }, { positions, trades }).fiscal.valid, false);
+    assert.equal(Number.isNaN(calculate({ ...state, gainsTaxPct: '' }, { positions, trades }).base), true);
+    const loss = calculate(state, { positions: { ...positions, assets: [{ ...positions.assets[0], cost: 1100 }] }, trades });
+    assert.deepEqual(loss.selectedOutcome, { fees: 10, tax: 0, net: -110 });
+});
+
+test('net carry uses explicit taxes and costs while a direct net yield takes precedence', () => {
+    const config = { cutoff: '2026-10-01', value: '100000', rf: '80', duration: '3.2', ytm: '5',
+        annualCostsPct: '.5', carryTaxPct: '20', convexity: '12', governmentPct: '100', igPct: '0', hyPct: '0' };
+    const result = calculate(config, {});
+    assert.equal(result.netYield, 3.6);
+    assert.equal(result.macroRows.length, 4);
+    assert.equal(calculate({ ...config, netYieldPct: '3.8' }, {}).netYield, 3.8);
+    assert.equal(calculate({ ...config, carryTaxPct: '' }, {}).macroRows.length, 0);
+    assert.equal(result.base, 0);
+});
