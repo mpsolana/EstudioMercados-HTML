@@ -83,3 +83,45 @@ test('the position report supplies bond nominals and converts foreign gains from
     const laterTrade = { ...trade(etf, '9', '2026-10-02', 200), kind: '', positionMovement: true };
     assert.equal(calculate({}, { ...sources, trades: [laterTrade] }).possible, 0);
 });
+
+test('multicurrency cash uses matched currency only for an equal net and never trusts an ambiguous cash rate', () => {
+    const trades = [{ ...trade(etf, 'usd', '2026-09-01', 100), ccy: 'USD', fx: 0.85, gross: 110, sourceTax: 8, localTax: 2 }];
+    const cash = [{ code: 'usd', date: '2026-09-01', kind: 'Dividendo', isin: etf.isin, amount: 100, direction: 'ABONO', account: 'USD1' }];
+    const result = calculate({}, { trades, cash });
+    assert.equal(result.dividends, 85);
+    assert.equal(result.actual.payments.length, 1);
+    assert.equal(result.actual.payments[0].sourceTaxEUR, 6.8);
+    assert.equal(result.actual.payments[0].localAmount, 100);
+    assert.equal(calculate({}, { cash: [{ ...cash[0], fx: 1.2 }] }).actual.unresolved, 1);
+    const mapped = calculate({ accountRows: 'USD1;USD;0.9' }, { cash });
+    assert.equal(mapped.dividends, 90);
+    const euroCash = calculate({}, { trades, cash: [{ ...cash[0], ccy: 'EUR', amount: 85 }] });
+    assert.equal(euroCash.dividends, 85);
+    assert.equal(euroCash.actual.payments.length, 1);
+});
+
+test('projection includes payments through the chosen end and deducts explicit withholding only on gross coupons', () => {
+    const trades = [{ ...trade(bond, 'b', '2025-11-30', 4998), nominal: 200000 }];
+    const rules = { ['C:' + bond.isin]: { name: bond.name, kind: 'Cupón', nominal: '200000', withholding: '20' } };
+    const result = calculate({ cutoff: '2026-10-01', end: '2027-12-31', rules }, { trades });
+    assert.equal(result.calendar.length, 2);
+    assert.equal(result.pendingCoupons, 8000);
+    rules['C:' + bond.isin].net = '4900';
+    assert.equal(calculate({ cutoff: '2026-10-01', end: '2027-12-31', rules }, { trades }).pendingCoupons, 9800);
+    assert.equal(calculate({ cutoff: '2026-10-01', end: '2026-10-20', rules }, { trades }).calendar.length, 0);
+    assert.equal(Number.isNaN(calculate({ cutoff: '2026-10-01', end: '2026-09-30' }, { trades }).base), true);
+});
+
+test('sale hypotheses compound price and FX, respect the horizon and accept an acquisition cost in EUR', () => {
+    const position = { date: '2026-10-01', issues: [], assets: [
+        { key: etf.isin, name: 'CAD asset', units: 100, marketValue: 1200, cost: 840, ccy: 'CAD', imported: true }
+    ] };
+    const state = { end: '2026-12-31', sales: { [etf.isin]: '50' },
+        saleAssumptions: { [etf.isin]: { returnPct: '20', fxPct: '10', date: '2026-12-15', costEUR: '900' } } };
+    const result = calculate(state, { positions: position });
+    assert(Math.abs(result.projectedProceeds - 792) < 1e-9);
+    assert(Math.abs(result.projectedSelected - 342) < 1e-9);
+    assert.equal(result.assets[0].costEstimated, false);
+    state.end = '2026-11-30';
+    assert.equal(calculate(state, { positions: position }).projectedSelected, 0);
+});

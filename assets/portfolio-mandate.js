@@ -66,7 +66,7 @@
                 continue;
             }
             const cost = fx > 0 && localCost >= 0 ? localCost * fx : NaN;
-            const asset = { key, name, units, price, ccy, fx, cost, marketValue, bond, imported: true };
+            const asset = { key, name, units, price, ccy, fx, cost, localCost, localValue, marketValue, bond, imported: true };
             if (!(cost >= 0) || zeroValue) issues.push(name);
             const previous = assets.get(key);
             if (previous) {
@@ -76,6 +76,8 @@
                 }
                 asset.units += previous.units;
                 asset.price = (price * units + previous.price * previous.units) / asset.units;
+                asset.localCost += previous.localCost;
+                asset.localValue += previous.localValue;
                 asset.cost += previous.cost;
                 asset.marketValue += previous.marketValue;
             }
@@ -123,6 +125,10 @@
                     return { code: id(code), bondMovement, positionMovement: /^(COMPRA|VENTA|SUSCRIPCI|REEMBOLSO|AMORTIZACI|TRASPASO)/.test(movement), disposal: /^(VENTA|REEMBOLSO|AMORTIZACI)/.test(movement),
                         nominal: currency(ccy) === 'EUR' ? numeric(get(row, 'TOTAL NOMINAL')) : NaN, confirmed: normalize(status) === 'DEFINITIVA', kind: classify(event),
                         date: isoDate(date ?? get(row, 'VALUE DATE') ?? get(row, 'TRADE DATE')),
+                        gross: numeric(get(row, 'GROSS AMOUNT')),
+                        sourceTax: numeric(get(row, 'SOURCE WITHHOLDING TAX')),
+                        localTax: numeric(get(row, 'LOCAL WITHHOLDING TAX')),
+                        account: id(get(row, 'CLIENT SETTLEMENT ACCOUNT')),
                         amount: numeric(amount), ccy: currency(ccy), fx: numeric(get(row, 'EUR CURRENCY PRICE CHANGE')),
                         isin: id(isin).toUpperCase(), name: id(get(row, 'INSTRUMENT')) };
                 }
@@ -137,11 +143,12 @@
         return result;
     }
 
-    function received({ trades = [], cash = [] }, cutoff, allYears = false) {
+    function received({ trades = [], cash = [] }, cutoff, allYears = false, accountRules = {}) {
         const operations = new Map();
         const booked = new Set();
         const seenCash = new Set();
         let unresolved = 0;
+        const unresolvedRows = [];
         for (const row of trades) {
             if (row.confirmed && row.kind && row.code) operations.set(row.code, row);
         }
@@ -157,14 +164,23 @@
             const key = row.code ? [row.account, row.code, row.kind, row.date, row.direction, row.amount, row.isin].join('|') : null;
             if (key && seenCash.has(key)) continue;
             if (key) seenCash.add(key);
-            const ccy = row.ccy || matched?.ccy;
-            const fx = ccy === 'EUR' ? 1 : ccy === matched?.ccy && matched?.fx > 0 ? matched.fx : row.fx;
+            const mapping = accountRules[row.account] || {};
+            const sameNet = matched && Math.abs(Math.abs(row.amount) - Math.abs(matched.amount)) < 0.011;
+            const ccy = row.ccy || mapping.ccy || (sameNet ? matched.ccy : '');
+            const fx = ccy === 'EUR' ? 1 : mapping.fx > 0 ? mapping.fx :
+                ccy === matched?.ccy && matched?.fx > 0 ? matched.fx : NaN;
             if (!ccy || !(fx > 0) || !Number.isFinite(row.amount) || !['ABONO', 'CARGO'].includes(row.direction)) {
                 unresolved++;
+                unresolvedRows.push({ ...row, ccy: row.ccy || '', reason: 'Falta divisa o cambio EUR confirmado' });
                 continue;
             }
             const amount = Math.abs(row.amount) * fx * (row.direction === 'CARGO' ? -1 : 1);
-            payments.push({ ...row, amount, isin: row.isin || matched?.isin || '', name: matched?.name || row.name });
+            payments.push({ ...row, amount, localAmount: Math.abs(row.amount) * (row.direction === 'CARGO' ? -1 : 1), ccy, fx,
+                grossEUR: sameNet && ccy === matched.ccy ? matched.gross * fx : NaN,
+                sourceTaxEUR: sameNet && ccy === matched.ccy ? matched.sourceTax * fx : NaN,
+                localTaxEUR: sameNet && ccy === matched.ccy ? matched.localTax * fx : NaN,
+                conversion: mapping.fx > 0 || mapping.ccy ? 'Cuenta parametrizada' : sameNet ? 'Operación conciliada' : 'Divisa del efectivo',
+                isin: row.isin || matched?.isin || '', name: matched?.name || row.name });
         }
         const seenTrades = new Set();
         let fromTrades = 0;
@@ -174,12 +190,15 @@
             const fx = row.ccy === 'EUR' ? 1 : row.fx;
             if (!row.ccy || !(fx > 0) || !Number.isFinite(row.amount)) {
                 unresolved++;
+                unresolvedRows.push({ ...row, ccy: row.ccy || '', reason: 'Falta divisa o cambio EUR confirmado' });
                 continue;
             }
-            payments.push({ ...row, amount: row.amount * fx });
+            payments.push({ ...row, amount: row.amount * fx, localAmount: row.amount, fx,
+                grossEUR: row.gross * fx, sourceTaxEUR: row.sourceTax * fx, localTaxEUR: row.localTax * fx,
+                conversion: 'Operación definitiva' });
             fromTrades++;
         }
-        return { payments, unresolved, fromTrades };
+        return { payments, unresolved, unresolvedRows, fromTrades };
     }
 
     const sum = (rows, value) => rows.reduce((total, row) => total + value(row), 0);
@@ -198,7 +217,7 @@
     const cardStyle = 'bg-white border border-slate-200 rounded-xl p-4 sm:p-5';
     const numField = (name, label, attributes = '') => `<label class="block text-sm font-semibold">${label}<input name="${name}" type="number" step="any" class="${inputStyle}" ${attributes}></label>`;
     const area = (name, label, hint) => `<label class="block text-sm font-semibold mt-3">${label}<span class="block text-xs text-slate-500 font-normal mt-1">${hint}</span><textarea name="${name}" rows="3" spellcheck="false" class="${inputStyle} font-mono"></textarea></label>`;
-    const fields = ['cutoff', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
+    const fields = ['cutoff', 'end', 'accountRows', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
     const summaryCard = (title, value) => `<div class="mandate-kpi"><div class="mandate-kpi-label">${title}</div><div class="mandate-kpi-value">${value}</div></div>`;
     const table = (headers, rows, style = '') => rows.length ? `<div class="overflow-x-auto"><table class="mandate-table ${style}"><thead><tr>${headers.map(h => `<th scope="col" class="px-3 py-2">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows.map(row => `<tr>${row.map(cell => `<td class="px-3 py-2">${safe(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-slate-500">Sin datos para mostrar.</p>';
 
@@ -236,7 +255,7 @@
         return (ordered[Math.floor((ordered.length - 1) / 2)] + ordered[Math.floor(ordered.length / 2)]) / 2;
     };
 
-    function projectPayments(history, trades, rules, cutoff, snapshot) {
+    function projectPayments(history, trades, rules, cutoff, snapshot, end = cutoff.slice(0, 4) + '-12-31') {
         const instruments = new Map();
         function register(kind, isin, name) {
             const key = seriesKey(kind, isin, name);
@@ -309,8 +328,8 @@
                 }
             }
             if (snapshot && holding?.bond) {
-                historicalNominal = holding.units;
-                changedAfterCoupon = Number.isFinite(couponNominal) && couponNominal !== holding.units;
+                historicalNominal = holding.units * holding.fx;
+                changedAfterCoupon = Number.isFinite(couponNominal) && couponNominal !== holding.units * holding.fx;
                 soldOrRedeemed = false;
                 for (const trade of instrument.trades.filter(trade => trade.date > snapshot.date && trade.bondMovement)) {
                     if (trade.nominal > 0) historicalNominal = Math.max(0, historicalNominal + trade.nominal * trade.bondMovement);
@@ -327,7 +346,10 @@
             const average = amounts.length ? sum(amounts, amount => amount) / amounts.length : NaN;
             const contractual = isBond && nominal > 0 && coupon >= 0 && step ? nominal * coupon / 100 * step / 12 : NaN;
             const gross = !Number.isFinite(net) && isBond && (!Number.isFinite(average) || changedAfterCoupon || Number.isFinite(numeric(rule.nominal)) || Number.isFinite(numeric(rule.coupon)) || Boolean(manualStep));
-            const amount = Number.isFinite(net) ? net : gross ? contractual : isBond ? amounts.at(-1) : average;
+            let amount = Number.isFinite(net) ? net : gross ? contractual : isBond ? amounts.at(-1) : average;
+            const withholding = numeric(rule.withholding);
+            const tax = gross && withholding >= 0 && withholding <= 100 ? amount * withholding / 100 : NaN;
+            if (Number.isFinite(tax)) amount -= tax;
             const explicitHolding = isBond ? numeric(rule.nominal) > 0 : Boolean(next);
             const newAfterSnapshot = snapshot && instrument.trades.some(trade => trade.date > snapshot.date && trade.bondMovement > 0);
             const missingFromSnapshot = snapshot && isin && !holding && !newAfterSnapshot && !explicitHolding;
@@ -336,24 +358,23 @@
             const repeatDay = isBond && maturity ? Number(maturity.slice(8)) : Math.round(median(observedDates.map(date => Number(date.slice(8)))));
             let schedule = [];
             if (cutoff && !excluded) {
-                if (next) {
-                    schedule = [next];
-                    if (manualStep) {
-                        const monthsToCutoff = (Number(year) - Number(next.slice(0, 4))) * 12 +
-                            Number(cutoff.slice(5, 7)) - Number(next.slice(5, 7));
-                        const first = Math.max(manualStep, Math.floor(monthsToCutoff / manualStep) * manualStep);
-                        for (let offset = first; offset <= first + 12; offset += manualStep) schedule.push(inMonth(next, offset));
-                    }
-                } else if (step && last && (!isBond || !maturity || inferredStep && inferredStep !== 12)) {
-                    for (let offset = step; offset <= 12; offset += step) schedule.push(inMonth(last, offset, repeatDay));
-                } else if (isBond && maturity && scheduleSteps.includes(step)) {
-                    const anniversary = year + maturity.slice(4);
-                    for (let offset = 0; offset < 12; offset += step) {
-                        schedule.push(inMonth(anniversary, -offset));
-                        if (offset) schedule.push(inMonth(anniversary, 12 - offset));
+                const anchor = next || (isBond && maturity && (!inferredStep || inferredStep === 12) ? maturity : last);
+                const interval = next ? manualStep : step;
+                if (anchor) {
+                    if (!interval) schedule = [anchor];
+                    else {
+                        const months = (Number(cutoff.slice(0, 4)) - Number(anchor.slice(0, 4))) * 12 +
+                            Number(cutoff.slice(5, 7)) - Number(anchor.slice(5, 7));
+                        const first = Math.floor(months / interval) * interval;
+                        for (let offset = first; offset <= first + 132; offset += interval) {
+                            if (next && offset < 0) continue;
+                            const date = inMonth(anchor, offset, next || isBond ? Number(anchor.slice(8)) : repeatDay);
+                            if (date > end) break;
+                            schedule.push(date);
+                        }
                     }
                 }
-                schedule = [...new Set(schedule)].filter(date => date > cutoff && date.startsWith(year) && (!maturity || date <= maturity) &&
+                schedule = [...new Set(schedule)].filter(date => date > cutoff && date <= end && (!maturity || date <= maturity) &&
                     !observedDates.some(booked => dateGap(date, booked) <= 10));
             }
             let review = '';
@@ -367,8 +388,8 @@
             const assumption = next ? 'Fecha manual' : manualStep ? 'Frecuencia manual' : inferredStep ? 'Frecuencia histórica' : 'Cupón anual supuesto';
             for (const date of schedule) {
                 if (amount === 0) continue;
-                calendar.push({ key, date, name, kind, isin, amount, gross, estimated: true,
-                    origin: `${assumption} · ${amountSource}`,
+                calendar.push({ key, date, name, kind, isin, amount, gross: gross && !Number.isFinite(tax), withholding: tax, estimated: true,
+                    origin: `${assumption} · ${amountSource}${Number.isFinite(tax) ? ' · retención ' + withholding + '%' : ''}`,
                     range: !isBond && !Number.isFinite(net) && amounts.length > 1 ? [Math.min(...amounts), Math.max(...amounts)] : null });
             }
             if (isBond && !excluded && cutoff && maturity > cutoff && nominal > 0) {
@@ -386,7 +407,15 @@
         const snapshotTotal = snapshot ? sum(snapshot.assets, asset => asset.marketValue) : NaN;
         const cutoff = isoDate(state.cutoff) || [...dates, snapshot?.date].filter(Boolean).sort().at(-1) || '';
         const year = cutoff.slice(0, 4);
-        const actual = received(sources, cutoff);
+        const end = isoDate(state.end) || year + '-12-31';
+        const validHorizon = Boolean(cutoff && end >= cutoff && end <= inMonth(cutoff, 120));
+        if (cutoff && !validHorizon) errors.push('Fecha final: debe estar entre el corte y diez años después');
+        const accountRules = Object.fromEntries(parseRows(state.accountRows, 'Cuentas', 3, ([account, ccy, fx]) => {
+            const rate = currency(ccy) === 'EUR' ? 1 : numeric(fx);
+            if (!account || !/^[A-Z]{3}$/.test(currency(ccy)) || !(rate > 0)) return null;
+            return [account, { ccy: currency(ccy), fx: rate }];
+        }, errors));
+        const actual = received(sources, cutoff, false, accountRules);
         const activeSnapshot = snapshot?.date <= cutoff ? snapshot : null;
         const hasYearData = dates.some(date => date.startsWith(year));
         const coupons = sum(actual.payments.filter(row => row.kind === 'Cupón'), row => row.amount);
@@ -408,7 +437,7 @@
             (row.isin ? payment.isin === row.isin : normalize(payment.name) === normalize(row.name)));
         const overdue = paymentRows.filter(row => row.date.startsWith(year) && row.date <= cutoff && !matchesPayment(row));
         const manualCalendar = paymentRows.flatMap(row => {
-            if (!cutoff || row.date <= cutoff || !row.date.startsWith(year)) return [];
+            if (!cutoff || row.date <= cutoff || row.date > end) return [];
             const history = actual.payments.filter(p => p.isin === row.isin && p.kind === row.kind && p.amount > 0);
             const estimated = !Number.isFinite(row.amount);
             const amount = estimated ? (history.length ? sum(history, p => p.amount) / history.length : NaN) : row.amount;
@@ -416,8 +445,8 @@
                 range: estimated && history.length ? [Math.min(...history.map(p => p.amount)), Math.max(...history.map(p => p.amount))] : null }];
         }).sort((a, b) => a.date.localeCompare(b.date));
         const historyStart = cutoff ? inMonth(cutoff, -18) : '';
-        const history = received(sources, cutoff, true).payments.filter(row => row.date >= historyStart);
-        const projection = projectPayments(history, sources.trades || [], state.rules || {}, cutoff, activeSnapshot);
+        const history = received(sources, cutoff, true, accountRules).payments.filter(row => row.date >= historyStart);
+        const projection = projectPayments(history, sources.trades || [], state.rules || {}, cutoff, activeSnapshot, validHorizon ? end : cutoff);
         const overrides = (a, b) => a.kind === b.kind && dateGap(a.date, b.date) <= 10 &&
             (a.isin && b.isin ? a.isin === b.isin : normalize(a.name) === normalize(b.name));
         const calendar = [...manualCalendar, ...projection.calendar.filter(auto => !manualCalendar.some(manual => overrides(manual, auto)))]
@@ -427,7 +456,7 @@
             .sort((a, b) => a.maturity.localeCompare(b.maturity));
         const pendingCoupons = sum(calendar.filter(r => r.kind === 'Cupón' && Number.isFinite(r.amount)), r => r.amount);
         const pendingDividends = sum(calendar.filter(r => r.kind === 'Dividendo' && Number.isFinite(r.amount)), r => r.amount);
-        const base = coupons + dividends + pendingCoupons + pendingDividends;
+        const base = validHorizon ? coupons + dividends + pendingCoupons + pendingDividends : NaN;
         const value = numeric(state.value) > 0 ? numeric(state.value) : activeSnapshot ? snapshotTotal : NaN;
         const rf = numeric(state.rf) / 100;
         const duration = numeric(state.duration);
@@ -466,9 +495,29 @@
             else prices.set(asset.key, { ...asset, marketValue: asset.units * asset.price * asset.fx });
             manualKeys.add(asset.key);
         }
+        for (const asset of prices.values()) {
+            const assumption = state.saleAssumptions?.[asset.key] || {};
+            const costEUR = numeric(assumption.costEUR);
+            if (costEUR >= 0) asset.cost = costEUR;
+            asset.costEstimated = asset.imported && asset.ccy !== 'EUR' && !(costEUR >= 0);
+            asset.costOverride = assumption.costEUR || '';
+            asset.returnPct = numeric(assumption.returnPct);
+            asset.fxPct = numeric(assumption.fxPct);
+            asset.saleDate = isoDate(assumption.date) || end;
+            asset.inHorizon = validHorizon && asset.saleDate >= cutoff && asset.saleDate <= end;
+            const growth = Number.isFinite(asset.returnPct) ? asset.returnPct : 0;
+            const fxGrowth = Number.isFinite(asset.fxPct) ? asset.fxPct : 0;
+            if (growth < -100 || fxGrowth <= -100) errors.push('Hipótesis de precio o divisa inválida en ' + asset.name);
+            asset.projectedValue = growth >= -100 && fxGrowth > -100
+                ? asset.marketValue * (1 + growth / 100) * (1 + fxGrowth / 100) : NaN;
+            asset.projectedGain = asset.projectedValue - asset.cost;
+            asset.plannedSale = asset.inHorizon ? asset.sale : 0;
+        }
         const gain = (asset, change = 0) => asset.marketValue * (1 + change) - asset.cost;
         const possible = sum([...prices.values()], asset => Math.max(0, gain(asset)));
         const selected = sum([...prices.values()], asset => gain(asset) * asset.sale);
+        const projectedSelected = sum([...prices.values()], asset => asset.projectedGain * asset.plannedSale);
+        const projectedProceeds = sum([...prices.values()], asset => asset.projectedValue * asset.plannedSale);
         const proceeds = sum([...prices.values()], asset => asset.marketValue * asset.sale);
         const scenarioInputs = parseRows(state.scenarioRows, 'Escenarios', 3, ([name, key, change]) => {
             if (!name || !prices.has(key.toUpperCase()) || !(numeric(change) >= -100)) return null;
@@ -489,12 +538,12 @@
                 return { name: asset.name, ccy: asset.ccy || 'divisa local', change, price: asset.price * (1 + change), gain: gain(asset, change) };
             }) };
         });
-        return { cutoff, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds, snapshot, snapshotTotal, activeSnapshot, changed, proceeds,
+        return { cutoff, end, validHorizon, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds, snapshot, snapshotTotal, activeSnapshot, changed, proceeds, projectedSelected, projectedProceeds,
             value, rf, rfValue, duration, ytm, goal, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()].map(asset => ({ ...asset,
                 gain: gain(asset) })).sort((a, b) => b.gain - a.gain), scenarios };
     }
 
-    const ruleFields = ['name', 'isin', 'kind', 'next', 'frequency', 'net', 'nominal', 'coupon', 'maturity', 'ytm', 'group', 'excluded'];
+    const ruleFields = ['name', 'isin', 'kind', 'next', 'frequency', 'net', 'nominal', 'coupon', 'maturity', 'ytm', 'group', 'withholding', 'excluded'];
 
     function paymentsEditor(root, onSave, onReset) {
         root.innerHTML = `
@@ -511,6 +560,7 @@
                     <label class="text-sm font-semibold">Frecuencia<select name="frequency" class="${inputStyle}"><option value="">Automática / pago único</option>
                         ${scheduleSteps.map(months => `<option value="${months}">Cada ${months} ${months === 1 ? 'mes' : 'meses'}</option>`).join('')}</select></label>
                     ${numField('net', 'Importe neto por pago (€)', 'min="0"')}
+                    ${numField('withholding', 'Retención prevista sobre cupón bruto (%)', 'min="0" max="100"')}
                     ${numField('nominal', 'Nominal vigente (€)', 'min="0" data-bond-field')}
                     ${numField('coupon', 'Cupón anual (%)', 'min="0" data-bond-field')}
                     <label class="text-sm font-semibold">Vencimiento<input name="maturity" type="date" class="${inputStyle}" data-bond-field></label>
@@ -523,7 +573,7 @@
                     <button class="${buttonStyle}" type="button" data-cancel>Cancelar</button>
                     <button class="${buttonStyle}" type="button" data-remove>Restaurar automático</button>
                 </div>
-                <p class="mt-2 text-xs text-slate-600">Los campos vacíos toman el dato disponible en el extracto o en el nombre. El neto manual sustituye la estimación por pago.</p>
+                <p class="mt-2 text-xs text-slate-600">Los campos vacíos toman el dato disponible en el extracto o en el nombre. El neto manual y la media de cobros ya incorporan las deducciones cobradas. La retención prevista se aplica únicamente a cupones calculados en bruto; queda fuera el impuesto final del cliente.</p>
                 <p data-rule-error role="status" class="text-sm text-red-700 mt-2"></p>
             </form>
             <div data-catalog class="mt-3"></div>`;
@@ -643,6 +693,7 @@
                 <form novalidate>
                     <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
                         <label class="block text-sm font-semibold">Fecha de corte<input name="cutoff" type="date" class="${inputStyle}"></label>
+                        <label class="block text-sm font-semibold">Fecha final de proyección<input name="end" type="date" class="${inputStyle}"></label>
                         ${numField('value', 'Valor de cartera (€)', 'min="0"')}
                         ${numField('rf', 'Peso renta fija (%)', 'min="0" max="100"')}
                         ${numField('duration', 'Duración modificada RF (años)', 'min="0" max="100"')}
@@ -651,7 +702,7 @@
                         ${numField('shock', 'Cambio de tipos de referencia (pb)')}
                         <label class="block text-sm font-semibold">Otros objetivos (€)<input name="alternatives" class="${inputStyle}" placeholder="100000; 150000"></label>
                     </div>
-                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma la más reciente de los extractos. Los campos de sensibilidad vacíos siguen al simulador. Si falta el valor de cartera, se usa el contravalor total de la posición vigente.</p>
+                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma la más reciente de los extractos. La proyección parte de los cobros del año del corte y añade los pagos hasta la fecha final, que comienza en el 31 de diciembre. Los campos de sensibilidad vacíos siguen al simulador. Si falta el valor de cartera, se usa el contravalor total de la posición vigente.</p>
                     <details class="mt-4 border-t border-slate-200 pt-3">
                         <summary class="font-semibold cursor-pointer">Carga masiva de pagos, bonos y escenarios</summary>
                         <p class="mt-2 text-sm text-slate-600">Pega filas de Excel sin encabezados o escribe una fila por línea, separando las columnas con punto y coma. Fechas AAAA-MM-DD o DD/MM/AAAA. Importes sin separadores de miles.</p>
@@ -666,6 +717,10 @@
                         <h4 class="mb-2">Posiciones y ventas</h4><div data-positions-grid></div>
                         <h4 class="mt-4 mb-2">Escenarios de precio</h4><div data-scenarios-grid></div>
                     </details>
+                    <details class="mt-4"><summary class="font-semibold cursor-pointer">Cuentas multidivisa y conversión de cobros</summary>
+                        ${area('accountRows', 'Divisa y cambio por cuenta', 'Cuenta · divisa · EUR por unidad de divisa. Usa el código de cuenta del detalle de cobros. Para USD con 1 USD = 0,86 EUR, introduce 0,86. Este cambio manual sustituye el de las operaciones de esa cuenta.')}
+                        <p class="text-xs text-slate-600 mt-2">El neto del efectivo ya incorpora las deducciones del abono. Las retenciones de origen y locales se muestran como información cuando constan en Operaciones. La fiscalidad final depende del cliente y queda fuera del cálculo.</p>
+                    </details>
                     <p data-errors role="status"  class="mt-3 text-sm text-red-700"></p>
                 </form>
             </section>
@@ -678,8 +733,10 @@
         let sources = {};
         let rules = Object.create(null);
         let sales = Object.create(null);
+        let saleAssumptions = Object.create(null);
         let model;
         let revision = 0;
+        let automaticEnd = true;
         const editor = paymentsEditor(root.querySelector('[data-payment-editor]'), (key, rule) => {
             rules[key] = rule;
             render();
@@ -690,12 +747,14 @@
         const readState = () => Object.fromEntries(fields.map(name => [name, input(name).value]));
         const render = () => {
             const state = readState();
+            if (automaticEnd) state.end = '';
             const linked = rateInputs();
             for (const [name, value] of Object.entries(linked)) {
                 input(name).placeholder = value || 'Sin dato';
                 if (!state[name]) state[name] = value;
             }
-            model = calculate({ ...state, rules, sales }, sources);
+            model = calculate({ ...state, rules, sales, saleAssumptions }, sources);
+            if (automaticEnd && model.cutoff) input('end').value = model.end;
             editor.update(model.paymentAssets);
             root.querySelector('[data-errors]').textContent = model.errors.length ? 'Revisa estas filas: ' + model.errors.join(' · ') : '';
             renderDashboard(dashboard, model, input('alternatives').value, Object.keys(sources).length > 0);
@@ -710,6 +769,14 @@
         input('scenarioRows').addEventListener('input', refreshScenarios);
 
         dashboard.addEventListener('change', event => {
+            const hypothesis = event.target.closest('[data-sale-assumption]');
+            if (hypothesis) {
+                if (!hypothesis.checkValidity()) { hypothesis.reportValidity(); return; }
+                const key = hypothesis.dataset.assetKey;
+                saleAssumptions[key] = { ...saleAssumptions[key], [hypothesis.dataset.saleAssumption]: hypothesis.value };
+                render();
+                return;
+            }
             const field = event.target.closest('[data-sale]');
             if (!field) return;
             const value = numeric(field.value);
@@ -752,7 +819,10 @@
             });
         }
         form.addEventListener('submit', event => event.preventDefault());
-        form.addEventListener('input', render);
+        form.addEventListener('input', event => {
+            if (event.target === input('end')) automaticEnd = !event.target.value;
+            render();
+        });
         root.querySelector('[data-extract]').addEventListener('change', async event => {
             const files = [...event.target.files];
             event.target.value = '';
@@ -781,7 +851,7 @@
         });
 
         root.querySelector('[data-save]').addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify({ version: 3, inputs: readState(), rules, sales }, null, 2)], { type: 'application/json' });
+            const blob = new Blob([JSON.stringify({ version: 4, inputs: readState(), rules, sales, saleAssumptions }, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const link = Object.assign(document.createElement('a'), { href: url, download: 'supuestos-cartera.json' });
             link.click();
@@ -796,13 +866,18 @@
             try {
                 const data = JSON.parse(await file.text());
                 if (current !== revision) return;
-                if (![1, 2, 3].includes(data.version) || !data.inputs || fields.some(name => typeof data.inputs[name] !== 'string')) {
+                if (![1, 2, 3, 4].includes(data.version) || !data.inputs || fields.filter(name => !['end', 'accountRows'].includes(name)).some(name => typeof data.inputs[name] !== 'string')) {
                     throw new Error('Elige un archivo de supuestos guardado desde el panel.');
                 }
                 sales = Object.create(null);
                 for (const [key, value] of Object.entries(data.sales || {})) {
                     const percent = numeric(value);
                     if (/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(key) && percent >= 0 && percent <= 100) sales[key] = String(percent);
+                }
+                saleAssumptions = Object.create(null);
+                for (const [key, row] of Object.entries(data.saleAssumptions || {})) {
+                    if (row && typeof row === 'object') saleAssumptions[key] = Object.fromEntries(
+                        ['returnPct', 'fxPct', 'date', 'costEUR'].map(field => [field, typeof row[field] === 'string' ? row[field] : '']));
                 }
                 const hadSources = Object.keys(sources).length > 0;
                 sources = {};
@@ -814,7 +889,8 @@
                     }
                 }
                 editor.clear();
-                for (const name of fields) input(name).value = data.inputs[name];
+                automaticEnd = !data.inputs.end;
+                for (const name of fields) input(name).value = data.inputs[name] || '';
                 syncEditors();
                 status.textContent = hadSources ? 'Supuestos cargados. Vuelve a cargar los extractos de esta cartera.' : 'Supuestos cargados. Carga los extractos de esta cartera.';
                 render();
@@ -827,7 +903,9 @@
             revision++;
             sources = {};
             form.reset();
+            automaticEnd = true;
             sales = Object.create(null);
+            saleAssumptions = Object.create(null);
             rules = Object.create(null);
             editor.clear();
             syncEditors();
@@ -837,16 +915,22 @@
         render();
     }
 
-    function salesTable(assets, open) {
+    function salesTable(assets, open, end) {
         const positions = assets.filter(asset => asset.imported);
         if (!positions.length) return '';
         const rows = positions.map(asset => `<tr>
             <td><strong>${safe(asset.name)}</strong><small>${safe(asset.key)}${asset.ccy ? ' · ' + safe(asset.ccy) : ''}</small></td>
-            <td>${money(asset.marketValue)}</td><td>${money(asset.cost)}</td>
+            <td>${money(asset.marketValue)}<small>${asset.imported ? num(asset.localValue) + ' ' + safe(asset.ccy || 'divisa local') : ''}</small></td>
+            <td>${money(asset.cost)}<small>${asset.costEstimated ? 'Estimado al cambio actual' : 'Base en EUR'}</small>
+            <input data-sale-assumption="costEUR" data-asset-key="${safe(asset.key)}" type="number" min="0" step="0.01" value="${safe(asset.costOverride)}" placeholder="Coste histórico EUR" aria-label="Coste histórico EUR de ${safe(asset.name)}"></td>
             <td class="${asset.gain < 0 ? 'text-red-700' : 'text-emerald-800'}">${money(asset.gain)}</td>
             <td><input data-sale="${safe(asset.key)}" class="mandate-sale-input" type="number" step="0.01" min="0" max="100"
                 value="${+(asset.sale * 100).toFixed(2)}" aria-label="% a vender de ${safe(asset.name)}"></td>
-            <td>${money(asset.gain * asset.sale)}</td></tr>`).join('');
+            <td>${money(asset.gain * asset.sale)}</td>
+            <td><input data-sale-assumption="returnPct" data-asset-key="${safe(asset.key)}" type="number" min="-100" step="0.1" value="${Number.isFinite(asset.returnPct) ? asset.returnPct : ''}" placeholder="0" aria-label="Revalorización % de ${safe(asset.name)}"></td>
+            <td><input data-sale-assumption="fxPct" data-asset-key="${safe(asset.key)}" type="number" min="-99.99" step="0.1" value="${Number.isFinite(asset.fxPct) ? asset.fxPct : ''}" placeholder="0" aria-label="Variación cambio % de ${safe(asset.name)}"></td>
+            <td><input data-sale-assumption="date" data-asset-key="${safe(asset.key)}" type="date" value="${safe(asset.saleDate || end)}" aria-label="Fecha de venta de ${safe(asset.name)}"></td>
+            <td>${money(asset.projectedGain * asset.plannedSale)}${asset.sale && !asset.inHorizon ? '<small>Fecha fuera de la proyección</small>' : ''}</td></tr>`).join('');
         return `<details data-sales-details class="mt-4" ${open ? 'open' : ''}>
             <summary class="cursor-pointer font-semibold">Posiciones importadas y porcentaje de venta</summary>
             <div class="flex flex-wrap gap-2 mt-3 mb-3">
@@ -855,15 +939,15 @@
             </div>
             <div class="overflow-x-auto"><table class="mandate-table mandate-sales-table"><thead><tr>
                 <th>Producto</th><th>Mercado EUR</th><th>Coste EUR</th><th>Plusvalía latente</th>
-                <th>% a vender</th><th>Resultado simulado</th></tr></thead><tbody>${rows}</tbody></table></div>
-            <p class="text-xs text-slate-600 mt-2">Cambia el porcentaje de venta para simular una operación parcial. El coste en divisa se convierte al cambio de la valoración para calcular una plusvalía indicativa en euros.</p>
+                <th>% a vender</th><th>Resultado a precio actual</th><th>Revalorización %</th><th>Cambio EUR/divisa %</th><th>Fecha de venta</th><th>Resultado con hipótesis</th></tr></thead><tbody>${rows}</tbody></table></div>
+            <p class="text-xs text-slate-600 mt-2">La revalorización es acumulada hasta la fecha de venta. Precio y cambio se multiplican. El coste histórico en EUR permite incorporar el cambio de adquisición. Las ventas fuera del horizonte aportan cero al resultado proyectado.</p>
         </details>`;
     }
 
     function renderDashboard(target, m, alternatives, imported) {
         const actualReady = Boolean(m.cutoff && imported && m.hasYearData);
         const unresolvedForecast = m.calendar.filter(row => !Number.isFinite(row.amount)).length;
-        const forecast = actualReady && !m.actual.unresolved && !m.overdue.length && !m.errors.some(error => error.startsWith('Pagos,'));
+        const forecast = m.validHorizon && actualReady && !m.actual.unresolved && !m.overdue.length && !m.errors.some(error => error.startsWith('Pagos,'));
         const base = forecast ? m.base : NaN;
         const coverage = amount => m.goal > 0 ? pct(amount / m.goal * 100) : '—';
         const signedBp = bp => (bp > 0 ? '+' : '') + bp + ' pb';
@@ -889,9 +973,11 @@
         const changedPositions = m.activeSnapshot?.assets.filter(asset => m.changed.has(asset.key)).length || 0;
         target.innerHTML = [
             section(header('Ingresos y objetivo anual') +
-                muted(m.cutoff ? `Corte: ${shortDate(m.cutoff)} · ${m.actual.payments.length} cobros identificados` : 'Carga los extractos para obtener los cobros acumulados.') +
+                muted(m.cutoff ? `Corte: ${shortDate(m.cutoff)} · Proyección hasta ${shortDate(m.end)} · ${m.actual.payments.length} cobros identificados` : 'Carga los extractos para obtener los cobros acumulados.') +
                 cards([['Cupones cobrados', money(actualReady ? m.coupons : NaN)], ['Dividendos cobrados', money(actualReady ? m.dividends : NaN)],
                     ['Cupones pendientes estimados', money(m.cutoff ? m.pendingCoupons : NaN)], ['Dividendos pendientes estimados', money(m.cutoff ? m.pendingDividends : NaN)]]) +
+                (m.actual.unresolvedRows.length ? table(['Cuenta pendiente', 'Producto', 'Importe original', 'Divisa declarada', 'Revisión'],
+                    m.actual.unresolvedRows.map(row => [row.account, row.name, num(row.amount), row.ccy || 'Sin divisa', row.reason])) : '') +
                 (warnings.length ? `<p class="text-sm text-amber-800 mb-3">${safe(warnings.join(' '))}</p>` : '') +
                 `<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"><div><div class="mandate-editor-header mb-2"><h5 class="font-semibold">Calendario de pagos pendientes</h5><button type="button" data-jump-payments class="${buttonStyle}">Editar pagos y bonos</button></div>
                     ${table(['Fecha', 'Producto', 'Tipo', 'Importe EUR', 'Origen / rango'], m.calendar.map(row => [
@@ -899,12 +985,12 @@
                         [row.origin || (row.estimated ? (row.range ? 'Media histórica' : 'Sin histórico') : 'Introducido'),
                             row.range ? `${money(row.range[0])} a ${money(row.range[1])}` : ''].filter(Boolean).join(' · ')
                     ]), 'mandate-calendar')}</div>
-                    <div><h5 class="font-semibold mb-2">Puente hasta el cierre</h5>
+                    <div><h5 class="font-semibold mb-2">Puente hasta la fecha final</h5>
                     ${table(['Concepto', 'EUR'], [
                         ['Cobrado hasta el corte', money(actualReady ? m.coupons + m.dividends : NaN)], ['Cupones pendientes', money(m.cutoff ? m.pendingCoupons : NaN)],
                         ['Dividendos pendientes', money(m.cutoff ? m.pendingDividends : NaN)]
                     ])}<div class="mandate-forecast mt-3"><span>Ingreso previsto con los pagos identificados</span>
-                    <strong>${money(base)}</strong><small>${m.goal > 0 ? `${coverage(base)} del objetivo de ${money(m.goal)}` : 'Cupones y dividendos hasta cierre de año'}</small></div></div></div>` +
+                    <strong>${money(base)}</strong><small>${m.goal > 0 ? `${coverage(base)} del objetivo de ${money(m.goal)}` : 'Cupones y dividendos hasta la fecha final'}</small></div></div></div>` +
                 (goalList.length ? `<h5 class="font-semibold mt-4 mb-2">Ingresos previstos frente a objetivos</h5>
                     <div class="space-y-2">${goalList.map(goal => {
                         const ratio = base / goal * 100;
@@ -913,8 +999,8 @@
                             <strong class="text-right">${pct(ratio)}</strong></div>`;
                     }).join('')}</div>` : '') +
                 `<details class="mt-4"><summary class="cursor-pointer font-semibold text-sm">Detalle de cobros importados</summary>
-                    ${table(['Fecha valor', 'ISIN', 'Producto', 'Tipo', 'EUR'], m.actual.payments.slice().sort((a, b) => b.date.localeCompare(a.date))
-                        .map(row => [shortDate(row.date), row.isin, row.name, row.kind, money(row.amount)]))}</details>`),
+                    ${table(['Fecha valor', 'Cuenta', 'Producto', 'Divisa', 'Neto local', 'EUR/divisa', 'Neto EUR', 'Bruto EUR', 'Ret. origen EUR', 'Ret. local EUR', 'Conversión'], m.actual.payments.slice().sort((a, b) => b.date.localeCompare(a.date))
+                        .map(row => [shortDate(row.date), row.account, row.name, row.ccy, num(row.localAmount), Number.isFinite(row.fx) ? row.fx.toLocaleString('es-ES', { maximumFractionDigits: 6 }) : '—', money(row.amount), money(row.grossEUR), money(row.sourceTaxEUR), money(row.localTaxEUR), row.conversion]))}</details>`),
             section(header('Vencimientos y TIR de los bonos') +
                 muted('El nominal representa principal recuperado. Los vencimientos y cupones se leen del nombre cuando el formato lo permite. El nominal inferido usa el último cupón o movimiento disponible. Completa la TIR por bono en su ficha. La línea une únicamente los bonos del mismo grupo de curva.') +
                 (m.bonds.length ? cards([['Bonos identificados', num(m.bonds.length)], ['Nominal identificado', money(sum(m.bonds, bond => bond.nominal))]]) +
@@ -935,19 +1021,23 @@
                 (m.activeSnapshot ? muted(`Posición a ${shortDate(m.activeSnapshot.date)} · ${m.activeSnapshot.assets.length} ISIN · Valor en EUR ${money(m.snapshotTotal)}`) : '') +
                 (changedPositions ? muted(`${changedPositions} posición(es) con operaciones posteriores a la valoración quedan fuera de la simulación. Carga una foto actualizada o completa los datos manualmente.`) : '') +
                 (m.activeSnapshot?.issues.length ? muted(`${m.activeSnapshot.issues.length} fila(s) con cantidad, contravalor o coste incompletos. Las filas sin base de cálculo quedan fuera de las plusvalías.`) : '') +
-                muted('El máximo ilustrativo suma las plusvalías positivas disponibles al ingreso previsto. Las ventas simuladas aplican el porcentaje de cada posición al precio del escenario. El escenario presupone que las ventas se hacen después de cobrar los pagos previstos. El resultado de la venta se muestra antes de impuestos y comisiones. La variación de las posiciones retenidas se muestra como valoración.') +
+                muted('El máximo ilustrativo suma las plusvalías positivas disponibles al ingreso previsto. Las ventas simuladas aplican el porcentaje de cada posición al precio del escenario. El calendario presupone mantener los activos hasta cobrar sus pagos; si adelantas una venta, ajusta los pagos pendientes en la ficha del activo. El resultado de la venta se muestra antes de impuestos y comisiones. El coste en EUR de posiciones extranjeras es estimado al cambio de valoración hasta que se introduce su coste histórico. La variación de las posiciones retenidas se muestra como valoración.') +
                 cards([['Ingreso previsto', money(base)], ['Plusvalías positivas disponibles', money(m.assets.length ? m.possible : NaN)],
                     ['Máximo ilustrativo', money(m.assets.length ? base + m.possible : NaN)],
                     ['Margen sobre objetivo (máximo)', money(m.goal > 0 && m.assets.length ? base + m.possible - m.goal : NaN)]]) +
-                (m.assets.length ? table(['Venta simulada a precios de la posición', 'Importe'], [
+                (m.assets.length ? table(['Venta simulada', 'Importe'], [
                     ['Efectivo bruto de venta', money(m.proceeds)],
                     ['Resultado de la venta (importe que suma al objetivo)', money(m.selected)],
                     ['Ingresos previstos + resultado de la venta', money(base + m.selected)],
-                    ['Cobertura del objetivo con las ventas seleccionadas', coverage(base + m.selected)]
+                    ['Cobertura del objetivo a precios actuales', coverage(base + m.selected)],
+                    ['Efectivo de las ventas con hipótesis y fecha válida', money(m.projectedProceeds)],
+                    ['Ganancias con hipótesis y fecha válida', money(m.projectedSelected)],
+                    ['Ingresos + ganancias proyectadas', money(base + m.projectedSelected)],
+                    ['Cobertura del objetivo con hipótesis', coverage(base + m.projectedSelected)]
                 ]) : '') +
-                salesTable(m.assets, salesOpen) +
+                salesTable(m.assets, salesOpen, m.end) +
                 table(['Escenario', 'Resultado de ventas', 'Ingresos + ventas', 'Objetivo en caja', 'Variación de posiciones retenidas'],
-                    (m.assets.length ? [{ name: 'Precios actuales', realized: m.selected, retained: 0 }, ...m.scenarios] : [])
+                    (m.assets.length ? [{ name: 'Precios actuales', realized: m.selected, retained: 0 }, { name: 'Hipótesis por activo', realized: m.projectedSelected, retained: 0 }, ...m.scenarios] : [])
                         .map(row => [row.name, money(row.realized), money(base + row.realized), coverage(base + row.realized), money(row.retained)])) +
                 (m.scenarios.length ? `<div class="mt-4">${table(['Escenario', 'Activo', 'Variación', 'Precio estimado', 'Plusvalía total potencial'],
                     m.scenarios.flatMap(row => row.details.map(detail => [row.name, detail.name, pct(detail.change * 100),
@@ -955,7 +1045,7 @@
                 (m.assets.length && Number.isFinite(m.shockImpact) ? muted('Para combinar el cambio de tipos con las revalorizaciones, confirma que los activos simulados están fuera de la renta fija y que se mantiene la exposición RF.') : '') +
                 (m.assets.length && Number.isFinite(m.shockImpact) ? `<details class="mt-3"><summary class="cursor-pointer font-semibold text-sm">Escenario combinado con tipos (activos simulados fuera de RF)</summary>
                     ${table(['Escenario', 'Variación RF', 'Variación retenida', 'Resultado total incl. valoración', '% objetivo'],
-                        [{ name: 'Precios actuales', realized: m.selected, retained: 0 }, ...m.scenarios].map(row => {
+                        [{ name: 'Precios actuales', realized: m.selected, retained: 0 }, { name: 'Hipótesis por activo', realized: m.projectedSelected, retained: 0 }, ...m.scenarios].map(row => {
                             const outcome = base + row.realized + row.retained + m.shockImpact;
                             return [row.name, money(m.shockImpact), money(row.retained), money(outcome), coverage(outcome)];
                         }))}</details>` : ''))
