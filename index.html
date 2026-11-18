@@ -11104,8 +11104,8 @@
                 }
                 results.rawEvents = rawEvents; return results;
             }
-            function renderProfessionalRangeChart(id, rows, labelKey, meanKey, minKey, maxKey, title, showValues = false) {
-                const valid = rows.filter(row => Number.isFinite(row[meanKey]) && Number.isFinite(row[minKey]) && Number.isFinite(row[maxKey]));
+            function renderProfessionalRangeChart(id, rows, labelKey, meanKey, minKey, maxKey, title, showValues = true) {
+                const valid = rows.filter(row => row.events !== 0 && row.n !== 0 && Number.isFinite(row[meanKey]) && Number.isFinite(row[minKey]) && Number.isFinite(row[maxKey]));
                 const traces = [{
                     x: valid.map(row => row[labelKey]), y: valid.map(row => row[meanKey]),
                     type: 'scatter', mode: 'lines+markers', name: 'Media',
@@ -11120,7 +11120,7 @@
                 if (showValues) {
                     for (const [name, key, color, position] of [['Mín', minKey, '#657d92', 'bottom center'], ['Media', meanKey, '#164e78', 'middle right'], ['Máx', maxKey, '#437da8', 'top center']]) {
                         traces.push({ x: valid.map(row => row[labelKey]), y: valid.map(row => row[key]), type: 'scatter', mode: 'markers+text', name,
-                            text: valid.map(row => `${(row[key] * 100).toFixed(1)}%`), textposition: position, textfont: { size: 10, color }, marker: { size: name === 'Media' ? 8 : 6, color }, hoverinfo: 'skip', showlegend: false });
+                            text: valid.map(row => `${(row[key] * 100).toFixed(1)}%`), textposition: position, textfont: { size: 10, color }, marker: { size: name === 'Media' ? 8 : 6, color }, cliponaxis: false, hoverinfo: 'skip', showlegend: false });
                     }
                 }
                 FinancialVisuals.newPlot(id, traces, { title: { text: title, font: { size: 14, color: '#263746' } },
@@ -11134,9 +11134,27 @@
                 const sortedData = data.sort((a, b) => order.indexOf(a.Horizonte) - order.indexOf(b.Horizonte));
                 tbody.innerHTML = sortedData.map(row => `<tr class="border-b border-gray-100 hover:bg-green-50 transition-colors"><td class="px-4 py-3 font-medium text-gray-900">${row.Horizonte}</td><td class="px-4 py-3 text-right font-semibold text-blue-600">${fmtPct(row.Media)}</td><td class="px-4 py-3 text-right text-gray-600">${fmtPct(row.Mediana)}</td><td class="px-4 py-3 text-right text-green-600">${fmtPct(row.Max)}</td><td class="px-4 py-3 text-right text-red-500">${fmtPct(row.Min)}</td><td class="px-4 py-3 text-right font-bold">${fmtPct(row.WinRate)}</td><td class="px-4 py-3 text-right text-gray-500">${row.Eventos}</td></tr>`).join('');
                 const horizonsX = [1, 6, 12, 36, 60], p5 = [], p25 = [], p50 = [], p75 = [], p95 = [];
-                order.forEach(h => { const item = sortedData.find(d => d.Horizonte === h); if (item) { p5.push(item.P5); p25.push(item.P25); p50.push(item.Mediana); p75.push(item.P75); p95.push(item.P95); } else { p5.push(0); p25.push(0); p50.push(0); p75.push(0); p95.push(0); } });
+                order.forEach(h => { const item = sortedData.find(d => d.Horizonte === h); if (item) { p5.push(item.P5); p25.push(item.P25); p50.push(item.Mediana); p75.push(item.P75); p95.push(item.P95); } else { p5.push(null); p25.push(null); p50.push(null); p75.push(null); p95.push(null); } });
 
-                FinancialVisuals.newPlot('dipFanChart', [{ x: horizonsX, y: p5, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, showlegend: false }, { x: horizonsX, y: p95, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, name: '95-5 Range', fillcolor: 'rgba(135, 206, 250, 0.2)' }, { x: horizonsX, y: p25, fill: 'none', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, showlegend: false }, { x: horizonsX, y: p75, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, name: '75-25 Range', fillcolor: 'rgba(70, 130, 180, 0.3)' }, { x: horizonsX, y: p50, type: 'scatter', mode: 'lines+markers', line: { color: 'darkblue', width: 2 }, name: 'Mediana' }], { title: `Fan Chart: Proyección Rentabilidad tras Caída > ${threshold}`, xaxis: { title: 'Meses tras evento', tickvals: [1, 6, 12, 36, 60], ticktext: ['1M', '6M', '12M', '36M', '60M'] }, yaxis: { tickformat: '.0%', title: 'Rentabilidad Acumulada' }, margin: { t: 40, l: 50, r: 20, b: 40 } }, { responsive: true });
+                FinancialVisuals.newPlot('dipFanChart', [
+                    { x: horizonsX, y: p5, type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' }, showlegend: false },
+                    { x: horizonsX, y: p95, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#e0f2fe' },
+                        name: '95-5 Range', fillcolor: 'rgba(135, 206, 250, 0.2)' },
+                    { x: horizonsX, y: p25, type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' }, showlegend: false },
+                    { x: horizonsX, y: p75, fill: 'tonexty', type: 'scatter', mode: 'lines', line: { width: 0, color: '#7dd3fc' },
+                        name: '75-25 Range', fillcolor: 'rgba(70, 130, 180, 0.3)' },
+                    { x: horizonsX, y: p50, type: 'scatter', mode: 'lines+markers+text', name: 'Mediana',
+                        line: { color: 'darkblue', width: 2 }, text: p50.map(value => Number.isFinite(value) ? fmtPct(value) : ''),
+                        textposition: ['bottom right', 'top center', 'bottom right', 'top center', 'bottom left'],
+                        textfont: { size: 11 }, cliponaxis: false,
+                        hovertemplate: '%{x} meses<br>Mediana: %{y:.2%}<extra></extra>' }
+                ], {
+                    title: `Fan Chart: Proyección Rentabilidad tras Caída > ${threshold}`,
+                    xaxis: { title: 'Meses tras evento', tickvals: horizonsX, ticktext: ['1M', '6M', '12M', '36M', '60M'] },
+                    yaxis: { tickformat: '.0%', title: 'Rentabilidad Acumulada' },
+                    margin: { t: 55, l: 65, r: 35, b: 85 },
+                    legend: { orientation: 'h', y: -0.3, x: 0, font: { size: 10 } }
+                }, { responsive: true });
 
                 renderProfessionalRangeChart('dipBarChart', sortedData, 'Horizonte', 'Media', 'Min', 'Max', `Retorno medio tras caídas > ${threshold}`);
 
