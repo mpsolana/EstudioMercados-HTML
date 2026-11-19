@@ -50,23 +50,40 @@
         const years = (end - start) / 86400000 / 365.25;
         return end >= anniversary ? (series.at(-1).price / series[0].price) ** (1 / years) - 1 : NaN;
     }
+    function rebalanceSchedule(dates, mode) {
+        const keys = dates.map(date => new Date(date).toISOString().slice(0, 10));
+        return keys.slice(0, -1).map((date, i) => {
+            if (!i) return false;
+            const prior = keys[i - 1];
+            if (mode === 'period') return true;
+            if (mode === 'monthly') return date.slice(0, 7) !== prior.slice(0, 7);
+            if (mode === 'annual') return date.slice(0, 4) !== prior.slice(0, 4);
+            return mode === 'quarterly' && (date.slice(0, 4) !== prior.slice(0, 4) ||
+                Math.floor((Number(date.slice(5, 7)) - 1) / 3) !== Math.floor((Number(prior.slice(5, 7)) - 1) / 3));
+        });
+    }
     function portfolioPath(entries, dates, returns, settings = {}) {
         const normalized = normalizeWeights(entries);
         if (normalized.some(e => !returns[e.ticker] || returns[e.ticker].length !== dates.length - 1 || !returns[e.ticker].every(r => Number.isFinite(r) && r > -1))) throw new Error('Historicos incompletos: no se calcula una rentabilidad para pesos sin datos.');
         const target = normalized.map(e => e.weight);
+        const assetReturns = normalized.map(entry => returns[entry.ticker]);
+        const schedule = settings.schedule || rebalanceSchedule(dates, settings.rebalance);
+        if (schedule.length !== dates.length - 1) throw new Error('Calendario de rebalanceo incompatible con las fechas.');
         let weights = target.slice();
-        const path = [];
+        const path = [], growth = target.slice();
         for (let i = 0; i < dates.length - 1; i++) {
-            const monthChanged = i > 0 && new Date(dates[i]).toISOString().slice(0, 7) !== new Date(dates[i - 1]).toISOString().slice(0, 7);
-            const rebalance = i > 0 && (settings.rebalance === 'period' || (settings.rebalance === 'monthly' && monthChanged));
+            const rebalance = schedule[i];
             const turnover = rebalance ? weights.reduce((sum, w, k) => sum + Math.abs(w - target[k]), 0) : 0;
             if (rebalance) weights = target.slice();
-            const growth = weights.map((w, k) => w * (1 + returns[normalized[k].ticker][i]));
-            const gross = growth.reduce((a, v) => a + v, 0);
+            let gross = 0;
+            for (let k = 0; k < weights.length; k++) {
+                growth[k] = weights[k] * (1 + assetReturns[k][i]);
+                gross += growth[k];
+            }
             const cost = turnover * Math.max(0, Number(settings.costBps) || 0) / 10000;
             if (cost >= 1) throw new Error('Coste de rebalanceo fuera de rango.');
             path.push(gross * (1 - cost) - 1);
-            weights = growth.map(v => v / gross);
+            for (let k = 0; k < weights.length; k++) weights[k] = growth[k] / gross;
         }
         return path;
     }
@@ -82,7 +99,7 @@
         });
         return [...grouped.values()];
     }
-    const api = { annualPeriods, mean, stdev, frequency, validateSeries, normalizeWeights, weighted, sharpe, cagr, portfolioPath, sameFund, better, groupCategories };
+    const api = { annualPeriods, mean, stdev, frequency, validateSeries, normalizeWeights, weighted, sharpe, cagr, rebalanceSchedule, portfolioPath, sameFund, better, groupCategories };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     root.FinanceCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

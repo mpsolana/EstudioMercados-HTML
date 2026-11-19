@@ -52,6 +52,9 @@
     <script defer src="assets/financial-planning-portfolio.js"></script>
     <script defer src="assets/financial-planning.js"></script>
     <script defer src="assets/overview-panel.js"></script>
+    <script defer src="assets/downside-optimizer-core.js"></script>
+    <script defer src="assets/downside-optimizer-view.js"></script>
+    <link rel="stylesheet" href="assets/downside-optimizer.css">
     <script defer src="assets/portfolio-workspace.js"></script>
     <script defer src="assets/portfolio-mandate.js"></script>
     <link rel="stylesheet" href="assets/portfolio-mandate.css">
@@ -4125,6 +4128,7 @@
                         const benchCategories=benchmarkCategorySheetToMap(workbook,findSheet(workbook,['bench categ','bench category','benchmark categ']));
                         applyBenchmarkCategoryMetadata(benchmarks,benchCategories);
                         window.masterPriceSeries=allPriceSeriesFromSheet(workbook,pricesSheet,entries,seriesMap);
+                        window.masterOptimizerMetadata=PortfolioOptimizerView.metadataFromWorkbook(workbook);
                         window.masterPriceVersion=(window.masterPriceVersion||0)+1;
                         window.masterBenchmarks=benchmarks;
                         computeImportedBacktestPortfolio(entries,seriesMap,`Maestro: ${file.name}`,benchmarks,window.masterPriceSeries,benchCategories);
@@ -4144,7 +4148,7 @@
             }
 
             function clearMasterPortfolioHistory() {
-                window.masterPriceSeries={};window.masterBenchmarks={};window.masterPriceVersion=(window.masterPriceVersion||0)+1;
+                window.masterPriceSeries={};window.masterBenchmarks={};window.masterOptimizerMetadata={};window.masterPriceVersion=(window.masterPriceVersion||0)+1;
                 loadedPortfolio=null;portfolioAnalysisPromise=null;assetAllocationState=null;
                 document.getElementById('analyzePortfolioBtn').disabled=true;
                 document.getElementById('portfolioStartDate').textContent='';

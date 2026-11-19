@@ -209,7 +209,7 @@ function portfolioWorkflowRefresh() {
         setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
         return;
     }
-    const steps = w.scope === 'initial' ? ['proposal','metrics','rates','report'] : w.scope === 'individual' ? ['diagnosis','frontier','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
+    const steps = w.scope === 'initial' ? ['proposal','metrics','rates','report'] : w.scope === 'individual' ? ['diagnosis','optimizer','frontier','report'] : w.scope === 'screener' ? ['diagnosis'] : ['diagnosis','report'];
     if (!steps.includes(w.step)) w.step = steps[0];
     if (w.scope === 'screener') w.tool = 'screener';
     document.querySelectorAll('[data-workspace-panel]').forEach(el => el.hidden = true);
@@ -218,6 +218,7 @@ function portfolioWorkflowRefresh() {
     if (w.step === 'diagnosis') show(w.tool === 'aggregate' ? 'workspaceAggregate' : `portfolioSubtabContent-${w.tool}`);
     if (w.step === 'proposal' && w.scope === 'initial') show('workspaceProposal');
     if (w.step === 'metrics' && w.scope === 'initial') show('workspaceUniverseMetrics');
+    if (w.step === 'optimizer' && w.scope === 'individual') {show('workspaceIndividualOptimizer');PortfolioOptimizerView.refresh();}
     if (w.step === 'frontier' && w.scope === 'individual') {show('workspaceIndividualFrontier');EfficientFrontierView.benchmarks();}
     if (w.step === 'rates' && w.scope === 'initial') show('workspaceInitialRates');
     if (w.step === 'report') show(w.scope === 'aggregate' ? 'workspaceManagerReports' : w.scope === 'initial' ? 'workspaceInitialReports' : 'workspaceIndividualReports');
@@ -233,9 +234,10 @@ function portfolioWorkflowRefresh() {
         if (b.dataset.workspaceStep === 'diagnosis') b.textContent = w.scope === 'screener' ? '01 Screener' : '01 Diagnostico';
         if (b.dataset.workspaceStep === 'proposal') b.textContent = '01 Analisis inicial';
         if (b.dataset.workspaceStep === 'metrics') b.textContent = '02 Comparativa universo';
-        if (b.dataset.workspaceStep === 'frontier') b.textContent = '02 Riesgo y rentabilidad';
+        if (b.dataset.workspaceStep === 'optimizer') b.textContent = '02 Optimizador';
+        if (b.dataset.workspaceStep === 'frontier') b.textContent = '03 Riesgo y rentabilidad';
         if (b.dataset.workspaceStep === 'rates') b.textContent = '03 Sensibilidad tipos';
-        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '04 Informe' : w.scope==='individual'?'03 Informe':'02 Informe';
+        if (b.dataset.workspaceStep === 'report') b.textContent = w.scope === 'initial' ? '04 Informe' : w.scope==='individual'?'04 Informe':'02 Informe';
     });
     document.querySelectorAll('[data-workspace-scope]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspaceScope === w.scope)));
     document.querySelectorAll('[data-workspace-only]').forEach(el => el.hidden = !el.dataset.workspaceOnly.split(' ').includes(w.scope));
@@ -317,6 +319,13 @@ function initializePortfolioWorkspace() {
     ratesPanel.querySelector('#initialRateMethod').textContent='Estimación de primer orden: tipos y spreads se modelan por separado en pb; el resto de activos permanece constante. La duración modificada mide sensibilidad al rendimiento propio y puede diferir de la duración frente a la curva libre de riesgo; verifica esta aproximación en crédito y bonos con opciones. El carry, si se activa, es YTM anual × meses/12 y no es una rentabilidad garantizada. No se incluyen convexidad, cupones, impagos, liquidez, divisa ni reacción de otros activos. Los escenarios son hipótesis, no previsiones.';
     ratesPanel.addEventListener('input',renderInitialRateSensitivity);
     window.addEventListener('resize',()=>{if(ratesPanel.hidden)return;for(const chart of ratesPanel.querySelectorAll('.js-plotly-plot'))requestAnimationFrame(()=>Plotly.Plots.resize(chart));});
+    shell.querySelector('[data-workspace-step="frontier"]').insertAdjacentHTML('beforebegin','<button data-workspace-step="optimizer">02 Optimizador</button>');
+    const optimizerPanel = document.createElement('section');
+    optimizerPanel.id = 'workspaceIndividualOptimizer';
+    optimizerPanel.className = 'workspace-panel';
+    optimizerPanel.dataset.workspacePanel = '';
+    root.append(optimizerPanel);
+    PortfolioOptimizerView.init(optimizerPanel);
     const frontierPanel=document.createElement('section');frontierPanel.id='workspaceIndividualFrontier';frontierPanel.className='workspace-panel initial-frontier';frontierPanel.dataset.workspacePanel='';root.append(frontierPanel);EfficientFrontierView.init(frontierPanel);
     const reportOptions = document.createElement('div'); reportOptions.className = 'workspace-report-options';
     reportOptions.innerHTML = '<label><input type="checkbox" id="reportIncludeCharts" checked> Graficos</label><label><input type="checkbox" id="reportIncludeDetails" checked> Detalle de sustituciones</label><label><input type="checkbox" id="reportFinal"> Version final</label>';
@@ -348,10 +357,10 @@ function initializePortfolioWorkspace() {
     const upload = document.getElementById('fundUniverseFileInput').closest('.mt-6'); data.append(upload);
     upload.querySelector('h3').textContent='Archivos de análisis';
     const settings = document.createElement('div'); settings.className = 'workspace-settings'; settings.dataset.workspaceOnly = 'individual';
-    settings.innerHTML = `<label>Rebalanceo<select id="portfolioRebalance"><option value="period">Cada observacion (pesos constantes)</option><option value="monthly">Mensual</option><option value="hold">Comprar y mantener</option></select></label><label>Coste por volumen negociado (pb)<input id="portfolioCostBps" type="number" min="0" max="1000" value="0"></label><label>Tipo libre de riesgo anual (%)<input id="portfolioRiskFree" type="number" min="-99" step="0.1" value="0"></label><label>Moneda base<select id="portfolioBaseCurrency"><option>EUR</option><option>USD</option><option>GBP</option></select></label><label><input id="portfolioPricesInBase" type="checkbox" checked> Historicos propios ya expresados en moneda base</label>`;
+    settings.innerHTML = `<label>Rebalanceo<select id="portfolioRebalance"><option value="period">Cada observacion (pesos constantes)</option><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option><option value="hold">Comprar y mantener</option></select></label><label>Coste por volumen negociado (pb)<input id="portfolioCostBps" type="number" min="0" max="1000" value="0"></label><label>Tipo libre de riesgo anual (%)<input id="portfolioRiskFree" type="number" min="-99" step="0.1" value="0"></label><label>Moneda base<select id="portfolioBaseCurrency"><option>EUR</option><option>USD</option><option>GBP</option></select></label><label><input id="portfolioPricesInBase" type="checkbox" checked> Historicos propios ya expresados en moneda base</label>`;
     individualSetup.prepend(settings);
     const help = document.createElement('footer'); help.className = 'workspace-calculation-help'; help.dataset.workspaceOnly = 'individual';
-    help.innerHTML = '<h3>Hipotesis del analisis</h3><dl><dt>Rebalanceo</dt><dd>Define cuando se recuperan los pesos objetivo: en cada observacion, al cambiar de mes o nunca (comprar y mantener, dejando evolucionar los pesos).</dd><dt>Coste por volumen negociado</dt><dd>Coste aplicado a las compras y ventas de cada rebalanceo. 10 puntos basicos equivalen a 0,10% del importe negociado, no de toda la cartera. No incluye impuestos ni la inversion inicial.</dd><dt>Tipo libre de riesgo</dt><dd>Rentabilidad anual de referencia utilizada para calcular el Sharpe. Se convierte a la frecuencia de los datos; no modifica la evolucion del patrimonio.</dd><dt>Moneda base</dt><dd>Divisa en la que se construye la cartera. Los historicos Yahoo en otra divisa se convierten cuando hay datos de cambio disponibles.</dd><dt>Historicos propios</dt><dd>Marca esta casilla solo si los precios importados ya estan expresados en la moneda base. Evita convertirlos otra vez. No debe marcarse para omitir una conversion que falta.</dd></dl><p>Si cambias rebalanceo, costes, moneda o tratamiento de historicos, vuelve a cargar la cartera o importar el Excel para recalcularla.</p>';
+    help.innerHTML = '<h3>Hipotesis del analisis</h3><dl><dt>Rebalanceo</dt><dd>Define cuando se recuperan los pesos objetivo: en cada observacion, al cambiar de mes, trimestre o año, o nunca (comprar y mantener, dejando evolucionar los pesos).</dd><dt>Coste por volumen negociado</dt><dd>Coste aplicado a las compras y ventas de cada rebalanceo. 10 puntos basicos equivalen a 0,10% del importe negociado, no de toda la cartera. No incluye impuestos ni la inversion inicial.</dd><dt>Tipo libre de riesgo</dt><dd>Rentabilidad anual de referencia utilizada para calcular el Sharpe. Se convierte a la frecuencia de los datos; no modifica la evolucion del patrimonio.</dd><dt>Moneda base</dt><dd>Divisa en la que se construye la cartera. Los historicos Yahoo en otra divisa se convierten cuando hay datos de cambio disponibles.</dd><dt>Historicos propios</dt><dd>Marca esta casilla solo si los precios importados ya estan expresados en la moneda base. Evita convertirlos otra vez. No debe marcarse para omitir una conversion que falta.</dd></dl><p>Si cambias rebalanceo, costes, moneda o tratamiento de historicos, vuelve a cargar la cartera o importar el Excel para recalcularla.</p>';
     root.append(help);
     ['portfolioRebalance','portfolioCostBps','portfolioRiskFree','portfolioBaseCurrency','portfolioPricesInBase'].forEach((id,i) => {
         const description = help.querySelectorAll('dd')[i]; description.id = `${id}-help`; document.getElementById(id).setAttribute('aria-describedby',description.id);
@@ -420,7 +429,7 @@ function initializePortfolioWorkspace() {
         if (b.dataset.workspaceScope || b.dataset.workspaceStep || b.dataset.workspaceTool) portfolioWorkflowRefresh();
         if (b.dataset.workspaceStep === 'metrics') renderFundUniverseMetricComparison();
     });
-    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input,#workspacePortfolioCompare,#workspaceModel,#workspaceInitialRates')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
+    root.addEventListener('input', event => { if (!event.target.closest('[data-compact-fund-panel],#portfolioSubtabContent-screener,#assetAllocationWeights,.initial-metric-input,.aggregate-score-input,#workspacePortfolioCompare,#workspaceModel,#workspaceInitialRates,#workspaceIndividualOptimizer')) { invalidatePortfolioReports(); portfolioWorkflowRefresh(); } });
     const originalScoring=window.runFundScoringAnalysis;
     window.runFundScoringAnalysis=(...args)=>PortfolioLoading.track(originalScoring(...args));
     for (const name of ['importFundUniverseFile','importApprovedFundsFile','importFundScoringPortfolioFile','importAggregatePositionsFile','importAssetClassScreenerFile','importPortfolioExcel']) {
