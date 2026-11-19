@@ -1,15 +1,15 @@
 (function(root, factory) {
-    const api = factory(root.FinanceCore || require('./finance-core.js'));
+    const api = factory(root.FinanceCore || require('./finance-core.js'), root.ModelPortfolioCore || require('./model-portfolio-core.js'));
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.DownsideOptimizer = api;
-})(globalThis, function(finance) {
+})(globalThis, function(finance, modelCore) {
     'use strict';
     const DAY = 86400000;
-    const profiles = {
-        conservador: { maxRv: 20, maxDrawdown: 7, maxRecovery: 365, maxDuration: 2, minYield: 2, minEfficiency: 1, maxHy: 10, maxFx: 15 },
-        moderado: { maxRv: 45, maxDrawdown: 10, maxRecovery: 365, maxDuration: 2, minYield: 3, minEfficiency: 1.5, maxHy: 20, maxFx: 30 },
-        dinamico: { maxRv: 75, maxDrawdown: 20, maxRecovery: 730, maxDuration: 5, minYield: 2, minEfficiency: .5, maxHy: 35, maxFx: 50 }
-    };
+    const conservative = { maxDrawdown: 7, maxRecovery: 365, maxDuration: 2, minYield: 2, minEfficiency: 1, maxHy: 10, maxFx: 15 };
+    const moderate = { maxDrawdown: 10, maxRecovery: 365, maxDuration: 2, minYield: 3, minEfficiency: 1.5, maxHy: 20, maxFx: 30 };
+    const dynamic = { maxDrawdown: 20, maxRecovery: 730, maxDuration: 5, minYield: 2, minEfficiency: .5, maxHy: 35, maxFx: 50 };
+    const profiles = Object.fromEntries(Object.entries(modelCore.bands).map(([profile, band]) =>
+        [profile, { ...(['muy_conservador', 'prudente'].includes(profile) ? conservative : profile === 'equilibrado' ? moderate : dynamic), maxRv: band[1] }]));
     function prepare(assets, config) {
         if (!assets.length) throw new Error('Selecciona al menos un fondo para la búsqueda.');
         if (new Set(assets.map(asset => asset.isin)).size !== assets.length) throw new Error('Hay ISIN duplicados.');
@@ -19,28 +19,47 @@
             if (asset.type === 'RF' && (!['IG', 'HY', 'Soberana'].includes(asset.credit) ||
                 ![asset.grossYield, asset.ter, asset.duration].every(Number.isFinite) || asset.ter < 0 || asset.duration < 0))
                 throw new Error(asset.isin + ': completa calidad, TIR bruta, TER y duración de RF.');
-            const data = (asset.data || []).filter(point => (!config.start || new Date(point.date) >= new Date(config.start)) &&
-                (!config.end || new Date(point.date) <= new Date(config.end))).map(point => ({ date: new Date(point.date), price: point.price }));
+            const loaded = asset.data || [];
+            const data = loaded.map(point => ({ date: new Date(point.date), price: point.price })).filter(point => {
+                const day = Number.isFinite(+point.date) ? point.date.toISOString().slice(0, 10) : '';
+                return (!config.start || day >= config.start) && (!config.end || day <= config.end);
+            });
+            if (data.length < 2) throw new Error(asset.isin + ': ' + loaded.length + ' precios cargados, pero ' +
+                data.length + ' en el intervalo ' + (config.start || 'inicio disponible') + ' a ' +
+                (config.end || 'última fecha disponible') + '. Amplía las fechas para calcular rentabilidades.');
             finance.validateSeries(data, asset.isin);
-            if (!['D', 'C'].includes(finance.frequency(data))) throw new Error(asset.isin + ': el optimizador requiere valores liquidativos diarios.');
             return new Map(data.map(point => [point.date.toISOString().slice(0, 10), point.price]));
         });
         const dates = [...maps[0].keys()].filter(date => maps.every(map => map.has(date))).sort();
-        if (dates.length < 1000 || !dates.length || new Date(dates.at(-1)) < anniversary(dates[0], 5))
-            throw new Error('Se necesitan al menos cinco años y 1.000 precios diarios comunes. Reduce el universo o amplía el período.');
         const times = dates.map(date => +new Date(date));
-        if (times.some((time, i) => i > 0 && time - times[i - 1] > 10 * DAY))
-            throw new Error('Hay huecos de más de 10 días naturales en los precios comunes. Revisa el maestro o acota las fechas.');
+        if (dates.length < 2) throw new Error('Los fondos tienen precios, pero no hay dos fechas comunes dentro del intervalo seleccionado.');
+        const frequency = finance.frequency(dates.map(date => ({ date })));
+        if (!['D', 'C', 'W', 'M'].includes(frequency)) throw new Error('La frecuencia común es inferior a mensual. Se requieren observaciones mensuales, semanales o diarias.');
+        const minimum = { D: 1000, C: 1000, W: 260, M: 61 }[frequency];
+        const coversFiveYears = frequency === 'M'
+            ? dates.at(-1).slice(0, 7) >= anniversary(dates[0], 5).toISOString().slice(0, 7)
+            : new Date(dates.at(-1)) >= anniversary(dates[0], 5);
+        if (dates.length < minimum || !coversFiveYears)
+            throw new Error(dates.length + ' precios comunes (' + frequency + ') entre ' + dates[0] + ' y ' + dates.at(-1) +
+                '. Se necesitan cinco años para calcular ambos rolling de 3 y 5 años. Amplía el período o reduce el universo.');
+        const maximumGap = { D: 10, C: 10, W: 16, M: 45 }[frequency];
+        if (times.some((time, i) => i > 0 && time - times[i - 1] > maximumGap * DAY))
+            throw new Error('Hay huecos de más de ' + maximumGap + ' días naturales en los precios comunes (' + frequency + '). Revisa el maestro o acota las fechas.');
         const returns = Object.fromEntries(assets.map((asset, j) => [asset.isin, dates.slice(1).map((date, i) => maps[j].get(date) / maps[j].get(dates[i]) - 1)]));
         const windows = years => {
             let start = 0;
             return dates.map((date, end) => {
                 const target = +anniversary(date, -years);
+                if (frequency === 'M') {
+                    const targetMonth = anniversary(date, -years).toISOString().slice(0, 7);
+                    while (start + 1 < end && dates[start + 1].slice(0, 7) <= targetMonth) start++;
+                    return dates[start].slice(0, 7) === targetMonth ? start : -1;
+                }
                 while (start + 1 < end && times[start + 1] <= target) start++;
                 return times[start] <= target && target - times[start] <= 7 * DAY ? start : -1;
             });
         };
-        return { assets, dates, times, returns, schedule: finance.rebalanceSchedule(dates, config.rebalance), windows3: windows(3), windows5: windows(5), frequency: finance.frequency(dates.map(date => ({ date }))) };
+        return { assets, dates, times, returns, schedule: finance.rebalanceSchedule(dates, config.rebalance), windows3: windows(3), windows5: windows(5), frequency };
     }
     function anniversary(date, years) {
         const value = new Date(date);
@@ -199,7 +218,7 @@
         if (!passed) fastNear.forEach(evaluate);
         const choices = valid ? best : nearest;
         for (const point of choices) Object.assign(point, history(prepared, point.weights, config, true));
-        return { dates: prepared.dates, assets: assets.map(({ data, ...asset }) => asset), choices, cloud,
+        return { dates: prepared.dates, frequency: prepared.frequency, assets: assets.map(({ data, ...asset }) => asset), choices, cloud,
             unique, passed, evaluated, valid, blockers, config: { ...config } };
     }
     return { profiles, prepare, validate, sample, randomSource, fundamentals, structural, history, optimize };

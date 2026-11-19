@@ -1,5 +1,6 @@
 const PortfolioOptimizerView = (() => {
     'use strict';
+    const frequencyLabel = code => ({ D: 'diaria', C: 'diaria natural', W: 'semanal', M: 'mensual' })[code] || 'sin identificar';
     let panel, assets = [], result = null, selected = 0, revision = 0, signature = '';
     let running = false, applying = false, initializedDefaults = false;
     const overrides = new Map();
@@ -25,11 +26,11 @@ const PortfolioOptimizerView = (() => {
     function metadataFromWorkbook(workbook) {
         const out = {};
         const aliases = {
-            name: ['nombre', 'name', 'fondo'], type: ['tipoactivo', 'assettype', 'tipo'],
+            name: ['nombre', 'name', 'fondo'], type: ['tipoactivo', 'assettype', 'tipo', 'asset_class', 'asset class'],
             fxPct: ['noeurpct', 'exposicionnoeur', 'divisanocubiertapct'],
             credit: ['calidadcrediticia', 'creditquality', 'credito'],
             grossYield: ['tirbruta', 'grossytm', 'grossyield'],
-            ter: ['ter', 'gastoscorrientes', 'gastos corrientes'], duration: ['duracionmodificada', 'modifiedduration', 'duration']
+            ter: ['ter', 'gastoscorrientes', 'gastos corrientes'], referenceYield: ['YTM', 'TIR'], duration: ['duracionmodificada', 'modifiedduration', 'duration', 'MD']
         };
         for (const sheet of workbook.SheetNames) {
             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { defval: null, raw: true });
@@ -37,18 +38,23 @@ const PortfolioOptimizerView = (() => {
             for (const [index, row] of rows.entries()) {
                 const fields = new Map(Object.entries(row).map(([key, value]) => [norm(key),
                     typeof value === 'number' && /%/.test(String(displayed[index]?.[key] || '')) ? value * 100 : value]));
-                const isin = String(fields.get('isin') || '').trim().toUpperCase();
+                const isin = String(fields.get('isin') || fields.get('ticker') || '').trim().toUpperCase();
                 if (!isLikelyIsin(isin)) continue;
                 const metadata = { ...out[isin] };
                 for (const [field, names] of Object.entries(aliases)) {
                     const value = names.map(name => fields.get(norm(name))).find(value => value != null && value !== '');
-                    if (value != null) metadata[field] = Object.hasOwn(labels, field) ? number(typeof value === 'string' ? value.replace('%', '').trim() : value) : String(value).trim();
+                    if (value != null) metadata[field] = (Object.hasOwn(labels, field) || field === 'referenceYield') ? number(typeof value === 'string' ? value.replace('%', '').trim() : value) : String(value).trim();
                 }
                 if (metadata.type) {
                     const type = ModelPortfolioCore.assetType(metadata.type);
                     if (['RF', 'RV'].includes(type)) metadata.type = type;
                     else if (out[isin]?.type) metadata.type = out[isin].type;
                     else delete metadata.type;
+                }
+                if (!metadata.credit) {
+                    const category = norm(fields.get('assetclass'));
+                    if (category.includes('highyield') || category.endsWith('hy')) metadata.credit = 'HY';
+                    else if (category.includes('investmentgrade') || category.endsWith('ig')) metadata.credit = 'IG';
                 }
                 if (metadata.credit) {
                     const credit = norm(metadata.credit);
@@ -107,7 +113,7 @@ const PortfolioOptimizerView = (() => {
                 const options = (values, field) => '<option value="">Pendiente</option>' + values.map(value =>
                     `<option ${edit[field] === value ? 'selected' : ''}>${value}</option>`).join('');
                 return `<tr><td><input type="checkbox" data-opt-asset="${index}" data-opt-field="included" ${edit.included ? 'checked' : ''} aria-label="Incluir ${esc(asset.isin)}"></td>
-                    <th scope="row">${esc(asset.name)}<small>${esc(asset.isin)} · ${asset.data.length} precios</small></th>
+                    <th scope="row">${esc(asset.name)}<small>${esc(asset.isin)} · ${asset.data.length} precios · ${frequencyLabel(FinanceCore.frequency(asset.data))}</small><small>${asset.data.length ? new Date(asset.data[0].date).toISOString().slice(0, 10) + ' a ' + new Date(asset.data.at(-1).date).toISOString().slice(0, 10) : 'Sin fechas'}</small></th>
                     <td><select data-opt-asset="${index}" data-opt-field="type" aria-label="Tipo ${esc(asset.isin)}">${options(['RF','RV'], 'type')}</select></td>
                     <td><select data-opt-asset="${index}" data-opt-field="credit" ${edit.type === 'RV' ? 'disabled' : ''} aria-label="Calidad crediticia ${esc(asset.isin)}">${options(['Soberana','IG','HY'], 'credit')}</select></td>
                     ${Object.entries(labels).map(([field, label]) => `<td><input type="number" step="0.01" ${field === 'grossYield' ? '' : 'min="0"'} ${field === 'fxPct' ? 'max="100"' : ''}
@@ -158,7 +164,7 @@ const PortfolioOptimizerView = (() => {
         const output = panel.querySelector('[data-optimizer-results]'), winner = result.choices[selected];
         if (!winner) { output.textContent = 'La búsqueda no ha encontrado combinaciones evaluables.'; return; }
         const metric = winner.metrics;
-        panel.querySelector('[data-optimizer-status]').textContent = `${result.unique.toLocaleString('es-ES')} combinaciones distintas · ${result.evaluated.toLocaleString('es-ES')} evaluadas históricamente · ${result.valid.toLocaleString('es-ES')} cumplen todos los límites · ${result.dates[0]} a ${result.dates.at(-1)}.`;
+        panel.querySelector('[data-optimizer-status]').textContent = `${result.unique.toLocaleString('es-ES')} combinaciones distintas · ${result.evaluated.toLocaleString('es-ES')} evaluadas históricamente · ${result.valid.toLocaleString('es-ES')} cumplen todos los límites · ${result.dates[0]} a ${result.dates.at(-1)} · ${result.dates.length} precios comunes · frecuencia ${frequencyLabel(result.frequency)}.`;
         const violations = candidate => candidate.failures.length ? candidate.failures.map(failure =>
             `${failure.name}: ${fmt(failure.value)} ${failure.unit} frente a límite ${fmt(failure.limit)} ${failure.unit}`).join(' · ') : 'Cumple las restricciones de esta muestra.';
         clearResults();
@@ -169,9 +175,10 @@ const PortfolioOptimizerView = (() => {
             <div class="optimizer-choices">${result.choices.map((candidate, index) =>
                 `<button type="button" data-opt-choice="${index}" aria-pressed="${index === selected}">${result.valid ? 'Cartera' : 'Aproximación'} ${index + 1} · Rolling mínimo ${pct(candidate.worst)}</button>`).join('')}</div>
             <p class="workspace-status">${esc(violations(winner))}</p>
+            ${['M', 'W'].includes(result.frequency) ? `<p class="workspace-context">La muestra tiene frecuencia ${frequencyLabel(result.frequency)}. El drawdown y la recuperación se miden entre esos cierres; los movimientos dentro del período quedan fuera de la observación.</p>` : ''}
             <div class="optimizer-kpis">${[
                 ['Peor rolling 3 años', pct(winner.worst3)], ['Peor rolling 5 años', pct(winner.worst5)],
-                ['Caída máxima', pct(winner.maxDrawdown === 0 ? 0 : -winner.maxDrawdown)], ['Máximo tiempo bajo máximos', fmt(winner.recoveryDays) + ' días'],
+                ['Caída máxima', pct(winner.maxDrawdown === 0 ? 0 : -winner.maxDrawdown)], ['Máximo tiempo bajo máximos observado', fmt(winner.recoveryDays) + ' días'],
                 ['Recuperación al cierre', winner.openRecovery ? 'Abierta · ' + fmt(winner.openRecovery) + ' días transcurridos' : 'Recuperada'],
                 ['TIR neta RF', pct(metric.netYield)], ['Duración RF', fmt(metric.duration) + (metric.duration === 1 ? ' año' : ' años')],
                 ['Impacto tipos +100 pb · cartera', pct(metric.rateImpact)], ['Sharpe', fmt(winner.sharpe)], ['Índice Ulcer', fmt(winner.ulcer)]
@@ -247,7 +254,10 @@ const PortfolioOptimizerView = (() => {
         panel.innerHTML = `<h3>Optimizador de carteras · Downside y fundamentales</h3>
             <p class="workspace-context">Carga el Maestro en Carga de datos. Revisa los fondos y sus métricas, ajusta los límites y ejecuta la búsqueda. El resultado se puede aplicar a la cartera individual.</p>
             <div class="optimizer-layout"><form class="optimizer-controls">
-                <label>Perfil de partida<select name="profile"><option value="conservador">Conservador</option><option value="moderado" selected>Moderado</option><option value="dinamico">Dinámico</option></select></label>
+                <label>Perfil GDC / GICI<select name="profile">${[
+                    ['muy_conservador','Muy Conservador'],['prudente','Prudente'],['equilibrado','Equilibrado'],
+                    ['decidido','Decidido'],['muy_arriesgado','Muy Arriesgado']].map(([key, label]) =>
+                        `<option value="${key}" ${key === 'equilibrado' ? 'selected' : ''}>${label} · RV máx. ${ModelPortfolioCore.bands[key][1]}%</option>`).join('')}</select></label>
                 ${controls.map(([name, label, min, max]) => `<label>${label}<input name="${name}" type="number" min="${min}" max="${max}" step="${['iterations','seed','maxRecovery'].includes(name) ? '1' : 'any'}" required></label>`).join('')}
                 <label>Desde<input name="start" type="date"></label><label>Hasta<input name="end" type="date"></label>
                 <label>Rebalanceo<select name="rebalance"><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option></select></label>
@@ -256,7 +266,7 @@ const PortfolioOptimizerView = (() => {
                 <button type="button" data-opt-run>Ejecutar optimizador</button><button type="button" data-opt-cancel disabled>Cancelar</button>
             </form><div class="optimizer-main">
                 <details open><summary>Universo y datos antes de calcular</summary>
-                    <p class="workspace-context">Selecciona los fondos que quieres considerar en la búsqueda. Completa los campos vacíos. Exposición no EUR significa exposición real sin cubrir, independientemente de la divisa de la clase. La TIR bruta se lee de una columna explícita del maestro o se introduce en la tabla. La YTM compartida se muestra como referencia cuando no consta que sea bruta. TIR neta = TIR bruta − TER, antes de fiscalidad del cliente.</p>
+                    <p class="workspace-context">Selecciona los fondos que quieres considerar en la búsqueda. Completa los campos vacíos. Exposición no EUR significa exposición real sin cubrir, independientemente de la divisa de la clase. La TIR bruta se lee de una columna explícita del maestro o se introduce en la tabla. La YTM compartida se muestra como referencia cuando no consta que sea bruta. TIR neta = TIR bruta − TER, antes de fiscalidad del cliente. En cada fondo se muestra el número de precios y su frecuencia.</p>
                     <button type="button" data-opt-refresh>Volver a leer datos compartidos</button>
                     <div class="proposal-chart-scroll"><table class="wide-report-table"><thead><tr><th>Usar</th><th>Fondo</th><th>Tipo</th><th>Calidad RF</th><th>No EUR (%)</th><th>TIR bruta (%)</th><th>TER (%)</th><th>Duración (años)</th></tr></thead><tbody data-optimizer-universe></tbody></table></div>
                 </details>
@@ -264,12 +274,12 @@ const PortfolioOptimizerView = (() => {
                 <p class="workspace-status" data-optimizer-status role="status">Carga el Maestro para comenzar.</p>
                 <div data-optimizer-results></div>
                 <details class="optimizer-method"><summary>Datos, límites e interpretación</summary>
-                    <p>El perfil carga límites iniciales editables y orientativos. Los fondos incluidos pesan al menos el mínimo y como máximo el tope. Los fondos no elegidos pueden tener peso cero. RV y divisa se miden sobre toda la cartera; duración, TIR neta y HY se miden dentro de RF.</p>
-                    <p>Se exige un mínimo de cinco años de datos diarios comunes para comparar rolling de 3 y 5 años. Se usan VL en EUR sin volver a descontar TER. Se simula rebalanceo sin impuestos ni costes de transacción; el TER se resta únicamente a la TIR bruta actual de RF.</p>
+                    <p>El máximo RV de cada perfil se toma de las bandas compartidas de GDC/GICI (15%, 30%, 50%, 75% y 100%). Los demás límites son valores iniciales editables. Los fondos incluidos pesan al menos el mínimo y como máximo el tope. Los fondos no elegidos pueden tener peso cero. RV y divisa se miden sobre toda la cartera; duración, TIR neta y HY se miden dentro de RF.</p>
+                    <p>Se exigen cinco años comunes para comparar rolling de 3 y 5 años. Se detecta y utiliza la frecuencia diaria, semanal o mensual del maestro. Con cierres mensuales se miden caídas y recuperación observadas al cierre; las oscilaciones dentro del mes quedan fuera de esa muestra. Se usan VL en EUR sin volver a descontar TER. Se simula rebalanceo sin impuestos ni costes de transacción; el TER se resta únicamente a la TIR bruta actual de RF.</p>
                     <p>El máximo tiempo bajo máximos se mide desde el pico hasta recuperar ese nivel, en días naturales. Las caídas abiertas muestran el tiempo transcurrido, que es solo una cota mínima. Por defecto se excluyen de las soluciones válidas; puedes admitirlas expresamente con el control correspondiente.</p>
                     <p>La puntuación es mínimo(peor rolling 3 años, peor rolling 5 años) − penalización × Ulcer. Ulcer es la raíz de la media de las caídas porcentuales al cuadrado. Un empate técnico se considera una diferencia de puntuación de hasta 0,001 puntos. La penalización inicial 0,05 resta 0,05 puntos de retorno por cada punto Ulcer. Una búsqueda aleatoria finita encuentra candidatas y no garantiza un óptimo global ni demuestra que no exista una cartera factible.</p>
                     <p>Las métricas actuales de RF son un filtro fundamental, no datos históricos de cada fecha. La selección retrospectiva sobre toda la muestra tiene sesgo de selección y supervivencia; no garantiza protección ni retornos futuros. El impacto +100 pb es una aproximación por duración manteniendo el resto constante.</p>
-                    <p>El Maestro puede incorporar una hoja Optimizador con columnas ISIN, Nombre, Tipo, No EUR pct, Calidad crediticia, TIR bruta, TER y Duración modificada. Los porcentajes pueden ser números en puntos porcentuales o celdas Excel con formato %. Los datos se unen por ISIN. Conserva los cambios de fichas en el archivo fuente para cargas posteriores.</p>
+                    <p>El Maestro puede incorporar una hoja Optimizador con columnas ISIN, Nombre, Tipo, No EUR pct, Calidad crediticia, TIR bruta, TER y Duración modificada. Los porcentajes pueden ser números en puntos porcentuales o celdas Excel con formato %. También se leen ticker, asset_class, YTM y MD de weights: YTM se conserva como referencia hasta que se indique su TIR bruta. Los datos se unen por ISIN. Conserva los cambios de fichas en el archivo fuente para cargas posteriores.</p>
                 </details>
             </div></div>`;
         const form = panel.querySelector('form');

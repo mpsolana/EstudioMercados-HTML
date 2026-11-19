@@ -10,7 +10,7 @@
     function assetType(generic,subcategories=[]){
         const label=key(generic),details=key(subcategories.join(' '));
         if(/(^|\b)(rv|renta variable|equity|acciones|bolsa)(\b|$)/.test(label))return 'RV';
-        if(/(^|\b)(rf|renta fija|bonos|bond|deuda|monetario|liquidez)(\b|$)/.test(label))return 'RF';
+        if(/(^|\b)(rf|mm|renta fija|bonos|bond|deuda|monetario|liquidez)(\b|$)/.test(label))return 'RF';
         if(/(^|\b)(equity|renta variable|acciones)(\b|$)/.test(details))return 'RV';
         if(/(^|\b)(bond|renta fija|bonos|fixed income)(\b|$)/.test(details))return 'RF';
         return 'Otros';

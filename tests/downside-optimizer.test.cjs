@@ -16,7 +16,7 @@ function fixture() {
         data: dates.map((date, t) => ({ date, price: 100 * Math.exp((.0001 + i * .000015) * t + .008 * Math.sin(t / 30 + i)) }))
     }));
 }
-const config = { ...Core.profiles.moderado, minWeight: 5, maxWeight: 25, maxRv: 75, maxDrawdown: 50,
+const config = { ...Core.profiles.equilibrado, minWeight: 5, maxWeight: 25, maxRv: 75, maxDrawdown: 50,
     maxRecovery: 10000, maxHy: 100, maxFx: 100, allowOpen: true,
     iterations: 100, seed: 12345, ulcerPenalty: .05, riskFree: 0, rebalance: 'monthly' };
 
@@ -59,11 +59,11 @@ test('optimizer is reproducible, returns valid candidates and explains near miss
     assert(impossible.blockers['TIR neta RF'] > 0);
 });
 
-test('missing metadata, insufficient histories, non-daily data and cancellation fail visibly', async () => {
+test('missing metadata, insufficient histories and cancellation fail visibly', async () => {
     const assets = fixture();
     assert.throws(() => Core.prepare([{ ...assets[0], fxPct: NaN }, assets[1]], config), /exposición/);
     assert.throws(() => Core.prepare(assets.map(asset => ({ ...asset, data: asset.data.slice(0, 200) })), config), /cinco años/);
-    assert.throws(() => Core.prepare(assets.map(asset => ({ ...asset, data: asset.data.filter((_, i) => i % 21 === 0) })), config), /diarios/);
+    assert.equal(Core.prepare(assets.map(asset => ({ ...asset, data: asset.data.filter((_, i) => i % 21 === 0) })), config).frequency, 'M');
     await assert.rejects(Core.optimize(assets, config, { cancelled: () => true }), /cancelado/);
 });
 
@@ -90,4 +90,26 @@ test('quarterly and annual rebalance are consistent with target weights at calen
     assert(Math.abs(quarter[2] - .05) < 1e-12);
     assert(annual[2] > .05);
     assert(Math.abs(annual[4] - .05) < 1e-12);
+});
+
+test('optimizer profile RV ceilings use the shared GDC/GICI bands', () => {
+    const Models = require('../assets/model-portfolio-core.js');
+    assert.deepEqual(Object.keys(Core.profiles), Object.keys(Models.bands));
+    for (const [profile, band] of Object.entries(Models.bands)) assert.equal(Core.profiles[profile].maxRv, band[1]);
+    assert.equal(Models.assetType('MM EUR'), 'RF');
+});
+
+test('100 monthly observations are usable and date diagnostics distinguish loaded and selected prices', () => {
+    const dates = Array.from({ length: 100 }, (_, i) => new Date(Date.UTC(2018, 7 + i + 1, 0, 22)));
+    const assets = fixture().slice(0, 2).map((asset, index) => ({
+        ...asset, data: dates.map((date, i) => ({ date, price: 100 * (1 + .002 + index * .001) ** i }))
+    }));
+    const prepared = Core.prepare(assets, config);
+    assert.equal(prepared.frequency, 'M');
+    assert.equal(prepared.dates.length, 100);
+    const metrics = Core.history(prepared, [.5, .5], config);
+    assert(Number.isFinite(metrics.worst3) && Number.isFinite(metrics.worst5));
+    assert.throws(() => Core.prepare(assets, { ...config, start: '2028-01-01' }), /100 precios cargados, pero 0/);
+    const lastDate = dates.at(-1).toISOString().slice(0, 10);
+    assert.equal(Core.prepare(assets, { ...config, end: lastDate }).dates.length, 100);
 });
