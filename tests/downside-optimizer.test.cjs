@@ -113,3 +113,28 @@ test('100 monthly observations are usable and date diagnostics distinguish loade
     const lastDate = dates.at(-1).toISOString().slice(0, 10);
     assert.equal(Core.prepare(assets, { ...config, end: lastDate }).dates.length, 100);
 });
+
+
+test('five-year annualized rolling floor filters winners and reports rejected candidates', async () => {
+    const assets = fixture();
+    const accepted = await Core.optimize(assets, { ...config, minRolling5: 0 });
+    assert(accepted.valid > 0);
+    assert(accepted.choices.every(point => point.worst5 >= 0 && point.failures.length === 0));
+    const rejected = await Core.optimize(assets, { ...config, minRolling5: 50 });
+    assert.equal(rejected.valid, 0);
+    assert(rejected.choices.length > 0);
+    assert(rejected.blockers['Retorno rolling mínimo a 5 años'] > 0);
+    for (const point of rejected.choices) {
+        const failure = point.failures.find(item => item.name === 'Retorno rolling mínimo a 5 años');
+        assert(failure);
+        assert.equal(failure.limit, 50);
+        assert.equal(failure.value, point.worst5);
+        assert.equal(failure.unit, '% anual');
+    }
+    const disabled = await Core.optimize(assets, { ...config, minRolling5: NaN });
+    const legacy = await Core.optimize(assets, config);
+    assert.equal(disabled.valid, legacy.valid);
+    assert.deepEqual(disabled.choices[0].weights, legacy.choices[0].weights);
+    for (const minRolling5 of [-101, Infinity, 'bad'])
+        assert.throws(() => Core.validate({ ...config, minRolling5 }, assets.length), /mínimo rolling/);
+});

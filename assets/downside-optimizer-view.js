@@ -12,6 +12,7 @@ const PortfolioOptimizerView = (() => {
     const controls = [
         ['maxRv', 'Máximo RV (% total)', 0, 100], ['minWeight', 'Mínimo por fondo incluido (%)', .1, 100],
         ['maxWeight', 'Máximo por fondo (%)', .1, 100], ['maxDrawdown', 'Caída máxima tolerada (%)', 0, 100],
+        ['minRolling5', 'Peor rolling 5 años mínimo (% anual)', -100, 10000],
         ['maxRecovery', 'Máximo tiempo bajo máximos (días)', 1, 10000], ['maxDuration', 'Duración máxima RF (años)', .01, 100],
         ['minYield', 'TIR neta mínima RF (%)', -100, 100], ['minEfficiency', 'Mínimo TIR neta / duración', 0, 100],
         ['maxHy', 'Máximo HY (% de RF)', 0, 100], ['maxFx', 'Máximo exposición no EUR (%)', 0, 100],
@@ -258,11 +259,14 @@ const PortfolioOptimizerView = (() => {
                     ['muy_conservador','Muy Conservador'],['prudente','Prudente'],['equilibrado','Equilibrado'],
                     ['decidido','Decidido'],['muy_arriesgado','Muy Arriesgado']].map(([key, label]) =>
                         `<option value="${key}" ${key === 'equilibrado' ? 'selected' : ''}>${label} · RV máx. ${ModelPortfolioCore.bands[key][1]}%</option>`).join('')}</select></label>
-                ${controls.map(([name, label, min, max]) => `<label>${label}<input name="${name}" type="number" min="${min}" max="${max}" step="${['iterations','seed','maxRecovery'].includes(name) ? '1' : 'any'}" required></label>`).join('')}
-                <label>Desde<input name="start" type="date"></label><label>Hasta<input name="end" type="date"></label>
+                ${controls.map(([name, label, min, max]) => `<label>${label}<input name="${name}" type="number" min="${min}" max="${max}" step="${['iterations','seed','maxRecovery'].includes(name) ? '1' : 'any'}" ${name === 'minRolling5' ? 'aria-describedby="optimizer-rolling5-help"' : 'required'}></label>`).join('')}
+                <label>Desde<a class="optimizer-note-ref" href="#optimizer-dates-help" aria-label="Ver explicación de Desde">1</a><input name="start" type="date" aria-describedby="optimizer-dates-help"></label>
+                <label>Hasta<a class="optimizer-note-ref" href="#optimizer-dates-help" aria-label="Ver explicación de Hasta">1</a><input name="end" type="date" aria-describedby="optimizer-dates-help"></label>
                 <label>Rebalanceo<select name="rebalance"><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option></select></label>
                 <label class="optimizer-check"><input name="allowOpen" type="checkbox"> Admitir caídas abiertas si su tiempo transcurrido está dentro del límite</label>
-                <p class="workspace-context">Ejemplos de formato, 45 significa 45%; duración 2 significa 2 años. El mínimo solo se aplica a los fondos elegidos. Las fechas vacías usan todo el histórico común disponible.</p>
+                <p class="workspace-context">Ejemplos de formato: 45 significa 45%; duración 2 significa 2 años. El peso mínimo solo se aplica a los fondos incluidos.</p>
+                <p id="optimizer-rolling5-help" class="workspace-context optimizer-field-note"><strong>Retorno rolling mínimo a 5 años.</strong> Es la rentabilidad anualizada mínima que exiges incluso en la peor ventana histórica de cinco años del período seleccionado. Escribe 2 para exigir al menos 2% anual en todas esas ventanas. Empieza en 0% anual; puedes editarlo o dejarlo vacío para desactivar este filtro. Una cartera por debajo del mínimo aparece únicamente como aproximación con el incumplimiento indicado.</p>
+                <p id="optimizer-dates-help" class="workspace-context optimizer-field-note"><strong>1. Fechas del histórico.</strong> Desde indica el primer día y Hasta el último día de precios que quieres utilizar, ambos incluidos. Si dejas una fecha vacía, se utiliza el inicio o el final disponible correspondiente. El motor toma las fechas comunes de los fondos seleccionados dentro de ese intervalo y calcula allí caídas, recuperación, Sharpe, Ulcer y rolling. El intervalo necesita al menos cinco años para evaluar las ventanas móviles de 3 y 5 años.</p>
                 <button type="button" data-opt-run>Ejecutar optimizador</button><button type="button" data-opt-cancel disabled>Cancelar</button>
             </form><div class="optimizer-main">
                 <details open><summary>Universo y datos antes de calcular</summary>
@@ -277,7 +281,7 @@ const PortfolioOptimizerView = (() => {
                     <p>El máximo RV de cada perfil se toma de las bandas compartidas de GDC/GICI (15%, 30%, 50%, 75% y 100%). Los demás límites son valores iniciales editables. Los fondos incluidos pesan al menos el mínimo y como máximo el tope. Los fondos no elegidos pueden tener peso cero. RV y divisa se miden sobre toda la cartera; duración, TIR neta y HY se miden dentro de RF.</p>
                     <p>Se exigen cinco años comunes para comparar rolling de 3 y 5 años. Se detecta y utiliza la frecuencia diaria, semanal o mensual del maestro. Con cierres mensuales se miden caídas y recuperación observadas al cierre; las oscilaciones dentro del mes quedan fuera de esa muestra. Se usan VL en EUR sin volver a descontar TER. Se simula rebalanceo sin impuestos ni costes de transacción; el TER se resta únicamente a la TIR bruta actual de RF.</p>
                     <p>El máximo tiempo bajo máximos se mide desde el pico hasta recuperar ese nivel, en días naturales. Las caídas abiertas muestran el tiempo transcurrido, que es solo una cota mínima. Por defecto se excluyen de las soluciones válidas; puedes admitirlas expresamente con el control correspondiente.</p>
-                    <p>La puntuación es mínimo(peor rolling 3 años, peor rolling 5 años) − penalización × Ulcer. Ulcer es la raíz de la media de las caídas porcentuales al cuadrado. Un empate técnico se considera una diferencia de puntuación de hasta 0,001 puntos. La penalización inicial 0,05 resta 0,05 puntos de retorno por cada punto Ulcer. Una búsqueda aleatoria finita encuentra candidatas y no garantiza un óptimo global ni demuestra que no exista una cartera factible.</p>
+                    <p>El mínimo rolling a 5 años, cuando está activado, se aplica como restricción de admisión antes de elegir las mejores carteras. La puntuación es mínimo(peor rolling 3 años, peor rolling 5 años) − penalización × Ulcer. Ulcer es la raíz de la media de las caídas porcentuales al cuadrado. Un empate técnico se considera una diferencia de puntuación de hasta 0,001 puntos. La penalización inicial 0,05 resta 0,05 puntos de retorno por cada punto Ulcer. Una búsqueda aleatoria finita encuentra candidatas y no garantiza un óptimo global ni demuestra que no exista una cartera factible.</p>
                     <p>Las métricas actuales de RF son un filtro fundamental, no datos históricos de cada fecha. La selección retrospectiva sobre toda la muestra tiene sesgo de selección y supervivencia; no garantiza protección ni retornos futuros. El impacto +100 pb es una aproximación por duración manteniendo el resto constante.</p>
                     <p>El Maestro puede incorporar una hoja Optimizador con columnas ISIN, Nombre, Tipo, No EUR pct, Calidad crediticia, TIR bruta, TER y Duración modificada. Los porcentajes pueden ser números en puntos porcentuales o celdas Excel con formato %. También se leen ticker, asset_class, YTM y MD de weights: YTM se conserva como referencia hasta que se indique su TIR bruta. Los datos se unen por ISIN. Conserva los cambios de fichas en el archivo fuente para cargas posteriores.</p>
                 </details>
@@ -287,7 +291,7 @@ const PortfolioOptimizerView = (() => {
             Object.entries(DownsideOptimizer.profiles[form.elements.profile.value]).forEach(([name, value]) => { form.elements[name].value = value; });
         };
         profile();
-        for (const [name, value] of Object.entries({ minWeight: 5, maxWeight: 25, iterations: 20000, seed: 12345, ulcerPenalty: .05, riskFree: 0 })) form.elements[name].value = value;
+        for (const [name, value] of Object.entries({ minWeight: 5, maxWeight: 25, iterations: 20000, seed: 12345, ulcerPenalty: .05, riskFree: 0, minRolling5: 0 })) form.elements[name].value = value;
         form.elements.profile.addEventListener('change', () => { profile(); invalidate(); });
         panel.addEventListener('input', event => { event.stopPropagation(); invalidate(); });
         panel.addEventListener('change', event => {

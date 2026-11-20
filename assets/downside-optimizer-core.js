@@ -68,6 +68,9 @@
     }
     function validate(config, count) {
         if (!count) throw new Error('Selecciona los fondos que formarán el universo de búsqueda.');
+        if (config.minRolling5 != null && !Number.isNaN(config.minRolling5) &&
+            (!Number.isFinite(config.minRolling5) || config.minRolling5 < -100))
+            throw new Error('El mínimo rolling a 5 años debe ser un porcentaje anual válido, igual o superior a −100%.');
         const positive = ['minWeight', 'maxWeight', 'maxRecovery', 'maxDuration', 'iterations'];
         if (positive.some(field => !Number.isFinite(config[field]) || config[field] <= 0) ||
             ['maxRv', 'maxDrawdown', 'minYield', 'minEfficiency', 'maxHy', 'maxFx', 'ulcerPenalty', 'riskFree'].some(field => !Number.isFinite(config[field])))
@@ -172,6 +175,9 @@
     const distance = failures => failures.reduce((sum, failure) => sum + failure.distance, 0);
     function historicalFailures(metrics, config) {
         const failures = [];
+        if (Number.isFinite(config.minRolling5) && metrics.worst5 < config.minRolling5 - 1e-8)
+            failures.push({ name: 'Retorno rolling mínimo a 5 años', value: metrics.worst5, limit: config.minRolling5,
+                unit: '% anual', distance: (config.minRolling5 - metrics.worst5) / Math.max(Math.abs(config.minRolling5), 1) });
         if (metrics.maxDrawdown > config.maxDrawdown + 1e-8) failures.push({ name: 'Drawdown máximo', value: metrics.maxDrawdown, limit: config.maxDrawdown, unit: '%', distance: (metrics.maxDrawdown - config.maxDrawdown) / Math.max(config.maxDrawdown, 1) });
         if (metrics.recoveryDays > config.maxRecovery) failures.push({ name: 'Tiempo bajo máximos', value: metrics.recoveryDays, limit: config.maxRecovery, unit: 'días', distance: (metrics.recoveryDays - config.maxRecovery) / config.maxRecovery });
         if (metrics.openRecovery > 0 && !config.allowOpen) failures.push({ name: 'Recuperación aún abierta', value: metrics.openRecovery, limit: 0, unit: 'días', distance: 1 });
