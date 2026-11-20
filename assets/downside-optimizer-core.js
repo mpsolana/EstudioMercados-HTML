@@ -5,6 +5,7 @@
 })(globalThis, function(finance, modelCore) {
     'use strict';
     const DAY = 86400000;
+    const inspectionContexts=new WeakMap();
     const conservative = { maxDrawdown: 7, maxRecovery: 365, maxDuration: 2, minYield: 2, minEfficiency: 1, maxHy: 10, maxFx: 15 };
     const moderate = { maxDrawdown: 10, maxRecovery: 365, maxDuration: 2, minYield: 3, minEfficiency: 1.5, maxHy: 20, maxFx: 30 };
     const dynamic = { maxDrawdown: 20, maxRecovery: 730, maxDuration: 5, minYield: 2, minEfficiency: .5, maxHy: 35, maxFx: 50 };
@@ -95,6 +96,11 @@
             enabled(config,'minEfficiency')&&config.minEfficiency < 0 || config.riskFree <= -100 || !Number.isInteger(config.iterations) ||
             config.iterations < 100 || config.iterations > 100000 || !['monthly','quarterly','annual'].includes(config.rebalance))
             throw new Error('Revisa porcentajes, rebalanceo y número de combinaciones (100–100.000).');
+        if(config.requireAll){
+            if(count*config.minWeight>100+1e-8||count*config.maxWeight<100-1e-8)
+                throw new Error(`Incluir los ${count} fondos es incompatible con los pesos: mínimo agregado ${count*config.minWeight}% y máximo agregado ${count*config.maxWeight}%. Ajusta los límites o desmarca incluir todos.`);
+            return {minimum:count,maximum:count};
+        }
         const minimum = Math.ceil(100 / config.maxWeight - 1e-10);
         const maximum = Math.min(count, Math.floor(100 / config.minWeight + 1e-10));
         if (minimum > maximum) throw new Error('Los pesos mínimo/máximo y el universo seleccionado no permiten invertir el 100%.');
@@ -102,7 +108,8 @@
     }
     function randomSource(seed) {
         let state = (Number(seed) || 1) >>> 0;
-        return () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return ((state >>> 0) + .5) / 4294967296; };
+        const random=() => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return ((state >>> 0) + .5) / 4294967296; };
+        random.state=()=>state>>>0;return random;
     }
     function sample(count, config, random, bounds) {
         config=effective(config);
@@ -200,6 +207,19 @@
         if (enabled(config,'openRecovery') && metrics.openRecovery > 0 && !config.allowOpen) failures.push({ name: 'Recuperación aún abierta', value: metrics.openRecovery, limit: 0, unit: 'días', distance: 1 });
         return failures;
     }
+    function objectiveMetrics(stats,config){
+        const objectiveReturn=config.objective==='meanRolling5'?stats.mean5:config.objective==='rolling5'?stats.worst5:stats.worst;
+        return {objectiveReturn,score:config.objective==='meanRolling5'||config.objective==='rolling5'?objectiveReturn:objectiveReturn-config.ulcerPenalty*stats.ulcer};
+    }
+    function inspectCandidate(result,index){
+        const context=inspectionContexts.get(result),point=result.cloud[index];
+        if(!context||!Number.isInteger(index)||!point)throw new Error('La cartera seleccionada ya no está disponible. Ejecuta de nuevo la búsqueda.');
+        const {prepared,bounds}=context,config=result.config;
+        const weights=sample(prepared.assets.length,config,randomSource(point.sampleSeed),bounds);
+        const metrics=fundamentals(prepared.assets,weights),stats=history(prepared,weights,config,true);
+        return {weights,metrics,...stats,...objectiveMetrics(stats,config),cloudIndex:index,
+            failures:[...structural(metrics,config),...historicalFailures(stats,config)]};
+    }
     async function optimize(assets, config, hooks = {}) {
         const bounds = validate(config, assets.length), prepared = prepare(assets, config);
         const random = randomSource(config.seed), best = [], nearest = [], fastNear = [], cloud = [], blockers = {};
@@ -212,19 +232,20 @@
             const stats = history(prepared, point.weights, config);
             const historical = historicalFailures(stats, config);
             const failures = [...point.failures, ...historical];
-            const candidate = { ...point, ...stats, failures, objectiveReturn:config.objective==='meanRolling5'?stats.mean5:config.objective==='rolling5'?stats.worst5:stats.worst,score:config.objective==='meanRolling5'?stats.mean5:config.objective==='rolling5'?stats.worst5:stats.worst - config.ulcerPenalty * stats.ulcer };
+            const candidate = { ...point, ...stats, failures,...objectiveMetrics(stats,config),cloudIndex:cloud.length };
             evaluated++;
             historical.forEach(failure => { blockers[failure.name] = (blockers[failure.name] || 0) + 1; });
-            cloud.push({ dd: stats.maxDrawdown, worst: candidate.objectiveReturn, valid: !failures.length });
+            cloud.push({ index:cloud.length,sampleSeed:point.sampleSeed,dd: stats.maxDrawdown, worst: candidate.objectiveReturn, valid: !failures.length });
             if (!failures.length) { valid++; add(best, candidate, rank); }
             else add(nearest, candidate, nearRank);
         };
         for (let iteration = 0; iteration < config.iterations; iteration++) {
             if (iteration % 32 === 0 && hooks.cancelled?.()) throw new Error('Cálculo cancelado.');
+            const sampleSeed=random.state();
             const weights = sample(assets.length, config, random, bounds), signature = weights.map(w => w.toFixed(8)).join(',');
             if (!seen.has(signature)) {
                 seen.add(signature); unique++;
-                const metrics = fundamentals(assets, weights), failures = structural(metrics, config), point = { weights, metrics, failures };
+                const metrics = fundamentals(assets, weights), failures = structural(metrics, config), point = { weights, metrics, failures,sampleSeed };
                 if (!failures.length) { passed++; evaluate(point); }
                 else {
                     failures.forEach(failure => { blockers[failure.name] = (blockers[failure.name] || 0) + 1; });
@@ -241,8 +262,9 @@
         if (!passed) fastNear.forEach(evaluate);
         const choices = valid ? best : nearest;
         for (const point of choices) Object.assign(point, history(prepared, point.weights, config, true));
-        return { dates: prepared.dates, frequency: prepared.frequency, assets: assets.map(({ data, ...asset }) => asset), choices, cloud,
-            unique, passed, evaluated, valid, blockers, config: { ...config } };
+        const result={ dates: prepared.dates, frequency: prepared.frequency, assets: assets.map(({ data, ...asset }) => asset), choices, cloud,
+            unique, passed, evaluated, valid, blockers,rankedChoiceCount:choices.length, config: { ...config } };
+        inspectionContexts.set(result,{prepared,bounds});return result;
     }
-    return { profiles, constraintKeys, commonRange, prepare, validate, sample, randomSource, fundamentals, structural, history, optimize };
+    return { profiles, constraintKeys, commonRange, prepare, validate, sample, randomSource, fundamentals, structural, history, optimize, inspectCandidate };
 });

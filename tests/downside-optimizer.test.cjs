@@ -192,3 +192,35 @@ test('mean rolling objective ranks by mean while preserving the worst rolling fl
     assert.equal(impossible.valid,0);
     assert(impossible.choices.every(point=>point.failures.some(failure=>failure.name==='Retorno rolling mínimo a 5 años')));
 });
+
+
+test('requiring all funds applies minimum weights to the entire selected universe', () => {
+    const all={...config,requireAll:true},bounds=Core.validate(all,6),random=Core.randomSource(654);
+    assert.deepEqual(bounds,{minimum:6,maximum:6});
+    for(let i=0;i<100;i++){
+        const weights=Core.sample(6,all,random,bounds);
+        assert(weights.every(weight=>weight>=.05-1e-10&&weight<=.25+1e-10));
+        assert(Math.abs(weights.reduce((a,b)=>a+b,0)-1)<1e-10);
+    }
+    assert.throws(()=>Core.validate({...all,minWeight:20},6),/incompatible/);
+    assert.throws(()=>Core.validate({...all,maxWeight:15},6),/incompatible/);
+    const unconstrained={...all,disabledConstraints:Core.constraintKeys};
+    assert(Core.sample(6,unconstrained,random,Core.validate(unconstrained,6)).every(weight=>weight>0));
+});
+
+test('a plotted candidate can be reconstructed exactly from its random state', async () => {
+    const result=await Core.optimize(fixture(),{...config,requireAll:true,objective:'meanRolling5'});
+    for(const index of [0,Math.floor(result.cloud.length/2),result.cloud.length-1]){
+        const point=Core.inspectCandidate(result,index);
+        assert.equal(point.cloudIndex,index);
+        assert.equal(point.maxDrawdown,result.cloud[index].dd);
+        assert.equal(point.objectiveReturn,result.cloud[index].worst);
+        assert.equal(point.failures.length===0,result.cloud[index].valid);
+        assert.equal(point.path.length,result.dates.length);
+        assert(point.weights.every(weight=>weight>=.05-1e-10));
+    }
+    for(const winner of result.choices)assert.deepEqual(Core.inspectCandidate(result,winner.cloudIndex).weights,winner.weights);
+    assert.throws(()=>Core.inspectCandidate(result,-1),/disponible/);
+    const failed=await Core.optimize(fixture(),{...config,minRolling5:100});
+    assert(Core.inspectCandidate(failed,0).failures.some(item=>item.name==='Retorno rolling mínimo a 5 años'));
+});

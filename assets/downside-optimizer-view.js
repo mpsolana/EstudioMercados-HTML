@@ -151,7 +151,7 @@ const PortfolioOptimizerView = (() => {
         const form = panel.querySelector('form');
         return { ...Object.fromEntries(controls.map(([name]) => [name, number(form.elements[name].value)])),
             start: form.elements.start.value, end: form.elements.end.value, rebalance: form.elements.rebalance.value,
-            allowOpen: form.elements.allowOpen.checked, objective:form.elements.objective.value,
+            allowOpen: form.elements.allowOpen.checked, objective:form.elements.objective.value,requireAll:form.elements.requireAll.checked,
             disabledConstraints:[...form.querySelectorAll('[data-opt-constraint]')].filter(toggle=>!toggle.checked).map(toggle=>toggle.dataset.optConstraint) };
     }
     async function calculate() {
@@ -185,6 +185,16 @@ const PortfolioOptimizerView = (() => {
             running = false; panel.querySelector('[data-opt-run]').disabled = false; panel.querySelector('[data-opt-cancel]').disabled = true;
         }
     }
+    function selectCloudCandidate(index){
+        if(!result||signature!==sourceSignature())return;
+        const existing=result.choices.findIndex(candidate=>candidate.cloudIndex===index);
+        if(existing>=0)selected=existing;
+        else{
+            const candidate=DownsideOptimizer.inspectCandidate(result,index);
+            selected=result.rankedChoiceCount;result.choices[selected]=candidate;
+        }
+        renderResult();
+    }
     function renderResult() {
         const output = panel.querySelector('[data-optimizer-results]'), winner = result.choices[selected];
         if (!winner) { output.textContent = 'La búsqueda no ha encontrado combinaciones evaluables.'; return; }
@@ -194,11 +204,12 @@ const PortfolioOptimizerView = (() => {
             `${failure.name}: ${fmt(failure.value)} ${failure.unit} frente a límite ${fmt(failure.limit)} ${failure.unit}`).join(' · ') : 'Cumple las restricciones de esta muestra.';
         clearResults();
         output.innerHTML = `
-            <h3>${result.valid ? 'Mejor cartera encontrada' : 'Aproximaciones a las restricciones'}</h3>
+            <h3>${selected>=result.rankedChoiceCount?'Cartera seleccionada en el gráfico':result.valid ? 'Mejor cartera encontrada' : 'Aproximaciones a las restricciones'}</h3>
+            <p class="workspace-context">Haz clic en un punto de la nube para cargar sus pesos, métricas e histórico. Los puntos que incumplen límites pueden consultarse, pero no aplicarse. El botón Aplicar traslada la cartera seleccionada al backtest.</p>
             <p class="workspace-context">${result.valid ? (result.config.objective==='meanRolling5'?'Ordenadas por la media de los retornos rolling anualizados a 5 años, entre las carteras que cumplen los filtros activos. Sin penalización Ulcer.':result.config.objective==='rolling5'?'Ordenadas por el peor rolling anualizado a 5 años. Sin penalización Ulcer ni objetivo a 3 años.':'Ordenadas por mínimo de los peores rolling a 3 y 5 años menos penalización Ulcer; Sharpe desempata.') :
                 'Ninguna combinación muestreada cumple todos los límites. Las aproximaciones conservan sus incumplimientos visibles y no se pueden aplicar como solución válida.'}</p>
             <div class="optimizer-choices">${result.choices.map((candidate, index) =>
-                `<button type="button" data-opt-choice="${index}" aria-pressed="${index === selected}">${result.valid ? 'Cartera' : 'Aproximación'} ${index + 1} · ${result.config.objective==='meanRolling5'?'Media rolling 5 años':'Rolling mínimo'} ${pct(candidate.objectiveReturn)}</button>`).join('')}</div>
+                `<button type="button" data-opt-choice="${index}" aria-pressed="${index === selected}">${index>=result.rankedChoiceCount?'Seleccionada en gráfico':candidate.failures.length?'Aproximación':'Cartera'} ${index + 1} · ${result.config.objective==='meanRolling5'?'Media rolling 5 años':'Rolling mínimo'} ${pct(candidate.objectiveReturn)}</button>`).join('')}</div>
             <p class="workspace-status">${esc(violations(winner))}</p>
             ${['M', 'W'].includes(result.frequency) ? `<p class="workspace-context">La muestra tiene frecuencia ${frequencyLabel(result.frequency)}. El drawdown y la recuperación se miden entre esos cierres; los movimientos dentro del período quedan fuera de la observación.</p>` : ''}
             <div class="optimizer-kpis">${[
@@ -225,13 +236,17 @@ const PortfolioOptimizerView = (() => {
             type: 'bar', orientation: 'h', y: selectedAssets.map(asset => asset.name), x: selectedAssets.map(asset => asset.weight * 100),
             text: selectedAssets.map(asset => pct(asset.weight * 100)), textposition: 'auto', marker: { color: '#204f78' }
         }], { title: 'Distribución encontrada', margin: { l: 180, r: 25, t: 45, b: 55 }, xaxis: { title: 'Peso (%)' }, yaxis: { automargin: true } }, { responsive: true });
-        FinancialVisuals.newPlot(output.querySelector('[data-opt-cloud]'), [
+        const cloudNode=output.querySelector('[data-opt-cloud]'),currentResult=result;
+        FinancialVisuals.newPlot(cloudNode, [
             ...[false, true].map(valid => { const points = result.cloud.filter(point => point.valid === valid);
                 return { type: 'scattergl', mode: 'markers', name: valid ? 'Cumplen límites' : 'Fuera de límites',
-                    x: points.map(point => point.dd), y: points.map(point => point.worst), marker: { color: valid ? '#247354' : '#a4afb9', size: 4, opacity: .45 },
+                    customdata:points.map(point=>point.index),x: points.map(point => point.dd), y: points.map(point => point.worst), marker: { color: valid ? '#247354' : '#a4afb9', size: 4, opacity: .45 },
                     hovertemplate: `Caída máxima %{x:.2f}%<br>${result.config.objective==='meanRolling5'?'Media rolling 5 años':'Peor rolling'} %{y:.2f}%<extra></extra>` }; }),
-            { type: 'scatter', mode: 'markers', name: 'Seleccionada', x: [winner.maxDrawdown], y: [winner.objectiveReturn], marker: { color: '#204f78', size: 16, symbol: 'star' } }
-        ], { title: 'Carteras evaluadas históricamente', margin: { l: 65, r: 25, t: 45, b: 55 }, xaxis: { title: 'Caída máxima (%)' }, yaxis: { title: result.config.objective==='meanRolling5'?'Media rolling anualizada a 5 años (%)':result.config.objective==='rolling5'?'Peor retorno anualizado a 5 años (%)':'Peor retorno anualizado 3 / 5 años (%)' } }, { responsive: true });
+            { type: 'scatter', mode: 'markers', name: 'Seleccionada',customdata:[winner.cloudIndex], x: [winner.maxDrawdown], y: [winner.objectiveReturn], marker: { color: '#204f78', size: 16, symbol: 'star' } }
+        ], { title: 'Carteras evaluadas históricamente', margin: { l: 65, r: 25, t: 45, b: 55 }, xaxis: { title: 'Caída máxima (%)' }, yaxis: { title: result.config.objective==='meanRolling5'?'Media rolling anualizada a 5 años (%)':result.config.objective==='rolling5'?'Peor retorno anualizado a 5 años (%)':'Peor retorno anualizado 3 / 5 años (%)' } }, { responsive: true }).then(()=>{
+            if(result!==currentResult||!cloudNode.isConnected)return;
+            cloudNode.on('plotly_click',event=>{const index=event.points?.[0]?.customdata;if(Number.isInteger(index)&&result===currentResult)selectCloudCandidate(index);});
+        });
         FinancialVisuals.newPlot(output.querySelector('[data-opt-history]'), [
             { type: 'scatter', mode: 'lines', name: 'Patrimonio · base 100', x: result.dates, y: winner.path, line: { color: '#204f78' }, xaxis: 'x', yaxis: 'y' },
             { type: 'scatter', mode: 'lines', name: 'Drawdown', x: result.dates, y: winner.drawdowns.map(value => value * 100), line: { color: '#b34b50' }, fill: 'tozeroy', xaxis: 'x2', yaxis: 'y2' }
@@ -287,6 +302,8 @@ const PortfolioOptimizerView = (() => {
                     ['decidido','Decidido'],['muy_arriesgado','Muy Arriesgado']].map(([key, label]) =>
                         `<option value="${key}" ${key === 'equilibrado' ? 'selected' : ''}>${label} · RV máx. ${ModelPortfolioCore.bands[key][1]}%</option>`).join('')}</select></label>
                 ${controls.map(([name,label,min,max])=>`<div class="optimizer-control-field"><label for="optimizer-${name}">${DownsideOptimizer.constraintKeys.includes(name)?`<input type="checkbox" data-opt-constraint="${name}" checked aria-label="Aplicar ${label}">`:''}${label}</label><input id="optimizer-${name}" name="${name}" type="number" min="${min}" max="${max}" step="${['iterations','seed','maxRecovery'].includes(name)?'1':'any'}" ${name==='minRolling5'?'aria-describedby="optimizer-rolling5-help"':'required'}></div>`).join('')}
+                <label class="optimizer-check"><input name="requireAll" type="checkbox" aria-describedby="optimizer-all-help">Incluir todos los fondos seleccionados</label>
+                <p id="optimizer-all-help" class="workspace-context">Marcado: todos los fondos del universo seleccionado entran en cada cartera; si el mínimo está activo, se exige ese peso a cada uno. Sin marcar: el optimizador puede descartar fondos con peso 0% y el mínimo se aplica a los que incluye. Por ejemplo, 10 fondos con mínimo 5% obligan a invertir al menos 50% entre ellos al marcar esta opción.</p>
                 <p class="workspace-context">Para buscar retorno medio con protección histórica, elige «Media rolling a 5 años» y conserva un suelo para el peor rolling y los límites de riesgo del cliente. «Peor rolling» prioriza el período histórico más desfavorable. Marca solo los filtros que quieras aplicar. «Quitar restricciones» permite buscar usando únicamente el objetivo elegido. Se mantienen pesos no negativos que suman 100% y cinco años de datos comunes. El perfil solo aporta valores a los filtros activos.</p>
                 <label>Desde<a class="optimizer-note-ref" href="#optimizer-dates-help" aria-label="Ver explicación de Desde">1</a><input name="start" type="date" aria-describedby="optimizer-dates-help"></label>
                 <label>Hasta<a class="optimizer-note-ref" href="#optimizer-dates-help" aria-label="Ver explicación de Hasta">1</a><input name="end" type="date" aria-describedby="optimizer-dates-help"></label>
@@ -341,7 +358,7 @@ const PortfolioOptimizerView = (() => {
         panel.querySelector('[data-opt-refresh]').addEventListener('click', () => { signature = ''; refresh(); });
         panel.addEventListener('click', event => {
             const constraints=event.target.closest('[data-opt-constraints]');
-            if(constraints){for(const toggle of form.querySelectorAll('[data-opt-constraint]'))toggle.checked=constraints.dataset.optConstraints==='all';syncConstraints();invalidate();}
+            if(constraints){if(constraints.dataset.optConstraints==='none')form.elements.requireAll.checked=false;for(const toggle of form.querySelectorAll('[data-opt-constraint]'))toggle.checked=constraints.dataset.optConstraints==='all';syncConstraints();invalidate();}
             if(event.target.closest('[data-opt-dates]')){updateDates(true);invalidate();}
             const choice = event.target.closest('[data-opt-choice]');
             if (choice && result) { selected = Number(choice.dataset.optChoice); renderResult(); }
