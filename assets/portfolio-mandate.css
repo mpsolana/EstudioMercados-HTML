@@ -59,3 +59,10 @@
 @media(max-width:600px){#workspaceInitialRates #initialCombinedHeat .annotation-text{font-size:9px!important}#workspaceInitialRates .rate-chart-card .gtitle{font-size:12px!important}}
 
 #workspaceInitialRates .rate-config-comparison{border-top:1px solid #d5e0e9;padding-top:12px;margin:16px 0}#workspaceInitialRates .rate-config-comparison>summary{font-weight:700;cursor:pointer;color:#183f62}
+
+.mandate-report .mandate-budget-table th:not(:first-child),.mandate-report .mandate-budget-table td:not(:first-child){text-align:right}
+.mandate-report .mandate-budget-table td:first-child{white-space:normal;min-width:17rem;font-weight:600}
+.mandate-report .mandate-budget-table tbody tr:nth-child(2),.mandate-report .mandate-budget-table tbody tr:nth-child(7){background:#e7f0f6;font-weight:700}
+.mandate-budget-notes{font-size:.8rem;color:#476178;line-height:1.6;display:grid;gap:.5rem;margin-top:.7rem}
+
+.mandate-report .mandate-budget-table{font-size:.76rem}.mandate-report .mandate-budget-table th{white-space:normal}.mandate-report .mandate-budget-table th,.mandate-report .mandate-budget-table td{padding:.6rem .5rem}.mandate-report .mandate-budget-table td:first-child{min-width:12rem;max-width:15rem}.mandate-report .mandate-budget-table td:nth-child(5),.mandate-report .mandate-budget-table td:nth-child(6){white-space:pre-line;line-height:1.7;min-width:9rem}

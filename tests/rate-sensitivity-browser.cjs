@@ -42,8 +42,20 @@ const {pathToFileURL}=require('node:url');
   assert.equal(await panel.locator('#initialRateWaterfall').evaluate(el=>el.data[0].text.length),4);
   assert.match(await report.locator('tbody tr').nth(4).innerText(),/-3\.622,50/);
   for(const [name,value] of Object.entries({netYieldPct:'3.8',convexity:'12',governmentPct:'50',igPct:'40',hyPct:'10',igSpreadDuration:'4',hySpreadDuration:'3.5'}))await fill(name,value);
-  assert.equal(await panel.locator('[data-macro-report] tbody tr').count(),4);
+  assert.equal(await panel.locator('[data-macro-report] table').first().locator('tbody tr').count(),4);
   assert.equal(await panel.locator('[data-macro-chart]').evaluate(el=>el.data.at(-1).text.length),4);
+  const horizon=await panel.evaluate(el=>({years:el.mandateModel.horizonYears,days:el.mandateModel.horizonDays,carry:el.mandateModel.macroRows[0].carry,waterfall:el.querySelector('#initialRateWaterfall').data[0].y}));
+  assert.equal(horizon.days,87);
+  assert(Math.abs(horizon.carry-.038*87/365)<1e-12);
+  assert(Math.abs(horizon.waterfall[2]-315000*.038*87/365)<1e-6);
+  assert.equal(await panel.locator('#initialRateHorizon').getAttribute('readonly'),'');
+  assert.equal(await panel.locator('[data-budget-summary] tbody tr').count(),11);
+  const before=await panel.locator('[data-sensitivity]').evaluate(el=>el.data[0].y);
+  await fill('end','2026-11-30');
+  const shortened=await panel.evaluate(el=>({carry:el.mandateModel.macroRows[0].carry,impact:el.querySelector('[data-sensitivity]').data[0].y}));
+  assert(Math.abs(shortened.carry-.038*56/365)<1e-12);
+  assert.deepEqual(shortened.impact,before);
+  await fill('end','2026-12-31');
   // All standalone settings precede the first result. Per-asset sale assumptions remain next to their positions.
   assert.equal(await panel.evaluate(el=>{
    const form=el.querySelector('#workspacePortfolioMandate>section>form'),results=el.querySelector('[data-dashboard]');

@@ -16,14 +16,15 @@
         return {changeBps,rfAmount,rfReturn,change,portfolioReturn:amount>0?change/amount:0,portfolioValue:amount+change};
     }
     const bpsToDecimal=bps=>bps/10000;
-    function combinedScenario({amount,rfWeightPct,rateDuration,spreadDuration,rateBps,spreadBps,ytmPct=0,horizonMonths=0,includeCarry=false}){
+    function combinedScenario({amount,rfWeightPct,rateDuration,spreadDuration,rateBps,spreadBps,ytmPct=0,horizonMonths=0,horizonYears,includeCarry=false}){
         if(![amount,rfWeightPct,rateDuration,rateBps,spreadBps].every(Number.isFinite)||amount<=0||rfWeightPct<0||rfWeightPct>100||rateDuration<0||rateDuration>100||Math.abs(rateBps)>2000||Math.abs(spreadBps)>2000)throw new Error('Revisa importe, peso de RF, duración y shocks en pb.');
         if(spreadBps!==0&&(!Number.isFinite(spreadDuration)||spreadDuration<0||spreadDuration>100))throw new Error('Indica spread duration para calcular un shock de crédito; no se sustituye por la duración de tipos.');
-        if(includeCarry&&(!Number.isFinite(ytmPct)||!Number.isFinite(horizonMonths)||horizonMonths<=0||horizonMonths>120))throw new Error('Para incluir carry, indica YTM anual y horizonte válido en meses.');
+        const carryYears=horizonYears===undefined?horizonMonths/12:horizonYears;
+        if(includeCarry&&(!Number.isFinite(ytmPct)||!Number.isFinite(carryYears)||carryYears<0||carryYears>11))throw new Error('Para incluir carry, indica YTM anual y horizonte válido en meses.');
         const rfAmount=amount*rfWeightPct/100;
         const rates=-rateDuration*bpsToDecimal(rateBps);
         const credit=spreadBps===0?0:-spreadDuration*bpsToDecimal(spreadBps);
-        const carry=includeCarry?ytmPct/100*horizonMonths/12:0;
+        const carry=includeCarry?ytmPct/100*carryYears:0;
         const rfReturn=rates+credit+carry;
         return {rfAmount,rates,credit,carry,rfReturn,portfolioReturn:rfReturn*rfWeightPct/100,rateAmount:rfAmount*rates,creditAmount:rfAmount*credit,carryAmount:rfAmount*carry,change:rfAmount*rfReturn,portfolioValue:amount+rfAmount*rfReturn};
     }
@@ -43,7 +44,7 @@
     }
 
     function prospectiveScenarios({ amount, rfWeightPct, duration, convexity, netYieldPct,
-        governmentPct, igPct, hyPct, igSpreadDuration, hySpreadDuration }) {
+        governmentPct, igPct, hyPct, igSpreadDuration, hySpreadDuration, horizonYears = 1 }) {
         if (![amount, rfWeightPct, duration, convexity, netYieldPct, governmentPct, igPct, hyPct].every(Number.isFinite) ||
             amount <= 0 || rfWeightPct < 0 || rfWeightPct > 100 || duration < 0 || duration > 100 ||
             convexity < 0 || [governmentPct, igPct, hyPct].some(weight => weight < 0 || weight > 100) ||
@@ -54,6 +55,7 @@
             hyPct > 0 && (!Number.isFinite(hySpreadDuration) || hySpreadDuration < 0 || hySpreadDuration > 100)) {
             throw new Error('Completa la spread duration de cada tramo de crédito con peso positivo.');
         }
+        if(!Number.isFinite(horizonYears)||horizonYears<0||horizonYears>11)throw new Error('El horizonte del escenario debe estar entre 0 y 11 años.');
         const shocks = [
             { name: 'Base', rateBps: -25, igBps: 0, hyBps: 0 },
             { name: 'Estanflación', rateBps: 100, igBps: 50, hyBps: 50 },
@@ -67,7 +69,7 @@
             const igCredit = igPct === 0 ? 0 : -igSpreadDuration * shock.igBps / 10000 * igPct / 100;
             const hyCredit = hyPct === 0 ? 0 : -hySpreadDuration * shock.hyBps / 10000 * hyPct / 100;
             const credit = igCredit + hyCredit;
-            const carry = netYieldPct / 100;
+            const carry = netYieldPct / 100 * horizonYears;
             const priceReturn = rates + convexityReturn + credit;
             const rfReturn = priceReturn + carry;
             const portfolioReturn = rfReturn * rfWeightPct / 100;
@@ -76,7 +78,7 @@
                 portfolioReturn, change: amount * portfolioReturn,
                 cushionCoveragePct: priceLoss > 0 ? Math.max(0, carry) / priceLoss * 100 : null,
                 uncoveredLoss: Math.max(0, -rfReturn),
-                carryRecoveryMonths: rfReturn < 0 && carry > 0 ? -rfReturn / carry * 12 : null };
+                carryRecoveryMonths: rfReturn < 0 && netYieldPct > 0 ? -rfReturn / (netYieldPct / 100) * 12 : null };
         });
     }
 

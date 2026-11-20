@@ -218,7 +218,7 @@
     const numField = (name, label, attributes = '') => `<label class="block text-sm font-semibold">${label}<input name="${name}" type="number" step="any" class="${inputStyle}" ${attributes}></label>`;
     const area = (name, label, hint) => `<label class="block text-sm font-semibold mt-3">${label}<span class="block text-xs text-slate-500 font-normal mt-1">${hint}</span><textarea name="${name}" rows="3" spellcheck="false" class="${inputStyle} font-mono"></textarea></label>`;
     const fields = ['cutoff', 'end', 'accountRows', 'fiscalMode', 'incomeReservePct', 'gainsTaxPct', 'saleCostsPct',
-        'convexity', 'netYieldPct', 'annualCostsPct', 'carryTaxPct', 'governmentPct', 'igPct', 'hyPct', 'igSpreadDuration', 'hySpreadDuration', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'spreadDuration', 'spreadShock', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
+        'convexity', 'netYieldPct', 'annualCostsPct', 'carryTaxPct', 'governmentPct', 'igPct', 'hyPct', 'igSpreadDuration', 'hySpreadDuration', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'spreadDuration', 'spreadShock', 'salesOutsideRf', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
     const summaryCard = (title, value) => `<div class="mandate-kpi"><div class="mandate-kpi-label">${title}</div><div class="mandate-kpi-value">${value}</div></div>`;
     const table = (headers, rows, style = '') => rows.length ? `<div class="overflow-x-auto"><table class="mandate-table ${style}"><thead><tr>${headers.map(h => `<th scope="col" class="px-3 py-2">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows.map(row => `<tr>${row.map(cell => `<td class="px-3 py-2">${safe(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-slate-500">Sin datos para mostrar.</p>';
 
@@ -411,6 +411,8 @@
         const end = isoDate(state.end) || year + '-12-31';
         const validHorizon = Boolean(cutoff && end >= cutoff && end <= inMonth(cutoff, 120));
         if (cutoff && !validHorizon) errors.push('Fecha final: debe estar entre el corte y diez años después');
+        const horizonDays=validHorizon?(Date.parse(end)-Date.parse(cutoff))/86400000:NaN;
+        const horizonYears=horizonDays/365;
         const accountRules = Object.fromEntries(parseRows(state.accountRows, 'Cuentas', 3, ([account, ccy, fx]) => {
             const rate = currency(ccy) === 'EUR' ? 1 : numeric(fx);
             if (!account || !/^[A-Z]{3}$/.test(currency(ccy)) || !(rate > 0)) return null;
@@ -489,18 +491,24 @@
             annualCosts >= 0 && carryTax >= 0 && carryTax <= 100 && Number.isFinite(ytm)
                 ? ytm - annualCosts - Math.max(0, ytm - annualCosts) * carryTax / 100 : NaN;
         let macroRows = [];
+        let macroAnnualRows = [];
+        let annualBreakeven = null;
         let macroError = '';
         let breakeven = null;
         try {
             if (Number.isFinite(netYield) && duration > 0) breakeven = rateSensitivity.breakevenYield({
-                netYieldPct: netYield, duration, convexity: numeric(state.convexity)
+                netYieldPct: netYield*horizonYears, duration, convexity: numeric(state.convexity)
             });
-            macroRows = rateSensitivity.prospectiveScenarios({
+            if(Number.isFinite(netYield)&&duration>0)annualBreakeven=rateSensitivity.breakevenYield({netYieldPct:netYield,duration,convexity:numeric(state.convexity)});
+            if(!validHorizon)throw new Error('Completa fechas válidas para calcular el carry del período.');
+            const macroInputs={
                 amount: value, rfWeightPct: rf * 100, duration, netYieldPct: netYield,
                 convexity: numeric(state.convexity),
                 governmentPct: numeric(state.governmentPct), igPct: numeric(state.igPct), hyPct: numeric(state.hyPct),
                 igSpreadDuration: numeric(state.igSpreadDuration), hySpreadDuration: numeric(state.hySpreadDuration)
-            });
+            };
+            macroRows=rateSensitivity.prospectiveScenarios({...macroInputs,horizonYears});
+            macroAnnualRows=rateSensitivity.prospectiveScenarios(macroInputs);
         } catch (error) { macroError = error.message; }
         const rfValue = value > 0 && rf >= 0 && rf <= 1 ? value * rf : NaN;
         const spreadDuration = numeric(state.spreadDuration);
@@ -565,6 +573,8 @@
         const possibleOutcome = netSale(possible, sum([...prices.values()].filter(asset => gain(asset) > 0), asset => asset.marketValue));
         const selectedOutcome = netSale(selected, proceeds);
         const projectedOutcome = netSale(projectedSelected, projectedProceeds);
+        const currentPlannedOutcome=netSale(sum([...prices.values()],asset=>gain(asset)*asset.plannedSale),sum([...prices.values()],asset=>asset.marketValue*asset.plannedSale));
+        const projectedRetained=sum([...prices.values()].filter(asset=>asset.inHorizon),asset=>(asset.projectedValue-asset.marketValue)*(1-asset.plannedSale));
         const scenarioInputs = parseRows(state.scenarioRows, 'Escenarios', 3, ([name, key, change]) => {
             if (!name || !prices.has(key.toUpperCase()) || !(numeric(change) >= -100)) return null;
             return { name, key: key.toUpperCase(), change: numeric(change) / 100 };
@@ -586,8 +596,8 @@
                 return { name: asset.name, ccy: asset.ccy || 'divisa local', change, price: asset.price * (1 + change), gain: gain(asset, change) };
             }) };
         });
-        return { cutoff, end, validHorizon, fiscal, grossBase, possibleOutcome, selectedOutcome, projectedOutcome,
-            netYield, macroRows, macroError, breakeven, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds, snapshot, snapshotTotal, activeSnapshot, changed, proceeds, projectedSelected, projectedProceeds,
+        return { cutoff, end, validHorizon, horizonDays, horizonYears, salesOutsideRf:state.salesOutsideRf==='yes', currentPlannedOutcome, projectedRetained, fiscal, grossBase, possibleOutcome, selectedOutcome, projectedOutcome,
+            netYield, macroRows, macroAnnualRows, macroError, breakeven, annualBreakeven, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds, snapshot, snapshotTotal, activeSnapshot, changed, proceeds, projectedSelected, projectedProceeds,
             value, rf, rfValue, duration, ytm, goal, hasSpread, spreadDuration, spreadShock, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()].map(asset => ({ ...asset,
                 gain: gain(asset) })).sort((a, b) => b.gain - a.gain), scenarios };
     }
@@ -760,7 +770,7 @@
     function explainMandateFields(root) {
         const notes = [
             ['cutoff', 'Fecha de corte', 'Último día que consideras realizado. Déjalo vacío para tomar la fecha más reciente de los extractos. Los cobros hasta ese día son reales; los posteriores se estiman.'],
-            ['end', 'Fecha final de proyección', 'Último día que quieres incluir en el presupuesto. Empieza en el 31 de diciembre del año de corte. Cámbialo si el mandato termina en otra fecha. La matriz macro utiliza siempre 12 meses desde el corte.'],
+            ['end', 'Fecha final de proyección', 'Último día que quieres incluir en el presupuesto. Empieza en el 31 de diciembre del año de corte. Cámbialo si el mandato termina en otra fecha. La matriz macro y el carry se adaptan a esta fecha. Se conserva una referencia separada a 12 meses.'],
             ['value', 'Valor de cartera', 'Valor total de mercado en EUR, incluyendo todas las clases de activos del análisis. Vacío toma la suma del contravalor EUR del Excel de posiciones vigente. Se comparte con todos los gráficos de esta sección.'],
             ['rf', 'Peso de renta fija', 'Porcentaje del valor total invertido en RF, incluidos los fondos de bonos que hayas clasificado como RF. Escribe 90 para un 90%. Se comparte con la sensibilidad, el stress macro y el análisis del objetivo.'],
             ['duration', 'Duración modificada de RF', 'Sensibilidad ponderada de la manga RF a tipos, en años. Introduce el dato de la ficha o del análisis de cartera, por ejemplo 3,2. Se comparte con los escenarios. La fecha de vencimiento de un bono no equivale a su duración.'],
@@ -769,6 +779,7 @@
             ['shock', 'Cambio de tipos de referencia', 'Movimiento que quieres simular, en puntos básicos. +100 significa una subida de 1 punto porcentual; −25, una bajada de 0,25 puntos. Se aplica al desglose de contribuciones y al impacto de referencia.'],
             ['spreadDuration', 'Spread duration RF', 'Sensibilidad de la manga RF a los diferenciales de crédito, ponderada sobre toda la RF. Introduce el dato del proveedor en años. Si solo tienes la duración del tramo corporativo, multiplícala por su peso dentro de RF. Vacío excluye el riesgo de spread y oculta sus columnas y gráficos; no se sustituye por duración de tipos.'],
             ['spreadShock', 'Cambio de spreads de referencia', 'Shock del diferencial de crédito, en puntos básicos. +50 amplía el spread en 0,50 puntos porcentuales; −25 lo estrecha. Con spread duration informada, el mismo shock se mantiene fijo en toda la tabla de sensibilidad a tipos. Usa 0 para aislar los tipos.'],
+            ['salesOutsideRf', 'Independencia de las ventas', 'Confirma Activos simulados fuera de RF solo si todas las posiciones con ventas o hipótesis de revalorización están fuera de la manga RF sometida al shock. Activa la fila integrada sin duplicar las mismas ganancias de precio. Si no puedes confirmarlo, utiliza por separado las filas de ventas y de shock RF.'],
             ['alternatives', 'Otros objetivos', 'Presupuestos adicionales en EUR, separados por punto y coma, por ejemplo 100000;150000;200000. Es opcional y solo añade comparaciones al gráfico de objetivos.'],
             ['fiscalMode', 'Base del objetivo', 'Selecciona Después de reserva fiscal y costes si el objetivo debe medirse como resultado disponible tras esos ajustes. La otra opción conserva los cobros netos de las retenciones ya practicadas, sin una reserva adicional.'],
             ['incomeReservePct', 'Reserva adicional sobre cobros netos', 'Porcentaje adicional que apartarás de los cobros que muestra el panel para cubrir impuestos pendientes. Usa la estimación efectiva del cliente. Introduce 0 si no queda impuesto adicional por reservar; no repitas aquí retenciones que ya se descontaron. Es obligatorio al activar la base después de impuestos.'],
@@ -814,7 +825,7 @@
             ['initialRateShock', 'Shock de tipos', 'Cambio paralelo de tipos, en puntos básicos, para el escenario personalizado. +100 representa +1 punto porcentual; −25 representa −0,25 puntos. Escribe 0 para mantener los tipos constantes.'],
             ['initialSpreadShock', 'Shock de spreads', 'Cambio del diferencial de crédito, en puntos básicos. Positivo significa ampliación; negativo, estrechamiento. Escribe 0 para estudiar únicamente los tipos. Un shock distinto de 0 requiere spread duration.'],
             ['initialRateYtm', 'YTM anual', 'TIR anual a vencimiento de RF ponderada por su valor. Introduce 3,8 para 3,8%. Se utiliza si activas el carry y se comparte con el informe y el análisis macro.'],
-            ['initialRateHorizon', 'Horizonte', 'Meses para la estimación de carry del escenario de referencia, por ejemplo 12. Se utiliza cuando marcas Incluir carry/TIR. El stress macro siempre trabaja a 12 meses.'],
+            ['initialRateHorizon', 'Horizonte', 'Dato calculado a partir de las fechas de corte y final, convertido a meses equivalentes con base ACT/365. No se introduce manualmente. Se utiliza cuando marcas Incluir carry/TIR. El stress macro principal utiliza las fechas de corte y final.'],
             ['initialRateCarry', 'Incluir carry/TIR', 'Márcalo para sumar YTM anual × meses/12 al cambio de precio. Déjalo sin marcar para observar solo la sensibilidad instantánea. Esta aproximación no es el calendario efectivo de cupones.'],
             ['initialRateAdjustedWeight', 'RF propuesta', 'Porcentaje de RF de la cartera alternativa que quieras comparar bajo el mismo shock. Rellénalo solo al estudiar una propuesta.'],
             ['initialRateAdjustedDuration', 'Duración propuesta', 'Duración de tipos ponderada de la RF propuesta, en años. Úsala junto con el peso propuesto para comparar ambas carteras.'],
@@ -887,7 +898,7 @@
                         <p class="mt-2 text-xs text-slate-600">Introduce las tasas efectivas de este cliente. Usa 0 para exención o ausencia de costes. Los cobros importados ya descuentan retenciones; la reserva es el importe fiscal adicional previsto. En ventas se agregan ganancias y pérdidas seleccionadas, se restan costes y se aplica la tasa sobre el resultado positivo. No se calcula compensación con pérdidas de otros ejercicios, traspasos, deducciones ni una devolución fiscal.</p>
                     </details>
                     <details class="mt-4 border-t border-slate-200 pt-3" open>
-                        <summary class="font-semibold cursor-pointer">Hipótesis macro y breakeven a 12 meses</summary>
+                        <summary class="font-semibold cursor-pointer">Hipótesis macro y breakeven hasta la fecha final</summary>
                         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                             ${numField('netYieldPct', 'TIR neta anual directa (%)')}
                             ${numField('annualCostsPct', 'Costes anuales de RF (%)', 'min="0"')}
@@ -898,8 +909,9 @@
                             ${numField('hyPct', 'Crédito HY (% de RF)', 'min="0" max="100"')}
                             ${numField('igSpreadDuration', 'Spread duration del tramo IG (años)', 'min="0" max="100"')}
                             ${numField('hySpreadDuration', 'Spread duration del tramo HY (años)', 'min="0" max="100"')}
+                            <label class="block text-sm font-semibold">Integración de ventas y shock RF<select name="salesOutsideRf" class="${inputStyle}"><option value="">Sin confirmar independencia</option><option value="yes">Activos simulados fuera de RF</option></select></label>
                         </div>
-                        <p class="mt-2 text-xs text-slate-600">La TIR neta directa prevalece. Si se deja vacía, se estima desde la TIR RF del simulador menos costes y una tasa fiscal efectiva explícita, con 0 permitido. Los costes ya incluidos en la TIR deben introducirse como 0. El reparto soberana/IG/HY suma 100% de RF. Introduce 0 en convexidad para calcular la versión lineal. El análisis macro mantiene un horizonte fijo de 12 meses desde el corte.</p>
+                        <p class="mt-2 text-xs text-slate-600">La TIR neta directa prevalece. Si se deja vacía, se estima desde la TIR RF del simulador menos costes y una tasa fiscal efectiva explícita, con 0 permitido. Los costes ya incluidos en la TIR deben introducirse como 0. El reparto soberana/IG/HY suma 100% de RF. Introduce 0 en convexidad para calcular la versión lineal. El carry se prorratea por los días entre corte y fecha final, con base ACT/365, sin reinversión. Los shocks de precio se aplican completos al final del período. La referencia a 12 meses se conserva aparte.</p>
                     </details>
                     <details class="mt-4"><summary class="font-semibold cursor-pointer">Cuentas multidivisa y conversión de cobros</summary>
                         ${area('accountRows', 'Divisa y cambio por cuenta', 'Cuenta · divisa · EUR por unidad de divisa. Usa el código de cuenta del detalle de cobros. Para USD con 1 USD = 0,86 EUR, introduce 0,86. Este cambio manual sustituye el de las operaciones de esa cuenta.')}
@@ -956,6 +968,8 @@
                 }
                 const amountField=ratesPanel.querySelector('#initialRateRfAmount');
                 if(amountField)amountField.value=Number.isFinite(model.rfValue)?String(model.rfValue):'';
+                const horizon=ratesPanel.querySelector('#initialRateHorizon');
+                if(horizon){horizon.value=Number.isFinite(model.horizonYears)?String(Number((model.horizonYears*12).toFixed(6))):'';horizon.readOnly=true;horizon.step='any';}
                 renderInitialRateSensitivity();
             }
             if (automaticEnd && model.cutoff) input('end').value = model.end;
@@ -1170,32 +1184,33 @@
         const contribution = value => Number.isFinite(value)
             ? (value * 100).toLocaleString('es-ES', { maximumFractionDigits: 3 }) + ' %' : '—';
         const metrics = [
-            summaryCard('TIR neta / carry anual estimado', pct(m.netYield)),
+            summaryCard('TIR neta anual', pct(m.netYield)),
+            summaryCard('Carry neto del período · '+(Number.isFinite(m.horizonDays)?m.horizonDays:'—')+' días',pct(m.netYield*m.horizonYears)),
             summaryCard('Breakeven lineal · spreads estables', m.breakeven ? num(m.breakeven.linearBps) + ' pb' : '—'),
             summaryCard('Breakeven con convexidad', m.breakeven?.convexityBps != null ? num(m.breakeven.convexityBps) + ' pb' : '—')
         ].join('');
         const stress = m.macroRows.find(row => row.name === 'Estanflación');
         const explanation = stress ? `Con +100 pb en tipos y +50 pb en spreads, la variación de precio de RF sería ${pct(stress.priceReturn * 100)}.
-            El carry neto estimado aporta ${pct(stress.carry * 100)} y deja un resultado total RF de ${pct(stress.rfReturn * 100)} a 12 meses
+            El carry neto estimado aporta ${pct(stress.carry * 100)} y deja un resultado total RF de ${pct(stress.rfReturn * 100)} hasta la fecha final
             (${pct(stress.portfolioReturn * 100)} de la cartera; ${money(stress.change)}).
             ${stress.cushionCoveragePct != null ? 'El carry cubre el ' + pct(stress.cushionCoveragePct) + ' de la caída de precio.' : ''}
-            ${stress.carryRecoveryMonths != null ? 'La pérdida anual residual equivale a ' + num(stress.carryRecoveryMonths) +
+            ${stress.carryRecoveryMonths != null ? 'La pérdida residual del período equivale a ' + num(stress.carryRecoveryMonths) +
                 ' meses adicionales del mismo carry neto constante. Es una equivalencia aritmética sin garantía de recuperación ni de reinversión a tipos superiores.' :
                 stress.rfReturn >= 0 ? 'El carry absorbe la pérdida de precio en esta hipótesis.' : 'Con carry nulo o negativo, no se calcula un plazo de recuperación.'}` : '';
         const breakevenText = m.breakeven ? (m.breakeven.linearBps > 0
-            ? `Con TIR neta ${pct(m.netYield)} y duración ${num(m.duration)} años, una subida paralela instantánea de aproximadamente
-                ${num(m.breakeven.linearBps)} pb igualaría el carry de un año a la pérdida lineal de precio, con spreads estables.
+            ? `Con TIR neta anual ${pct(m.netYield)}, carry de período ${pct(m.netYield*m.horizonYears)} y duración ${num(m.duration)} años, una subida paralela instantánea de aproximadamente
+                ${num(m.breakeven.linearBps)} pb igualaría el carry del período a la pérdida lineal de precio, con spreads estables.
                 La convexidad ajusta ese umbral cuando hay un cruce en la aproximación cuadrática.`
-            : 'La TIR neta es nula o negativa, por lo que no hay colchón positivo frente a subidas de tipos.') :
+            : 'El carry del período es nulo o negativo, por lo que no hay colchón positivo frente a subidas de tipos.') :
             'Completa la TIR neta y una duración modificada positiva para calcular el breakeven.';
         return `<section class="${cardStyle}" data-macro-report>
-            <h4 class="font-bold text-lg mb-3">Stress testing prospectivo · 12 meses</h4>
-            <p class="text-sm text-slate-600 mb-3">Del ${shortDate(m.cutoff)} al ${m.cutoff ? shortDate(inMonth(m.cutoff, 12)) : '—'}.
-                Los cuatro escenarios son hipótesis fijas de análisis. El resultado representa rentabilidad total estimada de la manga RF y su contribución a la cartera.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">${metrics}</div>
+            <h4 class="font-bold text-lg mb-3">Stress testing prospectivo · hasta la fecha final</h4>
+            <p class="text-sm text-slate-600 mb-3">Del ${shortDate(m.cutoff)} al ${shortDate(m.end)} · ${Number.isFinite(m.horizonDays)?m.horizonDays:'—'} días (ACT/365).
+                Los cuatro escenarios son hipótesis de shock completo al horizonte, sin prorratear el impacto en precio. El resultado representa rentabilidad total estimada de la manga RF y su contribución a la cartera.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">${metrics}</div>
             ${m.macroError ? `<p class="text-sm text-amber-800 mb-3" role="status">${safe(m.macroError)}</p>` : ''}
             ${table(['Escenario', 'Tipos / IG / HY (pb)', 'Precio por tipos RF', 'Convexidad RF', 'Crédito IG RF', 'Crédito HY RF',
-                'Carry neto RF', 'Total RF a 12m', 'Contribución cartera', 'Impacto EUR'],
+                'Carry neto del período RF', 'Total RF del período', 'Contribución cartera', 'Impacto EUR'],
                 m.macroRows.map(row => [row.name, [row.rateBps, row.igBps, row.hyBps].join(' / '),
                     contribution(row.rates), contribution(row.convexityReturn), contribution(row.igCredit), contribution(row.hyCredit),
                     contribution(row.carry), contribution(row.rfReturn), contribution(row.portfolioReturn), money(row.change)]))}
@@ -1207,16 +1222,65 @@
                 <div class="text-sm text-slate-600 mt-2 space-y-2">
                     <p>ΔPrecio RF ≈ −Duración tipos × ΔTipos + ½ × Convexidad tipos × ΔTipos² − Peso IG × Spread duration IG × ΔSpread IG − Peso HY × Spread duration HY × ΔSpread HY. Cada peso se expresa dentro de RF y 100 pb equivalen a 0,01.</p>
                     <p>Se usa convexidad de curva para el movimiento de tipos. El crédito se aproxima linealmente; faltan convexidad de spread y términos cruzados. Para deuda con opciones, shocks amplios o riesgo de impago conviene revalorar los instrumentos. Se mantienen métricas, exposiciones y divisas constantes y se supone contribución nula del resto de activos.</p>
-                    <p>La TIR neta se usa como aproximación al carry de 12 meses. Incluye efectos de precio de compra y amortización y puede diferir de los cupones cobrados. El carry de esta matriz no se añade al presupuesto de ingresos, que usa el calendario de pagos. La convexidad y las duraciones no incorporan automáticamente impagos ni cambios de composición.</p>
-                    <p>Breakeven lineal (pb) = TIR neta decimal / duración × 10.000. La versión con convexidad usa el primer cruce positivo de TIR neta − D × ΔTipos + ½ C × ΔTipos² = 0. Son umbrales aproximados con spreads estables.</p>
+                    <p>El carry se aproxima como TIR neta anual × días entre corte y final / 365, sin reinversión. Se prorratea el carry, pero no el shock terminal de tipos o spreads. Incluye efectos de precio de compra y amortización y puede diferir de los cupones cobrados. El carry de esta matriz no se añade al presupuesto de ingresos, que usa el calendario de pagos. La convexidad y las duraciones no incorporan automáticamente impagos ni cambios de composición.</p>
+                    <p>Breakeven lineal (pb) = TIR neta anual decimal × días/365 / duración × 10.000. La versión con convexidad usa el primer cruce positivo de carry del período − D × ΔTipos + ½ C × ΔTipos² = 0. Son umbrales aproximados con spreads estables.</p>
                     <p>Referencias metodológicas de <a class="underline" href="https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/yield-based-bond-convexity-and-portfolio-properties" target="_blank" rel="noopener noreferrer">CFA Institute sobre duración y convexidad</a>
                         y <a class="underline" href="https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/interest-rate-risk-and-return" target="_blank" rel="noopener noreferrer">fuentes de rentabilidad y TIR</a>.</p>
                 </div>
             </details>
+            <details class="mt-4" data-annual-reference><summary class="cursor-pointer font-semibold text-sm">Referencia independiente a 12 meses</summary>
+                <p class="text-sm text-slate-600 mt-2">Comparación anual, no incluida en el resumen del presupuesto. Breakeven lineal anual: ${m.annualBreakeven?num(m.annualBreakeven.linearBps)+' pb':'—'}.</p>
+                ${table(['Escenario','Carry neto RF 12m','Total RF 12m','Contribución cartera 12m','Impacto EUR 12m'],m.macroAnnualRows.map(row=>[row.name,pct(row.carry*100),pct(row.rfReturn*100),pct(row.portfolioReturn*100),money(row.change)]))}
+            </details>
+        </section>`;
+    }
+
+    function budgetRows(m) {
+        const ready=m.validHorizon&&m.fiscal.valid&&m.hasYearData&&!m.actual.unresolved&&!m.overdue.length&&
+            !m.calendar.some(row=>!Number.isFinite(row.amount))&&!m.errors.some(error=>error.startsWith('Pagos,'));
+        const reserve=m.fiscal.enabled?1-m.fiscal.incomeRate:1;
+        const booked=ready?(m.coupons+m.dividends)*reserve:NaN,base=ready?m.base:NaN;
+        const assetsReady=m.assets.length>0;
+        const current=assetsReady?m.currentPlannedOutcome.net:NaN,projected=assetsReady?m.projectedOutcome.net:NaN;
+        const retained=assetsReady?m.projectedRetained:NaN;
+        const make=(name,income,gains,valuation,note)=>{
+            const realized=income+gains,total=realized+valuation;
+            return {name,income,gains,valuation,realized,total,note,
+                cashCoverage:m.goal>0?realized/m.goal*100:NaN,totalCoverage:m.goal>0?total/m.goal*100:NaN,
+                gap:m.goal>0?m.goal-realized:NaN};
+        };
+        return [
+            make('1 · Cobros realizados hasta el corte',booked,0,0,'Cupones y dividendos netos cobrados. Reserva fiscal adicional según la base del objetivo.'),
+            make('2 · Mantener cartera hasta la fecha final',base,0,0,'Fila 1 + cupones y dividendos pendientes identificados en el calendario. Sin TIR adicional.'),
+            make('3 · Ventas elegidas a precios actuales',base,current,0,'Fila 2 + ganancia de las ventas seleccionadas con fecha dentro del horizonte. No suma el capital recuperado.'),
+            make('3B · Alternativa: vender todas las plusvalías',base,assetsReady?m.possibleOutcome.net:NaN,0,'Sustituye la fila 3. Máximo ilustrativo a precios actuales, después de los ajustes fiscales elegidos.'),
+            make('4 · Shock de tipos / spreads, sin ventas',base,0,m.shockImpact,'Parte de la fila 2. Suma únicamente valoración RF no realizada. Sin carry de TIR adicional.'),
+            make('5 · Hipótesis de ventas por activo',base,projected,retained,'Sustituye la fila 3: ganancias al precio y cambio proyectados, más valoración de posiciones retenidas. Respeta fechas de venta.'),
+            make('6 · Integrado: ventas proyectadas + shock RF',base,projected,m.salesOutsideRf?retained+m.shockImpact:NaN,
+                m.salesOutsideRf?'Fila 5 + impacto de precio RF. Confirmado que las posiciones simuladas están fuera de RF.':'Pendiente: confirma en parámetros que los activos simulados están fuera de RF para evitar contar dos veces sus revalorizaciones.'),
+            ...m.macroRows.map(row=>make('Alternativa macro · '+row.name,base,0,row.priceReturn*m.rfValue,
+                'Parte de la fila 2. Solo precio por tipos, convexidad y spreads; el carry de la matriz no se añade a los pagos del calendario.'))
+        ];
+    }
+
+    function budgetReport(m) {
+        const rows=budgetRows(m);
+        const result=(value,coverage)=>Number.isFinite(value)?money(value)+(Number.isFinite(coverage)?'\n'+pct(coverage)+' del objetivo':''):'—';
+        return `<section class="${cardStyle}" data-budget-summary>
+            <h4 class="font-bold text-lg mb-3">Resumen final · recorrido del presupuesto</h4>
+            <p class="text-sm text-slate-600 mb-3">Corte ${shortDate(m.cutoff)} · fecha final ${shortDate(m.end)} · objetivo ${money(m.goal)}.
+            Las filas explican alternativas y sustituciones; no se suman entre sí. La columna realizada utiliza cobros y ganancias de ventas. La valoración pendiente de venta aparece por separado.</p>
+            ${table(['Paso / alternativa','Cobros EUR','Ganancias ventas EUR','Valoración EUR','Realizado / objetivo','Incl. valoración / objetivo','Brecha EUR'],rows.map(row=>[
+                row.name,money(row.income),money(row.gains),money(row.valuation),result(row.realized,row.cashCoverage),result(row.total,row.totalCoverage),money(row.gap)
+            ]),'mandate-budget-table')}
+            <details class="mt-3"><summary class="cursor-pointer font-semibold text-sm">Qué incorpora cada fila</summary><ol class="mandate-budget-notes">${rows.map(row=>`<li><strong>${safe(row.name)}.</strong> ${safe(row.note)}</li>`).join('')}</ol></details>
+            <p class="text-xs text-slate-600 mt-3">El presupuesto ya incluye los cupones y dividendos recibidos y previstos: no vuelve a sumar el carry estimado por TIR. El principal de bonos y el importe bruto de ventas tampoco son beneficio.
+            Las ventas se suponen al final del horizonte; si anticipas una venta, ajusta los pagos posteriores en su ficha. Las ganancias de venta aplican los costes y la fiscalidad configurados; la valoración no realizada no descuenta un impuesto de venta hipotético. Una brecha negativa indica superávit. «—» indica datos o confirmaciones pendientes.</p>
         </section>`;
     }
 
     function renderDashboard(target, m, alternatives, imported) {
+        const ratesPanel=target.closest('#workspaceInitialRates');if(ratesPanel)ratesPanel.mandateBudgetRows=budgetRows(m);
         const actualReady = Boolean(m.cutoff && imported && m.hasYearData);
         const unresolvedForecast = m.calendar.filter(row => !Number.isFinite(row.amount)).length;
         const forecast = m.fiscal.valid && m.validHorizon && actualReady && !m.actual.unresolved && !m.overdue.length && !m.errors.some(error => error.startsWith('Pagos,'));
@@ -1287,7 +1351,7 @@
                     bond.name, shortDate(bond.maturity), quarter(bond.maturity), money(bond.nominal), couponPct(bond.coupon), pct(bond.ytm), bond.group
                 ]))),
             section(header('Sensibilidad a tipos') +
-                muted(`Impacto instantáneo = −valor RF × (duración de tipos × cambio de tipos${m.hasSpread?' + spread duration × cambio de spreads':''}). ${m.hasSpread?`El shock de crédito se mantiene en ${signedBp(m.spreadShock)} en todas las columnas de tipos.`:'Introduce spread duration para incluir el riesgo de crédito.'} Sin carry ni convexidad. La línea muestra (ingresos previstos + valoración) / objetivo, no efectivo disponible.`) +
+                muted(`Horizonte: ${shortDate(m.cutoff)} a ${shortDate(m.end)}. Impacto instantáneo = −valor RF × (duración de tipos × cambio de tipos${m.hasSpread?' + spread duration × cambio de spreads':''}). ${m.hasSpread?`El shock de crédito se mantiene en ${signedBp(m.spreadShock)} en todas las columnas de tipos.`:'Introduce spread duration para incluir el riesgo de crédito.'} Sin carry ni convexidad. La línea muestra (ingresos previstos + valoración) / objetivo, no efectivo disponible.`) +
                 cards([['Renta fija', money(m.rfValue)], ['Duración modificada RF', Number.isFinite(m.duration) && m.duration >= 0 ? num(m.duration) + ' años' : '—'],
                     ...(m.hasSpread ? [['Spread duration RF', num(m.spreadDuration)+' años']] : [['TIR ponderada RF', pct(m.ytm)]]), ['Impacto del cambio de referencia', money(m.shockImpact)]]) +
                 (m.sensitivity.some(row => Number.isFinite(row.change)) ? '<div id="initialIntegratedRateChart" data-sensitivity class="h-80"></div>' : '') +
@@ -1326,15 +1390,8 @@
                         .map(row => [row.name, money(row.realized), money(base + row.realized), coverage(base + row.realized), money(row.retained)])) +
                 (m.scenarios.length ? `<div class="mt-4">${table(['Escenario', 'Activo', 'Variación', 'Precio estimado', 'Plusvalía total potencial'],
                     m.scenarios.flatMap(row => row.details.map(detail => [row.name, detail.name, pct(detail.change * 100),
-                        num(detail.price) + ' ' + detail.ccy, money(detail.gain)])))}</div>` : '') +
-                (m.assets.length && Number.isFinite(m.shockImpact) ? muted('Para combinar el shock de renta fija con las revalorizaciones, confirma que los activos simulados están fuera de RF y que se mantiene su exposición.') : '') +
-                (m.assets.length && Number.isFinite(m.shockImpact) ? `<details class="mt-3"><summary class="cursor-pointer font-semibold text-sm">Escenario combinado de RF (activos simulados fuera de RF)</summary>
-                    ${table(['Escenario', 'Variación RF', 'Variación retenida', 'Resultado total incl. valoración', '% objetivo'],
-                        [{ name: 'Precios actuales', realized: m.selectedOutcome.net, retained: 0 }, { name: 'Hipótesis por activo', realized: m.projectedOutcome.net, retained: 0 }, ...m.scenarios].map(row => {
-                            const outcome = base + row.realized + row.retained + m.shockImpact;
-                            return [row.name, money(m.shockImpact), money(row.retained), money(outcome), coverage(outcome)];
-                        }))}</details>` : ''))
-        ].join('');
+                        num(detail.price) + ' ' + detail.ccy, money(detail.gain)])))}</div>` : ''))
+        ].join('')+budgetReport(m);
         const sensitivitySection=[...target.children].find(node=>node.querySelector('h4')?.textContent==='Sensibilidad a tipos');
         if(sensitivitySection){
             sensitivitySection.dataset.rateSensitivityReport='';target.prepend(sensitivitySection);
@@ -1406,7 +1463,7 @@
                 { type: 'scatter', mode: 'markers+text', text:m.macroRows.map(row=>pct(row.rfReturn*100)),textposition:'top center',cliponaxis:false, name: 'Total RF', x: names, y: m.macroRows.map(row => row.rfReturn * 100),
                     marker: { color: '#15344e', symbol: 'diamond', size: 10 },
                     hovertemplate: '%{x}<br>Total RF %{y:.2f}%<extra></extra>' }
-            ], { title: 'Precio y carry neto · RF a 12 meses', barmode: 'relative',
+            ], { title: 'Precio y carry neto · RF hasta la fecha final', barmode: 'relative',
                 yaxis: { title: 'Rentabilidad RF (%)', zeroline: true }, xaxis: { type: 'category' } });
         }
         if (forecast && m.goal > 0) traces.push({
@@ -1483,6 +1540,6 @@
         renderInitialRateSensitivity();
     }
 
-    if (typeof module !== 'undefined' && module.exports) module.exports = { readWorkbook, calculate };
+    if (typeof module !== 'undefined' && module.exports) module.exports = { readWorkbook, calculate, budgetRows };
     else attachToRatesPanel();
 })();

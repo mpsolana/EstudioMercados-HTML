@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { calculate } = require('../assets/portfolio-mandate.js');
+const { calculate, budgetRows } = require('../assets/portfolio-mandate.js');
 
 const etf = { kind: 'Dividendo', isin: 'IE0000000001', name: 'ETF de distribución', confirmed: true, ccy: 'EUR' };
 const bond = { kind: 'Cupón', isin: 'FR0000000002', name: 'BONO 2,50 301129', confirmed: true, ccy: 'EUR' };
@@ -173,4 +173,47 @@ test('principal sensitivity separates rate and spread duration and omits absent 
     const invalid=calculate({...state,spreadDuration:'2.3',spreadShock:''},{});
     assert(Number.isNaN(invalid.shockImpact));
     assert(invalid.errors.some(error=>error.startsWith('Spread de referencia')));
+});
+
+
+test('date horizon prorates net carry and breakeven while leaving terminal shocks unchanged', () => {
+    const config={cutoff:'2026-10-01',end:'2026-12-31',value:'10000',rf:'80',duration:'2',netYieldPct:'4',convexity:'0',governmentPct:'100',igPct:'0',hyPct:'0',shock:'50'};
+    const short=calculate(config,{}),annual=calculate({...config,end:'2027-10-01'},{});
+    assert.equal(short.horizonDays,91);
+    assert(Math.abs(short.macroRows[0].carry-.04*91/365)<1e-12);
+    assert.equal(short.macroRows[0].priceReturn,annual.macroRows[0].priceReturn);
+    assert.equal(short.shockImpact,annual.shockImpact);
+    assert(Math.abs(short.breakeven.linearBps-200*91/365)<1e-10);
+    assert.equal(short.annualBreakeven.linearBps,200);
+    assert.equal(short.macroAnnualRows[0].carry,.04);
+    const zero=calculate({...config,end:config.cutoff},{});
+    assert.equal(zero.macroRows[0].carry,0);
+    const invalid=calculate({...config,end:'2026-09-01'},{});
+    assert.equal(invalid.macroRows.length,0);
+});
+
+test('budget alternatives separate realized gains, retained valuation and RF shocks without adding YTM carry twice', () => {
+    const state={cutoff:'2026-10-01',end:'2026-12-31',value:'10000',rf:'80',duration:'2',shock:'50',netYieldPct:'4',convexity:'0',governmentPct:'100',igPct:'0',hyPct:'0',goal:'200',paymentRows:'2026-12-01;Pago;Cupón;;20',sales:{[etf.isin]:'50'},saleAssumptions:{[etf.isin]:{returnPct:'20',date:'2026-12-31'}}};
+    const sources={trades:[trade(etf,'income','2026-09-01',100)],positions:{date:'2026-10-01',issues:[],assets:[{key:etf.isin,name:'Asset',units:100,marketValue:1000,cost:800,ccy:'EUR',imported:true}]}};
+    const m=calculate(state,sources),rows=budgetRows(m);
+    assert.equal(rows[0].realized,100);
+    assert.equal(rows[1].realized,120);
+    assert.equal(rows[2].realized,220);
+    assert.equal(rows[3].realized,320);
+    assert.equal(rows[4].realized,120);
+    assert.equal(rows[4].valuation,-80);
+    assert.equal(rows[5].realized,320);
+    assert.equal(rows[5].valuation,100);
+    assert(Number.isNaN(rows[6].total));
+    const integrated=budgetRows(calculate({...state,salesOutsideRf:'yes'},sources))[6];
+    assert.equal(integrated.realized,320);
+    assert.equal(integrated.total,340);
+    assert.equal(rows[7].total,120+m.macroRows[0].priceReturn*m.rfValue);
+    const later=budgetRows(calculate({...state,saleAssumptions:{[etf.isin]:{returnPct:'20',date:'2027-01-15'}}},sources));
+    assert.equal(later[2].gains,0);
+    assert.equal(later[5].gains,0);
+    const net=budgetRows(calculate({...state,fiscalMode:'net',incomeReservePct:'10',gainsTaxPct:'20',saleCostsPct:'1'},sources));
+    assert.equal(net[1].realized,108);
+    assert.equal(net[2].realized,184);
+    assert(Math.abs(net[5].realized-263.2)<1e-9);
 });
