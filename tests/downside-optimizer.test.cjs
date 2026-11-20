@@ -138,3 +138,36 @@ test('five-year annualized rolling floor filters winners and reports rejected ca
     for (const minRolling5 of [-101, Infinity, 'bad'])
         assert.throws(() => Core.validate({ ...config, minRolling5 }, assets.length), /mínimo rolling/);
 });
+
+
+test('Monetario is accepted as RF quality and remains outside the HY bucket', () => {
+    const assets=fixture().slice(0,2).map(asset=>({...asset,credit:'Monetario'}));
+    Core.prepare(assets,config);
+    assert.equal(Core.fundamentals(assets,[.5,.5]).hy,0);
+});
+
+test('disabling filters permits historical-only search and pure worst five-year return ranking', async () => {
+    const assets=fixture().map(asset=>({...asset,type:'',credit:'',fxPct:NaN,grossYield:NaN,ter:NaN,duration:NaN}));
+    const relaxed={...config,objective:'rolling5',disabledConstraints:Core.constraintKeys,minWeight:NaN,maxWeight:NaN,maxDuration:NaN,minYield:NaN,minEfficiency:NaN,maxFx:NaN,maxHy:NaN,maxDrawdown:NaN,maxRecovery:NaN,minRolling5:NaN,ulcerPenalty:NaN,allowOpen:false};
+    const result=await Core.optimize(assets,relaxed);
+    assert(result.valid>0);
+    assert(result.choices.every(point=>point.failures.length===0&&point.score===point.worst5));
+    assert(result.choices[0].worst5>=result.choices.at(-1).worst5-1e-10);
+    for(const point of result.choices){assert(Math.abs(point.weights.reduce((a,b)=>a+b,0)-1)<1e-10);assert(point.weights.every(weight=>weight>=0&&weight<=1));}
+    const floor=await Core.optimize(assets,{...relaxed,minRolling5:100,disabledConstraints:Core.constraintKeys.filter(key=>key!=='minRolling5')});
+    assert.equal(floor.valid,0);
+    assert(floor.choices.every(point=>point.failures.some(failure=>failure.name==='Retorno rolling mínimo a 5 años')));
+    const rv=fixture().map(asset=>({...asset,type:'RV'}));
+    const onlyRv=await Core.optimize(rv,{...relaxed,maxRv:100,disabledConstraints:Core.constraintKeys.filter(key=>key!=='maxRv')});
+    assert(onlyRv.valid>0);
+});
+
+test('common date defaults use actual shared observations, not just overlapping bounds', () => {
+    const assets=fixture().slice(0,2);
+    assets[1].data=assets[1].data.slice(10,-7);
+    const range=Core.commonRange(assets);
+    assert.equal(range.start,assets[1].data[0].date);
+    assert.equal(range.end,assets[1].data.at(-1).date);
+    assert.equal(range.count,assets[1].data.length);
+    assert.deepEqual(Core.commonRange([]),{start:'',end:'',count:0});
+});

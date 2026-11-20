@@ -55,13 +55,15 @@ const PortfolioOptimizerView = (() => {
                 if (!metadata.credit) {
                     const category = norm(fields.get('assetclass'));
                     if (category.includes('highyield') || category.endsWith('hy')) metadata.credit = 'HY';
+                    else if(category.includes('monetario')||category.includes('moneymarket')||category.startsWith('mm'))metadata.credit='Monetario';
                     else if (category.includes('investmentgrade') || category.endsWith('ig')) metadata.credit = 'IG';
                 }
                 if (metadata.credit) {
                     const credit = norm(metadata.credit);
                     metadata.credit = ['ig', 'investmentgrade', 'gradodeinversion'].includes(credit) ? 'IG' :
                         ['hy','highyield','altorendimiento'].includes(credit) ? 'HY' :
-                            ['soberana','soberano','government'].includes(credit) ? 'Soberana' : '';
+                            ['soberana','soberano','government'].includes(credit) ? 'Soberana' :
+                                ['monetario','monetaria','moneymarket','mm','liquidez','cash'].includes(credit)?'Monetario':'';
                 }
                 out[isin] = metadata;
             }
@@ -88,7 +90,8 @@ const PortfolioOptimizerView = (() => {
             initializedDefaults = true;
         }
         if (signature === current && assets.length) return;
-        if (panel.dataset.masterVersion !== String(window.masterPriceVersion || 0)) overrides.clear();
+        const newMaster=panel.dataset.masterVersion !== String(window.masterPriceVersion || 0);
+        if(newMaster)overrides.clear();
         panel.dataset.masterVersion = String(window.masterPriceVersion || 0);
         signature = current;
         invalidate('Revisa los datos de los fondos y selecciona el universo antes de calcular.');
@@ -106,6 +109,26 @@ const PortfolioOptimizerView = (() => {
                 ...imported, included: currentFunds.has(isin), data: series.data || series };
         });
         renderAssets();
+        updateDates(newMaster);
+    }
+    function updateDates(force=false){
+        const form=panel.querySelector('form');
+        const selectedAssets=assets.map(asset=>({...asset,...overrides.get(asset.isin)})).filter(asset=>asset.included);
+        const range=DownsideOptimizer.commonRange(selectedAssets.length?selectedAssets:assets);
+        for(const key of ['start','end']){
+            const field=form.elements[key];
+            if(force||!field.value||field.value===field.dataset.autoDate)field.value=range[key];
+            field.dataset.autoDate=range[key];
+        }
+        panel.querySelector('[data-opt-common-range]').textContent=range.count?`${range.count} fechas comunes · ${range.start} a ${range.end}`:'Sin fechas comunes en el universo seleccionado.';
+    }
+    function syncConstraints(){
+        const form=panel.querySelector('form');
+        for(const toggle of form.querySelectorAll('[data-opt-constraint]')){
+            const field=form.elements[toggle.dataset.optConstraint];if(field)field.disabled=!toggle.checked;
+        }
+        form.elements.allowOpen.disabled=!form.querySelector('[data-opt-constraint="openRecovery"]').checked;
+        form.elements.ulcerPenalty.disabled=form.elements.objective.value==='rolling5';
     }
     function renderAssets() {
         panel.querySelector('[data-optimizer-universe]').innerHTML = assets.length
@@ -116,7 +139,7 @@ const PortfolioOptimizerView = (() => {
                 return `<tr><td><input type="checkbox" data-opt-asset="${index}" data-opt-field="included" ${edit.included ? 'checked' : ''} aria-label="Incluir ${esc(asset.isin)}"></td>
                     <th scope="row">${esc(asset.name)}<small>${esc(asset.isin)} · ${asset.data.length} precios · ${frequencyLabel(FinanceCore.frequency(asset.data))}</small><small>${asset.data.length ? new Date(asset.data[0].date).toISOString().slice(0, 10) + ' a ' + new Date(asset.data.at(-1).date).toISOString().slice(0, 10) : 'Sin fechas'}</small></th>
                     <td><select data-opt-asset="${index}" data-opt-field="type" aria-label="Tipo ${esc(asset.isin)}">${options(['RF','RV'], 'type')}</select></td>
-                    <td><select data-opt-asset="${index}" data-opt-field="credit" ${edit.type === 'RV' ? 'disabled' : ''} aria-label="Calidad crediticia ${esc(asset.isin)}">${options(['Soberana','IG','HY'], 'credit')}</select></td>
+                    <td><select data-opt-asset="${index}" data-opt-field="credit" ${edit.type === 'RV' ? 'disabled' : ''} aria-label="Calidad crediticia ${esc(asset.isin)}">${options(['Soberana','IG','HY','Monetario'], 'credit')}</select></td>
                     ${Object.entries(labels).map(([field, label]) => `<td><input type="number" step="0.01" ${field === 'grossYield' ? '' : 'min="0"'} ${field === 'fxPct' ? 'max="100"' : ''}
                         value="${Number.isFinite(edit[field]) ? edit[field] : ''}"
                         ${edit.type === 'RV' && field !== 'fxPct' ? 'disabled' : ''}
@@ -128,7 +151,8 @@ const PortfolioOptimizerView = (() => {
         const form = panel.querySelector('form');
         return { ...Object.fromEntries(controls.map(([name]) => [name, number(form.elements[name].value)])),
             start: form.elements.start.value, end: form.elements.end.value, rebalance: form.elements.rebalance.value,
-            allowOpen: form.elements.allowOpen.checked };
+            allowOpen: form.elements.allowOpen.checked, objective:form.elements.objective.value,
+            disabledConstraints:[...form.querySelectorAll('[data-opt-constraint]')].filter(toggle=>!toggle.checked).map(toggle=>toggle.dataset.optConstraint) };
     }
     async function calculate() {
         if (running || applying) return;
@@ -171,10 +195,10 @@ const PortfolioOptimizerView = (() => {
         clearResults();
         output.innerHTML = `
             <h3>${result.valid ? 'Mejor cartera encontrada' : 'Aproximaciones a las restricciones'}</h3>
-            <p class="workspace-context">${result.valid ? 'Ordenadas por mínimo de los peores rolling a 3 y 5 años menos penalización Ulcer; Sharpe desempata.' :
+            <p class="workspace-context">${result.valid ? (result.config.objective==='rolling5'?'Ordenadas por el peor rolling anualizado a 5 años. Sin penalización Ulcer ni objetivo a 3 años.':'Ordenadas por mínimo de los peores rolling a 3 y 5 años menos penalización Ulcer; Sharpe desempata.') :
                 'Ninguna combinación muestreada cumple todos los límites. Las aproximaciones conservan sus incumplimientos visibles y no se pueden aplicar como solución válida.'}</p>
             <div class="optimizer-choices">${result.choices.map((candidate, index) =>
-                `<button type="button" data-opt-choice="${index}" aria-pressed="${index === selected}">${result.valid ? 'Cartera' : 'Aproximación'} ${index + 1} · Rolling mínimo ${pct(candidate.worst)}</button>`).join('')}</div>
+                `<button type="button" data-opt-choice="${index}" aria-pressed="${index === selected}">${result.valid ? 'Cartera' : 'Aproximación'} ${index + 1} · Rolling mínimo ${pct(candidate.objectiveReturn)}</button>`).join('')}</div>
             <p class="workspace-status">${esc(violations(winner))}</p>
             ${['M', 'W'].includes(result.frequency) ? `<p class="workspace-context">La muestra tiene frecuencia ${frequencyLabel(result.frequency)}. El drawdown y la recuperación se miden entre esos cierres; los movimientos dentro del período quedan fuera de la observación.</p>` : ''}
             <div class="optimizer-kpis">${[
@@ -205,8 +229,8 @@ const PortfolioOptimizerView = (() => {
                 return { type: 'scattergl', mode: 'markers', name: valid ? 'Cumplen límites' : 'Fuera de límites',
                     x: points.map(point => point.dd), y: points.map(point => point.worst), marker: { color: valid ? '#247354' : '#a4afb9', size: 4, opacity: .45 },
                     hovertemplate: 'Caída máxima %{x:.2f}%<br>Peor rolling %{y:.2f}%<extra></extra>' }; }),
-            { type: 'scatter', mode: 'markers', name: 'Seleccionada', x: [winner.maxDrawdown], y: [winner.worst], marker: { color: '#204f78', size: 16, symbol: 'star' } }
-        ], { title: 'Carteras evaluadas históricamente', margin: { l: 65, r: 25, t: 45, b: 55 }, xaxis: { title: 'Caída máxima (%)' }, yaxis: { title: 'Peor retorno anualizado 3 / 5 años (%)' } }, { responsive: true });
+            { type: 'scatter', mode: 'markers', name: 'Seleccionada', x: [winner.maxDrawdown], y: [winner.objectiveReturn], marker: { color: '#204f78', size: 16, symbol: 'star' } }
+        ], { title: 'Carteras evaluadas históricamente', margin: { l: 65, r: 25, t: 45, b: 55 }, xaxis: { title: 'Caída máxima (%)' }, yaxis: { title: result.config.objective==='rolling5'?'Peor retorno anualizado a 5 años (%)':'Peor retorno anualizado 3 / 5 años (%)' } }, { responsive: true });
         FinancialVisuals.newPlot(output.querySelector('[data-opt-history]'), [
             { type: 'scatter', mode: 'lines', name: 'Patrimonio · base 100', x: result.dates, y: winner.path, line: { color: '#204f78' }, xaxis: 'x', yaxis: 'y' },
             { type: 'scatter', mode: 'lines', name: 'Drawdown', x: result.dates, y: winner.drawdowns.map(value => value * 100), line: { color: '#b34b50' }, fill: 'tozeroy', xaxis: 'x2', yaxis: 'y2' }
@@ -255,22 +279,27 @@ const PortfolioOptimizerView = (() => {
         panel.innerHTML = `<h3>Optimizador de carteras · Downside y fundamentales</h3>
             <p class="workspace-context">Carga el Maestro en Carga de datos. Revisa los fondos y sus métricas, ajusta los límites y ejecuta la búsqueda. El resultado se puede aplicar a la cartera individual.</p>
             <div class="optimizer-layout"><form class="optimizer-controls">
+                <label>Objetivo de optimización<select name="objective"><option value="downside">Rolling 3/5 años con penalización Ulcer</option><option value="rolling5">Maximizar el peor rolling a 5 años</option></select></label>
+                <div class="optimizer-constraint-actions"><button type="button" data-opt-constraints="none">Quitar restricciones</button><button type="button" data-opt-constraints="all">Activar restricciones</button></div>
                 <label>Perfil GDC / GICI<select name="profile">${[
                     ['muy_conservador','Muy Conservador'],['prudente','Prudente'],['equilibrado','Equilibrado'],
                     ['decidido','Decidido'],['muy_arriesgado','Muy Arriesgado']].map(([key, label]) =>
                         `<option value="${key}" ${key === 'equilibrado' ? 'selected' : ''}>${label} · RV máx. ${ModelPortfolioCore.bands[key][1]}%</option>`).join('')}</select></label>
-                ${controls.map(([name, label, min, max]) => `<label>${label}<input name="${name}" type="number" min="${min}" max="${max}" step="${['iterations','seed','maxRecovery'].includes(name) ? '1' : 'any'}" ${name === 'minRolling5' ? 'aria-describedby="optimizer-rolling5-help"' : 'required'}></label>`).join('')}
+                ${controls.map(([name,label,min,max])=>`<div class="optimizer-control-field"><label for="optimizer-${name}">${DownsideOptimizer.constraintKeys.includes(name)?`<input type="checkbox" data-opt-constraint="${name}" checked aria-label="Aplicar ${label}">`:''}${label}</label><input id="optimizer-${name}" name="${name}" type="number" min="${min}" max="${max}" step="${['iterations','seed','maxRecovery'].includes(name)?'1':'any'}" ${name==='minRolling5'?'aria-describedby="optimizer-rolling5-help"':'required'}></div>`).join('')}
+                <p class="workspace-context">Marca solo los filtros que quieras aplicar. «Quitar restricciones» permite buscar usando únicamente el objetivo elegido. Se mantienen pesos no negativos que suman 100% y cinco años de datos comunes. El perfil solo aporta valores a los filtros activos.</p>
                 <label>Desde<a class="optimizer-note-ref" href="#optimizer-dates-help" aria-label="Ver explicación de Desde">1</a><input name="start" type="date" aria-describedby="optimizer-dates-help"></label>
                 <label>Hasta<a class="optimizer-note-ref" href="#optimizer-dates-help" aria-label="Ver explicación de Hasta">1</a><input name="end" type="date" aria-describedby="optimizer-dates-help"></label>
+                <button type="button" data-opt-dates>Usar todo el histórico común</button><p class="workspace-context" data-opt-common-range></p>
                 <label>Rebalanceo<select name="rebalance"><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option></select></label>
+                <label class="optimizer-check"><input type="checkbox" data-opt-constraint="openRecovery" checked> Exigir recuperación de caídas abiertas</label>
                 <label class="optimizer-check"><input name="allowOpen" type="checkbox"> Admitir caídas abiertas si su tiempo transcurrido está dentro del límite</label>
                 <p class="workspace-context">Ejemplos de formato: 45 significa 45%; duración 2 significa 2 años. El peso mínimo solo se aplica a los fondos incluidos.</p>
                 <p id="optimizer-rolling5-help" class="workspace-context optimizer-field-note"><strong>Retorno rolling mínimo a 5 años.</strong> Es la rentabilidad anualizada mínima que exiges incluso en la peor ventana histórica de cinco años del período seleccionado. Escribe 2 para exigir al menos 2% anual en todas esas ventanas. Empieza en 0% anual; puedes editarlo o dejarlo vacío para desactivar este filtro. Una cartera por debajo del mínimo aparece únicamente como aproximación con el incumplimiento indicado.</p>
-                <p id="optimizer-dates-help" class="workspace-context optimizer-field-note"><strong>1. Fechas del histórico.</strong> Desde indica el primer día y Hasta el último día de precios que quieres utilizar, ambos incluidos. Si dejas una fecha vacía, se utiliza el inicio o el final disponible correspondiente. El motor toma las fechas comunes de los fondos seleccionados dentro de ese intervalo y calcula allí caídas, recuperación, Sharpe, Ulcer y rolling. El intervalo necesita al menos cinco años para evaluar las ventanas móviles de 3 y 5 años.</p>
+                <p id="optimizer-dates-help" class="workspace-context optimizer-field-note"><strong>1. Fechas del histórico.</strong> Por defecto se rellenan el primer y último dato común de los fondos seleccionados del Excel. Al cambiar el universo se actualizan las fechas automáticas y se respetan las que hayas editado. Desde indica el primer día y Hasta el último día de precios que quieres utilizar, ambos incluidos. Si dejas una fecha vacía, se utiliza el inicio o el final disponible correspondiente. El motor toma las fechas comunes de los fondos seleccionados dentro de ese intervalo y calcula allí caídas, recuperación, Sharpe, Ulcer y rolling. El intervalo necesita al menos cinco años para evaluar las ventanas móviles de 3 y 5 años.</p>
                 <button type="button" data-opt-run>Ejecutar optimizador</button><button type="button" data-opt-cancel disabled>Cancelar</button>
             </form><div class="optimizer-main">
                 <details open><summary>Universo y datos antes de calcular</summary>
-                    <p class="workspace-context">Selecciona los fondos que quieres considerar en la búsqueda. Completa los campos vacíos. Exposición no EUR significa exposición real sin cubrir, independientemente de la divisa de la clase. La TIR bruta se lee de una columna explícita del maestro o se introduce en la tabla. La YTM compartida se muestra como referencia cuando no consta que sea bruta. TIR neta = TIR bruta − TER, antes de fiscalidad del cliente. En cada fondo se muestra el número de precios y su frecuencia.</p>
+                    <p class="workspace-context">Selecciona los fondos que quieres considerar en la búsqueda. Completa los campos necesarios para los filtros activos. Monetario es una categoría operativa dentro de RF; no equivale a una calificación IG ni elimina el riesgo de crédito. Exposición no EUR significa exposición real sin cubrir, independientemente de la divisa de la clase. La TIR bruta se lee de una columna explícita del maestro o se introduce en la tabla. La YTM compartida se muestra como referencia cuando no consta que sea bruta. TIR neta = TIR bruta − TER, antes de fiscalidad del cliente. En cada fondo se muestra el número de precios y su frecuencia.</p>
                     <button type="button" data-opt-refresh>Volver a leer datos compartidos</button>
                     <div class="proposal-chart-scroll"><table class="wide-report-table"><thead><tr><th>Usar</th><th>Fondo</th><th>Tipo</th><th>Calidad RF</th><th>No EUR (%)</th><th>TIR bruta (%)</th><th>TER (%)</th><th>Duración (años)</th></tr></thead><tbody data-optimizer-universe></tbody></table></div>
                 </details>
@@ -278,10 +307,10 @@ const PortfolioOptimizerView = (() => {
                 <p class="workspace-status" data-optimizer-status role="status">Carga el Maestro para comenzar.</p>
                 <div data-optimizer-results></div>
                 <details class="optimizer-method"><summary>Datos, límites e interpretación</summary>
-                    <p>El máximo RV de cada perfil se toma de las bandas compartidas de GDC/GICI (15%, 30%, 50%, 75% y 100%). Los demás límites son valores iniciales editables. Los fondos incluidos pesan al menos el mínimo y como máximo el tope. Los fondos no elegidos pueden tener peso cero. RV y divisa se miden sobre toda la cartera; duración, TIR neta y HY se miden dentro de RF.</p>
+                    <p>El máximo RV de cada perfil se toma de las bandas compartidas de GDC/GICI (15%, 30%, 50%, 75% y 100%). Los demás límites son valores iniciales editables. Los límites de peso mínimo y máximo solo se aplican cuando están marcados. Sin ellos, cada fondo puede pesar entre 0% y 100%, con suma total 100%. Los fondos no elegidos pueden tener peso cero. RV y divisa se miden sobre toda la cartera; duración, TIR neta y HY se miden dentro de RF.</p>
                     <p>Se exigen cinco años comunes para comparar rolling de 3 y 5 años. Se detecta y utiliza la frecuencia diaria, semanal o mensual del maestro. Con cierres mensuales se miden caídas y recuperación observadas al cierre; las oscilaciones dentro del mes quedan fuera de esa muestra. Se usan VL en EUR sin volver a descontar TER. Se simula rebalanceo sin impuestos ni costes de transacción; el TER se resta únicamente a la TIR bruta actual de RF.</p>
-                    <p>El máximo tiempo bajo máximos se mide desde el pico hasta recuperar ese nivel, en días naturales. Las caídas abiertas muestran el tiempo transcurrido, que es solo una cota mínima. Por defecto se excluyen de las soluciones válidas; puedes admitirlas expresamente con el control correspondiente.</p>
-                    <p>El mínimo rolling a 5 años, cuando está activado, se aplica como restricción de admisión antes de elegir las mejores carteras. La puntuación es mínimo(peor rolling 3 años, peor rolling 5 años) − penalización × Ulcer. Ulcer es la raíz de la media de las caídas porcentuales al cuadrado. Un empate técnico se considera una diferencia de puntuación de hasta 0,001 puntos. La penalización inicial 0,05 resta 0,05 puntos de retorno por cada punto Ulcer. Una búsqueda aleatoria finita encuentra candidatas y no garantiza un óptimo global ni demuestra que no exista una cartera factible.</p>
+                    <p>El máximo tiempo bajo máximos se mide desde el pico hasta recuperar ese nivel, en días naturales. Las caídas abiertas muestran el tiempo transcurrido, que es solo una cota mínima. Con el filtro de recuperación activo, por defecto se excluyen de las soluciones válidas; puedes admitirlas con el control correspondiente o desactivar ese filtro.</p>
+                    <p>El objetivo «Maximizar el peor rolling a 5 años» utiliza solo ese retorno y no resta Ulcer. En el objetivo original, la puntuación combina 3 y 5 años. El mínimo rolling a 5 años, cuando está activado, se aplica como restricción de admisión antes de elegir las mejores carteras. La puntuación es mínimo(peor rolling 3 años, peor rolling 5 años) − penalización × Ulcer. Ulcer es la raíz de la media de las caídas porcentuales al cuadrado. Un empate técnico se considera una diferencia de puntuación de hasta 0,001 puntos. La penalización inicial 0,05 resta 0,05 puntos de retorno por cada punto Ulcer. Una búsqueda aleatoria finita encuentra candidatas y no garantiza un óptimo global ni demuestra que no exista una cartera factible.</p>
                     <p>Las métricas actuales de RF son un filtro fundamental, no datos históricos de cada fecha. La selección retrospectiva sobre toda la muestra tiene sesgo de selección y supervivencia; no garantiza protección ni retornos futuros. El impacto +100 pb es una aproximación por duración manteniendo el resto constante.</p>
                     <p>El Maestro puede incorporar una hoja Optimizador con columnas ISIN, Nombre, Tipo, No EUR pct, Calidad crediticia, TIR bruta, TER y Duración modificada. Los porcentajes pueden ser números en puntos porcentuales o celdas Excel con formato %. También se leen ticker, asset_class, YTM y MD de weights: YTM se conserva como referencia hasta que se indique su TIR bruta. Los datos se unen por ISIN. Conserva los cambios de fichas en el archivo fuente para cargas posteriores.</p>
                 </details>
@@ -292,20 +321,26 @@ const PortfolioOptimizerView = (() => {
         };
         profile();
         for (const [name, value] of Object.entries({ minWeight: 5, maxWeight: 25, iterations: 20000, seed: 12345, ulcerPenalty: .05, riskFree: 0, minRolling5: 0 })) form.elements[name].value = value;
+        syncConstraints();
         form.elements.profile.addEventListener('change', () => { profile(); invalidate(); });
-        panel.addEventListener('input', event => { event.stopPropagation(); invalidate(); });
+        panel.addEventListener('input', event => { event.stopPropagation(); syncConstraints(); invalidate(); });
         panel.addEventListener('change', event => {
             const field = event.target.closest('[data-opt-asset]');
+            if(event.target.matches('[data-opt-constraint],[name=objective]')){syncConstraints();invalidate();}
             if (!field) return;
             const asset = assets[Number(field.dataset.optAsset)], name = field.dataset.optField;
             const value = name === 'included' ? field.checked : ['type','credit'].includes(name) ? field.value : number(field.value);
             overrides.set(asset.isin, { ...overrides.get(asset.isin), [name]: value });
             if (name === 'type') renderAssets();
+            if(name==='included')updateDates();
         });
         panel.querySelector('[data-opt-run]').addEventListener('click', () => { if (form.reportValidity()) calculate(); });
         panel.querySelector('[data-opt-cancel]').addEventListener('click', () => invalidate('Cálculo cancelado.'));
         panel.querySelector('[data-opt-refresh]').addEventListener('click', () => { signature = ''; refresh(); });
         panel.addEventListener('click', event => {
+            const constraints=event.target.closest('[data-opt-constraints]');
+            if(constraints){for(const toggle of form.querySelectorAll('[data-opt-constraint]'))toggle.checked=constraints.dataset.optConstraints==='all';syncConstraints();invalidate();}
+            if(event.target.closest('[data-opt-dates]')){updateDates(true);invalidate();}
             const choice = event.target.closest('[data-opt-choice]');
             if (choice && result) { selected = Number(choice.dataset.optChoice); renderResult(); }
             if (event.target.closest('[data-opt-apply]')) apply();

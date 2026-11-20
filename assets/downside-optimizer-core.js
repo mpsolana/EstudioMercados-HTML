@@ -10,15 +10,27 @@
     const dynamic = { maxDrawdown: 20, maxRecovery: 730, maxDuration: 5, minYield: 2, minEfficiency: .5, maxHy: 35, maxFx: 50 };
     const profiles = Object.fromEntries(Object.entries(modelCore.bands).map(([profile, band]) =>
         [profile, { ...(['muy_conservador', 'prudente'].includes(profile) ? conservative : profile === 'equilibrado' ? moderate : dynamic), maxRv: band[1] }]));
+    const constraintKeys=['maxRv','minWeight','maxWeight','maxDrawdown','minRolling5','maxRecovery','maxDuration','minYield','minEfficiency','maxHy','maxFx','openRecovery'];
+    const enabled=(config,key)=>!(config.disabledConstraints||[]).includes(key);
+    const effective=config=>({...config,minWeight:enabled(config,'minWeight')?config.minWeight:0,maxWeight:enabled(config,'maxWeight')?config.maxWeight:100});
+    function commonRange(assets){
+        if(!assets.length)return {start:'',end:'',count:0};
+        const dates=assets.map(asset=>new Set((asset.data||[]).filter(point=>Number.isFinite(+new Date(point.date))&&Number.isFinite(point.price)&&point.price>0).map(point=>new Date(point.date).toISOString().slice(0,10))));
+        const common=[...dates[0]].filter(date=>dates.every(set=>set.has(date))).sort();
+        return {start:common[0]||'',end:common.at(-1)||'',count:common.length};
+    }
     function prepare(assets, config) {
         if (!assets.length) throw new Error('Selecciona al menos un fondo para la búsqueda.');
         if (new Set(assets.map(asset => asset.isin)).size !== assets.length) throw new Error('Hay ISIN duplicados.');
         const maps = assets.map(asset => {
-            if (!['RF', 'RV'].includes(asset.type) || !Number.isFinite(asset.fxPct) || asset.fxPct < 0 || asset.fxPct > 100)
-                throw new Error(asset.isin + ': completa tipo y exposición real no EUR (0–100%).');
-            if (asset.type === 'RF' && (!['IG', 'HY', 'Soberana'].includes(asset.credit) ||
-                ![asset.grossYield, asset.ter, asset.duration].every(Number.isFinite) || asset.ter < 0 || asset.duration < 0))
-                throw new Error(asset.isin + ': completa calidad, TIR bruta, TER y duración de RF.');
+            const needsType=['maxRv','maxDuration','minYield','minEfficiency','maxHy'].some(key=>enabled(config,key));
+            if(needsType&&!['RF','RV'].includes(asset.type))throw new Error(asset.isin+': completa el tipo RF/RV para aplicar los filtros activos.');
+            if(enabled(config,'maxFx')&&(!Number.isFinite(asset.fxPct)||asset.fxPct<0||asset.fxPct>100))throw new Error(asset.isin+': completa la exposición no EUR (0–100%).');
+            if(asset.type==='RF'){
+                if(enabled(config,'maxHy')&&!['IG','HY','Soberana','Monetario'].includes(asset.credit))throw new Error(asset.isin+': completa calidad RF (Soberana, IG, HY o Monetario).');
+                if(['minYield','minEfficiency'].some(key=>enabled(config,key))&&(![asset.grossYield,asset.ter].every(Number.isFinite)||asset.ter<0))throw new Error(asset.isin+': completa TIR bruta y TER para los filtros activos.');
+                if(['maxDuration','minEfficiency'].some(key=>enabled(config,key))&&(!Number.isFinite(asset.duration)||asset.duration<0))throw new Error(asset.isin+': completa duración de RF para los filtros activos.');
+            }
             const loaded = asset.data || [];
             const data = loaded.map(point => ({ date: new Date(point.date), price: point.price })).filter(point => {
                 const day = Number.isFinite(+point.date) ? point.date.toISOString().slice(0, 10) : '';
@@ -68,16 +80,19 @@
     }
     function validate(config, count) {
         if (!count) throw new Error('Selecciona los fondos que formarán el universo de búsqueda.');
-        if (config.minRolling5 != null && !Number.isNaN(config.minRolling5) &&
+        config=effective(config);
+        if(config.objective==='rolling5')config.ulcerPenalty=0;
+        if(config.objective&&!['downside','rolling5'].includes(config.objective))throw new Error('Selecciona un objetivo válido.');
+        if (enabled(config,'minRolling5') && config.minRolling5 != null && !Number.isNaN(config.minRolling5) &&
             (!Number.isFinite(config.minRolling5) || config.minRolling5 < -100))
             throw new Error('El mínimo rolling a 5 años debe ser un porcentaje anual válido, igual o superior a −100%.');
-        const positive = ['minWeight', 'maxWeight', 'maxRecovery', 'maxDuration', 'iterations'];
+        const positive = ['minWeight', 'maxWeight', 'maxRecovery', 'maxDuration', 'iterations'].filter(key=>enabled(config,key));
         if (positive.some(field => !Number.isFinite(config[field]) || config[field] <= 0) ||
-            ['maxRv', 'maxDrawdown', 'minYield', 'minEfficiency', 'maxHy', 'maxFx', 'ulcerPenalty', 'riskFree'].some(field => !Number.isFinite(config[field])))
+            ['maxRv', 'maxDrawdown', 'minYield', 'minEfficiency', 'maxHy', 'maxFx', 'ulcerPenalty', 'riskFree'].some(field => enabled(config,field)&&!Number.isFinite(config[field])))
             throw new Error('Completa todos los límites y usa valores numéricos.');
-        if (['maxRv','maxDrawdown','maxHy','maxFx'].some(field => config[field] < 0 || config[field] > 100) ||
+        if (['maxRv','maxDrawdown','maxHy','maxFx'].some(field => enabled(config,field)&&(config[field] < 0 || config[field] > 100)) ||
             config.minWeight > config.maxWeight || config.maxWeight > 100 || config.ulcerPenalty < 0 ||
-            config.minEfficiency < 0 || config.riskFree <= -100 || !Number.isInteger(config.iterations) ||
+            enabled(config,'minEfficiency')&&config.minEfficiency < 0 || config.riskFree <= -100 || !Number.isInteger(config.iterations) ||
             config.iterations < 100 || config.iterations > 100000 || !['monthly','quarterly','annual'].includes(config.rebalance))
             throw new Error('Revisa porcentajes, rebalanceo y número de combinaciones (100–100.000).');
         const minimum = Math.ceil(100 / config.maxWeight - 1e-10);
@@ -90,6 +105,7 @@
         return () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return ((state >>> 0) + .5) / 4294967296; };
     }
     function sample(count, config, random, bounds) {
+        config=effective(config);
         const size = bounds.minimum + Math.floor(random() * (bounds.maximum - bounds.minimum + 1));
         const order = Array.from({ length: count }, (_, i) => i);
         for (let i = count - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
@@ -114,7 +130,7 @@
         assets.forEach((asset, i) => {
             const w = weights[i]; fx += w * asset.fxPct;
             if (asset.type === 'RV') rv += w * 100;
-            else {
+            else if(asset.type==='RF') {
                 rf += w; duration += w * asset.duration; netYield += w * (asset.grossYield - asset.ter);
                 if (asset.credit === 'HY') hy += w;
             }
@@ -128,14 +144,14 @@
         const failures = [];
         const max = (name, value, limit, unit) => { if (value > limit + 1e-8) failures.push({ name, value, limit, unit, distance: (value - limit) / Math.max(Math.abs(limit), 1) }); };
         const min = (name, value, limit, unit) => { if (value < limit - 1e-8) failures.push({ name, value, limit, unit, distance: (limit - value) / Math.max(Math.abs(limit), 1) }); };
-        max('Renta variable', metrics.rv, config.maxRv, '%');
-        max('Divisa no EUR', metrics.fx, config.maxFx, '%');
-        if (!(metrics.rf > 0)) failures.push({ name: 'Manga RF ausente', value: 0, limit: 1, unit: '', distance: 1 });
+        if(enabled(config,'maxRv'))max('Renta variable', metrics.rv, config.maxRv, '%');
+        if(enabled(config,'maxFx'))max('Divisa no EUR', metrics.fx, config.maxFx, '%');
+        if (!(metrics.rf > 0)&&['maxDuration','minYield','minEfficiency','maxHy'].some(key=>enabled(config,key))) failures.push({ name: 'Manga RF ausente', value: 0, limit: 1, unit: '', distance: 1 });
         else {
-            max('Duración RF', metrics.duration, config.maxDuration, 'años');
-            min('TIR neta RF', metrics.netYield, config.minYield, '%');
-            min('TIR neta / duración', metrics.efficiency, config.minEfficiency, '');
-            max('HY dentro de RF', metrics.hy, config.maxHy, '%');
+            if(enabled(config,'maxDuration'))max('Duración RF', metrics.duration, config.maxDuration, 'años');
+            if(enabled(config,'minYield'))min('TIR neta RF', metrics.netYield, config.minYield, '%');
+            if(enabled(config,'minEfficiency'))min('TIR neta / duración', metrics.efficiency, config.minEfficiency, '');
+            if(enabled(config,'maxHy'))max('HY dentro de RF', metrics.hy, config.maxHy, '%');
         }
         return failures;
     }
@@ -175,12 +191,12 @@
     const distance = failures => failures.reduce((sum, failure) => sum + failure.distance, 0);
     function historicalFailures(metrics, config) {
         const failures = [];
-        if (Number.isFinite(config.minRolling5) && metrics.worst5 < config.minRolling5 - 1e-8)
+        if (enabled(config,'minRolling5') && Number.isFinite(config.minRolling5) && metrics.worst5 < config.minRolling5 - 1e-8)
             failures.push({ name: 'Retorno rolling mínimo a 5 años', value: metrics.worst5, limit: config.minRolling5,
                 unit: '% anual', distance: (config.minRolling5 - metrics.worst5) / Math.max(Math.abs(config.minRolling5), 1) });
-        if (metrics.maxDrawdown > config.maxDrawdown + 1e-8) failures.push({ name: 'Drawdown máximo', value: metrics.maxDrawdown, limit: config.maxDrawdown, unit: '%', distance: (metrics.maxDrawdown - config.maxDrawdown) / Math.max(config.maxDrawdown, 1) });
-        if (metrics.recoveryDays > config.maxRecovery) failures.push({ name: 'Tiempo bajo máximos', value: metrics.recoveryDays, limit: config.maxRecovery, unit: 'días', distance: (metrics.recoveryDays - config.maxRecovery) / config.maxRecovery });
-        if (metrics.openRecovery > 0 && !config.allowOpen) failures.push({ name: 'Recuperación aún abierta', value: metrics.openRecovery, limit: 0, unit: 'días', distance: 1 });
+        if (enabled(config,'maxDrawdown') && metrics.maxDrawdown > config.maxDrawdown + 1e-8) failures.push({ name: 'Drawdown máximo', value: metrics.maxDrawdown, limit: config.maxDrawdown, unit: '%', distance: (metrics.maxDrawdown - config.maxDrawdown) / Math.max(config.maxDrawdown, 1) });
+        if (enabled(config,'maxRecovery') && metrics.recoveryDays > config.maxRecovery) failures.push({ name: 'Tiempo bajo máximos', value: metrics.recoveryDays, limit: config.maxRecovery, unit: 'días', distance: (metrics.recoveryDays - config.maxRecovery) / config.maxRecovery });
+        if (enabled(config,'openRecovery') && metrics.openRecovery > 0 && !config.allowOpen) failures.push({ name: 'Recuperación aún abierta', value: metrics.openRecovery, limit: 0, unit: 'días', distance: 1 });
         return failures;
     }
     async function optimize(assets, config, hooks = {}) {
@@ -188,17 +204,17 @@
         const random = randomSource(config.seed), best = [], nearest = [], fastNear = [], cloud = [], blockers = {};
         let passed = 0, valid = 0, evaluated = 0, unique = 0;
         const seen = new Set();
-        const rank = (a, b) => Math.abs(a.score - b.score) > .001 ? b.score - a.score : (Number.isFinite(b.sharpe) ? b.sharpe : -Infinity) - (Number.isFinite(a.sharpe) ? a.sharpe : -Infinity);
+        const rank = (a, b) => Math.abs(a.score - b.score) > (config.objective==='rolling5'?1e-10:.001) ? b.score - a.score : (Number.isFinite(b.sharpe) ? b.sharpe : -Infinity) - (Number.isFinite(a.sharpe) ? a.sharpe : -Infinity);
         const add = (list, point, compare, limit = 3) => { list.push(point); list.sort(compare); list.length = Math.min(limit, list.length); };
         const nearRank = (a, b) => distance(a.failures) - distance(b.failures) || a.failures.length - b.failures.length || rank(a, b);
         const evaluate = point => {
             const stats = history(prepared, point.weights, config);
             const historical = historicalFailures(stats, config);
             const failures = [...point.failures, ...historical];
-            const candidate = { ...point, ...stats, failures, score: stats.worst - config.ulcerPenalty * stats.ulcer };
+            const candidate = { ...point, ...stats, failures, objectiveReturn:config.objective==='rolling5'?stats.worst5:stats.worst,score:config.objective==='rolling5'?stats.worst5:stats.worst - config.ulcerPenalty * stats.ulcer };
             evaluated++;
             historical.forEach(failure => { blockers[failure.name] = (blockers[failure.name] || 0) + 1; });
-            cloud.push({ dd: stats.maxDrawdown, worst: stats.worst, valid: !failures.length });
+            cloud.push({ dd: stats.maxDrawdown, worst: candidate.objectiveReturn, valid: !failures.length });
             if (!failures.length) { valid++; add(best, candidate, rank); }
             else add(nearest, candidate, nearRank);
         };
@@ -227,5 +243,5 @@
         return { dates: prepared.dates, frequency: prepared.frequency, assets: assets.map(({ data, ...asset }) => asset), choices, cloud,
             unique, passed, evaluated, valid, blockers, config: { ...config } };
     }
-    return { profiles, prepare, validate, sample, randomSource, fundamentals, structural, history, optimize };
+    return { profiles, constraintKeys, commonRange, prepare, validate, sample, randomSource, fundamentals, structural, history, optimize };
 });

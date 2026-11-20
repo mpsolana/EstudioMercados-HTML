@@ -32,3 +32,6 @@
 .optimizer-field-note { border-top:1px solid #dce2e8;padding-top:8px;line-height:1.55 }
 .optimizer-field-note:target { outline:1px solid #b8c9d7;outline-offset:4px }
 .optimizer-controls [id$="-help"] { scroll-margin-top:150px }
+
+.optimizer-control-field{min-width:0}.optimizer-control-field label{display:flex;align-items:start;gap:6px}.optimizer-control-field label input[type=checkbox]{margin-top:2px;flex:none}
+.optimizer-panel input:disabled{background:#f4f6f8;color:#78828c}.optimizer-constraint-actions{display:flex;flex-wrap:wrap;gap:6px}
