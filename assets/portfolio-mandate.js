@@ -1204,7 +1204,7 @@
             : 'El carry del período es nulo o negativo, por lo que no hay colchón positivo frente a subidas de tipos.') :
             'Completa la TIR neta y una duración modificada positiva para calcular el breakeven.';
         return `<section class="${cardStyle}" data-macro-report>
-            <h4 class="font-bold text-lg mb-3">Stress testing prospectivo · hasta la fecha final</h4>
+            <h4 class="font-bold text-lg mb-3">Stress testing prospectivo · al ${shortDate(m.end)}</h4>
             <p class="text-sm text-slate-600 mb-3">Del ${shortDate(m.cutoff)} al ${shortDate(m.end)} · ${Number.isFinite(m.horizonDays)?m.horizonDays:'—'} días (ACT/365).
                 Los cuatro escenarios son hipótesis de shock completo al horizonte, sin prorratear el impacto en precio. El resultado representa rentabilidad total estimada de la manga RF y su contribución a la cartera.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">${metrics}</div>
@@ -1247,7 +1247,7 @@
             const realized=income+gains,total=realized+valuation;
             return {name,income,gains,valuation,realized,total,note,
                 cashCoverage:m.goal>0?realized/m.goal*100:NaN,totalCoverage:m.goal>0?total/m.goal*100:NaN,
-                gap:m.goal>0?m.goal-realized:NaN};
+                gap:m.goal>0?m.goal-realized:NaN,totalGap:m.goal>0?m.goal-total:NaN};
         };
         return [
             make('1 · Cobros realizados hasta el corte',booked,0,0,'Cupones y dividendos netos cobrados. Reserva fiscal adicional según la base del objetivo.'),
@@ -1265,17 +1265,18 @@
 
     function budgetReport(m) {
         const rows=budgetRows(m);
+        const gap=row=>Number.isFinite(row.gap)&&Number.isFinite(row.totalGap)&&Math.abs(row.gap-row.totalGap)<.005?money(row.gap)+'\nEn ambas bases':'Realizado: '+money(row.gap)+'\nIncl. valoración: '+money(row.totalGap);
         const result=(value,coverage)=>Number.isFinite(value)?money(value)+(Number.isFinite(coverage)?'\n'+pct(coverage)+' del objetivo':''):'—';
         return `<section class="${cardStyle}" data-budget-summary>
             <h4 class="font-bold text-lg mb-3">Resumen final · recorrido del presupuesto</h4>
             <p class="text-sm text-slate-600 mb-3">Corte ${shortDate(m.cutoff)} · fecha final ${shortDate(m.end)} · objetivo ${money(m.goal)}.
             Las filas explican alternativas y sustituciones; no se suman entre sí. La columna realizada utiliza cobros y ganancias de ventas. La valoración pendiente de venta aparece por separado.</p>
-            ${table(['Paso / alternativa','Cobros EUR','Ganancias ventas EUR','Valoración EUR','Realizado / objetivo','Incl. valoración / objetivo','Brecha EUR'],rows.map(row=>[
-                row.name,money(row.income),money(row.gains),money(row.valuation),result(row.realized,row.cashCoverage),result(row.total,row.totalCoverage),money(row.gap)
+            ${table(['Paso / alternativa','Cobros EUR','Ganancias ventas EUR','Valoración EUR','Realizado / objetivo','Incl. valoración / objetivo','Brecha EUR · realizada / valoración'],rows.map(row=>[
+                row.name,money(row.income),money(row.gains),money(row.valuation),result(row.realized,row.cashCoverage),result(row.total,row.totalCoverage),gap(row)
             ]),'mandate-budget-table')}
             <details class="mt-3"><summary class="cursor-pointer font-semibold text-sm">Qué incorpora cada fila</summary><ol class="mandate-budget-notes">${rows.map(row=>`<li><strong>${safe(row.name)}.</strong> ${safe(row.note)}</li>`).join('')}</ol></details>
             <p class="text-xs text-slate-600 mt-3">El presupuesto ya incluye los cupones y dividendos recibidos y previstos: no vuelve a sumar el carry estimado por TIR. El principal de bonos y el importe bruto de ventas tampoco son beneficio.
-            Las ventas se suponen al final del horizonte; si anticipas una venta, ajusta los pagos posteriores en su ficha. Las ganancias de venta aplican los costes y la fiscalidad configurados; la valoración no realizada no descuenta un impuesto de venta hipotético. Una brecha negativa indica superávit. «—» indica datos o confirmaciones pendientes.</p>
+            Las ventas se suponen al final del horizonte; si anticipas una venta, ajusta los pagos posteriores en su ficha. Las ganancias de venta aplican los costes y la fiscalidad configurados; la valoración no realizada no descuenta un impuesto de venta hipotético. La brecha realizada es objetivo menos cobros y ganancias de ventas. La brecha con valoración resta también los cambios de precio sin realizar, y por eso varía entre escenarios. Una brecha negativa indica superávit. «—» indica datos o confirmaciones pendientes.</p>
         </section>`;
     }
 
@@ -1293,6 +1294,11 @@
         const section = html => `<section class="${cardStyle}">${html}</section>`;
         const visuals=target.parentElement.querySelector('.rate-results-section');
         if(visuals)target.before(visuals);
+        // Keep Plotly nodes alive when the surrounding report is rebuilt; delayed label layout
+        // and resize callbacks must continue to reference the current chart.
+        const previousCharts=['[data-maturity]','[data-curve]','[data-sensitivity]','[data-macro-chart]']
+            .map(selector=>[selector,target.querySelector(selector)]).filter(([,chart])=>chart?.data);
+        for(const [,chart] of previousCharts)chart.remove();
         const goalList = [...new Set([m.goal, ...String(alternatives).split(';').map(numeric)].filter(goal => goal > 0))];
         const warnings = [];
         if (m.snapshot && !m.activeSnapshot) warnings.push(`La posición del ${shortDate(m.snapshot.date)} es posterior al corte y queda fuera del análisis.`);
@@ -1343,12 +1349,12 @@
                 `<details class="mt-4"><summary class="cursor-pointer font-semibold text-sm">Detalle de cobros importados</summary>
                     ${table(['Fecha valor', 'Cuenta', 'Producto', 'Divisa', 'Neto local', 'EUR/divisa', 'Neto EUR', 'Bruto EUR', 'Ret. origen EUR', 'Ret. local EUR', 'Conversión'], m.actual.payments.slice().sort((a, b) => b.date.localeCompare(a.date))
                         .map(row => [shortDate(row.date), row.account, row.name, row.ccy, num(row.localAmount), Number.isFinite(row.fx) ? row.fx.toLocaleString('es-ES', { maximumFractionDigits: 6 }) : '—', money(row.amount), money(row.grossEUR), money(row.sourceTaxEUR), money(row.localTaxEUR), row.conversion]))}</details>`),
-            section(header('Vencimientos y TIR de los bonos') +
-                muted('El nominal representa principal recuperado. Los vencimientos y cupones se leen del nombre cuando el formato lo permite. El nominal inferido usa el último cupón o movimiento disponible. Completa la TIR por bono en su ficha. La línea une únicamente los bonos del mismo grupo de curva.') +
+            section(header('Vencimientos, cupones y distribución de bonos') +
+                muted('El nominal representa principal recuperado. Los vencimientos y cupones se leen del nombre cuando el formato lo permite. El nominal inferido usa el último cupón o movimiento disponible. Se muestra el cupón contractual, no la TIR. La distribución recoge todos los vencimientos de la posición vigente, incluidos los posteriores al horizonte del presupuesto.') +
                 (m.bonds.length ? cards([['Bonos identificados', num(m.bonds.length)], ['Nominal identificado', money(sum(m.bonds, bond => bond.nominal))]]) +
-                    '<div class="grid grid-cols-1 xl:grid-cols-2 gap-4"><div data-maturity class="min-w-0 h-72"></div><div data-curve class="min-w-0 h-72"></div></div>' : '') +
-                table(['Producto', 'Vencimiento', 'Trimestre', 'Nominal EUR', 'Cupón', 'TIR', 'Grupo'], m.bonds.map(bond => [
-                    bond.name, shortDate(bond.maturity), quarter(bond.maturity), money(bond.nominal), couponPct(bond.coupon), pct(bond.ytm), bond.group
+                    '<div class="mandate-bond-charts"><div data-maturity></div><div data-curve></div></div><h5 class="mandate-bond-table-heading">Detalle contractual de los bonos</h5>' : '') +
+                table(['Producto', 'Vencimiento', 'Trimestre', 'Nominal EUR', 'Cupón anual'], m.bonds.map(bond => [
+                    bond.name, shortDate(bond.maturity), quarter(bond.maturity), money(bond.nominal), couponPct(bond.coupon)
                 ]))),
             section(header('Sensibilidad a tipos') +
                 muted(`Horizonte: ${shortDate(m.cutoff)} a ${shortDate(m.end)}. Impacto instantáneo = −valor RF × (duración de tipos × cambio de tipos${m.hasSpread?' + spread duration × cambio de spreads':''}). ${m.hasSpread?`El shock de crédito se mantiene en ${signedBp(m.spreadShock)} en todas las columnas de tipos.`:'Introduce spread duration para incluir el riesgo de crédito.'} Sin carry ni convexidad. La línea muestra (ingresos previstos + valoración) / objetivo, no efectivo disponible.`) +
@@ -1392,6 +1398,10 @@
                     m.scenarios.flatMap(row => row.details.map(detail => [row.name, detail.name, pct(detail.change * 100),
                         num(detail.price) + ' ' + detail.ccy, money(detail.gain)])))}</div>` : ''))
         ].join('')+budgetReport(m);
+        for(const [selector,chart] of previousCharts){
+            const placeholder=target.querySelector(selector);
+            if(placeholder)placeholder.replaceWith(chart);else if(window.Plotly)Plotly.purge(chart);
+        }
         const sensitivitySection=[...target.children].find(node=>node.querySelector('h4')?.textContent==='Sensibilidad a tipos');
         if(sensitivitySection){
             sensitivitySection.dataset.rateSensitivityReport='';target.prepend(sensitivitySection);
@@ -1430,19 +1440,17 @@
                 hovertemplate: '%{x}<br>%{y:,.0f} €<extra></extra>'
             }], { title: 'Nominal por mes de vencimiento', xaxis: { type: 'category' }, yaxis: { ticksuffix: ' €' } });
             const years = bond => (Date.parse(bond.maturity) - Date.parse(m.cutoff)) / 31557600000;
-            const groups = new Map();
-            for (const bond of m.bonds.filter(bond => Number.isFinite(bond.ytm))) {
-                if (!groups.has(bond.group)) groups.set(bond.group, []);
-                groups.get(bond.group).push(bond);
-            }
-            const dots = (bonds, field, label, mode) => ({
-                type: 'scatter', mode, x: bonds.map(years), y: bonds.map(bond => bond[field]), text: bonds.map(bond => safe(bond.name)),
-                name: safe(label), hovertemplate: '%{text}<br>%{x:.2f} años · %{y:.2f}%<extra></extra>'
-            });
-            draw('[data-curve]', [
-                dots(m.bonds, 'coupon', 'Cupón', 'markers'),
-                ...[...groups].map(([group, bonds]) => dots(bonds, 'ytm', group || 'TIR indicativa', group ? 'lines+markers' : 'markers'))
-            ], { title: 'TIR y cupón por plazo', xaxis: { title: 'Años hasta vencimiento' }, yaxis: { ticksuffix: '%' } });
+            draw('[data-curve]', [{
+                type:'scatter',mode:'markers+text',name:'Cupón contractual',
+                x:m.bonds.map(years),y:m.bonds.map(bond=>bond.coupon),
+                customdata:m.bonds.map(bond=>safe(bond.name)),
+                text:m.bonds.map(bond=>couponPct(bond.coupon)),
+                textposition:m.bonds.map((bond,i)=>m.bonds.slice(0,i).some(prev=>Math.abs(years(prev)-years(bond))<.8&&Math.abs(prev.coupon-bond.coupon)<.6)?'bottom center':'top center'),cliponaxis:false,
+                marker:{color:'#245b83',size:9,line:{color:'#fff',width:1}},
+                hovertemplate:'%{customdata}<br>%{x:.2f} años hasta vencimiento<br>Cupón %{y:.3f}%<extra></extra>'
+            }], {title:'Cupón contractual por plazo',showlegend:false,
+                xaxis:{title:'Años hasta vencimiento'},yaxis:{title:'Cupón anual (%)',ticksuffix:'%',rangemode:'tozero'}});
+
         }
         const rows = m.sensitivity;
         const lows=rows.map(row=>row.change).filter(Number.isFinite),low=Math.min(0,...lows),high=Math.max(0,...lows),pad=Math.max(1,(high-low)*.16);
@@ -1463,7 +1471,7 @@
                 { type: 'scatter', mode: 'markers+text', text:m.macroRows.map(row=>pct(row.rfReturn*100)),textposition:'top center',cliponaxis:false, name: 'Total RF', x: names, y: m.macroRows.map(row => row.rfReturn * 100),
                     marker: { color: '#15344e', symbol: 'diamond', size: 10 },
                     hovertemplate: '%{x}<br>Total RF %{y:.2f}%<extra></extra>' }
-            ], { title: 'Precio y carry neto · RF hasta la fecha final', barmode: 'relative',
+            ], { title: 'Precio y carry neto · RF al '+shortDate(m.end), barmode: 'relative',
                 yaxis: { title: 'Rentabilidad RF (%)', zeroline: true }, xaxis: { type: 'category' } });
         }
         if (forecast && m.goal > 0) traces.push({
@@ -1472,7 +1480,7 @@
         });
         draw('[data-sensitivity]', traces, {
             height:400,margin:{l:75,r:80,t:65,b:70},
-            title: 'Impacto estimado en la cartera', xaxis: { title: 'Cambio paralelo (pb)', type: 'category', categoryorder: 'array', categoryarray: x },
+            title: 'Impacto estimado en la cartera al '+shortDate(m.end), xaxis: { title: 'Cambio paralelo (pb)', type: 'category', categoryorder: 'array', categoryarray: x },
             yaxis: { ticksuffix: ' €',range:[low-pad,high+pad] }, yaxis2: { overlaying: 'y', side: 'right', ticksuffix: '%', showgrid: false }
         });
     }

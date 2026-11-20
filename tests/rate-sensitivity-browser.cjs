@@ -55,7 +55,17 @@ const {pathToFileURL}=require('node:url');
   const shortened=await panel.evaluate(el=>({carry:el.mandateModel.macroRows[0].carry,impact:el.querySelector('[data-sensitivity]').data[0].y}));
   assert(Math.abs(shortened.carry-.038*56/365)<1e-12);
   assert.deepEqual(shortened.impact,before);
+  assert.match(await panel.locator('#initialRateWaterfall').evaluate(el=>el.layout.title.text),/30\/11\/2026/);
+  assert.match(await panel.locator('[data-macro-chart]').evaluate(el=>el.layout.title.text),/30\/11\/2026/);
+  assert.match(await panel.locator('[data-sensitivity]').evaluate(el=>el.layout.title.text),/30\/11\/2026/);
   await fill('end','2026-12-31');
+  await panel.locator('[name=bondRows]').evaluate(el=>el.closest('details').open=true);
+  await fill('bondRows','BONO A;2027-12-31;200000;2.5;9;A\nBONO B;2028-12-31;300000;4;1;B');
+  const bonds=panel.locator('.mandate-bond-charts');
+  assert.deepEqual(await bonds.locator('[data-curve]').evaluate(el=>el.data.map(trace=>trace.y)),[[2.5,4]]);
+  const bondTable=bonds.locator('..').locator('table');
+  assert.doesNotMatch(await bondTable.locator('thead').innerText(),/TIR|Grupo/);
+  assert.equal(await bonds.evaluate(el=>el.parentElement.querySelector('table').getBoundingClientRect().top>=Math.max(...[...el.children].map(node=>node.getBoundingClientRect().bottom))),true);
   // All standalone settings precede the first result. Per-asset sale assumptions remain next to their positions.
   assert.equal(await panel.evaluate(el=>{
    const form=el.querySelector('#workspacePortfolioMandate>section>form'),results=el.querySelector('[data-dashboard]');
