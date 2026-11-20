@@ -81,8 +81,8 @@
     function validate(config, count) {
         if (!count) throw new Error('Selecciona los fondos que formarán el universo de búsqueda.');
         config=effective(config);
-        if(config.objective==='rolling5')config.ulcerPenalty=0;
-        if(config.objective&&!['downside','rolling5'].includes(config.objective))throw new Error('Selecciona un objetivo válido.');
+        if(['rolling5','meanRolling5'].includes(config.objective))config.ulcerPenalty=0;
+        if(config.objective&&!['downside','rolling5','meanRolling5'].includes(config.objective))throw new Error('Selecciona un objetivo válido.');
         if (enabled(config,'minRolling5') && config.minRolling5 != null && !Number.isNaN(config.minRolling5) &&
             (!Number.isFinite(config.minRolling5) || config.minRolling5 < -100))
             throw new Error('El mínimo rolling a 5 años debe ser un porcentaje anual válido, igual o superior a −100%.');
@@ -173,18 +173,19 @@
             drawdowns.push(dd); maxDrawdown = Math.max(maxDrawdown, -dd * 100); squares += (dd * 100) ** 2;
         }
         if (inDrawdown) openRecovery = (prepared.times.at(-1) - prepared.times[peakIndex]) / DAY;
-        const worst = windows => {
-            let minimum = Infinity;
-            windows.forEach((start, end) => {
-                if (start < 0) return;
-                const value = (path[end] / path[start]) ** (365.25 * DAY / (prepared.times[end] - prepared.times[start])) - 1;
-                minimum = Math.min(minimum, value * 100);
+        const rollingStats = windows => {
+            let minimum=Infinity,total=0,count=0;
+            windows.forEach((start,end)=>{
+                if(start<0)return;
+                const value=((path[end]/path[start])**(365.25*DAY/(prepared.times[end]-prepared.times[start]))-1)*100;
+                minimum=Math.min(minimum,value);total+=value;count++;
             });
-            return minimum === Infinity ? NaN : minimum;
+            return {worst:count?minimum:NaN,mean:count?total/count:NaN,count};
         };
-        const worst3 = worst(prepared.windows3), worst5 = worst(prepared.windows5), ulcer = Math.sqrt(squares / path.length);
+        const rolling3=rollingStats(prepared.windows3),rolling5=rollingStats(prepared.windows5);
+        const worst3=rolling3.worst,worst5=rolling5.worst,mean3=rolling3.mean,mean5=rolling5.mean,ulcer=Math.sqrt(squares/path.length);
         return { maxDrawdown, maxRecovery, openRecovery, recoveryDays: Math.max(maxRecovery, openRecovery),
-            worst3, worst5, worst: Math.min(worst3, worst5), ulcer,
+            worst3, worst5, mean3, mean5, rolling3Count:rolling3.count, rolling5Count:rolling5.count, worst: Math.min(worst3, worst5), ulcer,
             sharpe: finance.sharpe(returns, prepared.frequency, config.riskFree / 100),
             ...(keepPath ? { path, drawdowns } : {}) };
     }
@@ -204,14 +205,14 @@
         const random = randomSource(config.seed), best = [], nearest = [], fastNear = [], cloud = [], blockers = {};
         let passed = 0, valid = 0, evaluated = 0, unique = 0;
         const seen = new Set();
-        const rank = (a, b) => Math.abs(a.score - b.score) > (config.objective==='rolling5'?1e-10:.001) ? b.score - a.score : (Number.isFinite(b.sharpe) ? b.sharpe : -Infinity) - (Number.isFinite(a.sharpe) ? a.sharpe : -Infinity);
+        const rank = (a, b) => Math.abs(a.score - b.score) > (['rolling5','meanRolling5'].includes(config.objective)?1e-10:.001) ? b.score - a.score : (Number.isFinite(b.sharpe) ? b.sharpe : -Infinity) - (Number.isFinite(a.sharpe) ? a.sharpe : -Infinity);
         const add = (list, point, compare, limit = 3) => { list.push(point); list.sort(compare); list.length = Math.min(limit, list.length); };
         const nearRank = (a, b) => distance(a.failures) - distance(b.failures) || a.failures.length - b.failures.length || rank(a, b);
         const evaluate = point => {
             const stats = history(prepared, point.weights, config);
             const historical = historicalFailures(stats, config);
             const failures = [...point.failures, ...historical];
-            const candidate = { ...point, ...stats, failures, objectiveReturn:config.objective==='rolling5'?stats.worst5:stats.worst,score:config.objective==='rolling5'?stats.worst5:stats.worst - config.ulcerPenalty * stats.ulcer };
+            const candidate = { ...point, ...stats, failures, objectiveReturn:config.objective==='meanRolling5'?stats.mean5:config.objective==='rolling5'?stats.worst5:stats.worst,score:config.objective==='meanRolling5'?stats.mean5:config.objective==='rolling5'?stats.worst5:stats.worst - config.ulcerPenalty * stats.ulcer };
             evaluated++;
             historical.forEach(failure => { blockers[failure.name] = (blockers[failure.name] || 0) + 1; });
             cloud.push({ dd: stats.maxDrawdown, worst: candidate.objectiveReturn, valid: !failures.length });

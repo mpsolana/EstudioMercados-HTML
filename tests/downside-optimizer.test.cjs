@@ -171,3 +171,24 @@ test('common date defaults use actual shared observations, not just overlapping 
     assert.equal(range.count,assets[1].data.length);
     assert.deepEqual(Core.commonRange([]),{start:'',end:'',count:0});
 });
+
+
+test('rolling means average annualized windows and remain distinct from the worst period', () => {
+    const dates=Array.from({length:8},(_,i)=>String(2010+i)+'-01-01');
+    const prepared={assets:[{isin:'A'}],dates,times:dates.map(date=>+new Date(date)),returns:{A:[.1,.1,.1,.1,.1,0,-.1]},windows3:Array(8).fill(-1),windows5:[-1,-1,-1,-1,-1,0,1,2],frequency:'M'};
+    const result=Core.history(prepared,[1],config);
+    const expected=[.1,(1.1**4)**.2-1,(1.1**3*.9)**.2-1].reduce((a,b)=>a+b,0)/3*100;
+    assert.equal(result.rolling5Count,3);
+    assert(Math.abs(result.mean5-expected)<.005);
+    assert(result.mean5>result.worst5);
+});
+
+test('mean rolling objective ranks by mean while preserving the worst rolling floor', async () => {
+    const result=await Core.optimize(fixture(),{...config,objective:'meanRolling5',ulcerPenalty:NaN,minRolling5:0});
+    assert(result.valid>0);
+    for(const point of result.choices){assert.equal(point.score,point.mean5);assert.equal(point.objectiveReturn,point.mean5);assert(point.worst5>=0);}
+    assert(result.choices[0].mean5>=result.choices.at(-1).mean5-1e-10);
+    const impossible=await Core.optimize(fixture(),{...config,objective:'meanRolling5',minRolling5:100});
+    assert.equal(impossible.valid,0);
+    assert(impossible.choices.every(point=>point.failures.some(failure=>failure.name==='Retorno rolling mínimo a 5 años')));
+});
