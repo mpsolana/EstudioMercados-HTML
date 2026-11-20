@@ -218,7 +218,7 @@
     const numField = (name, label, attributes = '') => `<label class="block text-sm font-semibold">${label}<input name="${name}" type="number" step="any" class="${inputStyle}" ${attributes}></label>`;
     const area = (name, label, hint) => `<label class="block text-sm font-semibold mt-3">${label}<span class="block text-xs text-slate-500 font-normal mt-1">${hint}</span><textarea name="${name}" rows="3" spellcheck="false" class="${inputStyle} font-mono"></textarea></label>`;
     const fields = ['cutoff', 'end', 'accountRows', 'fiscalMode', 'incomeReservePct', 'gainsTaxPct', 'saleCostsPct',
-        'convexity', 'netYieldPct', 'annualCostsPct', 'carryTaxPct', 'governmentPct', 'igPct', 'hyPct', 'igSpreadDuration', 'hySpreadDuration', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
+        'convexity', 'netYieldPct', 'annualCostsPct', 'carryTaxPct', 'governmentPct', 'igPct', 'hyPct', 'igSpreadDuration', 'hySpreadDuration', 'value', 'rf', 'duration', 'ytm', 'goal', 'alternatives', 'shock', 'spreadDuration', 'spreadShock', 'paymentRows', 'bondRows', 'assetRows', 'scenarioRows'];
     const summaryCard = (title, value) => `<div class="mandate-kpi"><div class="mandate-kpi-label">${title}</div><div class="mandate-kpi-value">${value}</div></div>`;
     const table = (headers, rows, style = '') => rows.length ? `<div class="overflow-x-auto"><table class="mandate-table ${style}"><thead><tr>${headers.map(h => `<th scope="col" class="px-3 py-2">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows.map(row => `<tr>${row.map(cell => `<td class="px-3 py-2">${safe(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-slate-500">Sin datos para mostrar.</p>';
 
@@ -503,14 +503,18 @@
             });
         } catch (error) { macroError = error.message; }
         const rfValue = value > 0 && rf >= 0 && rf <= 1 ? value * rf : NaN;
-        const rateScenario = bp => Number.isFinite(rfValue) && duration >= 0 && duration <= 100 && Number.isFinite(bp)
-            ? rateSensitivity.scenario({ amount: value, rfWeightPct: rf * 100, duration, changeBps: bp })
-            : null;
+        const spreadDuration = numeric(state.spreadDuration);
+        const hasSpread = Number.isFinite(spreadDuration) && spreadDuration >= 0 && spreadDuration <= 100;
+        const spreadShock = hasSpread ? numeric(state.spreadShock) : 0;
+        if(Number.isFinite(spreadDuration)&&!hasSpread)errors.push('Spread duration RF: introduce un valor entre 0 y 100 años.');
+        if(hasSpread&&(!Number.isFinite(spreadShock)||Math.abs(spreadShock)>2000))errors.push('Spread de referencia: introduce un shock entre −2000 y +2000 pb, o 0 para aislar tipos.');
+        const rateScenario = bp => Number.isFinite(rfValue) && value > 0 && duration >= 0 && duration <= 100 && Number.isFinite(bp) && Math.abs(bp)<=2000 && Number.isFinite(spreadShock) && Math.abs(spreadShock)<=2000
+            ? rateSensitivity.combinedScenario({amount:value,rfWeightPct:rf*100,rateDuration:duration,spreadDuration,rateBps:bp,spreadBps:spreadShock}) : null;
         const sensitivity = [-200, -100, -50, -25, 0, 25, 50, 100, 200].map(bp => {
-            const result = rateScenario(bp);
-            const change = result?.change ?? NaN;
-            return { bp, change, rfPct: (result?.rfReturn ?? NaN) * 100, portfolioPct: (result?.portfolioReturn ?? NaN) * 100,
-                value: result?.portfolioValue ?? NaN, coverage: cutoff && goal > 0 ? (base + change) / goal * 100 : NaN };
+            const result = rateScenario(bp),change=result?.change??NaN;
+            return {bp,change,ratePct:(result?.rates??NaN)*100,creditPct:(result?.credit??NaN)*100,
+                rfPct:(result?.rfReturn??NaN)*100,portfolioPct:(result?.portfolioReturn??NaN)*100,
+                value:result?.portfolioValue??NaN,coverage:cutoff&&goal>0?(base+change)/goal*100:NaN};
         });
 
         const assets = parseRows(state.assetRows, 'Activos', 8, ([key, name, units, price, ccy, fx, cost, sale]) => {
@@ -584,7 +588,7 @@
         });
         return { cutoff, end, validHorizon, fiscal, grossBase, possibleOutcome, selectedOutcome, projectedOutcome,
             netYield, macroRows, macroError, breakeven, actual, paymentAssets: projection.assets, hasYearData, errors, coupons, dividends, calendar, overdue, pendingCoupons, pendingDividends, base, bonds, snapshot, snapshotTotal, activeSnapshot, changed, proceeds, projectedSelected, projectedProceeds,
-            value, rf, rfValue, duration, ytm, goal, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()].map(asset => ({ ...asset,
+            value, rf, rfValue, duration, ytm, goal, hasSpread, spreadDuration, spreadShock, shockImpact: rateScenario(shock)?.change ?? NaN, sensitivity, possible, selected, assets: [...prices.values()].map(asset => ({ ...asset,
                 gain: gain(asset) })).sort((a, b) => b.gain - a.gain), scenarios };
     }
 
@@ -757,12 +761,14 @@
         const notes = [
             ['cutoff', 'Fecha de corte', 'Último día que consideras realizado. Déjalo vacío para tomar la fecha más reciente de los extractos. Los cobros hasta ese día son reales; los posteriores se estiman.'],
             ['end', 'Fecha final de proyección', 'Último día que quieres incluir en el presupuesto. Empieza en el 31 de diciembre del año de corte. Cámbialo si el mandato termina en otra fecha. La matriz macro utiliza siempre 12 meses desde el corte.'],
-            ['value', 'Valor de cartera', 'Valor total de mercado en EUR, incluyendo todas las clases de activos del análisis. Vacío toma el importe del simulador superior y, si falta, la suma del contravalor EUR del Excel de posiciones.'],
-            ['rf', 'Peso de renta fija', 'Porcentaje del valor total invertido en RF, incluidos los fondos de bonos que hayas clasificado como RF. Escribe 90 para un 90%. Vacío reutiliza el simulador superior.'],
-            ['duration', 'Duración modificada de RF', 'Sensibilidad ponderada de la manga RF a tipos, en años. Introduce el dato de la ficha o del análisis de cartera, por ejemplo 3,2. Vacío reutiliza el simulador; la fecha de vencimiento de un bono no equivale a su duración.'],
-            ['ytm', 'TIR ponderada de RF', 'Rendimiento a vencimiento de la manga RF, ponderado por valor de mercado. Escribe 3,8 para 3,8%. Vacío reutiliza la YTM del simulador. Completa este campo si quieres estimar la TIR neta a partir de costes y fiscalidad.'],
+            ['value', 'Valor de cartera', 'Valor total de mercado en EUR, incluyendo todas las clases de activos del análisis. Vacío toma la suma del contravalor EUR del Excel de posiciones vigente. Se comparte con todos los gráficos de esta sección.'],
+            ['rf', 'Peso de renta fija', 'Porcentaje del valor total invertido en RF, incluidos los fondos de bonos que hayas clasificado como RF. Escribe 90 para un 90%. Se comparte con la sensibilidad, el stress macro y el análisis del objetivo.'],
+            ['duration', 'Duración modificada de RF', 'Sensibilidad ponderada de la manga RF a tipos, en años. Introduce el dato de la ficha o del análisis de cartera, por ejemplo 3,2. Se comparte con los escenarios. La fecha de vencimiento de un bono no equivale a su duración.'],
+            ['ytm', 'TIR ponderada de RF', 'Rendimiento a vencimiento de la manga RF, ponderado por valor de mercado. Escribe 3,8 para 3,8%. Es el mismo dato para todos los escenarios. Completa este campo si quieres estimar la TIR neta a partir de costes y fiscalidad.'],
             ['goal', 'Objetivo anual', 'Ingreso o resultado que quieres conseguir en EUR, por ejemplo 200000. Usa la misma base fiscal que selecciones debajo. Si lo dejas vacío, se muestran importes pero no porcentajes de cumplimiento.'],
-            ['shock', 'Cambio de tipos de referencia', 'Movimiento que quieres simular, en puntos básicos. +100 significa una subida de 1 punto porcentual; −25, una bajada de 0,25 puntos. Vacío usa el shock del simulador superior.'],
+            ['shock', 'Cambio de tipos de referencia', 'Movimiento que quieres simular, en puntos básicos. +100 significa una subida de 1 punto porcentual; −25, una bajada de 0,25 puntos. Se aplica al desglose de contribuciones y al impacto de referencia.'],
+            ['spreadDuration', 'Spread duration RF', 'Sensibilidad de la manga RF a los diferenciales de crédito, ponderada sobre toda la RF. Introduce el dato del proveedor en años. Si solo tienes la duración del tramo corporativo, multiplícala por su peso dentro de RF. Vacío excluye el riesgo de spread y oculta sus columnas y gráficos; no se sustituye por duración de tipos.'],
+            ['spreadShock', 'Cambio de spreads de referencia', 'Shock del diferencial de crédito, en puntos básicos. +50 amplía el spread en 0,50 puntos porcentuales; −25 lo estrecha. Con spread duration informada, el mismo shock se mantiene fijo en toda la tabla de sensibilidad a tipos. Usa 0 para aislar los tipos.'],
             ['alternatives', 'Otros objetivos', 'Presupuestos adicionales en EUR, separados por punto y coma, por ejemplo 100000;150000;200000. Es opcional y solo añade comparaciones al gráfico de objetivos.'],
             ['fiscalMode', 'Base del objetivo', 'Selecciona Después de reserva fiscal y costes si el objetivo debe medirse como resultado disponible tras esos ajustes. La otra opción conserva los cobros netos de las retenciones ya practicadas, sin una reserva adicional.'],
             ['incomeReservePct', 'Reserva adicional sobre cobros netos', 'Porcentaje adicional que apartarás de los cobros que muestra el panel para cubrir impuestos pendientes. Usa la estimación efectiva del cliente. Introduce 0 si no queda impuesto adicional por reservar; no repitas aquí retenciones que ya se descontaron. Es obligatorio al activar la base después de impuestos.'],
@@ -800,22 +806,22 @@
         const definitions = [
             ['initialRateAudience', 'Vista', 'Cliente muestra el resumen. Analista añade los controles avanzados y la comparación con una cartera ajustada.'],
             ['initialRateMode', 'Modo', 'RF agregada usa las métricas ponderadas que introduzcas. Posición por posición permite cargar los instrumentos de origen y revisar sus duraciones y YTM antes de calcular la media.'],
-            ['initialRateAmount', 'Importe total de cartera', 'Valor de mercado de toda la cartera en la divisa seleccionada en el análisis. Introduce el patrimonio que quieres someter al shock.'],
+            ['initialRateAmount', 'Importe total de cartera', 'Valor de mercado de toda la cartera en EUR, la moneda de este informe. Introduce el patrimonio que quieres someter al shock.'],
             ['initialRateRfAmount', 'Valor de renta fija', 'Importe de la manga RF. En modo agregado puedes introducirlo directamente y se recalcula el peso. También se actualiza al cambiar el patrimonio total o el porcentaje RF.'],
             ['initialRateWeight', 'Peso de renta fija', 'Porcentaje de RF sobre el total, por ejemplo 90 para 90%. En modo agregado calcula el valor RF; en modo por posiciones se obtiene de los instrumentos cargados.'],
             ['initialRateDuration', 'Duración modificada de RF', 'Sensibilidad ponderada a tipos, en años, de la manga RF. Usa la métrica de la ficha o del proveedor, por ejemplo 3,2. En modo por posiciones se calcula con las duraciones introducidas en la tabla.'],
             ['initialSpreadDuration', 'Spread duration', 'Sensibilidad ponderada de la manga RF al diferencial de crédito. Rellena el dato del proveedor para activar shocks de spreads. Vacío permite los escenarios de tipos sin crédito; no equivale automáticamente a la duración de tipos.'],
             ['initialRateShock', 'Shock de tipos', 'Cambio paralelo de tipos, en puntos básicos, para el escenario personalizado. +100 representa +1 punto porcentual; −25 representa −0,25 puntos. Escribe 0 para mantener los tipos constantes.'],
             ['initialSpreadShock', 'Shock de spreads', 'Cambio del diferencial de crédito, en puntos básicos. Positivo significa ampliación; negativo, estrechamiento. Escribe 0 para estudiar únicamente los tipos. Un shock distinto de 0 requiere spread duration.'],
-            ['initialRateYtm', 'YTM anual', 'TIR anual a vencimiento de RF ponderada por su valor. Introduce 3,8 para 3,8%. Se utiliza si activas el carry y se comparte con el informe inferior.'],
-            ['initialRateHorizon', 'Horizonte', 'Meses para la estimación de carry del simulador superior, por ejemplo 12. Se utiliza cuando marcas Incluir carry/TIR. La matriz macro inferior siempre trabaja a 12 meses.'],
+            ['initialRateYtm', 'YTM anual', 'TIR anual a vencimiento de RF ponderada por su valor. Introduce 3,8 para 3,8%. Se utiliza si activas el carry y se comparte con el informe y el análisis macro.'],
+            ['initialRateHorizon', 'Horizonte', 'Meses para la estimación de carry del escenario de referencia, por ejemplo 12. Se utiliza cuando marcas Incluir carry/TIR. El stress macro siempre trabaja a 12 meses.'],
             ['initialRateCarry', 'Incluir carry/TIR', 'Márcalo para sumar YTM anual × meses/12 al cambio de precio. Déjalo sin marcar para observar solo la sensibilidad instantánea. Esta aproximación no es el calendario efectivo de cupones.'],
             ['initialRateAdjustedWeight', 'RF propuesta', 'Porcentaje de RF de la cartera alternativa que quieras comparar bajo el mismo shock. Rellénalo solo al estudiar una propuesta.'],
             ['initialRateAdjustedDuration', 'Duración propuesta', 'Duración de tipos ponderada de la RF propuesta, en años. Úsala junto con el peso propuesto para comparar ambas carteras.'],
             ['initialRateAdjustedSpread', 'Spread duration propuesta', 'Sensibilidad al crédito de la RF propuesta, en años. Rellénala para comparar la alternativa con el shock de crédito seleccionado.'],
             ['initialRateAdjustedYtm', 'YTM propuesta', 'TIR anual ponderada de la RF propuesta, en porcentaje. Rellénala si incluyes carry para que la comparación utilice el rendimiento de esa propuesta.']
         ];
-        attachFieldNotes(root, definitions.map(([id, title, explanation]) => ['#' + id, title, explanation]));
+        attachFieldNotes(root, definitions.filter(([id])=>!['initialRateAudience','initialRateAmount','initialRateWeight','initialRateDuration','initialSpreadDuration','initialRateShock','initialSpreadShock','initialRateYtm'].includes(id)).map(([id, title, explanation]) => ['#' + id, title, explanation]));
     }
 
     function mount(root, rateInputs) {
@@ -842,9 +848,11 @@
                         ${numField('ytm', 'TIR ponderada RF (%)')}
                         ${numField('goal', 'Objetivo anual (€)', 'min="0"')}
                         ${numField('shock', 'Cambio de tipos de referencia (pb)')}
+                        ${numField('spreadDuration', 'Spread duration RF (años)', 'min="0" max="100"')}
+                        ${numField('spreadShock', 'Cambio de spreads de referencia (pb)')}
                         <label class="block text-sm font-semibold">Otros objetivos (€)<input name="alternatives" class="${inputStyle}" placeholder="100000; 150000"></label>
                     </div>
-                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma la más reciente de los extractos. La proyección parte de los cobros del año del corte y añade los pagos hasta la fecha final, que comienza en el 31 de diciembre. Los campos de sensibilidad vacíos siguen al simulador. Si falta el valor de cartera, se usa el contravalor total de la posición vigente.</p>
+                    <p class="mt-2 text-xs text-slate-600">La fecha de corte toma la más reciente de los extractos. La proyección parte de los cobros del año del corte y añade los pagos hasta la fecha final, que comienza en el 31 de diciembre. Todos los importes de este informe están en EUR. Los parámetros de RF se comparten con todos los resultados. Si falta el valor de cartera, se usa el contravalor total de la posición vigente.</p>
                     <details class="mt-4 border-t border-slate-200 pt-3">
                         <summary class="font-semibold cursor-pointer">Carga masiva de pagos, bonos y escenarios</summary>
                         <p class="mt-2 text-sm text-slate-600">Usa esta carga para añadir o corregir registros que no estén en los extractos. Pega filas de Excel sin encabezados o escribe una fila por línea, separando las columnas con punto y coma. Fechas AAAA-MM-DD o DD/MM/AAAA. Importes sin separadores de miles.</p>
@@ -902,6 +910,15 @@
             </section>
             <div data-dashboard class="space-y-4"></div><details data-payment-details open class="${cardStyle}"><summary class="font-bold cursor-pointer">Ajustes de pagos y bonos por activo</summary><div data-payment-editor class="mt-3"></div></details>`;
 
+        const shared = {value:'initialRateAmount',rf:'initialRateWeight',duration:'initialRateDuration',ytm:'initialRateYtm',shock:'initialRateShock',spreadDuration:'initialSpreadDuration',spreadShock:'initialSpreadShock'};
+        const ratesPanel = root.closest('#workspaceInitialRates');
+        if(ratesPanel)for(const [name,id] of Object.entries(shared)){
+            const source=ratesPanel.querySelector('#'+id), destination=root.querySelector(`[name="${name}"]`);
+            if(!source||!destination)continue;
+            const oldLabel=source.closest('label');
+            source.name=name;source.className=destination.className;
+            destination.replaceWith(source);oldLabel.remove();
+        }
         const form = root.querySelector('form');
         const input = name => form.elements.namedItem(name);
         const dashboard = root.querySelector('[data-dashboard]');
@@ -931,6 +948,16 @@
                 if (!state[name]) state[name] = value;
             }
             model = calculate({ ...state, rules, sales, saleAssumptions }, sources);
+            if(ratesPanel)ratesPanel.mandateModel=model;
+            if(ratesPanel){
+                for(const [name,value] of Object.entries({value:model.value,rf:model.rf*100,duration:model.duration,ytm:model.ytm,shock:numeric(state.shock),spreadDuration:numeric(state.spreadDuration),spreadShock:numeric(state.spreadShock)})){
+                    const field=input(name);field.dataset.effective=Number.isFinite(value)?String(value):'';
+                    if(!field.value)field.placeholder=Number.isFinite(value)?String(value):'Sin dato';
+                }
+                const amountField=ratesPanel.querySelector('#initialRateRfAmount');
+                if(amountField)amountField.value=Number.isFinite(model.rfValue)?String(model.rfValue):'';
+                renderInitialRateSensitivity();
+            }
             if (automaticEnd && model.cutoff) input('end').value = model.end;
             editor.update(model.paymentAssets);
             root.querySelector('[data-errors]').textContent = model.errors.length ? 'Revisa estas filas: ' + model.errors.join(' · ') : '';
@@ -998,6 +1025,16 @@
         form.addEventListener('submit', event => event.preventDefault());
         form.addEventListener('input', event => {
             if (event.target === input('end')) automaticEnd = !event.target.value;
+            if(event.target.matches('[data-rate-position]')){
+                const row=initialRatePositions[Number(event.target.dataset.ratePosition)];
+                if(row){row[event.target.dataset.rateField]=event.target.value.trim()===''?NaN:Number(event.target.value);row.source='Manual (sesión)';}
+                updateInitialRatePositionMetrics();
+            }
+            if(event.target.id==='initialRateAmount'&&ratesPanel?.querySelector('#initialRateMode').value==='positions')updateInitialRatePositionMetrics();
+            if(event.target.id==='initialRateRfAmount'){
+                const amount=numeric(input('value').value||input('value').dataset.effective);
+                input('rf').value=amount>0&&event.target.value!==''?String(Number(event.target.value)/amount*100):'';
+            }
             render();
         });
         root.querySelector('[data-extract]').addEventListener('change', async event => {
@@ -1162,7 +1199,7 @@
                 m.macroRows.map(row => [row.name, [row.rateBps, row.igBps, row.hyBps].join(' / '),
                     contribution(row.rates), contribution(row.convexityReturn), contribution(row.igCredit), contribution(row.hyCredit),
                     contribution(row.carry), contribution(row.rfReturn), contribution(row.portfolioReturn), money(row.change)]))}
-            ${m.macroRows.length ? '<div data-macro-chart class="h-80 mt-4"></div>' : ''}
+            ${m.macroRows.length ? '<div id="initialMacroRateChart" data-macro-chart class="h-80 mt-4"></div>' : ''}
             ${explanation ? `<p class="mandate-forecast text-sm mt-4">${safe(explanation)}</p>` : ''}
             <h4 class="font-bold text-lg mt-5 mb-2">Punto de equilibrio · breakeven de tipos</h4>
             <p class="text-sm text-slate-700">${safe(breakevenText)}</p>
@@ -1190,6 +1227,8 @@
         const muted = text => `<p class="text-sm text-slate-600 mb-3">${text}</p>`;
         const cards = items => `<div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">${items.map(([label, value]) => summaryCard(label, value)).join('')}</div>`;
         const section = html => `<section class="${cardStyle}">${html}</section>`;
+        const visuals=target.parentElement.querySelector('.rate-results-section');
+        if(visuals)target.before(visuals);
         const goalList = [...new Set([m.goal, ...String(alternatives).split(';').map(numeric)].filter(goal => goal > 0))];
         const warnings = [];
         if (m.snapshot && !m.activeSnapshot) warnings.push(`La posición del ${shortDate(m.snapshot.date)} es posterior al corte y queda fuera del análisis.`);
@@ -1248,13 +1287,13 @@
                     bond.name, shortDate(bond.maturity), quarter(bond.maturity), money(bond.nominal), couponPct(bond.coupon), pct(bond.ytm), bond.group
                 ]))),
             section(header('Sensibilidad a tipos') +
-                muted('Variación instantánea = −valor de renta fija × duración modificada × cambio de tipos. La línea muestra (ingreso previsto + variación de valoración) / objetivo.') +
+                muted(`Impacto instantáneo = −valor RF × (duración de tipos × cambio de tipos${m.hasSpread?' + spread duration × cambio de spreads':''}). ${m.hasSpread?`El shock de crédito se mantiene en ${signedBp(m.spreadShock)} en todas las columnas de tipos.`:'Introduce spread duration para incluir el riesgo de crédito.'} Sin carry ni convexidad. La línea muestra (ingresos previstos + valoración) / objetivo, no efectivo disponible.`) +
                 cards([['Renta fija', money(m.rfValue)], ['Duración modificada RF', Number.isFinite(m.duration) && m.duration >= 0 ? num(m.duration) + ' años' : '—'],
-                    ['TIR ponderada RF', pct(m.ytm)], ['Impacto del cambio de referencia', money(m.shockImpact)]]) +
-                (m.sensitivity.some(row => Number.isFinite(row.change)) ? '<div data-sensitivity class="h-80"></div>' : '') +
-                table(['Cambio', 'RF', 'Impacto EUR', 'Cartera', 'Valor estimado', 'Objetivo incl. valoración'], m.sensitivity.map(row => [
-                    signedBp(row.bp), pct(row.rfPct), money(row.change), pct(row.portfolioPct), money(row.value),
-                    forecast ? pct(row.coverage) : '—'
+                    ...(m.hasSpread ? [['Spread duration RF', num(m.spreadDuration)+' años']] : [['TIR ponderada RF', pct(m.ytm)]]), ['Impacto del cambio de referencia', money(m.shockImpact)]]) +
+                (m.sensitivity.some(row => Number.isFinite(row.change)) ? '<div id="initialIntegratedRateChart" data-sensitivity class="h-80"></div>' : '') +
+                table(['Tipos', 'Tipos RF', ...(m.hasSpread?['Crédito RF','Total RF']:[]), 'Impacto EUR', 'Cartera', 'Valor estimado', ...(forecast&&m.goal>0?['Objetivo incl. valoración']:[])], m.sensitivity.map(row => [
+                    signedBp(row.bp), pct(row.ratePct), ...(m.hasSpread?[pct(row.creditPct),pct(row.rfPct)]:[]), money(row.change), pct(row.portfolioPct), money(row.value),
+                    ...(forecast&&m.goal>0?[pct(row.coverage)]:[])
                 ]))),
             macroReport(m),
             section(header('Plusvalías latentes y simulación de ventas') +
@@ -1288,14 +1327,20 @@
                 (m.scenarios.length ? `<div class="mt-4">${table(['Escenario', 'Activo', 'Variación', 'Precio estimado', 'Plusvalía total potencial'],
                     m.scenarios.flatMap(row => row.details.map(detail => [row.name, detail.name, pct(detail.change * 100),
                         num(detail.price) + ' ' + detail.ccy, money(detail.gain)])))}</div>` : '') +
-                (m.assets.length && Number.isFinite(m.shockImpact) ? muted('Para combinar el cambio de tipos con las revalorizaciones, confirma que los activos simulados están fuera de la renta fija y que se mantiene la exposición RF.') : '') +
-                (m.assets.length && Number.isFinite(m.shockImpact) ? `<details class="mt-3"><summary class="cursor-pointer font-semibold text-sm">Escenario combinado con tipos (activos simulados fuera de RF)</summary>
+                (m.assets.length && Number.isFinite(m.shockImpact) ? muted('Para combinar el shock de renta fija con las revalorizaciones, confirma que los activos simulados están fuera de RF y que se mantiene su exposición.') : '') +
+                (m.assets.length && Number.isFinite(m.shockImpact) ? `<details class="mt-3"><summary class="cursor-pointer font-semibold text-sm">Escenario combinado de RF (activos simulados fuera de RF)</summary>
                     ${table(['Escenario', 'Variación RF', 'Variación retenida', 'Resultado total incl. valoración', '% objetivo'],
                         [{ name: 'Precios actuales', realized: m.selectedOutcome.net, retained: 0 }, { name: 'Hipótesis por activo', realized: m.projectedOutcome.net, retained: 0 }, ...m.scenarios].map(row => {
                             const outcome = base + row.realized + row.retained + m.shockImpact;
                             return [row.name, money(m.shockImpact), money(row.retained), money(outcome), coverage(outcome)];
                         }))}</details>` : ''))
         ].join('');
+        const sensitivitySection=[...target.children].find(node=>node.querySelector('h4')?.textContent==='Sensibilidad a tipos');
+        if(sensitivitySection){
+            sensitivitySection.dataset.rateSensitivityReport='';target.prepend(sensitivitySection);
+            if(visuals)sensitivitySection.after(visuals);
+            const macro=target.querySelector('[data-macro-report]');if(macro)(visuals||sensitivitySection).after(macro);
+        }
         plot(target, m, forecast);
     }
 
@@ -1310,8 +1355,9 @@
         if (!window.Plotly) return;
         const draw = (selector, traces, layout) => {
             const element = target.querySelector(selector);
-            if (element) window.Plotly.newPlot(element, traces, {
-                margin: { l: 65, r: 55, t: 42, b: 55 }, font: { color: '#334155', size: 12 },
+            if (element) window.Plotly.react(element, traces, {
+                paper_bgcolor:'#fff',plot_bgcolor:'#fff',colorway:['#153e62','#547b9b','#8ea6b9','#7b8792','#c5d2dc'],
+                height:380,margin: { l: 75, r: 65, t: 65, b: 75 }, font: { color: '#334155', size: 12 },
                 legend: { orientation: 'h', y: -0.25 }, ...layout
             }, { responsive: true, displayModeBar: false });
         };
@@ -1342,20 +1388,22 @@
             ], { title: 'TIR y cupón por plazo', xaxis: { title: 'Años hasta vencimiento' }, yaxis: { ticksuffix: '%' } });
         }
         const rows = m.sensitivity;
+        const lows=rows.map(row=>row.change).filter(Number.isFinite),low=Math.min(0,...lows),high=Math.max(0,...lows),pad=Math.max(1,(high-low)*.16);
         const x = rows.map(row => row.bp);
         const traces = [{
             type: 'bar', x, y: rows.map(row => row.change), name: 'Impacto RF',
-            marker: { color: rows.map(row => row.change < 0 ? '#b0444b' : '#20735b') }
+            marker: { color: rows.map(row => row.change < 0 ? '#7b8792' : '#245b83') },
+            text:rows.map(row=>money(row.change)),textposition:'outside',cliponaxis:false
         }];
         if (m.macroRows.length) {
             const names = m.macroRows.map(row => row.name);
             draw('[data-macro-chart]', [
-                ...[['rates', 'Tipos', '#b34b50'], ['convexityReturn', 'Convexidad', '#8aa2b4'],
-                    ['credit', 'Spreads', '#a67857'], ['carry', 'Carry neto', '#247354']].map(([field, name, color]) => ({
+                ...[['rates', 'Tipos', '#7b8792'], ['convexityReturn', 'Convexidad', '#bdccd8'],
+                    ['credit', 'Spreads', '#8ea6b9'], ['carry', 'Carry neto', '#245b83']].map(([field, name, color]) => ({
                         type: 'bar', name, x: names, y: m.macroRows.map(row => row[field] * 100), marker: { color },
                         hovertemplate: '%{x}<br>%{y:.2f}% RF<extra></extra>'
                     })),
-                { type: 'scatter', mode: 'markers', name: 'Total RF', x: names, y: m.macroRows.map(row => row.rfReturn * 100),
+                { type: 'scatter', mode: 'markers+text', text:m.macroRows.map(row=>pct(row.rfReturn*100)),textposition:'top center',cliponaxis:false, name: 'Total RF', x: names, y: m.macroRows.map(row => row.rfReturn * 100),
                     marker: { color: '#15344e', symbol: 'diamond', size: 10 },
                     hovertemplate: '%{x}<br>Total RF %{y:.2f}%<extra></extra>' }
             ], { title: 'Precio y carry neto · RF a 12 meses', barmode: 'relative',
@@ -1366,8 +1414,9 @@
             name: '% objetivo con valoración', yaxis: 'y2', line: { color: '#22578c' }
         });
         draw('[data-sensitivity]', traces, {
+            height:400,margin:{l:75,r:80,t:65,b:70},
             title: 'Impacto estimado en la cartera', xaxis: { title: 'Cambio paralelo (pb)', type: 'category', categoryorder: 'array', categoryarray: x },
-            yaxis: { ticksuffix: ' €' }, yaxis2: { overlaying: 'y', side: 'right', ticksuffix: '%', showgrid: false }
+            yaxis: { ticksuffix: ' €',range:[low-pad,high+pad] }, yaxis2: { overlaying: 'y', side: 'right', ticksuffix: '%', showgrid: false }
         });
     }
 
@@ -1379,26 +1428,59 @@
         panel.id = 'workspacePortfolioMandate';
         panel.className = 'mt-6';
         panel.addEventListener('input', event => event.stopPropagation());
-        explainSimulatorFields(ratesPanel);
         ratesPanel.append(panel);
         mount(panel, () => ({
-            value: (typeof portfolioCalculationSettings !== 'function' || portfolioCalculationSettings().currency === 'EUR')
-                ? ratesPanel.querySelector('#initialRateAmount').value : '',
+            value: ratesPanel.querySelector('#initialRateAmount').value,
             rf: ratesPanel.querySelector('#initialRateWeight').value,
             duration: ratesPanel.querySelector('#initialRateDuration').value,
             ytm: ratesPanel.querySelector('#initialRateYtm').value,
             shock: ratesPanel.querySelector('#initialRateShock').value
         }));
 
-        const jump = document.createElement('button');
-        jump.type = 'button';
-        jump.className = `${buttonStyle} mt-2`;
-        jump.textContent = 'Ir a ingresos, vencimientos y plusvalías';
-        jump.addEventListener('click', () => {
-            panel.querySelector('h3').focus({ preventScroll: true });
-            panel.scrollIntoView({ block: 'start' });
-        });
-        ratesPanel.querySelector('h3').after(jump);
+        explainSimulatorFields(ratesPanel);
+        ratesPanel.querySelector('.rate-simple')?.remove();
+        ratesPanel.querySelector('#initialRateScenarioChart')?.remove();
+        ratesPanel.querySelector('.initial-rate-table')?.closest('.proposal-chart-scroll')?.remove();
+        const form=panel.querySelector('form');
+        const settings=[...ratesPanel.children].filter(node=>node.matches('.workspace-settings,#initialRatePositionSection,.rate-advanced,.mandate-field-notes'));
+        for(const node of settings)form.append(node);
+        const mainGrid=form.querySelector('.grid');
+        for(const id of ['initialRateRfAmount','initialRateHorizon','initialRateCarry']){
+            const label=ratesPanel.querySelector('#'+id)?.closest('label');if(label)mainGrid.append(label);
+        }
+        const modeSettings=ratesPanel.querySelector('#initialRateMode')?.closest('.workspace-settings');
+        if(modeSettings)form.prepend(modeSettings);
+        for(const node of settings.filter(node=>node.matches('.workspace-settings')))if(!node.children.length)node.remove();
+        const comparison=form.querySelector('.rate-advanced');
+        if(comparison){
+            const details=document.createElement('details'),summary=document.createElement('summary');
+            summary.textContent='Comparar una cartera ajustada (opcional)';details.className='rate-config-comparison';
+            comparison.querySelector('h4')?.remove();comparison.replaceWith(details);details.append(summary,comparison);
+        }
+
+        const audience=ratesPanel.querySelector('#initialRateAudience');if(audience){audience.value='analyst';audience.closest('label').hidden=true;}
+        ratesPanel.dataset.rateAudience='analyst';
+        const executive=ratesPanel.querySelector('#initialRateExecutive');
+        const grid=ratesPanel.querySelector('.rate-visual-grid');
+        for(const node of [...grid.children]){
+            const card=document.createElement('section');card.className='rate-chart-card';
+            const note=document.createElement('p');note.className='workspace-context';
+            note.textContent=node.id==='initialCombinedHeat'?'Cada celda muestra el impacto sobre la cartera para una combinación de duraciones, bajo los shocks de referencia. Sin carry ni convexidad.':node.id==='initialRateWaterfall'?'Desglose del escenario de referencia. El carry solo se incluye cuando se activa en los parámetros.':'Comparación de shocks de ±25 y ±50 pb sobre la cartera. El resto de riesgos se mantiene constante.';
+            node.replaceWith(card);card.append(node,note);
+        }
+        const heading=document.createElement('h4');heading.textContent='Desglose de riesgos y contribuciones';
+        const visuals=document.createElement('section');visuals.className='rate-results-section';visuals.append(heading,grid);
+        panel.querySelector('[data-dashboard]').before(visuals);
+        const paymentDetails=panel.querySelector('[data-payment-details]');
+        panel.firstElementChild.after(paymentDetails);
+        if(executive)visuals.prepend(executive);
+        const tools=ratesPanel.querySelector('.workspace-tools');if(tools)visuals.prepend(tools);
+        const method=ratesPanel.querySelector('#initialRateMethod');if(method)visuals.append(method);
+        const rateStatus=ratesPanel.querySelector('#initialRateStatus');if(rateStatus)visuals.prepend(rateStatus);
+        ratesPanel.querySelector('h3').textContent='Sensibilidad, ingresos y escenarios de cartera';
+        ratesPanel.querySelector('h3').after(panel);
+        panel.querySelector('.mandate-title').textContent='Parámetros y datos de la cartera';
+        renderInitialRateSensitivity();
     }
 
     if (typeof module !== 'undefined' && module.exports) module.exports = { readWorkbook, calculate };

@@ -37,3 +37,25 @@
 #workspaceInitialRates .mandate-note-ref:focus-visible { outline:2px solid #30678e; outline-offset:2px }
 #workspaceInitialRates .mandate-field-notes li:target { outline:1px solid #30678e; outline-offset:3px }
 @media(max-width:700px) { #workspaceInitialRates .mandate-field-notes ol { grid-template-columns:minmax(0,1fr) } }
+
+/* Integrated rates workspace: configuration first, then consistently sized result panels. */
+#workspaceInitialRates [hidden] { display:none!important }
+#workspaceInitialRates form { min-width:0 }
+#workspaceInitialRates .rate-results-section { margin:1.5rem 0;padding:1rem 0;border-top:1px solid #d5e0e9 }
+#workspaceInitialRates .rate-results-section>h4 { margin:.8rem 0 }
+#workspaceInitialRates .rate-visual-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start }
+#workspaceInitialRates .rate-chart-card { min-width:0;border-bottom:1px solid #d5e0e9;padding-bottom:12px;background:#fff }
+#workspaceInitialRates .rate-chart-card>div { min-width:0;width:100% }
+#workspaceInitialRates .rate-chart-card>p { font-size:12px;line-height:1.5;margin:8px 14px;color:#52687b }
+#workspaceInitialRates .mandate-report [data-dashboard]>section { min-width:0;padding:24px 0;border-top:1px solid #d5e0e9 }
+#workspaceInitialRates .mandate-report [data-dashboard] { display:grid;grid-template-columns:minmax(0,1fr);gap:8px }
+#workspaceInitialRates .mandate-report .overflow-x-auto,.initial-rates .proposal-chart-scroll { max-width:100%;overflow-x:auto }
+#workspaceInitialRates form>.workspace-settings { margin:18px 0;padding-top:12px;border-top:1px solid #d5e0e9 }
+#workspaceInitialRates form>[data-payment-details] { margin-top:18px }
+#workspaceInitialRates .mandate-report [data-macro-chart],#workspaceInitialRates .mandate-report [data-sensitivity] { min-width:0;width:100%;height:400px }
+@media(max-width:1100px){#workspaceInitialRates .rate-visual-grid { grid-template-columns:minmax(0,1fr) }}
+@media(max-width:600px){#workspaceInitialRates .mandate-report .mandate-title{font-size:1.25rem}#workspaceInitialRates .rate-visual-grid{gap:12px}}
+
+@media(max-width:600px){#workspaceInitialRates #initialCombinedHeat .annotation-text{font-size:9px!important}#workspaceInitialRates .rate-chart-card .gtitle{font-size:12px!important}}
+
+#workspaceInitialRates .rate-config-comparison{border-top:1px solid #d5e0e9;padding-top:12px;margin:16px 0}#workspaceInitialRates .rate-config-comparison>summary{font-weight:700;cursor:pointer;color:#183f62}

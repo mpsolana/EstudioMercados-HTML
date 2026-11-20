@@ -155,3 +155,22 @@ test('net carry uses explicit taxes and costs while a direct net yield takes pre
     assert.equal(calculate({ ...config, carryTaxPct: '' }, {}).macroRows.length, 0);
     assert.equal(result.base, 0);
 });
+
+
+test('principal sensitivity separates rate and spread duration and omits absent spread risk', () => {
+    const state={value:'350000',rf:'90',duration:'2.5',shock:'50'};
+    const simple=calculate(state,{});
+    assert.equal(simple.hasSpread,false);
+    assert.equal(simple.shockImpact,-3937.5);
+    const spread=calculate({...state,spreadDuration:'2.3',spreadShock:'50'},{});
+    assert.equal(spread.hasSpread,true);
+    assert(Math.abs(spread.shockImpact+7560)<1e-8);
+    const unchangedRates=spread.sensitivity.find(row=>row.bp===0);
+    assert.equal(Math.abs(unchangedRates.ratePct),0);
+    assert(Math.abs(unchangedRates.creditPct+1.15)<1e-10);
+    assert(Math.abs(unchangedRates.change+3622.5)<1e-8);
+    assert.equal(calculate({...state,spreadShock:'50'},{}).shockImpact,simple.shockImpact);
+    const invalid=calculate({...state,spreadDuration:'2.3',spreadShock:''},{});
+    assert(Number.isNaN(invalid.shockImpact));
+    assert(invalid.errors.some(error=>error.startsWith('Spread de referencia')));
+});
