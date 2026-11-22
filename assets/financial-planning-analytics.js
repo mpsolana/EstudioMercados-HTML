@@ -39,8 +39,17 @@
         let peak=values[0],drawdown=0;for(const value of values){peak=Math.max(peak,value);drawdown=Math.min(drawdown,value/peak-1);}
         return {total,cagr:(1+total)**(12/returns.length)-1,volatility:Math.sqrt(variance*12),drawdown,months:returns.length};
     }
+    function calibrate(snapshot,series,{pricesInBase=false,minimumMonths=24}={}){
+        if(!pricesInBase)return {reason:'Confirma que todos los precios están expresados en EUR.'};
+        const history=portfolio(snapshot,series);
+        if(history.reason)return {reason:history.reason};
+        if(history.returns.length<minimumMonths)return {reason:`Se necesitan ${minimumMonths} retornos mensuales consecutivos; hay ${history.returns.length}.`};
+        const result=metrics(history.values,history.returns);
+        if(!Number.isFinite(result.cagr)||!Number.isFinite(result.volatility)||result.cagr<=-1||result.cagr>.4||result.volatility>.6)return {reason:'Los históricos producen hipótesis fuera del rango admisible; revisa precios y divisas.'};
+        return {returnPct:result.cagr*100,riskPct:result.volatility*100,start:history.dates[0],end:history.dates.at(-1),months:history.returns.length,drawdown:result.drawdown};
+    }
     function allocation(snapshot){const groups=new Map();for(const row of snapshot||[]){const category=row.category||'Sin categoría';groups.set(category,(groups.get(category)||0)+Number(row.weight||0));}return [...groups].map(([category,weight])=>({category,weight}));}
-    const api={monthEnds,holdings,portfolio,periods,metrics,allocation};
+    const api={monthEnds,holdings,portfolio,periods,metrics,calibrate,allocation};
     if(typeof module==='object'&&module.exports)module.exports=api;
     else root.FinancialPlanningAnalytics=api;
 })(globalThis);

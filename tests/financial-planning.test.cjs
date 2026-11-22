@@ -142,3 +142,47 @@ test('rentabilidades rolling y probabilidad observada usan meses comunes consecu
     delete series.AAA[6];
     assert.equal(analytics.portfolio(snapshot,series).returns.length,17);
 });
+
+test('las hipótesis de la cartera salen del CAGR y volatilidad en EUR con cobertura explícita',()=>{
+    const snapshot=[{category:'RV',type:'RV',weight:100,funds:[{isin:'AAA',currency:'EUR'}]}];
+    const series={AAA:Array.from({length:37},(_,i)=>({date:new Date(Date.UTC(2022,i,28)).toISOString().slice(0,10),price:100*Math.exp(i*.005+Math.sin(i/3)*.01)}))};
+    const blocked=analytics.calibrate(snapshot,series,{pricesInBase:false});
+    assert.match(blocked.reason,/EUR/);
+    const result=analytics.calibrate(snapshot,series,{pricesInBase:true});
+    assert.equal(result.months,36);
+    assert.equal(result.start,'2022-01');
+    assert.ok(result.returnPct>0&&result.riskPct>0);
+    const short=analytics.calibrate(snapshot,{AAA:series.AAA.slice(0,13)},{pricesInBase:true});
+    assert.match(short.reason,/24 retornos/);
+});
+
+test('el plan rellena ambos periodos desde la cartera y respeta un ajuste manual',()=>{
+    const state={positionsDate:null,balanceDate:null,selected:''};
+    const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningAnalytics:analytics,window:{},Intl,Date,Map,Number,Math,JSON,Error,Promise});
+    const source=fs.readFileSync(path.join(__dirname,'../assets/financial-planning.js'),'utf8').replace('return {panel,afterRender,handleClick,handleChange,state:{plans}};','return {panel,afterRender,handleClick,handleChange,state:{plans},refreshAssumptions};');
+    vm.runInContext(source,context);const view=vm.runInContext('FinancialPlanning',context);
+    const plan={assumptionMode:'portfolio',pricesInBase:true,modelSnapshot:[{weight:100,category:'RV',funds:[{isin:'AAA'}]}],priceSeries:{AAA:Array.from({length:37},(_,i)=>({date:new Date(Date.UTC(2022,i,28)).toISOString().slice(0,10),price:100*Math.exp(i*.004+Math.sin(i/3)*.01)}))}};
+    view.refreshAssumptions(plan);
+    assert.equal(plan.returnPct,plan.retirementReturnPct);
+    assert.equal(plan.riskPct,plan.retirementRiskPct);
+    assert.ok(plan.returnPct>0);
+    plan.assumptionMode='manual';plan.returnPct=7;view.refreshAssumptions(plan);
+    assert.equal(plan.returnPct,7);
+});
+
+test('Yahoo convierte cotizaciones USD a EUR antes de calibrar la cartera',async()=>{
+    const status={textContent:''},state={positionsDate:null,balanceDate:null,selected:''},calls=[];
+    const metadata=new Map([['VTI',{name:'Índice prueba',currency:'USD'}]]);
+    const prices=async ticker=>{calls.push(ticker);return Array.from({length:37},(_,i)=>({date:new Date(Date.UTC(2022,i,28)),price:ticker==='EURUSD=X'?2:100*Math.exp(i*.004+Math.sin(i/3)*.01)}));};
+    const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,FinancialPlanningAnalytics:analytics,MarketData:{metadata,prices},window:{},document:{getElementById:()=>status},Intl,Date,Map,Number,Math,JSON,Error,Promise});
+    const source=fs.readFileSync(path.join(__dirname,'../assets/financial-planning.js'),'utf8').replace('return {panel,afterRender,handleClick,handleChange,state:{plans}};','return {panel,afterRender,handleClick,handleChange,state:{plans},applyYahoo};');
+    vm.runInContext(source,context);const view=vm.runInContext('FinancialPlanning',context);
+    view.handleClick({target:{closest:()=>({dataset:{planAction:'new-prospect'}})}},{accounts:[]},()=>{});
+    const plan=[...view.state.plans.values()][0];plan.yahooRows=[{id:'VTI',weight:100,category:'RV'}];
+    await view.applyYahoo(plan,()=>{});
+    assert.ok(calls.includes('EURUSD=X'));
+    assert.equal(plan.pricesInBase,true);
+    assert.equal(plan.priceSeries.VTI[0].price,50);
+    assert.equal(plan.modelSnapshot[0].funds[0].currency,'EUR');
+    assert.ok(plan.returnPct>0&&plan.riskPct>0);
+});
