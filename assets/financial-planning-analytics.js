@@ -49,7 +49,8 @@
         return {returnPct:result.cagr*100,riskPct:result.volatility*100,start:history.dates[0],end:history.dates.at(-1),months:history.returns.length,drawdown:result.drawdown};
     }
     function allocation(snapshot){const groups=new Map();for(const row of snapshot||[]){const category=row.category||'Sin categoría';groups.set(category,(groups.get(category)||0)+Number(row.weight||0));}return [...groups].map(([category,weight])=>({category,weight}));}
-    const api={monthEnds,holdings,portfolio,periods,metrics,calibrate,allocation};
+    function productAllocation(snapshot){const groups=new Map();for(const item of holdings(snapshot)){const key=item.id,prior=groups.get(key);if(prior)prior.weight+=item.weight*100;else groups.set(key,{category:item.name||key,id:key,weight:item.weight*100});}return [...groups.values()];}
+    const api={monthEnds,holdings,portfolio,periods,metrics,calibrate,allocation,productAllocation};
     if(typeof module==='object'&&module.exports)module.exports=api;
     else root.FinancialPlanningAnalytics=api;
 })(globalThis);

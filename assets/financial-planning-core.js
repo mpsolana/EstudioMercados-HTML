@@ -10,6 +10,11 @@
         if(!finite(plan.inflationPct)||plan.inflationPct<0||plan.inflationPct>20)errors.push('Inflación fuera de 0–20%.');
         for(const field of ['returnPct','retirementReturnPct'])if(!finite(plan[field])||plan[field]<=-100||plan[field]>40)errors.push(`${field}: rentabilidad neta esperada fuera de rango.`);
         for(const field of ['riskPct','retirementRiskPct'])if(!finite(plan[field])||plan[field]<0||plan[field]>60)errors.push(`${field}: volatilidad esperada fuera de rango.`);
+        if(plan.simulationModel==='bootstrap'){
+            if(plan.assumptionMode!=='portfolio')errors.push('La simulación histórica requiere hipótesis calculadas de la cartera.');
+            if(!Array.isArray(plan.historicalReturns)||plan.historicalReturns.length<24||plan.historicalReturns.some(value=>!finite(value)||value<=-1))errors.push('La simulación histórica requiere al menos 24 retornos mensuales válidos en EUR.');
+            if(plan.returnPct!==plan.retirementReturnPct||plan.riskPct!==plan.retirementRiskPct)errors.push('La simulación histórica usa la misma cartera antes y después de jubilarse. Para hipótesis distintas, elige el modelo lognormal.');
+        }
         const years=(plan.horizonAge||0)-(plan.age||0);
         if(!Array.isArray(plan.goals))errors.push('Lista de objetivos no válida.');
         else for(const [i,goal] of plan.goals.entries())if(!goal.name||!['contribution','withdrawal'].includes(goal.type)||!['monthly','annual','once'].includes(goal.frequency)||!finite(goal.amount)||goal.amount<=0||!Number.isInteger(goal.startYear)||goal.startYear<1||goal.startYear>years||!Number.isInteger(goal.endYear)||goal.endYear<goal.startYear||goal.endYear>years)errors.push(`Objetivo ${i+1}: revisa nombre, tipo, importe, frecuencia y años.`);
@@ -40,7 +45,7 @@
         let success=0,yearly=[];
         for(let path=0;path<=paths;path++){
             const baseline=path===paths;
-            let balance=plan.investableAssets,alive=true;
+            let balance=plan.investableAssets,alive=true,blockStart=0,blockOffset=12;
             const annual=[balance],annualAlive=[true];
             const annualFlows=baseline?Array.from({length:years},(_,index)=>({year:index+1,age:plan.age+index+1,opening:0,income:0,spending:0,goals:0,ending:0,shortfall:0})):null;
             for(let month=1;month<=months;month++){
@@ -48,8 +53,12 @@
                 const glide=Math.max(0,Math.min(1,(age-(plan.retirementAge-5))/5));
                 const expected=plan.returnPct+(plan.retirementReturnPct-plan.returnPct)*glide;
                 const risk=plan.riskPct+(plan.retirementRiskPct-plan.riskPct)*glide;
-                const params=monthlyParams(expected,risk);
-                const investment=baseline?(1+expected/100)**(1/12)-1:Math.exp(params.mu+params.sigma*normal(random))-1;
+                let investment;
+                if(baseline)investment=(1+expected/100)**(1/12)-1;
+                else if(plan.simulationModel==='bootstrap'){
+                    if(blockOffset>=12){blockStart=Math.floor(random()*plan.historicalReturns.length);blockOffset=0;}
+                    investment=plan.historicalReturns[(blockStart+blockOffset)%plan.historicalReturns.length];blockOffset++;
+                }else{const params=monthlyParams(expected,risk);investment=Math.exp(params.mu+params.sigma*normal(random))-1;}
                 const price=(1+inflation)**(month/12);
                 const income=((retired?plan.netPension:plan.netLaborIncome)+plan.netOtherIncome)*price/12;
                 const spending=plan.annualSpending*price/12;

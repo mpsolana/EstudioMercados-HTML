@@ -83,12 +83,12 @@ test('el Excel de un prospecto conserva identidad, origen y cartera sin exigir u
     };
     const first=make();first.view.handleClick({target:{closest:()=>({dataset:{planAction:'new-prospect'}})}},{accounts:[]},()=>{});
     const plan=[...first.view.state.plans.values()][0];plan.clientName='Prospecto prueba';plan.modelSource='maestro';plan.modelFile='Maestro prueba.xlsx';plan.modelSnapshot=portfolio.snapshot([{id:'ES0000000001',name:'Fondo',category:'RV',type:'RV',weight:100}]);
-    Object.assign(plan,{age:50,retirementAge:67,caseNotes:'Caso documentado',pricesInBase:true,priceSeries:{ES0000000001:[{date:'2025-01-31',price:100},{date:'2025-02-28',price:101}]},goals:[{name:'Casa',type:'withdrawal',amount:30000,startYear:1,endYear:17,frequency:'once',indexed:true}]});
+    Object.assign(plan,{age:50,retirementAge:67,caseNotes:'Caso documentado',simulationModel:'bootstrap',pricesInBase:true,priceSeries:{ES0000000001:[{date:'2025-01-31',price:100},{date:'2025-02-28',price:101}]},goals:[{name:'Casa',type:'withdrawal',amount:30000,startYear:1,endYear:17,frequency:'once',indexed:true}]});
     first.view.handleClick({target:{closest:()=>({dataset:{planAction:'export'}})}},{accounts:[]},()=>{});
     assert.ok(saved.Sheets['Cartera propuesta']);
     const second=make();await second.view.handleChange({target:{matches:selector=>selector==='[data-plan-file]',files:[{name:'plan.xlsx',arrayBuffer:async()=>new ArrayBuffer(1)}]}},{accounts:[]},()=>{});
     const restored=[...second.view.state.plans.values()][0];
-    assert.equal(restored.sourceType,'prospect');assert.equal(restored.account,'');assert.equal(restored.clientName,'Prospecto prueba');assert.equal(restored.modelSource,'maestro');assert.equal(restored.modelSnapshot[0].weight,100);assert.equal(restored.caseNotes,'Caso documentado');assert.equal(restored.pricesInBase,true);assert.equal(restored.priceSeries.ES0000000001[1].price,101);assert.equal(JSON.stringify(restored.goals.map(g=>[g.startYear,g.endYear])),'[[1,17]]');
+    assert.equal(restored.sourceType,'prospect');assert.equal(restored.account,'');assert.equal(restored.clientName,'Prospecto prueba');assert.equal(restored.modelSource,'maestro');assert.equal(restored.modelSnapshot[0].weight,100);assert.equal(restored.caseNotes,'Caso documentado');assert.equal(restored.simulationModel,'bootstrap');assert.equal(restored.pricesInBase,true);assert.equal(restored.priceSeries.ES0000000001[1].price,101);assert.equal(JSON.stringify(restored.goals.map(g=>[g.startYear,g.endYear])),'[[1,17]]');
 });
 
 test('la cartera Yahoo se aplica solo tras verificar todos los tickers y mantiene su divisa',async()=>{
@@ -110,7 +110,7 @@ test('el informe inicial identifica al prospecto y la procedencia de su cartera'
     const source=fs.readFileSync(path.join(__dirname,'../assets/financial-planning.js'),'utf8').replace('return {panel,afterRender,handleClick,handleChange,state:{plans}};','return {panel,afterRender,handleClick,handleChange,state:{plans},reportHtml,setResult:result=>{last=result;}};');
     vm.runInContext(source,context);const view=vm.runInContext('FinancialPlanning',context);
     view.handleClick({target:{closest:()=>({dataset:{planAction:'new-prospect'}})}},{accounts:[]},()=>{});
-    const plan=[...view.state.plans.values()][0];Object.assign(plan,{...base,clientName:'Prospecto prueba',sourceType:'prospect',modelSource:'maestro',modelFile:'Maestro.xlsx',modelSnapshot:portfolio.snapshot([{id:'ES0000000001',weight:100,category:'RV',type:'RV',name:'Fondo prueba'}])});
+    const plan=[...view.state.plans.values()][0];Object.assign(plan,{...base,clientName:'Prospecto prueba',sourceType:'prospect',modelSource:'maestro',modelFile:'Maestro.xlsx',pricesInBase:true,modelSnapshot:portfolio.snapshot([{id:'ES0000000001',weight:100,category:'RV',type:'RV',name:'Fondo prueba'}]),priceSeries:{ES0000000001:Array.from({length:37},(_,i)=>({date:new Date(Date.UTC(2022,i,28)).toISOString().slice(0,10),price:100+i}))}});
     view.setResult({key:plan.clientKey,result:core.project(plan,{paths:10})});
     const html=await view.reportHtml(plan,{account:plan.clientKey});
     assert.match(html,/Informe inicial para prospecto/);
@@ -121,6 +121,8 @@ test('el informe inicial identifica al prospecto y la procedencia de su cartera'
     assert.match(html,/Cuenta de pérdidas y ganancias/);
     assert.match(html,/Consumo del ahorro y prestaciones/);
     assert.match(html,/Productos y calidad frente a peers/);
+    assert.match(view.panel({accounts:[]},''),/Análisis visual de la cartera y el plan/);
+    assert.match(view.panel({accounts:[]},''),/Periodos &gt; 0|Periodos > 0/);
 });
 
 test('las edades de objetivos se convierten en años de simulación',()=>{
@@ -185,4 +187,18 @@ test('Yahoo convierte cotizaciones USD a EUR antes de calibrar la cartera',async
     assert.equal(plan.priceSeries.VTI[0].price,50);
     assert.equal(plan.modelSnapshot[0].funds[0].currency,'EUR');
     assert.ok(plan.returnPct>0&&plan.riskPct>0);
+    const reportContext=vm.createContext({});vm.runInContext(fs.readFileSync(path.join(__dirname,'../assets/financial-planning-report.js'),'utf8'),reportContext);
+    const history=vm.runInContext('FinancialPlanningReport',reportContext).history(plan,analytics);
+    assert.match(history,/Periodos &gt; 0|Periodos > 0/);
+    assert.doesNotMatch(history,/distintas divisas/);
+});
+
+test('el remuestreo histórico conserva bloques mensuales y es reproducible',()=>{
+    const returns=Array.from({length:36},(_,i)=>i%12<6?.02:-.012);
+    const plan={...base,returnPct:4,riskPct:8,retirementReturnPct:4,retirementRiskPct:8,assumptionMode:'portfolio',simulationModel:'bootstrap',historicalReturns:returns};
+    const first=core.project(plan,{paths:80,seed:44}),again=core.project(plan,{paths:80,seed:44});
+    assert.deepEqual(first,again);
+    assert.ok(first.table.some((row,index)=>index>0&&Math.abs(row.p90-row.p10)>1));
+    assert.match(core.validate({...plan,historicalReturns:returns.slice(0,12)}).join(' '),/24 retornos/);
+    assert.match(core.validate({...plan,retirementReturnPct:2}).join(' '),/misma cartera/);
 });
