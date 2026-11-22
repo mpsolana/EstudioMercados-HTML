@@ -25,6 +25,8 @@
         const nominal=goal.amount*(goal.indexed?(1+inflation)**(month/12):1);
         return (goal.type==='withdrawal'?-1:1)*nominal;
     }
+    function ageToYear(age,currentAge){return Number.isInteger(age)&&Number.isInteger(currentAge)?Math.max(1,age-currentAge):NaN;}
+    function yearToAge(year,currentAge){return Number.isInteger(year)&&Number.isInteger(currentAge)?currentAge+(year===1?0:year):NaN;}
     function monthlyParams(annualMean,annualVol){
         const mean=annualMean/100,sd=annualVol/100;
         const variance=Math.log(1+(sd/(1+mean))**2);
@@ -72,7 +74,7 @@
         const income=plan.netLaborIncome+plan.netOtherIncome;
         return {income,spending:plan.annualSpending,net:income-plan.annualSpending,assets:(plan.investableAssets||0)+(plan.otherFinancialAssets||0)+(plan.nonfinancialAssets||0),liabilities:plan.liabilities||0};
     }
-    const api={validate,project,cashSummary,goalFlow,monthlyParams};
+    const api={validate,project,cashSummary,goalFlow,ageToYear,yearToAge,monthlyParams};
     if(typeof module==='object'&&module.exports)module.exports=api;
     else root.FinancialPlanningCore=api;
 })(globalThis);

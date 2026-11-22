@@ -2,6 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const core=require('../assets/financial-planning-core.js');
 const portfolio=require('../assets/financial-planning-portfolio.js');
+const analytics=require('../assets/financial-planning-analytics.js');
 const base={investableAssets:120000,age:60,retirementAge:65,horizonAge:70,netLaborIncome:24000,netOtherIncome:0,netPension:18000,annualSpending:18000,inflationPct:0,returnPct:0,riskPct:0,retirementReturnPct:0,retirementRiskPct:0,goals:[]};
 
 test('sin volatilidad, sueldo neto y pensión producen flujo y supervivencia exactos',()=>{
@@ -76,23 +77,24 @@ test('el Excel de un prospecto conserva identidad, origen y cartera sin exigir u
     const XLSX={utils:{book_new:()=>({SheetNames:[],Sheets:{}}),aoa_to_sheet:rows=>({rows}),book_append_sheet:(book,sheet,name)=>{book.SheetNames.push(name);book.Sheets[name]=sheet;},sheet_to_json:(sheet,options)=>options.header===1?sheet.rows:sheet.rows.slice(1).map(row=>Object.fromEntries(sheet.rows[0].map((name,i)=>[name,row[i]])))},writeFile:book=>{saved=book;},read:()=>saved};
     const make=()=>{
         const status={textContent:''},state={positionsDate:null,balanceDate:null,selected:''};
-        const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,window:{XLSX},XLSX,document:{getElementById:()=>status},Intl,Date,Map,Number,Math,JSON,Error,Promise});
+        const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,FinancialPlanningAnalytics:analytics,window:{XLSX},XLSX,document:{getElementById:()=>status},Intl,Date,Map,Number,Math,JSON,Error,Promise});
         vm.runInContext(fs.readFileSync(path.join(__dirname,'../assets/financial-planning.js'),'utf8'),context);
         return {view:vm.runInContext('FinancialPlanning',context),state,status};
     };
     const first=make();first.view.handleClick({target:{closest:()=>({dataset:{planAction:'new-prospect'}})}},{accounts:[]},()=>{});
     const plan=[...first.view.state.plans.values()][0];plan.clientName='Prospecto prueba';plan.modelSource='maestro';plan.modelFile='Maestro prueba.xlsx';plan.modelSnapshot=portfolio.snapshot([{id:'ES0000000001',name:'Fondo',category:'RV',type:'RV',weight:100}]);
+    Object.assign(plan,{age:50,retirementAge:67,caseNotes:'Caso documentado',pricesInBase:true,priceSeries:{ES0000000001:[{date:'2025-01-31',price:100},{date:'2025-02-28',price:101}]},goals:[{name:'Casa',type:'withdrawal',amount:30000,startYear:1,endYear:17,frequency:'once',indexed:true}]});
     first.view.handleClick({target:{closest:()=>({dataset:{planAction:'export'}})}},{accounts:[]},()=>{});
     assert.ok(saved.Sheets['Cartera propuesta']);
     const second=make();await second.view.handleChange({target:{matches:selector=>selector==='[data-plan-file]',files:[{name:'plan.xlsx',arrayBuffer:async()=>new ArrayBuffer(1)}]}},{accounts:[]},()=>{});
     const restored=[...second.view.state.plans.values()][0];
-    assert.equal(restored.sourceType,'prospect');assert.equal(restored.account,'');assert.equal(restored.clientName,'Prospecto prueba');assert.equal(restored.modelSource,'maestro');assert.equal(restored.modelSnapshot[0].weight,100);
+    assert.equal(restored.sourceType,'prospect');assert.equal(restored.account,'');assert.equal(restored.clientName,'Prospecto prueba');assert.equal(restored.modelSource,'maestro');assert.equal(restored.modelSnapshot[0].weight,100);assert.equal(restored.caseNotes,'Caso documentado');assert.equal(restored.pricesInBase,true);assert.equal(restored.priceSeries.ES0000000001[1].price,101);assert.equal(JSON.stringify(restored.goals.map(g=>[g.startYear,g.endYear])),'[[1,17]]');
 });
 
 test('la cartera Yahoo se aplica solo tras verificar todos los tickers y mantiene su divisa',async()=>{
     const status={textContent:''},state={positionsDate:null,balanceDate:null,selected:''};
     const metadata=new Map([['VTI',{name:'US Market',currency:'USD'}],['BND',{name:'US Bonds',currency:'USD'}]]);
-    const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,MarketData:{metadata,prices:async()=>Array.from({length:12},(_,i)=>({date:i,price:100+i}))},window:{},document:{getElementById:()=>status},Intl,Date,Map,Number,Math,JSON,Error,Promise});
+    const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,FinancialPlanningAnalytics:analytics,MarketData:{metadata,prices:async()=>Array.from({length:12},(_,i)=>({date:new Date(Date.UTC(2025,i,28)),price:100+i}))},window:{},document:{getElementById:()=>status},Intl,Date,Map,Number,Math,JSON,Error,Promise});
     const source=fs.readFileSync(path.join(__dirname,'../assets/financial-planning.js'),'utf8').replace('return {panel,afterRender,handleClick,handleChange,state:{plans}};','return {panel,afterRender,handleClick,handleChange,state:{plans},applyYahoo};');
     vm.runInContext(source,context);const view=vm.runInContext('FinancialPlanning',context);
     view.handleClick({target:{closest:()=>({dataset:{planAction:'new-prospect'}})}},{accounts:[]},()=>{});
@@ -103,7 +105,8 @@ test('la cartera Yahoo se aplica solo tras verificar todos los tickers y mantien
 
 test('el informe inicial identifica al prospecto y la procedencia de su cartera',async()=>{
     const state={positionsDate:null,balanceDate:null,selected:''};
-    const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,window:{},Intl,Date,Map,Number,Math,JSON,Error,Promise});
+    const context=vm.createContext({OverviewCore:{id:value=>String(value).toUpperCase()},OverviewPanel:{state},FinancialPlanningCore:core,FinancialPlanningPortfolio:portfolio,FinancialPlanningAnalytics:analytics,window:{},Intl,Date,Map,Number,Math,JSON,Error,Promise});
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'../assets/financial-planning-report.js'),'utf8'),context);
     const source=fs.readFileSync(path.join(__dirname,'../assets/financial-planning.js'),'utf8').replace('return {panel,afterRender,handleClick,handleChange,state:{plans}};','return {panel,afterRender,handleClick,handleChange,state:{plans},reportHtml,setResult:result=>{last=result;}};');
     vm.runInContext(source,context);const view=vm.runInContext('FinancialPlanning',context);
     view.handleClick({target:{closest:()=>({dataset:{planAction:'new-prospect'}})}},{accounts:[]},()=>{});
@@ -114,4 +117,28 @@ test('el informe inicial identifica al prospecto y la procedencia de su cartera'
     assert.match(html,/importada del Maestro/);
     assert.match(html,/Fondo prueba/);
     assert.match(html,/datos facilitados a/);
+    assert.match(html,/Balance de situación/);
+    assert.match(html,/Cuenta de pérdidas y ganancias/);
+    assert.match(html,/Consumo del ahorro y prestaciones/);
+    assert.match(html,/Productos y calidad frente a peers/);
+});
+
+test('las edades de objetivos se convierten en años de simulación',()=>{
+    assert.equal(core.ageToYear(50,50),1);
+    assert.equal(core.ageToYear(67,50),17);
+    assert.equal(core.yearToAge(17,50),67);
+});
+
+test('rentabilidades rolling y probabilidad observada usan meses comunes consecutivos',()=>{
+    const snapshot=[{category:'RV',type:'RV',weight:60,funds:[{isin:'AAA',currency:'EUR'}]},{category:'RF',type:'RF',weight:40,funds:[{isin:'BBB',currency:'EUR'}]}];
+    const months=Array.from({length:25},(_,i)=>new Date(Date.UTC(2024,i,28)).toISOString().slice(0,10));
+    const series={AAA:months.map((date,i)=>({date,price:100+i})),BBB:months.map((date,i)=>({date,price:100+i*.2}))};
+    const result=analytics.portfolio(snapshot,series);
+    assert.equal(result.returns.length,24);
+    assert.equal(result.dates[0],'2024-01');
+    const periods=analytics.periods(result.returns);
+    assert.equal(periods.find(p=>p.months===12).count,13);
+    assert.equal(periods.find(p=>p.months===12).positive,1);
+    delete series.AAA[6];
+    assert.equal(analytics.portfolio(snapshot,series).returns.length,17);
 });

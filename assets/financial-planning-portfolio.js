@@ -19,13 +19,29 @@
         const entries=rows.map(row=>({id:clean(field(row,keys.id)).toUpperCase(),weight:weight(field(row,keys.weight)),name:clean(field(row,keys.name)),category:clean(field(row,keys.category)),type:clean(field(row,keys.type))})).filter(item=>item.id);
         return entries.length?normalizeWeights(entries):[];
     }
+    function parseDate(value,XLSX){
+        if(value instanceof Date&&Number.isFinite(+value))return value.toISOString().slice(0,10);
+        if(typeof value==='number'){const parsed=XLSX.SSF?.parse_date_code(value);return parsed?`${parsed.y}-${String(parsed.m).padStart(2,'0')}-${String(parsed.d).padStart(2,'0')}`:'';}
+        const text=clean(value),date=/^\d{4}-\d{2}-\d{2}$/.test(text)?new Date(`${text}T12:00:00Z`):new Date(text);
+        return Number.isFinite(+date)?date.toISOString().slice(0,10):'';
+    }
+    function parsePrices(book,XLSX,entries){
+        const sheet=book.SheetNames.find(name=>['prices','precios','historico','historicos','nav','posis'].includes(normalize(name)));
+        if(!sheet)return {sheet:'',series:{}};
+        const rows=XLSX.utils.sheet_to_json(book.Sheets[sheet],{defval:null,raw:true}),series=Object.fromEntries(entries.map(item=>[item.id,[]]));
+        for(const row of rows){const date=parseDate(field(row,['date','fecha']),XLSX);if(!date)continue;
+            for(const item of entries){const price=Number(field(row,[item.id]));if(Number.isFinite(price)&&price>0)series[item.id].push({date,price});}
+        }
+        for(const item of entries)series[item.id].sort((a,b)=>a.date.localeCompare(b.date));
+        return {sheet,series};
+    }
     function parseWorkbook(book,XLSX){
         const sheetNames=book.SheetNames||[],preferred=['cartera scoring','cartera individual','weights','pesos','cartera'];
         const ordered=[...sheetNames].sort((a,b)=>{const score=name=>{const index=preferred.indexOf(normalize(name));return index<0?99:index;};return score(a)-score(b);});
         for(const sheet of ordered){
             const rows=XLSX.utils.sheet_to_json(book.Sheets[sheet],{defval:null,raw:true});
             if(!rows.length||!hasColumn(rows[0],keys.id)||!hasColumn(rows[0],keys.weight))continue;
-            const parsed=parseRows(rows);if(parsed.length)return {sheet,entries:parsed};
+            const parsed=parseRows(rows);if(parsed.length)return {sheet,entries:parsed,prices:parsePrices(book,XLSX,parsed)};
         }
         throw new Error('No se encontró una hoja con ISIN/ticker y peso (Maestro, weights o cartera).');
     }
