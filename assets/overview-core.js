@@ -3,8 +3,22 @@
     if(typeof module==='object'&&module.exports)module.exports=api;
     else root.OverviewCore=api;
 })(globalThis,function(modelCore){
-    const id=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-    const key=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
+    function repairText(value){
+        let text=String(value??'');
+        const cp1252='€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ',codes=[128,130,131,132,133,134,135,136,137,138,139,140,142,145,146,147,148,149,150,151,152,153,154,155,156,158,159];
+        for(let pass=0;pass<2;pass++){
+            const next=text.replace(/(?:[ÃÂ][\s\S]|â[\s\S]{2})/g,fragment=>{
+                const bytes=[...fragment].map(char=>char.charCodeAt(0)<=255?char.charCodeAt(0):codes[cp1252.indexOf(char)]);
+                if(bytes.some(value=>value===undefined))return fragment;
+                try{return new TextDecoder('utf-8',{fatal:true}).decode(new Uint8Array(bytes));}catch{return fragment;}
+            });
+            if(next===text)break;text=next;
+        }
+        return text;
+    }
+    const folded=value=>repairText(value).normalize('NFKD').replace(/\p{M}/gu,'');
+    const id=value=>folded(value).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const key=value=>folded(value).trim().toLowerCase().replace(/\s+/g,' ');
     const finite=value=>typeof value==='number'&&Number.isFinite(value)?value:NaN;
     function exposureMix(classification){
         const values=[classification?.eurExpo,classification?.usdExpo,classification?.otherExpo].map(finite);
@@ -62,7 +76,7 @@
             if(!account||!subaccount||!/^[A-Z]{3}$/.test(currency)||!Number.isFinite(amount))continue;
             const identity=`${id(subaccount)}|${currency}`;
             if(seen.has(identity))throw new Error(`Saldo duplicado para subcuenta ${subaccount} (${currency}).`);
-            seen.add(identity);balances.push({account,subaccount,description:String(row['TRANSACTIONAL ACCOUNT DESCRIPTION']||row['ACCOUNT DESCRIPTION']||'').trim(),currency,amount,date:row['VALUE DATE']||null});
+            seen.add(identity);balances.push({account,subaccount,description:repairText(row['TRANSACTIONAL ACCOUNT DESCRIPTION']||row['ACCOUNT DESCRIPTION']||'').trim(),currency,amount,date:row['VALUE DATE']||null});
         }
         return balances;
     }
@@ -174,5 +188,5 @@
         const unknownCategories=[...funds.values()].filter(fund=>!fund.classification?.generic||!['RV','RF','Otros'].includes(fund.classification.type));
         return {accounts:results,funds:[...funds.values()].sort((a,b)=>b.amount-a.amount),invested,unclassified,invalidAmounts,noControl,unknownCategories,currencyExposure:lookThrough(results.flatMap(row=>row.positions)),breaches:results.filter(row=>['bajo mínimo','excede máximo'].includes(row.limit))};
     }
-    return {analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough,rfWeighted,parseBalanceRows,matchBalanceAccounts,convertBalances,rvAction};
+    return {repairText,analyze,documentStatus,clientIndex,id,key,exposureMix,lookThrough,rfWeighted,parseBalanceRows,matchBalanceAccounts,convertBalances,rvAction};
 });

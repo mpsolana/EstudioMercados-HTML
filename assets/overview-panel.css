@@ -55,3 +55,64 @@ body>nav.overview-brandbar+div{background:#edf3f8!important;border-bottom:1px so
 .overview-review{max-height:360px}.overview-content [data-level-sort]{display:inline-flex;align-items:center;gap:.3rem;color:inherit;font:inherit;text-align:left;white-space:nowrap}.overview-content [data-level-sort]:hover{color:#075aa3;text-decoration:underline}.overview-content [data-level-sort]:focus-visible{outline:2px solid #075aa3;outline-offset:2px}
 @media(max-width:1000px){.overview-sources{grid-template-columns:repeat(2,1fr)}.overview-metrics{grid-template-columns:repeat(3,1fr)}.overview-layout,.overview-chart-grid{grid-template-columns:1fr}.overview-heading img{width:170px}}
 @media(max-width:650px){.overview-sources{grid-template-columns:1fr}.overview-sources>div{border-right:0;border-bottom:1px solid #d8e1e8}.overview-metrics,.overview-metrics.compact{grid-template-columns:repeat(2,1fr)}.overview-heading h2{font-size:1.1rem}.overview-heading img{width:105px;height:40px}.overview-content{padding:.7rem 0}.overview-map-form{min-width:390px}.overview-presence>div{grid-template-columns:1fr}.overview-presence ul{columns:1}}
+
+/* Editorial dashboard: full-width client story, consistent figures and restrained table graphics. */
+#overviewPanel .overview-content{background:#fff;padding:24px 20px;color:#20384e;min-width:0}
+#overviewPanel .overview-heading h2{font-family:Georgia,serif;font-size:1.85rem;color:#09265b}
+#overviewPanel .overview-content h3{color:#102e54;font-size:1.05rem;letter-spacing:-.01em;margin:24px 0 14px}
+#overviewPanel .overview-client-layout{display:block}
+#overviewPanel .overview-client-picker{position:relative;margin-bottom:24px;border:1px solid #c5d3df;background:#fff;max-width:100%}
+#overviewPanel .overview-client-picker summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 18px;list-style:none}
+#overviewPanel .overview-client-picker summary::-webkit-details-marker{display:none}
+#overviewPanel .overview-client-picker summary small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#63788b}
+#overviewPanel .overview-client-picker summary strong{display:block;font-size:1.1rem;color:#12375e;margin:5px 0}
+#overviewPanel .overview-client-picker summary span span{font-size:12px;color:#63788b}
+#overviewPanel .overview-picker-menu{position:absolute;z-index:12;background:#fff;box-shadow:0 12px 30px #183f6226;border:1px solid #c5d3df;left:-1px;right:-1px;padding:14px;max-height:480px;overflow:auto}
+#overviewPanel .overview-picker-menu label{font-size:12px;font-weight:700;display:block;color:#456175}
+#overviewPanel .overview-picker-menu input{display:block;width:100%;margin:6px 0 12px;padding:10px;border:1px solid #b9cbd9}
+#overviewPanel .overview-picker-options button{width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;padding:12px;border-top:1px solid #e0e8ee;font-size:12px;align-items:center}
+#overviewPanel .overview-picker-options button[aria-pressed=true],#overviewPanel .overview-picker-options button:hover{background:#edf4f9}
+#overviewPanel .overview-picker-options small{display:block;color:#63788b;margin-top:5px}
+#overviewPanel [hidden]{display:none!important}
+#overviewPanel .overview-client-charts{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch;margin:24px 0}
+#overviewPanel .overview-client-charts>div{border:1px solid #dce5ec;background:#fff;height:410px;min-height:410px;min-width:0;padding-top:8px}
+#overviewPanel .overview-house-card #overviewHouseDonut{width:100%;min-height:310px}
+#overviewPanel .overview-house-card .overview-context{padding:0 18px;font-size:11px;margin:0}
+#overviewPanel .overview-house-threshold{margin:12px 24px 8px;max-width:none}
+#overviewPanel .overview-house-threshold>div:after{top:-15px;font-size:9px;height:24px}
+#overviewPanel .overview-metrics{border:0;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr));margin:16px 0 24px}
+#overviewPanel .overview-metrics>div{background:#fff;border:0;border-top:2px solid #204f78;border-bottom:1px solid #d9e3ec;padding:15px 10px}
+#overviewPanel .overview-metrics strong{font-size:1.25rem;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#overviewPanel .overview-metrics small{font-size:11px;color:#63788b}
+#overviewPanel .overview-detail .overview-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+#overviewPanel .overview-content th{background:#edf3f7;color:#294b68;font-size:11px;padding:12px}
+#overviewPanel .overview-content td{padding:12px;font-size:12px;border-color:#e0e7ee}
+#overviewPanel .overview-content tbody tr:nth-child(even){background:#fafcfd}
+#overviewPanel .overview-content tbody tr:hover{background:#f0f5f9}
+#overviewPanel .overview-value-bar{position:relative;background:#fff!important;box-shadow:none;font-weight:650;color:#204b6c;padding-bottom:16px!important}
+#overviewPanel .overview-value-bar:after{content:'';position:absolute;height:3px;bottom:5px;left:12px;width:calc(var(--heat)*.82);max-width:calc(100% - 24px);background:#95b2c9}
+#overviewPanel .overview-band-visual{margin:24px 0;padding:18px 20px;border-top:1px solid #c8d7e3;border-bottom:1px solid #c8d7e3;background:#fff}
+#overviewPanel .overview-band-visual>div:first-child{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#overviewPanel .overview-band-visual h4{margin:0;font-size:15px;color:#173c60}
+#overviewPanel .overview-band-visual dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 24px}
+#overviewPanel .overview-band-visual dt{font-size:11px;color:#63788b}#overviewPanel .overview-band-visual dd{font-size:16px;font-weight:700;margin-top:5px}
+#overviewPanel .overview-band-track{position:relative;height:14px;background:#edf1f4;border:1px solid #c7d4df;min-width:100px}
+#overviewPanel .overview-band-allowed{position:absolute;top:0;bottom:0;background:#c6d9e8}
+#overviewPanel .overview-band-current{position:absolute;width:4px;background:#205d88;height:26px;top:-7px;transform:translateX(-50%)}
+#overviewPanel .overview-band-current:before{content:'◆';position:absolute;font-size:10px;top:-12px;left:-4px;color:#205d88}
+#overviewPanel .overview-band-neutral{position:absolute;width:2px;height:22px;top:-5px;background:#4c5e6d;transform:translateX(-50%)}
+#overviewPanel .overview-band-legend{display:flex;justify-content:space-between;font-size:10px;color:#63788b;margin:10px 0}
+#overviewPanel .overview-band-mini{width:125px;padding:8px 0 0}.overview-band-mini small{display:block;margin-top:7px}
+#overviewPanel .overview-band-mini .overview-band-track{height:8px}#overviewPanel .overview-band-mini .overview-band-current{height:16px;top:-5px}
+#overviewPanel .overview-fund-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+#overviewPanel .overview-fund-highlights{margin:22px 0}#overviewPanel .overview-fund-highlights>div{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
+#overviewPanel .overview-fund-highlights button{text-align:left;min-width:0;border-top:1px solid #d5e0e9;border-bottom:1px solid #d5e0e9;padding:15px 0;display:flex;flex-direction:column;gap:10px;color:#1a3e5b}
+#overviewPanel .overview-fund-highlights strong{font-size:13px;overflow-wrap:anywhere;min-height:34px}#overviewPanel .overview-fund-highlights small{font-size:10px;color:#687e91}
+#overviewPanel .overview-rank{font:22px Georgia,serif;color:#7696ae}#overviewPanel .overview-fund-highlights b{font-size:17px}
+#overviewPanel .overview-rank-bar{height:4px;background:#edf2f6;width:100%}#overviewPanel .overview-rank-bar i{display:block;height:100%;background:#467b9f}
+#overviewPanel .overview-link-tools{padding:18px 0;margin-bottom:24px;border-bottom:1px solid #c5d6e3}#overviewPanel .overview-link-tools p{font-size:12px;color:#526b80;line-height:1.6}
+#overviewPanel .overview-link-tools button,#overviewPanel .overview-link-tools label{display:inline-block;border:1px solid #abc1d2;padding:8px 12px;margin:12px 12px 0 0;font-size:12px;cursor:pointer}#overviewPanel .overview-link-tools input{display:block;max-width:100%;margin-top:6px}
+@media(max-width:950px){#overviewPanel .overview-fund-highlights>div{grid-template-columns:repeat(3,minmax(0,1fr))}#overviewPanel .overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#overviewPanel .overview-content{padding:16px 0}#overviewPanel .overview-client-charts,#overviewPanel .overview-fund-highlights>div{grid-template-columns:minmax(0,1fr)}#overviewPanel .overview-detail .overview-metrics,#overviewPanel .overview-band-visual dl{grid-template-columns:repeat(2,minmax(0,1fr))}#overviewPanel .overview-heading h2{font-size:1.4rem}#overviewPanel .overview-picker-options button{align-items:start}#overviewPanel .overview-fund-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+#overviewPanel .overview-client-record{border-bottom:1px solid #dce5ec;margin:12px 0;padding:12px 0}#overviewPanel .overview-client-record>summary{cursor:pointer;font-size:13px;font-weight:650;color:#365975}

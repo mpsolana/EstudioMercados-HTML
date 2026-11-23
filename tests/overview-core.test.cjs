@@ -161,3 +161,17 @@ test('benchmark allocation uses its dedicated category while generic allocation 
     assert.equal(result.accounts[0].benchmarkAllocations.get('RV EUROPA'),300);
     assert.equal(result.accounts[0].benchmarkAllocations.has('RV Global'),false);
 });
+
+
+test('cash matches ignore diacritics, decomposed marks and recoverable UTF-8 mojibake',()=>{
+    const positions=[{account:'P1',accountLabel:'Muñoz, Álvarez y Güemes',amount:100}];
+    for(const description of ['MUNOZ ALVAREZ Y GUEMES','Mu\u006e\u0303oz A\u0301lvarez y Gu\u0308emes','MuÃ±oz, Ãlvarez y GÃ¼emes']){
+        const matches=Core.matchBalanceAccounts(positions,[{account:'B1',description,amount:20,currency:'EUR'}]);
+        assert.equal(matches.links.B1,'P1');
+    }
+    assert.equal(Core.repairText('PEÃ‘A'),'PEÑA');
+    assert.equal(Core.repairText('Güemes y MuÃ±oz'),'Güemes y Muñoz');
+    assert.equal(Core.id('Dâ€™Ávila'),'DAVILA');
+    const ambiguous=Core.matchBalanceAccounts([...positions,{account:'P2',accountLabel:'Munoz Alvarez y Guemes'}],[{account:'B1',description:'MUÑOZ ÁLVAREZ Y GÜEMES'}]);
+    assert.equal(ambiguous.links.B1,undefined);
+});
