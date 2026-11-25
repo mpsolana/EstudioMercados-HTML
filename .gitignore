@@ -2,3 +2,5 @@ node_modules/
 test-results/
 .env
 .env.local
+local.html
+local-release/

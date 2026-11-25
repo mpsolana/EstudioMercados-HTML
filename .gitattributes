@@ -1,0 +1,2 @@
+# Preserve dependency bytes so SHA-256 verification also works after a Windows checkout.
+assets/vendor/local/** -text

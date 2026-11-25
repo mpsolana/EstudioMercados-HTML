@@ -110,6 +110,15 @@ const ReportDesign = (() => {
     }
     let pdfLibraries;
     function loadScript(src) {
+        if(window.APP_OFFLINE_ENTRY){
+            const local={
+                'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js':'pdfmake.min.js',
+                'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js':'vfs_fonts.js',
+                'https://cdn.jsdelivr.net/npm/html-to-pdfmake@2.5.33/browser.js':'html-to-pdfmake.js'
+            };
+            if(!local[src])return Promise.reject(new Error('Dependencia no incluida en la edición local.'));
+            src='assets/vendor/local/'+local[src];
+        }
         return new Promise((resolve,reject) => {
             const script = document.createElement('script'); script.src = src;
             const timer = setTimeout(() => { script.remove(); reject(new Error('Tiempo agotado al cargar el exportador PDF.')); },30000);
