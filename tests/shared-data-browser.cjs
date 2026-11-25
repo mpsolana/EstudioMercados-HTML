@@ -56,6 +56,28 @@ const {chromium}=require('playwright');
   await page.waitForFunction(()=>!SharedData.state.busy);
   assert.match(await page.evaluate(()=>SharedData.state.notice),/cambiado durante la revisión/);
   assert.equal(await page.evaluate(()=>OverviewPanel.state.balances[0].amount),200);
+  // A parent/empty folder must not look like a successful discovery.
+  await page.evaluate(()=>{window.showDirectoryPicker=async()=>({name:'Comités',queryPermission:async()=> 'granted',async *entries(){yield ['BBDD',{kind:'directory'}];}});});
+  await page.getByRole('button',{name:'Vincular BBDD',exact:true}).click();
+  await page.waitForFunction(()=>!SharedData.state.busy&&SharedData.state.sources.get('bbdd')?.name==='Comités');
+  assert.match(await page.locator('#sharedDataPanel [role=status]').innerText(),/No se han encontrado Excel.*Comités\/BBDD/);
+  // One unavailable OneDrive entry must not prevent discovering the readable files.
+  await page.evaluate(()=>{
+   const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['TRANSACTIONAL ACCOUNT','ACCOUNT','BALANCE','CURRENCY'],['CASH2','SUB2',100,'EUR']]),'Sheet1');
+   const file=new File([XLSX.write(book,{type:'array',bookType:'xlsx'})],'Disponible.xlsx');
+   window.showDirectoryPicker=async()=>({name:'BBDD',queryPermission:async()=> 'granted',async *entries(){
+    yield ['No descargado.xlsx',{kind:'file',getFile:async()=>{throw new DOMException('File unavailable','NotReadableError');}}];
+    yield [file.name,{kind:'file',getFile:async()=>{await new Promise(resolve=>setTimeout(resolve,150));return file;}}];
+   }});
+  });
+  await page.getByRole('button',{name:'Vincular BBDD',exact:true}).click();
+  await page.waitForFunction(()=>SharedData.state.busy);
+  assert.match(await page.locator('#sharedDataPanel [role=status]').innerText(),/Buscando Excel|Accediendo|Revisando/);
+  await page.waitForFunction(()=>!SharedData.state.busy);
+  assert.match(await page.locator('#sharedDataPanel [role=status]').innerText(),/2 Excel encontrados · 1 reconocido · 1 no se pudieron leer/);
+  assert.match(await page.locator('#sharedDataPanel details[open]').innerText(),/OneDrive/);
+  assert.equal(await page.evaluate(()=>SharedData.state.candidates.filter(row=>row.role==='balances').length),1);
+  assert.equal(await page.evaluate(()=>OverviewPanel.state.balances[0].amount),200);
   const download=page.waitForEvent('download');
   await page.evaluate(()=>ReportDesign.downloadPdf('<html><body><h1>Informe sintético</h1><table><tr><td>Prueba</td><td>100 EUR</td></tr></table></body></html>','prueba-local.pdf'));
   const pdf=await download;assert.match(pdf.suggestedFilename(),/\.pdf$/);

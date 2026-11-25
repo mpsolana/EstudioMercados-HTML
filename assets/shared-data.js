@@ -1,9 +1,19 @@
 const SharedData=(()=>{
  'use strict';
- const core=SharedDataCore,state={sources:new Map(),candidates:[],selection:{},explicit:new Set(),loaded:{},busy:false,notice:'Vincula las carpetas sincronizadas de OneDrive para revisar los archivos disponibles.',batch:''};
+ const core=SharedDataCore,state={sources:new Map(),candidates:[],selection:{},explicit:new Set(),loaded:{},busy:false,notice:'1. Vincula directamente Comités/BBDD. 2. Revisa los Excel detectados. 3. Pulsa «Cargar selección» para incorporarlos al programa.',batch:'',masterEur:false};
  let host;
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const stamp=value=>new Date(value).toLocaleString('es-ES');
+ const paint=()=>new Promise(resolve=>setTimeout(resolve,0));
+ function announce(message){state.notice=message;const status=host?.querySelector('[role=status]');if(status)status.textContent=message;}
+ async function timed(promise,message){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(message)),30000);})]);}finally{clearTimeout(timer);}}
+ function readError(error){return ['NotFoundError','NotReadableError','InvalidStateError'].includes(error?.name)?'No disponible para lectura. Comprueba que OneDrive lo tenga descargado en este equipo.':error?.message||'No se pudo leer el Excel.';}
+ function scanResult(source){
+  const items=state.candidates.filter(item=>item.source===source),recognized=items.filter(item=>item.role).length,failed=items.filter(item=>item.error).length;
+  if(!items.length)return `No se han encontrado Excel .xlsx o .xls directamente en esta carpeta. Selecciona ${source==='control'?'Dia Dia GDC & Gestión Pasiva/Dia Dia':'Comités/BBDD'}, no una carpeta superior: no se recorren subcarpetas.`;
+  if(!recognized)return `${items.length} Excel encontrados, ninguno reconocido.${failed?` ${failed} no se pudieron leer; consulta el detalle inferior.`:' Consulta los formatos no compatibles en el detalle inferior.'}`;
+  return `${items.length} Excel encontrados · ${recognized} ${recognized===1?'reconocido':'reconocidos'}${failed?` · ${failed} no se pudieron leer`:''}. Revisa los desplegables y pulsa «Cargar selección» para incorporarlos al programa.`;
+ }
  async function digest(buffer){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',buffer))].map(n=>n.toString(16).padStart(2,'0')).join('');}
  function summary(book){return book.SheetNames.map(name=>{
   const sheet=book.Sheets[name];if(!sheet['!ref'])return {name,rows:[]};
@@ -27,7 +37,8 @@ const SharedData=(()=>{
   if(!host)return;
   if(!window.APP_CONFIDENTIAL){host.innerHTML='<h2>BBDD compartidas</h2><p>La carga de carpetas confidenciales está disponible en la edición local sin conexiones de red. Abre <strong>local.html</strong> desde el paquete completo de la aplicación en tu equipo.</p>';return;}
   const groups=core.group(state.candidates);
-  host.innerHTML=`<div class="shared-data-heading"><div><span class="shared-data-eyebrow">EDICIÓN LOCAL · RED DESACTIVADA</span><h2>BBDD compartidas</h2><p>OneDrive sincroniza los archivos. Aquí revisas y cargas la copia disponible en este equipo.</p></div><span class="shared-data-badge">Solo lectura</span></div>
+  host.setAttribute('aria-busy',String(state.busy));
+  host.innerHTML=`<div class="shared-data-heading"><div><span class="shared-data-eyebrow">EDICIÓN LOCAL · RED DESACTIVADA</span><h2>BBDD compartidas</h2><p>1. Vincula las carpetas. 2. Revisa los Excel detectados. 3. Pulsa «Cargar selección» para utilizarlos.</p></div><span class="shared-data-badge">Solo lectura</span></div>
    <div class="shared-data-actions"><button data-pick="bbdd">Vincular BBDD</button><button data-pick="control">Vincular Control DNI</button><button data-action="refresh">Revisar cambios</button><button data-action="files">Elegir archivos</button><button data-action="load" class="shared-data-primary">Cargar selección</button></div>
    <p class="shared-data-status" role="status" aria-live="polite">${esc(state.notice)}</p>
    <div class="shared-data-sources">${[...state.sources].map(([id,source])=>`<span>${id==='bbdd'?'BBDD':'Control DNI'}: <strong>${esc(source.name)}</strong> · ${source.handle?'carpeta vinculada':'selección manual'}</span>`).join('')}</div>
@@ -36,38 +47,47 @@ const SharedData=(()=>{
     const status=item?(core.sameVersion(item,loaded)?'Cargado · '+loaded.sha256.slice(0,10):'Pendiente de cargar'):'Elige un archivo';
     return `<tr><th>${esc(core.roles[role])}</th><td><select aria-label="${esc(core.roles[role])}" data-role="${role}"><option value="">${options.length>1?'Varios candidatos: selecciona uno':'No cargar'}</option>${options.map(row=>`<option value="${esc(row.id)}" ${row.id===state.selection[role]?'selected':''}>${esc(row.file.name)} (${row.source==='control'?'Control DNI':'BBDD'})</option>`).join('')}</select></td><td>${item?esc(stamp(item.file.lastModified)):'—'}</td><td>${esc(status)}</td></tr>`;
    }).join('')}</tbody></table></div>`:''}
-   <label class="shared-data-confirm"><input type="checkbox" id="sharedMasterEur"> Si cargo el Maestro, confirmo que todos sus históricos están expresados en EUR.</label>
+   <label class="shared-data-confirm"><input type="checkbox" id="sharedMasterEur" ${state.masterEur?'checked':''}> Si cargo el Maestro, confirmo que todos sus históricos están expresados en EUR.</label>
    <details><summary>Cómo se reconocen los archivos y cómo actualizar</summary><p>Se revisan hojas y cabeceras: Ranking Completo (ISIN, Name, Score), Maestro (pesos y precios), estados GDC/GICI, Categorización, posiciones (cuenta, ISIN y contravalor EUR), saldos (cuenta, divisa y saldo) y Control DNI (cuenta y perfil en sus columnas habituales). El nombre orienta; no sustituye la validación del formato.</p><p>Selecciona <strong>Comités/BBDD</strong> y, por separado, <strong>Dia Dia GDC &amp; Gestión Pasiva/Dia Dia</strong>. Solo se leen los Excel de primer nivel, sin subcarpetas ni archivos temporales. No se escriben cambios en los originales. Los formatos desconocidos se omiten y se indican abajo.</p><p>¹ La fecha de modificación no es la fecha financiera del contenido. Comprueba que OneDrive ha terminado de sincronizar antes de revisar cambios. Si aparece más de un archivo del mismo tipo, elige el válido; no se decide por la fecha del nombre.</p><p>«Revisar cambios» vuelve a leer las carpetas vinculadas, pero no sustituye el análisis. Pulsa «Cargar selección» para aplicar lo elegido. Si tu navegador usa selección manual, vuelve a seleccionar los archivos para actualizar. El permiso y la selección duran esta sesión. El identificador SHA-256 permite comparar la misma copia entre compañeros; no certifica que SharePoint esté sincronizado.</p><p>Los saldos en otras divisas requieren los tipos de cambio manuales del panel; esta edición no los consulta por internet. Los cambios hechos dentro de la aplicación siguen en memoria y se guardan mediante las exportaciones existentes. La publicación compartida de parametrizaciones se incorporará en una fase posterior.</p></details>
    ${state.batch?`<p class="shared-data-version">Última carga completa desde carpetas: ${esc(state.batch)}. Las importaciones manuales posteriores pueden modificar el análisis.</p>`:''}
-   ${state.candidates.some(row=>!row.role)?`<details><summary>Archivos no reconocidos (${state.candidates.filter(row=>!row.role).length})</summary><p>${state.candidates.filter(row=>!row.role).map(row=>esc(row.file.name)+(row.error?' · no se pudo leer':' · formato no compatible')).join('<br>')}</p></details>`:''}
+   ${state.candidates.some(row=>!row.role)?`<details ${state.candidates.some(row=>row.error)?'open':''}><summary>Archivos no reconocidos (${state.candidates.filter(row=>!row.role).length})</summary><p>${state.candidates.filter(row=>!row.role).map(row=>esc(row.file.name)+' · '+esc(row.error?row.reason:'Formato no compatible con las fuentes admitidas.')).join('<br>')}</p></details>`:''}
    <input type="file" id="sharedFiles" accept=".xls,.xlsx" multiple hidden><input type="file" id="sharedFolder" webkitdirectory multiple hidden>`;
   host.querySelectorAll('button,select').forEach(el=>el.disabled=state.busy);
  }
  async function scan(source,files){
+  if(!window.XLSX)throw Error('No está disponible la biblioteca para leer Excel. Descomprime el paquete completo y conserva la carpeta assets junto a local.html.');
+  if(!globalThis.crypto?.subtle)throw Error('Chrome no permite verificar archivos en esta página. Abre local.html desde la carpeta descomprimida de tu equipo.');
   const next=[];
-  for(const file of files){if(!core.eligible(file.name))continue;
+  const eligible=Array.from(files).filter(file=>core.eligible(file.name));
+  for(const [index,file] of eligible.entries()){
    const id=source+'/'+file.name;
+   announce(`Revisando Excel ${index+1}/${eligible.length}: ${file.name}…`);await paint();
    try{
-    const buffer=await file.arrayBuffer(),sha256=await digest(buffer),book=XLSX.read(buffer,{type:'array',sheetRows:12});
+    if(file.readError)throw file.readError;
+    const buffer=await timed(file.arrayBuffer(),'La lectura está tardando demasiado. Comprueba que el Excel esté descargado en OneDrive y vuelve a intentarlo.'),sha256=await digest(buffer),book=XLSX.read(buffer,{type:'array',sheetRows:12});
     next.push({id,source,file,sha256,role:core.classify(summary(book))});
-   }catch(error){next.push({id,source,file,role:null,error:true});}
+   }catch(error){next.push({id,source,file,role:null,error:true,reason:readError(error)});}
   }
   state.candidates=[...state.candidates.filter(row=>row.source!==source),...next];
   const groups=core.group(state.candidates);
   for(const role of core.order){const options=groups[role];if(state.explicit.has(role)&&state.selection[role]==='')continue;if(options.length>1&&!state.explicit.has(role))state.selection[role]='';else if(!options.some(item=>item.id===state.selection[role])){state.explicit.delete(role);state.selection[role]=options.length===1?options[0].id:'';}}
  }
  async function directoryFiles(handle){
+  announce(`Buscando Excel en «${handle.name}»…`);await paint();
   if(await handle.queryPermission({mode:'read'})!=='granted'&&await handle.requestPermission({mode:'read'})!=='granted')throw Error('Permiso de lectura denegado. Vuelve a vincular la carpeta.');
-  const files=[];for await(const [name,entry] of handle.entries())if(entry.kind==='file'&&core.eligible(name))files.push(await entry.getFile());return files;
+  const files=[];for await(const [name,entry] of handle.entries())if(entry.kind==='file'&&core.eligible(name)){
+   announce(`Accediendo a ${name}…`);await paint();
+   try{files.push(await timed(entry.getFile(),'No se pudo acceder al Excel a tiempo. Comprueba que OneDrive lo tenga descargado.'));}catch(error){files.push({name,readError:error});}
+  }return files;
  }
  async function pick(source){
   if(!window.showDirectoryPicker){host.querySelector('#sharedFolder').dataset.source=source;host.querySelector('#sharedFolder').click();return;}
   try{
    const handle=await window.showDirectoryPicker({mode:'read',id:'shared-'+source});
-   await run(async()=>{await scan(source,await directoryFiles(handle));state.sources.set(source,{name:handle.name,handle});state.notice='Archivos revisados. Comprueba la selección antes de cargarlos.';});
-  }catch(error){if(error.name==='AbortError')return;state.notice='El navegador no permite vincular la carpeta. Puedes usar «Elegir archivos» o la selección manual de carpeta.';render();host.querySelector('#sharedFolder').dataset.source=source;host.querySelector('#sharedFolder').click();}
+   await run(async()=>{await scan(source,await directoryFiles(handle));state.sources.set(source,{name:handle.name,handle});state.notice=scanResult(source);});
+  }catch(error){if(error.name==='AbortError'){announce('Selección de carpeta cancelada. Puedes volver a pulsar «Vincular BBDD» o «Vincular Control DNI».');return;}state.notice='El navegador no permite vincular la carpeta. Puedes usar «Elegir archivos» o la selección manual de carpeta.';render();host.querySelector('#sharedFolder').dataset.source=source;host.querySelector('#sharedFolder').click();}
  }
- async function run(action){if(state.busy)return;state.busy=true;render();try{await action();}catch(error){state.notice=error.message;}finally{state.busy=false;render();}}
+ async function run(action){if(state.busy)return;state.busy=true;state.notice='Revisando los archivos seleccionados…';render();await paint();try{await action();}catch(error){state.notice=readError(error);}finally{state.busy=false;render();}}
  async function refresh(){await run(async()=>{
   let manual=false;for(const [id,source] of state.sources){if(source.handle)await scan(id,await directoryFiles(source.handle));else manual=true;}
   state.notice=manual?'Carpetas vinculadas revisadas. Para actualizar las selecciones manuales, vuelve a elegir sus archivos.':'Revisión completada. Los cambios no se aplican hasta pulsar «Cargar selección».';
@@ -112,11 +132,14 @@ const SharedData=(()=>{
   host=document.createElement('section');host.id='sharedDataPanel';host.className='shared-data';root.before(host);render();
   host.addEventListener('click',event=>{const button=event.target.closest('button');if(!button||state.busy)return;if(button.dataset.pick)pick(button.dataset.pick);if(button.dataset.action==='refresh')refresh();if(button.dataset.action==='load')load();if(button.dataset.action==='files')host.querySelector('#sharedFiles').click();});
   host.addEventListener('change',event=>{
+   if(event.target.id==='sharedMasterEur'){state.masterEur=event.target.checked;return;}
    if(event.target.dataset.role){state.selection[event.target.dataset.role]=event.target.value;state.explicit.add(event.target.dataset.role);render();return;}
    if(!['sharedFiles','sharedFolder'].includes(event.target.id))return;
    const input=event.target,source=input.dataset.source||'bbdd';
-   const files=[...input.files].filter(file=>!file.webkitRelativePath||file.webkitRelativePath.split('/').length===2);
-   run(async()=>{await scan(source,files);state.sources.set(source,{name:files[0]?.webkitRelativePath?.split('/')[0]||'Archivos elegidos',handle:null});state.notice='Selección manual revisada. Para actualizarla tendrás que volver a elegir los archivos.';});
+   const selected=[...input.files],name=selected[0]?.webkitRelativePath?.split('/')[0]||'Archivos elegidos';
+   const files=selected.filter(file=>!file.webkitRelativePath||file.webkitRelativePath.split('/').length===2);
+   if(!selected.length){announce('Selección cancelada. Puedes volver a vincular la carpeta.');return;}
+   run(async()=>{await scan(source,files);state.sources.set(source,{name,handle:null});state.notice=scanResult(source)+' La actualización de esta selección manual requiere volver a elegir los archivos.';});
   });
  }
  document.addEventListener('DOMContentLoaded',init);

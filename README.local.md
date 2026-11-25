@@ -5,10 +5,12 @@ Descomprime el paquete completo en tu equipo y abre `local.html` con Chrome, Edg
 ## Primera carga
 
 1. Comprueba en OneDrive que tus carpetas corporativas han terminado de sincronizar. Marca las fuentes necesarias como disponibles en el dispositivo si utilizáis archivos solo en línea.
-2. En Panel de control, pulsa **Vincular BBDD** y selecciona `SL_SLAM_DPTO_GDC - General/Comités/BBDD`.
+2. En Panel de control, pulsa **Vincular BBDD**, entra directamente en `SL_SLAM_DPTO_GDC - General/Comités/BBDD` y confirma **Seleccionar carpeta** en el selector de Chrome. Seleccionar su carpeta superior no incorpora los Excel de las subcarpetas.
 3. Pulsa **Vincular Control DNI** y selecciona `SL_SLAM_DPTO_GDC - General/Dia Dia GDC & Gestión Pasiva/Dia Dia`.
 4. Revisa los candidatos. Elige el Maestro que corresponda: puede haber varias plantillas válidas. Confirma que sus históricos están expresados en EUR únicamente si lo has verificado.
 5. Pulsa **Cargar selección**. Revisa las fechas de valoración y los tipos de cambio pendientes en el panel.
+
+Al vincular se muestra el progreso y el número de Excel encontrados y reconocidos. Vincular descubre y propone los archivos: los datos se incorporan al análisis después de pulsar **Cargar selección**. Si no se encuentra ningún Excel, se indica qué carpeta seleccionar. Un archivo no disponible en OneDrive se señala con su nombre y no impide revisar los demás; comprueba que esté descargado en el equipo y vuelve a revisar.
 
 Se reconocen las hojas y las columnas, aunque cambie el nombre del archivo. Los tipos compatibles son universo/ranking, Maestro con pesos y precios, estados GDC y GICI, categorización, posiciones, saldos y Control DNI. El Control requiere su formato habitual de columnas y la hoja `Control DNI & TEST`. Los formatos desconocidos y los Excel temporales no se cargan. Solo se inspeccionan los archivos de primer nivel de las carpetas seleccionadas.
 
